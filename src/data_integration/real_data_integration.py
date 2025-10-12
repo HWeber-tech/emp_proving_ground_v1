@@ -48,6 +48,32 @@ if TYPE_CHECKING:  # pragma: no cover - typing support only
 logger = logging.getLogger(__name__)
 
 _PERIOD_PATTERN = re.compile(r"^(?P<value>\d+)(?P<unit>[smhdw])$", re.IGNORECASE)
+_DAILY_INTERVALS = {
+    "",
+    "1d",
+    "1day",
+    "day",
+    "daily",
+    "5d",
+    "1w",
+    "1wk",
+    "1week",
+    "weekly",
+    "1mo",
+    "1mth",
+    "1month",
+    "monthly",
+    "3mo",
+    "3month",
+    "6mo",
+    "6month",
+    "1y",
+    "1yr",
+    "year",
+    "yearly",
+    "annual",
+    "annually",
+}
 
 
 def _now() -> datetime:
@@ -102,7 +128,7 @@ def _normalise_dimension(interval: str | None, source: str | None) -> str:
     if interval is None:
         return "daily"
     normalised = interval.strip().lower()
-    if normalised in {"", "1d", "1day", "1w", "1wk", "daily"}:
+    if normalised in _DAILY_INTERVALS:
         return "daily"
     return "intraday"
 

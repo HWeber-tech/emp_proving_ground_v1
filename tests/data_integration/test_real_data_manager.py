@@ -297,3 +297,39 @@ def test_real_data_manager_connectivity_report_full_stack(tmp_path):
     assert report.kafka is True
 
     manager.close()
+
+
+def test_real_data_manager_monthly_interval_queries_daily_data(tmp_path):
+    url = f"sqlite:///{tmp_path / 'monthly_interval.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    manager = RealDataManager(timescale_settings=settings)
+
+    base = datetime(2024, 4, 10, tzinfo=timezone.utc)
+    manager.ingest_market_slice(
+        symbols=("EURUSD",),
+        daily_lookback_days=2,
+        intraday_lookback_days=0,
+        fetch_daily=lambda symbols, lookback: _daily_frame(base),
+    )
+
+    start = base - timedelta(days=5)
+    frame_monthly = manager.fetch_data(
+        "EURUSD",
+        interval="1mo",
+        start=start,
+        end=base,
+    )
+    assert not frame_monthly.empty
+    assert frame_monthly.iloc[-1]["close"] == pytest.approx(1.125)
+
+    frame_weekly = manager.fetch_data(
+        "EURUSD",
+        interval="weekly",
+        start=start,
+        end=base,
+    )
+    assert not frame_weekly.empty
+    assert frame_weekly.iloc[-1]["close"] == pytest.approx(1.125)
+
+    manager.close()

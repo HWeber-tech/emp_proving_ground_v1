@@ -164,6 +164,142 @@ class FinalDryRunResult:
         return DryRunStatus.pass_
 
 
+class _LogStats:
+    """Track aggregated statistics for runtime log streams."""
+
+    def __init__(self) -> None:
+        self._stream_counts: Counter[str] = Counter()
+        self._level_counts: Counter[str] = Counter()
+        self._total_lines = 0
+        self._first_line_at: datetime | None = None
+        self._last_line_at: datetime | None = None
+        self._lock = asyncio.Lock()
+
+    async def record(self, stream: str, level: Any, observed_at: datetime) -> None:
+        stream_key = str(stream or "unknown")
+        level_key = str(level or "unknown").lower()
+        async with self._lock:
+            self._stream_counts[stream_key] += 1
+            self._level_counts[level_key] += 1
+            self._total_lines += 1
+            if self._first_line_at is None or observed_at < self._first_line_at:
+                self._first_line_at = observed_at
+            if self._last_line_at is None or observed_at > self._last_line_at:
+                self._last_line_at = observed_at
+
+    async def snapshot(self) -> Mapping[str, Any]:
+        async with self._lock:
+            return {
+                "lines": Counter(self._stream_counts),
+                "levels": Counter(self._level_counts),
+                "total_lines": self._total_lines,
+                "first_line_at": (
+                    self._first_line_at.astimezone(UTC).isoformat()
+                    if self._first_line_at is not None
+                    else None
+                ),
+                "last_line_at": (
+                    self._last_line_at.astimezone(UTC).isoformat()
+                    if self._last_line_at is not None
+                    else None
+                ),
+            }
+
+
+class _ProgressReporter:
+    """Persist periodic progress snapshots for the dry run harness."""
+
+    def __init__(
+        self,
+        *,
+        path: Path,
+        config: FinalDryRunConfig,
+        stats: _LogStats,
+        started_at: datetime,
+        interval: timedelta,
+    ) -> None:
+        self._path = Path(path)
+        self._config = config
+        self._stats = stats
+        self._started_at = started_at
+        self._interval_seconds = max(interval.total_seconds(), 0.01)
+        self._status = "pending"
+        self._phase = "startup"
+        self._lock = asyncio.Lock()
+
+    async def run(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(self._interval_seconds)
+                await self.write(status=self._status, phase="running")
+        except asyncio.CancelledError:
+            raise
+
+    async def write(
+        self,
+        *,
+        status: str | None = None,
+        phase: str | None = None,
+        now: datetime | None = None,
+        exit_code: int | None = None,
+        incidents: Sequence[HarnessIncident] | None = None,
+        summary: DryRunSummary | None = None,
+        sign_off: DryRunSignOffReport | None = None,
+    ) -> None:
+        if status is not None:
+            self._status = status
+        if phase is not None:
+            self._phase = phase
+        now_value = now or datetime.now(tz=UTC)
+
+        stats_snapshot = await self._stats.snapshot()
+        line_counts = {
+            str(key): value for key, value in stats_snapshot.get("lines", {}).items()
+        }
+        level_counts = {
+            str(key): value for key, value in stats_snapshot.get("levels", {}).items()
+        }
+
+        payload: dict[str, Any] = {
+            "status": self._status,
+            "phase": self._phase,
+            "now": now_value.astimezone(UTC).isoformat(),
+            "started_at": self._started_at.astimezone(UTC).isoformat(),
+            "elapsed_seconds": (now_value - self._started_at).total_seconds(),
+            "target_duration_seconds": self._config.duration.total_seconds(),
+            "required_duration_seconds": self._config.required_duration.total_seconds()
+            if self._config.required_duration is not None
+            else None,
+            "total_lines": stats_snapshot.get("total_lines", 0),
+            "line_counts": line_counts,
+            "level_counts": level_counts,
+            "first_line_at": stats_snapshot.get("first_line_at"),
+            "last_line_at": stats_snapshot.get("last_line_at"),
+            "command": list(self._config.command),
+            "minimum_uptime_ratio": self._config.minimum_uptime_ratio,
+            "require_diary_evidence": self._config.require_diary_evidence,
+            "require_performance_evidence": self._config.require_performance_evidence,
+        }
+
+        if exit_code is not None:
+            payload["exit_code"] = exit_code
+        if incidents:
+            payload["incidents"] = [incident.as_dict() for incident in incidents]
+        if summary is not None:
+            payload["summary"] = summary.as_dict()
+        if sign_off is not None:
+            payload["sign_off"] = sign_off.as_dict()
+        if self._config.metadata:
+            payload["config_metadata"] = {
+                str(key): value for key, value in self._config.metadata.items()
+            }
+
+        data = json.dumps(payload, indent=2, sort_keys=True)
+        async with self._lock:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(self._path.write_text, data, encoding="utf-8")
+
+
 async def perform_final_dry_run(
     config: FinalDryRunConfig,
     *,
@@ -185,6 +321,8 @@ async def perform_final_dry_run(
     log_lock = asyncio.Lock()
     log_file = log_path.open("w", encoding="utf-8")
     raw_file = raw_log_path.open("w", encoding="utf-8")
+
+    stats = _LogStats()
 
     env = None
     if config.environment is not None:
@@ -211,11 +349,14 @@ async def perform_final_dry_run(
             config.progress_path
             or config.log_directory / f"final_dry_run_{slug}_progress.json"
         )
+        interval_value = config.progress_interval
+        assert interval_value is not None  # safeguard for type narrowing
         progress_reporter = _ProgressReporter(
             path=progress_path_value,
             config=config,
             stats=stats,
             started_at=started_at,
+            interval=interval_value,
         )
         await progress_reporter.write(
             status="starting",
@@ -286,7 +427,7 @@ async def perform_final_dry_run(
                 "interval_seconds": config.progress_interval.total_seconds(),
             },
         )
-        await progress_reporter.write(status="running")
+        await progress_reporter.write(status="running", phase="running")
 
     duration_seconds = config.duration.total_seconds()
     timeout_task = supervisor.create(

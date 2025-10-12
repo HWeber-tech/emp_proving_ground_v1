@@ -19,7 +19,7 @@ from src.data_foundation.streaming.kafka_stream import (
 )
 from src.data_foundation.ingest.telemetry import CompositeIngestPublisher
 from src.data_integration.real_data_integration import RealDataManager
-from src.governance.system_config import SystemConfig
+from src.governance.system_config import DataBackboneMode, SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.understanding.belief import BeliefState, RegimeSignal
 from src.understanding.live_belief_manager import LiveBeliefManager
@@ -44,6 +44,25 @@ def _normalise_symbols(values: Sequence[str]) -> tuple[str, ...]:
     if not seen:
         raise ValueError("symbols must contain at least one non-empty entry")
     return tuple(seen)
+
+
+_TRUE_SENTINELS = {"1", "true", "yes", "y", "on"}
+_FALSE_SENTINELS = {"0", "false", "no", "n", "off"}
+
+
+def _parse_bool_flag(value: object | None, default: bool) -> bool:
+    """Coerce string-like configuration flags into booleans."""
+
+    if value is None:
+        return default
+    text = str(value).strip().lower().replace("-", "_")
+    if not text:
+        return default
+    if text in _TRUE_SENTINELS:
+        return True
+    if text in _FALSE_SENTINELS:
+        return False
+    return default
 
 
 @dataclass(slots=True, frozen=True)
@@ -847,6 +866,15 @@ def create_operational_backbone_pipeline(
         extras.update({str(key): str(value) for key, value in extras_override.items()})
 
     manager_params = dict(manager_kwargs or {})
+    streaming_enabled = _parse_bool_flag(
+        extras.get("KAFKA_INGEST_ENABLE_STREAMING"),
+        True,
+    )
+    if system_config.data_backbone_mode is DataBackboneMode.institutional:
+        extras.setdefault("DATA_BACKBONE_REQUIRE_TIMESCALE", "true")
+        extras.setdefault("DATA_BACKBONE_REQUIRE_REDIS", "true")
+        if streaming_enabled:
+            extras.setdefault("DATA_BACKBONE_REQUIRE_KAFKA", "true")
     manager_params.setdefault("system_config", system_config)
     manager_params.setdefault("extras", extras)
     if task_supervisor is not None:

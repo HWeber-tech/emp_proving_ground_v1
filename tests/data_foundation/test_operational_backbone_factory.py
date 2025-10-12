@@ -6,6 +6,11 @@ import pandas as pd
 import pytest
 
 from src.core.event_bus import EventBus
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisCachePolicy,
+)
 from src.data_foundation.pipelines.operational_backbone import (
     OperationalIngestRequest,
     create_operational_backbone_pipeline,
@@ -21,6 +26,12 @@ from src.governance.system_config import (
 )
 from src.runtime.task_supervisor import TaskSupervisor
 from src.sensory.real_sensory_organ import RealSensoryOrgan
+
+
+try:  # pragma: no cover - optional dependency used when available
+    import fakeredis
+except Exception:  # pragma: no cover - fakeredis is optional in CI
+    fakeredis = None  # type: ignore[assignment]
 
 
 def _daily_frame(base: datetime) -> pd.DataFrame:
@@ -73,6 +84,15 @@ def _intraday_frame(base: datetime) -> pd.DataFrame:
     )
 
 
+def _managed_cache(policy: RedisCachePolicy | None = None) -> ManagedRedisCache:
+    policy = policy or RedisCachePolicy.institutional_defaults()
+    if fakeredis is not None:
+        client = fakeredis.FakeRedis()
+    else:
+        client = InMemoryRedis()
+    return ManagedRedisCache(client, policy)
+
+
 @pytest.mark.asyncio()
 async def test_create_operational_backbone_pipeline(tmp_path):
     db_path = tmp_path / "operational_backbone.db"
@@ -84,6 +104,7 @@ async def test_create_operational_backbone_pipeline(tmp_path):
         data_backbone_mode=DataBackboneMode.institutional,
         extras={
             "TIMESCALEDB_URL": f"sqlite:///{db_path}",
+            "KAFKA_INGEST_ENABLE_STREAMING": "false",
         },
     )
 
@@ -95,6 +116,7 @@ async def test_create_operational_backbone_pipeline(tmp_path):
         event_bus=event_bus,
         sensory_organ=sensory,
         event_topics=("telemetry.sensory.snapshot",),
+        manager_kwargs={"managed_cache": _managed_cache()},
     )
 
     # Sanity check that the pipeline is wired with a RealDataManager instance.
@@ -147,6 +169,7 @@ async def test_operational_backbone_pipeline_uses_provided_supervisor(tmp_path) 
         data_backbone_mode=DataBackboneMode.institutional,
         extras={
             "TIMESCALEDB_URL": f"sqlite:///{db_path}",
+            "KAFKA_INGEST_ENABLE_STREAMING": "false",
         },
     )
 
@@ -158,6 +181,7 @@ async def test_operational_backbone_pipeline_uses_provided_supervisor(tmp_path) 
         event_bus=event_bus,
         sensory_organ=None,
         task_supervisor=supervisor,
+        manager_kwargs={"managed_cache": _managed_cache()},
     )
 
     try:
@@ -167,3 +191,49 @@ async def test_operational_backbone_pipeline_uses_provided_supervisor(tmp_path) 
         assert owns_flag is False
     finally:
         await pipeline.shutdown()
+
+
+def test_create_operational_backbone_pipeline_requires_timescale(tmp_path):
+    config = SystemConfig(
+        run_mode=RunMode.paper,
+        environment=EmpEnvironment.demo,
+        tier=EmpTier.tier_1,
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras={"KAFKA_INGEST_ENABLE_STREAMING": "false"},
+    )
+
+    event_bus = EventBus()
+
+    with pytest.raises(RuntimeError, match="Timescale connection required"):
+        create_operational_backbone_pipeline(
+            config,
+            event_bus=event_bus,
+            sensory_organ=None,
+            manager_kwargs={"managed_cache": _managed_cache()},
+        )
+
+
+def test_create_operational_backbone_pipeline_requires_kafka_when_streaming(tmp_path):
+    db_path = tmp_path / "operational_backbone_kafka.db"
+    config = SystemConfig(
+        run_mode=RunMode.paper,
+        environment=EmpEnvironment.demo,
+        tier=EmpTier.tier_1,
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras={
+            "TIMESCALEDB_URL": f"sqlite:///{db_path}",
+            "KAFKA_INGEST_ENABLE_STREAMING": "true",
+        },
+    )
+
+    event_bus = EventBus()
+
+    with pytest.raises(RuntimeError, match="Kafka connection required"):
+        create_operational_backbone_pipeline(
+            config,
+            event_bus=event_bus,
+            sensory_organ=None,
+            manager_kwargs={"managed_cache": _managed_cache()},
+        )

@@ -19,6 +19,7 @@ from src.governance.system_config import (
     RunMode,
     SystemConfig,
 )
+from src.runtime.task_supervisor import TaskSupervisor
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 
 
@@ -133,3 +134,36 @@ async def test_create_operational_backbone_pipeline(tmp_path):
     assert int(metrics_after.get("hits", 0)) >= 0
 
     assert not event_bus.is_running()
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_uses_provided_supervisor(tmp_path) -> None:
+    db_path = tmp_path / "operational_backbone_supervisor.db"
+    config = SystemConfig(
+        run_mode=RunMode.paper,
+        environment=EmpEnvironment.demo,
+        tier=EmpTier.tier_1,
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+        extras={
+            "TIMESCALEDB_URL": f"sqlite:///{db_path}",
+        },
+    )
+
+    event_bus = EventBus()
+    supervisor = TaskSupervisor(namespace="operational-pipeline-test")
+
+    pipeline = create_operational_backbone_pipeline(
+        config,
+        event_bus=event_bus,
+        sensory_organ=None,
+        task_supervisor=supervisor,
+    )
+
+    try:
+        resolved_supervisor = getattr(pipeline, "_task_supervisor", None)
+        owns_flag = getattr(pipeline, "_owns_task_supervisor", None)
+        assert resolved_supervisor is supervisor
+        assert owns_flag is False
+    finally:
+        await pipeline.shutdown()

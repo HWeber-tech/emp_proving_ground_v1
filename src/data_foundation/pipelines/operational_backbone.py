@@ -725,6 +725,7 @@ def create_operational_backbone_pipeline(
             sensory_organ=sensory_organ,
             event_topics=resolved_topics,
             auto_close_consumer=bool(auto_close_consumer),
+            task_supervisor=task_supervisor,
         )
     except Exception:
         manager.close()

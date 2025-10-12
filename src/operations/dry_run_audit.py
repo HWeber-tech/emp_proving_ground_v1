@@ -329,6 +329,7 @@ class DryRunPerformanceSummary:
     total_trades: int
     roi: float | None
     win_rate: float | None
+    sharpe_ratio: float | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     @property
@@ -336,6 +337,14 @@ class DryRunPerformanceSummary:
         if self.roi is not None and self.roi < 0:
             return DryRunStatus.warn
         return DryRunStatus.pass_
+
+    @property
+    def window_duration(self) -> timedelta:
+        """Duration covered by the performance telemetry."""
+
+        if self.generated_at < self.period_start:
+            return timedelta(0)
+        return self.generated_at - self.period_start
 
     def as_dict(self) -> Mapping[str, Any]:
         payload: MutableMapping[str, Any] = {
@@ -349,6 +358,10 @@ class DryRunPerformanceSummary:
             payload["roi"] = self.roi
         if self.win_rate is not None:
             payload["win_rate"] = self.win_rate
+        if self.sharpe_ratio is not None:
+            payload["sharpe_ratio"] = self.sharpe_ratio
+        if self.window_duration:
+            payload["window_duration_seconds"] = self.window_duration.total_seconds()
         return payload
 
     def to_markdown(self) -> str:
@@ -363,6 +376,13 @@ class DryRunPerformanceSummary:
             rows.append(f"| ROI | {self.roi:.4f} |")
         if self.win_rate is not None:
             rows.append(f"| Win rate | {self.win_rate:.4f} |")
+        if self.sharpe_ratio is not None:
+            rows.append(f"| Sharpe ratio | {self.sharpe_ratio:.4f} |")
+        rows.append(
+            f"| Window | {humanise_timedelta(self.window_duration)} |"
+            if self.window_duration
+            else "| Window | 0s |"
+        )
         return "\n".join(rows)
 
     @classmethod
@@ -376,13 +396,18 @@ class DryRunPerformanceSummary:
             total_trades = int(aggregates.get("trades", payload.get("trades", 0)))
             roi_raw = aggregates.get("roi")
             win_rate_raw = aggregates.get("win_rate")
+            sharpe_raw = aggregates.get("sharpe_ratio") or aggregates.get("sharpe")
         else:
             total_trades = int(payload.get("trades", 0))
             roi_raw = payload.get("roi")
             win_rate_raw = payload.get("win_rate")
+            sharpe_raw = payload.get("sharpe_ratio") or payload.get("sharpe")
         roi = float(roi_raw) if isinstance(roi_raw, (int, float)) else None
         win_rate = float(win_rate_raw) if isinstance(win_rate_raw, (int, float)) else None
         metadata_payload = payload.get("metadata", {})
+        if sharpe_raw is None and isinstance(metadata_payload, Mapping):
+            sharpe_raw = metadata_payload.get("sharpe_ratio") or metadata_payload.get("sharpe")
+        sharpe_ratio = float(sharpe_raw) if isinstance(sharpe_raw, (int, float)) else None
         metadata = dict(metadata_payload) if isinstance(metadata_payload, Mapping) else {}
         return cls(
             generated_at=generated_at,
@@ -390,6 +415,7 @@ class DryRunPerformanceSummary:
             total_trades=total_trades,
             roi=roi,
             win_rate=win_rate,
+            sharpe_ratio=sharpe_ratio,
             metadata=metadata,
         )
 
@@ -882,6 +908,7 @@ def assess_sign_off_readiness(
     require_diary: bool = False,
     require_performance: bool = False,
     allow_warnings: bool = False,
+    minimum_sharpe_ratio: float | None = None,
 ) -> DryRunSignOffReport:
     """Evaluate whether a dry run summary satisfies sign-off criteria."""
 
@@ -893,7 +920,11 @@ def assess_sign_off_readiness(
         "require_diary": require_diary,
         "require_performance": require_performance,
         "allow_warnings": allow_warnings,
+        "minimum_sharpe_ratio": minimum_sharpe_ratio,
     }
+
+    if minimum_sharpe_ratio is not None and minimum_sharpe_ratio < 0:
+        raise ValueError("minimum_sharpe_ratio must be non-negative")
 
     findings: list[DryRunSignOffFinding] = []
 
@@ -988,7 +1019,8 @@ def assess_sign_off_readiness(
             )
 
     performance_summary = summary.performance_summary
-    if require_performance:
+    performance_required = require_performance or minimum_sharpe_ratio is not None
+    if performance_required:
         if performance_summary is None:
             findings.append(
                 DryRunSignOffFinding(
@@ -1008,6 +1040,34 @@ def assess_sign_off_readiness(
                 DryRunSignOffFinding(
                     severity=(DryRunStatus.warn if allow_warnings else DryRunStatus.fail),
                     message="Performance telemetry indicates warnings.",
+                )
+            )
+        if (
+            performance_summary is not None
+            and minimum_sharpe_ratio is not None
+            and performance_summary.sharpe_ratio is not None
+            and performance_summary.sharpe_ratio < minimum_sharpe_ratio
+        ):
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Sharpe ratio below required minimum.",
+                    metadata={
+                        "required_sharpe_ratio": minimum_sharpe_ratio,
+                        "actual_sharpe_ratio": performance_summary.sharpe_ratio,
+                    },
+                )
+            )
+        if (
+            performance_summary is not None
+            and minimum_sharpe_ratio is not None
+            and performance_summary.sharpe_ratio is None
+        ):
+            findings.append(
+                DryRunSignOffFinding(
+                    severity=DryRunStatus.fail,
+                    message="Sharpe ratio is unavailable in performance telemetry.",
+                    metadata={"required_sharpe_ratio": minimum_sharpe_ratio},
                 )
             )
 

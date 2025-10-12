@@ -346,13 +346,39 @@ class RealDataManager(MarketDataGateway):
 
         end_dt = _coerce_datetime(end)
         start_dt = _coerce_datetime(start)
-        if start_dt is None:
-            delta = _parse_period(period)
-            if delta is not None and end_dt is not None:
+
+        delta = _parse_period(period)
+        if delta is not None:
+            if end_dt is None:
+                end_dt = _now()
+            if start_dt is None and end_dt is not None:
                 start_dt = end_dt - delta
+
+        if start_dt is not None and end_dt is not None and start_dt > end_dt:
+            start_dt, end_dt = end_dt, start_dt
 
         result = self._fetch_timescale(dimension, symbol, start_dt, end_dt)
         frame = self._normalise_frame(result, dimension)
+
+        if frame.empty and delta is not None and end is None:
+            fallback_result = self._fetch_timescale(dimension, symbol, None, None)
+            fallback_frame = self._normalise_frame(fallback_result, dimension)
+            if fallback_frame.empty:
+                return fallback_frame.reset_index(drop=True)
+
+            latest_ts = pd.to_datetime(
+                fallback_frame["timestamp"].max(),
+                utc=True,
+                errors="coerce",
+            )
+            if latest_ts is not None and not pd.isna(latest_ts):
+                end_dt = latest_ts.to_pydatetime()
+            else:
+                end_dt = _now()
+            start_dt = end_dt - delta
+            mask = fallback_frame["timestamp"] >= start_dt
+            frame = fallback_frame.loc[mask]
+
         if not frame.empty and "symbol" in frame.columns:
             frame = frame.loc[frame["symbol"].astype(str) == symbol]
         return frame.reset_index(drop=True)

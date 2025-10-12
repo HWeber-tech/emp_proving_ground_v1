@@ -150,6 +150,56 @@ def test_real_data_manager_ingest_fetch_and_cache(tmp_path):
         flush()
 
 
+def _daily_history(base: datetime, days: int) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for idx in range(days):
+        current = base - timedelta(days=days - idx - 1)
+        rows.append(
+            {
+                "date": current,
+                "symbol": "EURUSD",
+                "open": 1.10 + idx * 0.001,
+                "high": 1.12 + idx * 0.001,
+                "low": 1.08 + idx * 0.001,
+                "close": 1.11 + idx * 0.001,
+                "adj_close": 1.105 + idx * 0.001,
+                "volume": 1000 + idx * 100,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def test_real_data_manager_period_without_end_defaults_to_now(monkeypatch, tmp_path):
+    url = f"sqlite:///{tmp_path / 'period_defaults.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+    manager = RealDataManager(timescale_settings=settings)
+
+    base = datetime(2024, 1, 3, tzinfo=timezone.utc)
+    plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=("EURUSD",), lookback_days=3)
+    )
+
+    manager.run_ingest_plan(
+        plan,
+        fetch_daily=lambda symbols, lookback: _daily_history(base, 3),
+    )
+
+    future_now = base + timedelta(hours=12)
+    monkeypatch.setattr(real_data_module, "_now", lambda: future_now)
+
+    one_day = manager.fetch_data("EURUSD", interval="1d", period="1d")
+    assert len(one_day) == 1
+    assert pd.to_datetime(one_day["timestamp"].iloc[0], utc=True) == base
+
+    two_day = manager.fetch_data("EURUSD", interval="1d", period="2d")
+    assert len(two_day) == 2
+    timestamps = pd.to_datetime(two_day["timestamp"], utc=True)
+    expected = [base - timedelta(days=1), base]
+    assert list(timestamps) == expected
+
+    manager.close()
+
+
 def test_real_data_manager_ingest_market_slice_defaults(monkeypatch, tmp_path):
     url = f"sqlite:///{tmp_path / 'market_slice.db'}"
     settings = TimescaleConnectionSettings(url=url)

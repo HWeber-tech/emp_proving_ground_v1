@@ -291,8 +291,7 @@ class PaperBrokerExecutionAdapter:
         avg_latency: float | None = None
         if self._latency_samples > 0:
             avg_latency = self._total_latency / self._latency_samples
-        success_ratio: float
-        failure_ratio: float
+
         if self._total_orders > 0:
             total = float(self._total_orders)
             success_ratio = self._successful_orders / total
@@ -300,7 +299,8 @@ class PaperBrokerExecutionAdapter:
         else:
             success_ratio = 0.0
             failure_ratio = 0.0
-        return {
+
+        payload: MutableMapping[str, object | None] = {
             "total_orders": self._total_orders,
             "successful_orders": self._successful_orders,
             "failed_orders": self._failed_orders,
@@ -310,13 +310,15 @@ class PaperBrokerExecutionAdapter:
             "success_ratio": success_ratio,
             "failure_ratio": failure_ratio,
         }
+
         if self._first_order_time is not None:
             payload["first_order_at"] = self._first_order_time.isoformat()
         if self._last_order_time is not None:
             payload["last_order_at"] = self._last_order_time.isoformat()
         if self._last_error_time is not None:
             payload["last_error_at"] = self._last_error_time.isoformat()
-        return payload
+
+        return dict(payload)
 
     def consume_order_history(self) -> list[Mapping[str, object]]:
         """Return and clear the buffered successfully submitted orders."""

@@ -156,6 +156,46 @@ class LiveBeliefManager:
             apply_threshold_scaling=apply_threshold_scaling,
         )
 
+    def recalibrate_from_market_data(
+        self,
+        market_data: pd.DataFrame,
+        *,
+        reset_states: bool = True,
+    ) -> BeliefRegimeCalibration | None:
+        """Re-derive calibration parameters from fresh market data."""
+
+        if market_data.empty:
+            raise ValueError("Market data frame is empty; cannot recalibrate belief state")
+
+        calibration = calibrate_from_market_data(market_data)
+        if calibration is None:
+            return None
+
+        buffer = self._emitter.buffer
+        buffer.apply_hyperparameters(
+            learning_rate=calibration.learning_rate,
+            decay=calibration.decay,
+            max_variance=calibration.max_variance,
+            min_variance=calibration.min_variance,
+            volatility_features=calibration.volatility_features,
+            volatility_window=calibration.volatility_window,
+            reset_states=reset_states,
+            reset_volatility=True,
+        )
+        self._regime_fsm.reconfigure(
+            calm_threshold=calibration.calm_threshold,
+            storm_threshold=calibration.storm_threshold,
+            volatility_feature=calibration.volatility_feature,
+            volatility_window=calibration.volatility_window,
+            reset_history=True,
+            reset_dynamic_thresholds=True,
+        )
+        self._calibration = calibration
+        self._threshold_scale = 1.0
+        self._base_calm_threshold = calibration.calm_threshold
+        self._base_storm_threshold = calibration.storm_threshold
+        return calibration
+
     def process_snapshot(
         self,
         snapshot: Mapping[str, object],

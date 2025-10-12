@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -199,9 +200,61 @@ def test_live_belief_manager_regime_transitions_with_snapshots() -> None:
 
     assert last_state.volatility_state == "storm"
 
+
+@pytest.mark.guardrail
+def test_live_belief_manager_recalibrate_from_market_data() -> None:
+    calm_prices = [1.1 + (idx * 0.00005) for idx in range(48)]
+    calm_frame = _frame_from_prices(calm_prices)
+    bus = _RecordingBus()
+
+    manager, _snapshot, _state, _signal = LiveBeliefManager.from_market_data(
+        market_data=calm_frame,
+        symbol="EURUSD",
+        belief_id="recalibration-test",
+        event_bus=bus,
+    )
+
+    buffer = manager.emitter.buffer
+    fsm = manager.regime_fsm
+    baseline_learning = buffer.learning_rate
+    baseline_decay = buffer.decay
+    baseline_calm = fsm.calm_threshold
+    baseline_storm = fsm.storm_threshold
+    baseline_window = buffer.volatility_window
+
+    assert len(buffer) >= 1
+
+    storm_prices = [1.1 + ((-1) ** idx) * 0.02 * (1 + (idx % 3)) for idx in range(64)]
+    storm_frame = _frame_from_prices(storm_prices)
+
+    calibration = manager.recalibrate_from_market_data(storm_frame)
+    assert calibration is not None
+    assert manager.calibration is calibration
+    assert len(buffer) == 0
+    assert buffer.learning_rate == pytest.approx(calibration.learning_rate)
+    assert buffer.decay == pytest.approx(calibration.decay)
+    assert buffer.volatility_window == calibration.volatility_window
+    assert buffer.volatility_features == calibration.volatility_features
+    assert fsm.calm_threshold == pytest.approx(calibration.calm_threshold)
+    assert fsm.storm_threshold == pytest.approx(calibration.storm_threshold)
+    assert fsm.volatility_feature == calibration.volatility_feature
+    assert buffer.learning_rate >= baseline_learning
+    assert buffer.decay >= baseline_decay
+    assert not math.isclose(fsm.calm_threshold, baseline_calm)
+    assert not math.isclose(fsm.storm_threshold, baseline_storm)
+    assert buffer.volatility_window != baseline_window
+
+    snapshot, belief_state, regime_signal = manager.process_market_data(
+        storm_frame,
+        apply_threshold_scaling=False,
+    )
+    assert manager.last_snapshot is snapshot
     covariance = np.array(belief_state.posterior.covariance)
     eigenvalues = np.linalg.eigvalsh(covariance)
     assert np.all(eigenvalues >= -1e-9)
+    assert regime_signal.regime_state.volatility_state in {"storm", "normal"}
+    assert any(event.type == "telemetry.understanding.belief" for event in bus.events)
+    assert any(event.type == "telemetry.understanding.regime" for event in bus.events)
 
     regime_events = [event for event in bus.events if event.type == "telemetry.understanding.regime"]
     assert regime_events, "expected regime telemetry to be published"

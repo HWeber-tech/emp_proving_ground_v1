@@ -284,8 +284,83 @@ class BeliefBuffer:
     def feature_order(self) -> tuple[str, ...] | None:
         return self._feature_order
 
+    @property
+    def learning_rate(self) -> float:
+        return self._learning_rate
+
+    @property
+    def decay(self) -> float:
+        return self._decay
+
+    @property
+    def max_variance(self) -> float | None:
+        return self._max_variance
+
+    @property
+    def min_variance(self) -> float:
+        return self._min_variance
+
+    @property
+    def volatility_features(self) -> tuple[str, ...]:
+        return self._volatility_features
+
+    @property
+    def volatility_window(self) -> int:
+        return self._volatility_history.maxlen
+
     def latest(self) -> BeliefState | None:
         return self._states[0] if self._states else None
+
+    def apply_hyperparameters(
+        self,
+        *,
+        learning_rate: float | None = None,
+        decay: float | None = None,
+        max_variance: float | None = None,
+        min_variance: float | None = None,
+        volatility_features: Sequence[str] | None = None,
+        volatility_window: int | None = None,
+        reset_states: bool = False,
+        reset_volatility: bool = False,
+    ) -> None:
+        """Adjust buffer hyperparameters without reinstantiation."""
+
+        if learning_rate is not None:
+            if learning_rate <= 0.0:
+                raise ValueError("learning_rate must be positive")
+            self._learning_rate = float(learning_rate)
+        if decay is not None:
+            if not 0.0 < decay <= 1.0:
+                raise ValueError("decay must be in (0, 1]")
+            self._decay = float(decay)
+        if min_variance is not None:
+            if min_variance <= 0.0:
+                raise ValueError("min_variance must be positive")
+            self._min_variance = float(min_variance)
+        if max_variance is not None:
+            if max_variance <= 0.0:
+                raise ValueError("max_variance must be positive when provided")
+            self._max_variance = float(max_variance)
+        if self._max_variance is not None and self._max_variance <= self._min_variance:
+            raise ValueError("max_variance must exceed min_variance")
+
+        if volatility_features is not None:
+            features = tuple(str(name) for name in volatility_features if str(name))
+            self._volatility_features = features or ("HOW_signal",)
+        if volatility_window is not None:
+            if volatility_window <= 1:
+                raise ValueError("volatility_window must be greater than 1")
+            self._volatility_history = deque(self._volatility_history, maxlen=volatility_window)
+
+        if reset_volatility:
+            self._volatility_history.clear()
+        if reset_states:
+            self._states = deque(maxlen=self._window)
+            self._support = 0
+            self._latest_covariance_trace = None
+            self._latest_covariance_condition = None
+            self._latest_covariance_max = None
+            self._latest_covariance_min = None
 
     def update(
         self,
@@ -587,6 +662,10 @@ class BeliefEmitter:
         self._event_type = event_type
         self._global_bus_factory = global_bus_factory
 
+    @property
+    def buffer(self) -> BeliefBuffer:
+        return self._buffer
+
     def emit(
         self,
         sensory_snapshot: Mapping[str, object],
@@ -677,6 +756,79 @@ class RegimeFSM:
         self._storm_percentile = storm_percentile
         self._dynamic_calm_threshold: float | None = None
         self._dynamic_storm_threshold: float | None = None
+
+    @property
+    def calm_threshold(self) -> float:
+        return self._calm_threshold
+
+    @property
+    def storm_threshold(self) -> float:
+        return self._storm_threshold
+
+    @property
+    def volatility_feature(self) -> str:
+        return self._volatility_feature
+
+    @property
+    def volatility_window(self) -> int:
+        return self._volatility_history.maxlen
+
+    @property
+    def adaptive_thresholds(self) -> bool:
+        return self._adaptive_thresholds
+
+    def reconfigure(
+        self,
+        *,
+        calm_threshold: float | None = None,
+        storm_threshold: float | None = None,
+        volatility_feature: str | None = None,
+        volatility_window: int | None = None,
+        adaptive_thresholds: bool | None = None,
+        calibration_min_samples: int | None = None,
+        calm_percentile: float | None = None,
+        storm_percentile: float | None = None,
+        reset_history: bool = False,
+        reset_dynamic_thresholds: bool = True,
+    ) -> None:
+        """Update volatility thresholds and history to match new calibration."""
+
+        if calm_threshold is not None:
+            if calm_threshold < 0.0:
+                raise ValueError("calm_threshold must be non-negative")
+            self._calm_threshold = float(calm_threshold)
+        if storm_threshold is not None:
+            if storm_threshold <= 0.0:
+                raise ValueError("storm_threshold must be positive")
+            self._storm_threshold = float(storm_threshold)
+        if self._storm_threshold <= self._calm_threshold:
+            self._storm_threshold = self._calm_threshold + 1e-6
+
+        if volatility_feature is not None:
+            self._volatility_feature = str(volatility_feature)
+        if volatility_window is not None:
+            if volatility_window <= 1:
+                raise ValueError("volatility_window must be greater than 1")
+            self._volatility_history = deque(self._volatility_history, maxlen=volatility_window)
+        if adaptive_thresholds is not None:
+            self._adaptive_thresholds = bool(adaptive_thresholds)
+        if calibration_min_samples is not None:
+            if calibration_min_samples <= 1:
+                raise ValueError("calibration_min_samples must be greater than 1")
+            self._calibration_min_samples = int(calibration_min_samples)
+        if calm_percentile is not None or storm_percentile is not None:
+            calm_value = calm_percentile if calm_percentile is not None else self._calm_percentile
+            storm_value = storm_percentile if storm_percentile is not None else self._storm_percentile
+            if not 0.0 <= calm_value < storm_value <= 1.0:
+                raise ValueError("percentiles must satisfy 0 <= calm < storm <= 1")
+            self._calm_percentile = float(calm_value)
+            self._storm_percentile = float(storm_value)
+
+        if reset_history:
+            self._volatility_history.clear()
+        if reset_dynamic_thresholds:
+            self._dynamic_calm_threshold = None
+            self._dynamic_storm_threshold = None
 
     def classify(self, belief_state: BeliefState) -> RegimeSignal:
         posterior = belief_state.posterior

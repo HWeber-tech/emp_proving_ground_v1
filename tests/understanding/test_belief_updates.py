@@ -307,3 +307,48 @@ def test_belief_buffer_handles_dynamic_feature_sets() -> None:
 
     covariance = np.array(contracted_state.posterior.covariance)
     assert covariance.shape == (len(extended_order), len(extended_order))
+
+
+def test_belief_buffer_apply_hyperparameters_resets_state_history() -> None:
+    bus = _StubEventBus()
+    buffer = BeliefBuffer(
+        belief_id="hyper-params",
+        learning_rate=0.12,
+        decay=0.04,
+        max_variance=0.4,
+        min_variance=1e-6,
+        volatility_window=16,
+    )
+    emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+
+    base_time = datetime(2025, 1, 1, tzinfo=UTC)
+    for index in range(3):
+        snapshot = _build_snapshot(
+            strength=0.1 * (index + 1),
+            confidence=0.6,
+            timestamp=base_time + timedelta(minutes=index),
+            lineage_counter=index,
+        )
+        emitter.emit(snapshot)
+
+    assert len(buffer) == 3
+
+    buffer.apply_hyperparameters(
+        learning_rate=0.28,
+        decay=0.12,
+        max_variance=0.15,
+        min_variance=1e-5,
+        volatility_features=("HOW_signal",),
+        volatility_window=24,
+        reset_states=True,
+        reset_volatility=True,
+    )
+
+    assert len(buffer) == 0
+    assert buffer.learning_rate == pytest.approx(0.28)
+    assert buffer.decay == pytest.approx(0.12)
+    assert buffer.max_variance == pytest.approx(0.15)
+    assert buffer.min_variance == pytest.approx(1e-5)
+    assert buffer.volatility_features == ("HOW_signal",)
+    assert buffer.volatility_window == 24
+    assert buffer.latest() is None

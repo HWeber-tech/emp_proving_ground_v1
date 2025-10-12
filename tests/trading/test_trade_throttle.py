@@ -54,6 +54,7 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     assert second_metadata.get("retry_in_seconds") == pytest.approx(
         expected_retry_seconds
     )
+    assert second.retry_in_seconds == pytest.approx(expected_retry_seconds)
     assert second_metadata.get("remaining_trades") == 0
     assert second_metadata.get("window_utilisation") == pytest.approx(1.0)
     expected_reset = base + timedelta(seconds=60)
@@ -77,6 +78,7 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
         remaining = max((third.retry_at - third_time).total_seconds(), 0.0)
         third_meta = third.snapshot.get("metadata", {})
         assert third_meta.get("retry_in_seconds") == pytest.approx(remaining)
+        assert third.retry_in_seconds == pytest.approx(remaining)
         reset_at_third = third_meta.get("window_reset_at")
         assert isinstance(reset_at_third, str)
         reset_dt_third = datetime.fromisoformat(reset_at_third)
@@ -91,6 +93,7 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
         assert third.snapshot["state"] == "rate_limited"
         third_meta = third.snapshot.get("metadata", {})
         assert third_meta.get("retry_in_seconds") == pytest.approx(45.0)
+        assert third.retry_in_seconds == pytest.approx(45.0)
         reset_at_third = third_meta.get("window_reset_at")
         assert isinstance(reset_at_third, str)
         reset_dt_third = datetime.fromisoformat(reset_at_third)
@@ -196,6 +199,7 @@ def test_trade_throttle_enforces_minimum_spacing() -> None:
     assert metadata.get("min_spacing_seconds") == 30.0
     assert metadata.get("recent_trades") == 1
     assert metadata.get("retry_in_seconds") == pytest.approx(20.0)
+    assert second.retry_in_seconds == pytest.approx(20.0)
     assert metadata.get("window_utilisation") == pytest.approx(0.1)
     reset_at = metadata.get("window_reset_at")
     assert isinstance(reset_at, str)

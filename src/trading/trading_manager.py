@@ -629,6 +629,7 @@ class TradingManager:
             self._trade_throttle_snapshot = None
             self._execution_stats.pop("trade_throttle", None)
             self._execution_stats["throttle_retry_at"] = None
+            self._execution_stats["throttle_retry_in_seconds"] = None
             self._execution_stats["throttle_scalings"] = 0
             self._execution_stats["last_throttle_multiplier"] = None
             return
@@ -655,6 +656,13 @@ class TradingManager:
             self._execution_stats["throttle_retry_at"] = retry_at.get("retry_at")
         else:
             self._execution_stats["throttle_retry_at"] = None
+        metadata_block = snapshot_dict.get("metadata")
+        if isinstance(metadata_block, Mapping):
+            self._execution_stats["throttle_retry_in_seconds"] = metadata_block.get(
+                "retry_in_seconds"
+            )
+        else:
+            self._execution_stats["throttle_retry_in_seconds"] = None
         if throttle_config.multiplier is not None:
             self._execution_stats["last_throttle_multiplier"] = float(
                 throttle_config.multiplier
@@ -693,6 +701,7 @@ class TradingManager:
             snapshot["metadata"] = dict(metadata_payload)
         self._trade_throttle_snapshot = snapshot
         self._execution_stats["trade_throttle"] = snapshot
+        self._execution_stats["throttle_retry_in_seconds"] = decision.retry_in_seconds
         if decision.retry_at is not None:
             retry_iso = decision.retry_at.astimezone(timezone.utc).isoformat()
             self._execution_stats["throttle_retry_at"] = retry_iso
@@ -703,6 +712,10 @@ class TradingManager:
             )
         else:
             self._execution_stats["throttle_retry_at"] = None
+        if decision.retry_in_seconds is not None:
+            snapshot.setdefault("metadata", {}).setdefault(
+                "retry_in_seconds", decision.retry_in_seconds
+            )
 
         if not decision.allowed:
             blocks = coerce_int(self._execution_stats.get("throttle_blocks"), default=0)
@@ -879,6 +892,8 @@ class TradingManager:
                         metadata_payload["retry_at"] = throttle_decision.retry_at.astimezone(
                             timezone.utc
                         ).isoformat()
+                    if throttle_decision.retry_in_seconds is not None:
+                        metadata_payload["retry_in_seconds"] = throttle_decision.retry_in_seconds
                     if gate_decision_payload is not None:
                         metadata_payload["drift_gate"] = dict(gate_decision_payload)
                     self._record_experiment_event(

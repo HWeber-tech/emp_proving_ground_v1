@@ -103,6 +103,7 @@ class TradeThrottleDecision:
     reason: str | None = None
     retry_at: datetime | None = None
     multiplier: float | None = None
+    retry_in_seconds: float | None = None
 
     def as_dict(self) -> Mapping[str, Any]:
         """Return a serialisable view of the throttle snapshot."""
@@ -167,6 +168,7 @@ class TradeThrottle:
         active = False
         retry_at: datetime | None = None
         message: str | None = None
+        retry_in_seconds: float | None = None
 
         if state.cooldown_until is not None and moment < state.cooldown_until:
             allowed = False
@@ -216,6 +218,9 @@ class TradeThrottle:
                 0.0,
             )
 
+        if retry_at is not None:
+            retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
+
         snapshot = self._build_snapshot(
             state=throttle_state,
             active=active,
@@ -230,6 +235,7 @@ class TradeThrottle:
             moment=moment,
             window_reset_at=window_reset_at,
             window_reset_in_seconds=window_reset_in_seconds,
+            retry_in_seconds=retry_in_seconds,
         )
         self._last_snapshot = snapshot
 
@@ -247,6 +253,7 @@ class TradeThrottle:
             reason=reason,
             retry_at=retry_at,
             multiplier=multiplier,
+            retry_in_seconds=retry_in_seconds,
         )
 
     def snapshot(self) -> Mapping[str, Any]:
@@ -271,6 +278,7 @@ class TradeThrottle:
             moment=now,
             window_reset_at=None,
             window_reset_in_seconds=None,
+            retry_in_seconds=None,
         )
 
     def _build_snapshot(
@@ -289,6 +297,7 @@ class TradeThrottle:
         moment: datetime,
         window_reset_at: datetime | None,
         window_reset_in_seconds: float | None,
+        retry_in_seconds: float | None,
     ) -> Mapping[str, Any]:
         remaining_trades = max(self._config.max_trades - int(recent_trades), 0)
 
@@ -325,12 +334,11 @@ class TradeThrottle:
             meta_payload["window_reset_in_seconds"] = max(window_reset_in_seconds, 0.0)
 
         retry_iso: str | None = None
-        retry_in_seconds: float | None = None
         if retry_at is not None:
             retry_iso = retry_at.astimezone(UTC).isoformat()
-            retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
             meta_payload["retry_at"] = retry_iso
-            meta_payload["retry_in_seconds"] = retry_in_seconds
+        if retry_in_seconds is not None:
+            meta_payload["retry_in_seconds"] = max(retry_in_seconds, 0.0)
 
         snapshot: dict[str, Any] = {
             "name": self._config.name,

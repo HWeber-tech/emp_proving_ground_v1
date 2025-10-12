@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import deque
 from datetime import datetime, timezone
-from typing import Mapping, MutableMapping
+from typing import Deque, Mapping, MutableMapping
 
 UTC = timezone.utc
 
@@ -37,8 +38,11 @@ class EventBacklogTracker:
             raise ValueError("window must be positive")
         self._threshold_ms = float(threshold_ms)
         self._window = int(window)
-        self._samples: list[float] = []
-        self._breaches: list[BacklogBreach] = []
+        self._samples: Deque[float] = deque()
+        self._breaches: Deque[BacklogBreach] = deque()
+        self._sample_sum: float = 0.0
+        self._max_lag: float = 0.0
+        self._worst_breach: float = 0.0
 
     @property
     def threshold_ms(self) -> float:
@@ -68,22 +72,38 @@ class EventBacklogTracker:
         else:
             timestamp = timestamp.astimezone(UTC)
 
-        self._samples.append(lag_value)
-        if len(self._samples) > self._window:
-            self._samples = self._samples[-self._window :]
+        if len(self._samples) >= self._window:
+            removed_sample = self._samples.popleft()
+            self._sample_sum -= removed_sample
+            if removed_sample >= self._max_lag:
+                self._max_lag = max(self._samples, default=0.0)
 
-        breach = False
+        was_empty = not self._samples
+        self._samples.append(lag_value)
+        self._sample_sum += lag_value
+        if was_empty or lag_value > self._max_lag:
+            self._max_lag = lag_value
+
+        breach_flag = False
+        breach_event: BacklogBreach | None = None
         if lag_value > self._threshold_ms:
-            breach = True
-            self._breaches.append(BacklogBreach(timestamp=timestamp, lag_ms=lag_value))
-            if len(self._breaches) > self._window:
-                self._breaches = self._breaches[-self._window :]
+            breach_flag = True
+            breach_event = BacklogBreach(timestamp=timestamp, lag_ms=lag_value)
+            if len(self._breaches) >= self._window:
+                removed_breach = self._breaches.popleft()
+                if removed_breach.lag_ms >= self._worst_breach:
+                    self._worst_breach = max(
+                        (entry.lag_ms for entry in self._breaches), default=0.0
+                    )
+            self._breaches.append(breach_event)
+            if lag_value > self._worst_breach:
+                self._worst_breach = lag_value
 
         return BacklogObservation(
             timestamp=timestamp,
             lag_ms=lag_value,
             threshold_ms=self._threshold_ms,
-            breach=breach,
+            breach=breach_flag,
         )
 
     def snapshot(self) -> Mapping[str, object | None]:
@@ -100,8 +120,9 @@ class EventBacklogTracker:
                 "last_breach_at": None,
             }
 
-        max_lag = max(self._samples)
-        avg_lag = sum(self._samples) / len(self._samples)
+        samples = len(self._samples)
+        max_lag = self._max_lag if samples else 0.0
+        avg_lag = (self._sample_sum / samples) if samples else 0.0
         breaches = len(self._breaches)
         last_breach_at = (
             self._breaches[-1].timestamp.astimezone(UTC).isoformat()
@@ -110,7 +131,7 @@ class EventBacklogTracker:
         )
         healthy = max_lag <= self._threshold_ms
         snapshot: MutableMapping[str, object | None] = {
-            "samples": len(self._samples),
+            "samples": samples,
             "threshold_ms": self._threshold_ms,
             "max_lag_ms": max_lag,
             "avg_lag_ms": avg_lag,
@@ -119,7 +140,11 @@ class EventBacklogTracker:
             "last_breach_at": last_breach_at,
         }
         if breaches:
-            snapshot["worst_breach_ms"] = max(b.lag_ms for b in self._breaches)
+            worst = self._worst_breach
+            if worst <= 0.0:
+                worst = max((b.lag_ms for b in self._breaches), default=0.0)
+                self._worst_breach = worst
+            snapshot["worst_breach_ms"] = worst
         return snapshot
 
     def reset(self) -> None:
@@ -127,3 +152,6 @@ class EventBacklogTracker:
 
         self._samples.clear()
         self._breaches.clear()
+        self._sample_sum = 0.0
+        self._max_lag = 0.0
+        self._worst_breach = 0.0

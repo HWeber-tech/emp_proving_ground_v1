@@ -2018,6 +2018,7 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     stats = manager.get_execution_stats()
     assert stats["orders_submitted"] == 1
     assert stats["throttle_blocks"] == 1
+    assert stats["throttle_retry_in_seconds"] is not None
     throttle_stats = stats.get("trade_throttle")
     assert isinstance(throttle_stats, dict)
     assert throttle_stats.get("active") is True
@@ -2030,6 +2031,9 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     assert isinstance(throttle_metadata, Mapping)
     assert throttle_metadata.get("reason")
     assert "message" in throttle_metadata
+    assert throttle_metadata.get("retry_in_seconds") == pytest.approx(
+        stats["throttle_retry_in_seconds"]
+    )
     throttle_snapshot = throttle_metadata.get("throttle")
     assert isinstance(throttle_snapshot, Mapping)
     assert throttle_snapshot.get("state") in {"rate_limited", "cooldown", "min_interval"}
@@ -2108,6 +2112,10 @@ async def test_trade_throttle_handles_high_frequency_burst(
     stats = manager.get_execution_stats()
     assert stats["orders_submitted"] == 1
     assert stats["throttle_blocks"] == len(intents) - 1
+    assert stats["throttle_retry_in_seconds"] is not None
+    assert stats["throttle_retry_in_seconds"] >= 0.0
+    assert stats["throttle_retry_in_seconds"] is not None
+    assert stats["throttle_retry_in_seconds"] >= 0.0
 
     throttle_events = [
         event
@@ -2118,6 +2126,8 @@ async def test_trade_throttle_handles_high_frequency_burst(
     for event in throttle_events:
         metadata = event.get("metadata", {})
         assert metadata.get("message", "").startswith("Throttled: too many trades")
+        assert metadata.get("retry_in_seconds") is not None
+        assert metadata.get("retry_in_seconds") >= 0.0
 
     throttled_logs = [
         record.getMessage()
@@ -2545,6 +2555,7 @@ async def test_collect_performance_baseline_reports_metrics(
     execution_stats = baseline["execution"]
     assert isinstance(execution_stats, Mapping)
     assert execution_stats.get("orders_submitted") == 1
+    assert execution_stats.get("throttle_retry_in_seconds") is not None
 
     throughput_summary = baseline["throughput"]
     assert isinstance(throughput_summary, Mapping)

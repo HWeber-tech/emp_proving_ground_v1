@@ -868,8 +868,6 @@ class CompetitiveIntelligenceSystem:
             understanding_id = str(uuid.uuid4())
             report: UnderstandingReportTD = {
                 "understanding_id": understanding_id,
-                # Legacy alias kept until downstream consumers migrate.
-                "intelligence_id": understanding_id,
                 "signatures_detected": len(signatures),
                 "competitors_analyzed": len(competitor_behaviors),
                 "counter_strategies_developed": len(counter_strategies),

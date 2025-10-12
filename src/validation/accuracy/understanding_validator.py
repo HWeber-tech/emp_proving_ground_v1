@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Understanding Validator – phase-two accuracy helpers.
 
-Provides a lightweight utility that was historically named
-``IntelligenceValidator``.  The canonical name now uses the
-``understanding`` terminology and the legacy alias is retained for
-backwards compatibility while the namespace drift is finalised.
+Provides a lightweight utility that was historically published under the
+``IntelligenceValidator`` name. The legacy alias has been removed so
+callers must import from the understanding namespace directly, avoiding
+the lingering drift between terminology.
 """
 
 from __future__ import annotations
@@ -149,7 +149,4 @@ class UnderstandingValidator:
         }
 
 
-# Backwards-compatible alias: callers importing the historical intelligence
-# terminology continue to resolve the new implementation without emitting
-# deprecation warnings.
-IntelligenceValidator = UnderstandingValidator
+__all__ = ["ValidationMetrics", "UnderstandingValidator"]

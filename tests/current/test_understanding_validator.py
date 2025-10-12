@@ -1,8 +1,13 @@
-from src.validation.accuracy import IntelligenceValidator, UnderstandingValidator
+import importlib
+
+import pytest
+
+from src.validation.accuracy import UnderstandingValidator
 
 
-def test_understanding_validator_aliases() -> None:
-    assert UnderstandingValidator is IntelligenceValidator
+def test_intelligence_validator_module_removed() -> None:
+    with pytest.raises(ModuleNotFoundError, match="understanding_validator"):
+        importlib.import_module("src.validation.accuracy.intelligence_validator")
 
 
 def test_understanding_validator_generates_metrics() -> None:

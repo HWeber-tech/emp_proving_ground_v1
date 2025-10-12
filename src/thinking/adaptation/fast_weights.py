@@ -10,9 +10,9 @@ signals remain active at any decision step.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import math
-from typing import Iterable, Mapping, MutableMapping
+from typing import Iterable, Mapping, MutableMapping, Any
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,7 @@ class FastWeightConstraints:
     activation_threshold: float = 1.05
     max_active_fraction: float = 0.4
     prune_tolerance: float = 1e-6
+    excitatory_only: bool = False
 
     def __post_init__(self) -> None:  # pragma: no cover - dataclass validation
         if self.baseline < 0.0:
@@ -38,6 +39,8 @@ class FastWeightConstraints:
             raise ValueError("activation_threshold must be >= minimum_multiplier")
         if self.prune_tolerance < 0.0:
             raise ValueError("prune_tolerance must be non-negative")
+        if not isinstance(self.excitatory_only, bool):
+            raise TypeError("excitatory_only must be a boolean flag")
 
 
 @dataclass(frozen=True)
@@ -110,6 +113,7 @@ class FastWeightController:
         minimum = constraints.minimum_multiplier
         tolerance = constraints.prune_tolerance
         activation_threshold = constraints.activation_threshold
+        excitatory_only = constraints.excitatory_only
 
         final_values: MutableMapping[str, float] = {tactic_id: baseline for tactic_id in tactic_order}
         activations: list[tuple[str, float]] = []
@@ -128,6 +132,8 @@ class FastWeightController:
                     value = minimum
                 if value < 0.0:
                     value = 0.0
+                if excitatory_only and value < baseline:
+                    value = baseline
                 final_values[tactic_id] = value
                 if value > activation_threshold:
                     activations.append((tactic_id, value))
@@ -156,6 +162,8 @@ class FastWeightController:
             if value < 0.0:
                 value = 0.0
             if not math.isfinite(value):
+                value = baseline
+            if excitatory_only and value < baseline:
                 value = baseline
             final_values[tactic_id] = value
 
@@ -192,9 +200,101 @@ class FastWeightController:
         return FastWeightResult(weights=constrained, metrics=metrics)
 
 
+def _normalise_keys(source: Mapping[str, Any]) -> Mapping[str, Any]:
+    return {str(key).upper(): value for key, value in source.items()}
+
+
+def _coerce_float(value: Any, *, key: str) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:  # pragma: no cover - defensive guard
+        raise ValueError(f"{key} must be a float-compatible value, got {value!r}") from exc
+
+
+def _coerce_bool(value: Any, *, key: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        raise ValueError(f"{key} cannot be None")
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"{key} must be a boolean-compatible value, got {value!r}")
+
+
+def parse_fast_weight_constraints(
+    source: Mapping[str, Any] | None,
+) -> FastWeightConstraints | None:
+    """Return fast-weight constraints parsed from a mapping.
+
+    The parser understands the ``FAST_WEIGHT_*`` keys documented for the
+    understanding loop configuration.  Keys are matched case-insensitively and
+    unspecified entries fall back to the dataclass defaults.
+    """
+
+    if not source:
+        return None
+
+    normalised = _normalise_keys(source)
+    updates: dict[str, Any] = {}
+
+    def _maybe_set(*keys: str, attr: str, coercer) -> None:
+        for key in keys:
+            if key in normalised:
+                updates[attr] = coercer(normalised[key], key=key)
+                return
+
+    _maybe_set("FAST_WEIGHT_BASELINE", attr="baseline", coercer=_coerce_float)
+    _maybe_set(
+        "FAST_WEIGHT_MINIMUM_MULTIPLIER",
+        "FAST_WEIGHT_MIN_MULTIPLIER",
+        attr="minimum_multiplier",
+        coercer=_coerce_float,
+    )
+    _maybe_set(
+        "FAST_WEIGHT_ACTIVATION_THRESHOLD",
+        attr="activation_threshold",
+        coercer=_coerce_float,
+    )
+    _maybe_set(
+        "FAST_WEIGHT_MAX_ACTIVE_FRACTION",
+        attr="max_active_fraction",
+        coercer=_coerce_float,
+    )
+    _maybe_set(
+        "FAST_WEIGHT_PRUNE_TOLERANCE",
+        attr="prune_tolerance",
+        coercer=_coerce_float,
+    )
+    _maybe_set(
+        "FAST_WEIGHT_EXCITATORY_ONLY",
+        attr="excitatory_only",
+        coercer=_coerce_bool,
+    )
+
+    if not updates:
+        return None
+
+    base = FastWeightConstraints()
+    return replace(base, **updates)
+
+
+def build_fast_weight_controller(source: Mapping[str, Any] | None) -> FastWeightController:
+    """Helper that builds a controller from configuration overrides."""
+
+    constraints = parse_fast_weight_constraints(source)
+    if constraints is None:
+        return FastWeightController()
+    return FastWeightController(constraints)
+
+
 __all__ = [
     "FastWeightConstraints",
     "FastWeightController",
     "FastWeightMetrics",
     "FastWeightResult",
+    "build_fast_weight_controller",
+    "parse_fast_weight_constraints",
 ]

@@ -27,6 +27,7 @@ Fast-weights let short-lived signals bias tactic choices without retraining the 
 - **Hebbian multipliers** roll the latest observation into a decaying multiplier so repeated evidence compounds while stale data fades.
 - **Feature flags** (optional) can hard-disable adapters for compliance or A/B experimentation.
 - **Summaries** are emitted with every routed decision so reviewers can see which adapters fired, the multiplier that was applied, and which feature triggered it.
+- **Configuration** – Runtime extras on `SystemConfig` can tighten sparsity or force excitatory-only behaviour. Construct the router via `UnderstandingRouter.from_system_config(config)` and set keys such as `FAST_WEIGHT_MAX_ACTIVE_FRACTION` or `FAST_WEIGHT_EXCITATORY_ONLY` to tune thresholds without modifying code.【F:src/understanding/router.py†L197-L213】【F:docs/context/examples/understanding_router.md†L47-L86】
 
 Example (mirrored in the notebook): boost a breakout tactic when the HOW (liquidity) signal crosses 0.03, cap the multiplier at 3×, and decay toward 1× when the feature cools off.
 

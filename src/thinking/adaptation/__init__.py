@@ -13,6 +13,8 @@ from .fast_weights import (
     FastWeightController,
     FastWeightMetrics,
     FastWeightResult,
+    build_fast_weight_controller,
+    parse_fast_weight_constraints,
 )
 from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
 
@@ -28,6 +30,8 @@ __all__ = [
     "FastWeightController",
     "FastWeightMetrics",
     "FastWeightResult",
+    "build_fast_weight_controller",
+    "parse_fast_weight_constraints",
     "EvolutionManager",
     "ManagedStrategyConfig",
     "StrategyVariant",

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Mapping, MutableMapping, Sequence
+from typing import Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
 from src.thinking.adaptation.policy_router import (
     PolicyDecision,
@@ -20,6 +20,13 @@ from src.thinking.adaptation.policy_router import (
     PolicyTactic,
     RegimeState,
 )
+from src.thinking.adaptation.fast_weights import (
+    FastWeightController,
+    build_fast_weight_controller,
+)
+
+if TYPE_CHECKING:  # pragma: no cover - typing support
+    from src.governance.system_config import SystemConfig
 
 
 @dataclass(frozen=True)
@@ -178,10 +185,42 @@ class UnderstandingDecision:
 class UnderstandingRouter:
     """Route strategies with feature-gated fast-weight adapters."""
 
-    def __init__(self, policy_router: PolicyRouter | None = None) -> None:
-        self._router = policy_router or PolicyRouter()
+    def __init__(
+        self,
+        policy_router: PolicyRouter | None = None,
+        *,
+        fast_weight_controller: FastWeightController | None = None,
+    ) -> None:
+        if policy_router is not None and fast_weight_controller is not None:
+            raise ValueError(
+                "Provide either policy_router or fast_weight_controller when constructing UnderstandingRouter",
+            )
+        if policy_router is None:
+            policy_router = PolicyRouter(fast_weight_controller=fast_weight_controller)
+        self._router = policy_router
         self._adapters: dict[str, FastWeightAdapter] = {}
         self._heb_state: dict[str, float] = {}
+
+    @classmethod
+    def from_system_config(
+        cls,
+        config: "SystemConfig",
+        *,
+        default_guardrails: Mapping[str, object] | None = None,
+        reflection_history: int = 50,
+        summary_top_k: int = 3,
+    ) -> "UnderstandingRouter":
+        """Build a router with fast-weight constraints sourced from configuration."""
+
+        extras = config.extras or {}
+        controller = build_fast_weight_controller(extras)
+        policy_router = PolicyRouter(
+            default_guardrails=default_guardrails,
+            reflection_history=reflection_history,
+            summary_top_k=summary_top_k,
+            fast_weight_controller=controller,
+        )
+        return cls(policy_router=policy_router)
 
     @property
     def policy_router(self) -> PolicyRouter:

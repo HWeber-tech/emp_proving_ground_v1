@@ -20,6 +20,7 @@ from src.understanding.router import (
     HebbianConfig,
     UnderstandingRouter,
 )
+from src.governance.system_config import SystemConfig
 
 
 pytestmark = pytest.mark.guardrail
@@ -210,3 +211,45 @@ def test_understanding_router_updates_hebbian_multiplier() -> None:
     snapshot_disabled = _build_snapshot(fast_weights_enabled=False)
     disabled_bundle = router.route(snapshot_disabled)
     assert "momentum_boost" not in disabled_bundle.fast_weight_summary
+
+
+def test_understanding_router_from_system_config_honours_fast_weight_constraints() -> None:
+    config = SystemConfig(
+        extras={
+            "FAST_WEIGHT_MAX_ACTIVE_FRACTION": "0.2",
+            "FAST_WEIGHT_ACTIVATION_THRESHOLD": "1.1",
+            "FAST_WEIGHT_EXCITATORY_ONLY": "true",
+        }
+    )
+    router = UnderstandingRouter.from_system_config(config)
+
+    tactic_ids = ("t1", "t2", "t3", "t4", "t5")
+    for identifier in tactic_ids:
+        router.register_tactic(
+            PolicyTactic(
+                tactic_id=identifier,
+                base_weight=1.0,
+                parameters={"slot": identifier},
+            )
+        )
+
+    snapshot = _build_snapshot()
+    decision_bundle = router.route(
+        snapshot,
+        fast_weights={
+            "t1": 1.5,
+            "t2": 1.4,
+            "t3": 1.2,
+            "t4": 1.1,
+            "t5": 0.6,
+        },
+    )
+
+    assert decision_bundle.decision.tactic_id == "t1"
+    metrics = decision_bundle.fast_weight_metrics
+    assert metrics["total"] == 5
+    assert metrics["active"] == 1
+    assert metrics["active_percentage"] == pytest.approx(20.0)
+    assert metrics["active_ids"] == ("t1",)
+    assert metrics["min_multiplier"] == pytest.approx(1.0)
+    assert metrics["max_multiplier"] == pytest.approx(1.5)

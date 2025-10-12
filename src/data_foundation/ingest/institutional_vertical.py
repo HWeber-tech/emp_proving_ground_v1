@@ -394,11 +394,12 @@ class InstitutionalIngestServices:
 
     _kafka_task: asyncio.Task[None] | None = field(init=False, default=None)
     _kafka_stop_event: asyncio.Event | None = field(init=False, default=None)
+    _scheduler_task: asyncio.Task[None] | None = field(init=False, default=None)
 
     def start(self) -> None:
         """Start supervised components (scheduler plus Kafka bridge)."""
 
-        self.scheduler.start()
+        self._scheduler_task = self.scheduler.start()
         if self.kafka_consumer is None or self._kafka_task is not None:
             return
 
@@ -433,6 +434,7 @@ class InstitutionalIngestServices:
                 self._kafka_stop_event = None
 
         await self.scheduler.stop()
+        self._scheduler_task = None
 
     def managed_manifest(self) -> tuple["ManagedConnectorSnapshot", ...]:
         """Return structured metadata for provisioned managed services."""

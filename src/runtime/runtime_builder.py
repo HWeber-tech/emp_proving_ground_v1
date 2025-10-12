@@ -3934,6 +3934,19 @@ def build_professional_runtime_application(
                 services.start()
                 logger.info("⏱️ Timescale ingest scheduler active under supervisor")
 
+                try:
+                    await services.scheduler.wait_until_stopped()
+                finally:
+                    try:
+                        await asyncio.shield(services.stop())
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:  # pragma: no cover - diagnostics only
+                        logger.debug(
+                            "Failed to stop institutional ingest services during cleanup",
+                            exc_info=True,
+                        )
+
             ingestion = RuntimeWorkload(
                 name="timescale-ingest",
                 factory=_run_institutional,

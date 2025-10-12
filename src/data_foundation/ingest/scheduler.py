@@ -221,6 +221,17 @@ class TimescaleIngestScheduler:
         self._logger.info("Timescale ingest scheduler loop exited")
         self._next_run_at = None
 
+    async def wait_until_stopped(self) -> None:
+        """Wait for the supervised scheduler task to finish."""
+
+        task = self._task
+        if task is None:
+            return
+        try:
+            await task
+        except asyncio.CancelledError:
+            raise
+
     def state(self) -> IngestSchedulerState:
         """Return the latest scheduler telemetry."""
 

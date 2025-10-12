@@ -177,6 +177,44 @@ async def test_scheduler_state_tracks_next_run(monkeypatch) -> None:
     assert final_state.next_run_at is None
 
 
+@pytest.mark.asyncio()
+async def test_wait_until_stopped_blocks_until_scheduler_finishes() -> None:
+    ran = asyncio.Event()
+
+    async def _callback() -> bool:
+        ran.set()
+        await asyncio.sleep(0.01)
+        return True
+
+    scheduler = TimescaleIngestScheduler(
+        schedule=IngestSchedule(interval_seconds=0.05, jitter_seconds=0.0, max_failures=3),
+        run_callback=_callback,
+    )
+
+    scheduler.start()
+    await asyncio.wait_for(ran.wait(), timeout=0.2)
+
+    waiter = asyncio.create_task(scheduler.wait_until_stopped())
+    await asyncio.sleep(0.02)
+    assert not waiter.done()
+
+    await scheduler.stop()
+    await asyncio.wait_for(waiter, timeout=0.2)
+
+
+@pytest.mark.asyncio()
+async def test_wait_until_stopped_noop_when_scheduler_idle() -> None:
+    async def _callback() -> bool:
+        return True
+
+    scheduler = TimescaleIngestScheduler(
+        schedule=IngestSchedule(interval_seconds=0.05, jitter_seconds=0.0, max_failures=3),
+        run_callback=_callback,
+    )
+
+    await scheduler.wait_until_stopped()
+
+
 def test_build_scheduler_snapshot_disabled() -> None:
     now = datetime(2024, 1, 1, tzinfo=UTC)
     snapshot = build_scheduler_snapshot(

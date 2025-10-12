@@ -28,7 +28,10 @@
 - WHAT/WHEN/WHY sensors now attach structured `quality` metadata (source,
   timestamp, confidence) alongside lineage dictionaries, and regression tests
   assert the enriched payloads to keep downstream consumers aligned while real
-  data feeds remain forthcoming.【F:src/sensory/what/what_sensor.py†L131-L210】【F:src/sensory/when/when_sensor.py†L147-L230】【F:src/sensory/why/why_sensor.py†L126-L238】【F:tests/sensory/test_primary_dimension_sensors.py†L1-L98】
+  data feeds remain forthcoming. The WHAT sensor also offloads pattern synthesis
+  into a worker thread when invoked inside an active asyncio loop so pattern
+  payloads stay populated during runtime drills, with coverage capturing the
+  async-path metadata.【F:src/sensory/what/what_sensor.py†L114-L224】【F:src/sensory/when/when_sensor.py†L147-L230】【F:src/sensory/why/why_sensor.py†L126-L238】【F:tests/sensory/test_primary_dimension_sensors.py†L1-L116】
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata and bundled metrics payloads, and
   exposes audit/status helpers
@@ -42,6 +45,10 @@
   market frames or sequences, maintain calibrated windows, and emit structured
   lineage/telemetry payloads under guardrail regression coverage, though they
   still consume synthetic payloads until ingest is live.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
+- Sensory dimension modules now lazily import executable organs to avoid
+  bootstrap-era cyclical imports, keeping paper simulation and runtime helpers
+  import-safe even when sensory packages are initialised independently under
+  regression coverage.【F:src/sensory/organs/dimensions/__init__.py†L1-L41】【F:src/sensory/dimensions/__init__.py†L13-L41】
 - Sensory metrics layer now converts organ status snapshots into
   dimension-strength/confidence metrics, harvests numeric telemetry from audit
   and order-book metadata, captures drift alerts, and publishes via the failover

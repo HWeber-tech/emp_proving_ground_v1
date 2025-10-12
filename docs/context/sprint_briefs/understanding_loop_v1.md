@@ -170,7 +170,7 @@
 - Bootstrap runtime publishes sensory summary/metrics/drift telemetry via the
   failover helper and exposes samples/audits/metrics through `status()` so
   live-shadow reviewers can observe the loop without bespoke scripts.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
-- Router, diary, and ledger artifacts integrate with governance/operational readiness dashboards without bespoke tooling, updating context packs alongside code.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】【F:docs/context/alignment_briefs/operational_readiness.md†L40-L88】
+- Router, diary, and ledger artifacts integrate with governance/operational readiness dashboards without bespoke tooling, updating context packs alongside code. The loop runner now persists structured trade outcomes (including throttle snapshots) back into diary metadata so the same execution evidence powers dashboards, audits, and paper-sim reports under regression coverage.【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】【F:docs/context/alignment_briefs/operational_readiness.md†L40-L88】【F:src/orchestration/alpha_trade_runner.py†L162-L193】【F:tests/orchestration/test_alpha_trade_runner.py†L118-L197】
 - Acceptance workflow exercises the full understanding loop and is marked as a guardrail job in CI, with reproducible fixtures for ticket derivation.【F:docs/roadmap.md†L523-L537】
 
 ## Instrumentation & documentation plan

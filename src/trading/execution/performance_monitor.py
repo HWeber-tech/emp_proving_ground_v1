@@ -29,6 +29,8 @@ class ThroughputMonitor:
             raise ValueError("window must be positive")
         self._window = window
         self._samples: Deque[ThroughputSample] = deque(maxlen=window)
+        self._last_snapshot: dict[str, float | int | None] | None = None
+        self._dirty = True
 
     @property
     def window(self) -> int:
@@ -82,10 +84,27 @@ class ThroughputMonitor:
                 lag_ms=lag_ms,
             )
         )
+        self._dirty = True
 
     def snapshot(self) -> Mapping[str, float | int | None]:
         """Return an aggregate snapshot for recent throughput metrics."""
 
+        if not self._dirty and self._last_snapshot is not None:
+            return dict(self._last_snapshot)
+
+        snapshot = self._compute_snapshot()
+        self._last_snapshot = snapshot
+        self._dirty = False
+        return dict(snapshot)
+
+    def reset(self) -> None:
+        """Clear all recorded samples."""
+
+        self._samples.clear()
+        self._last_snapshot = None
+        self._dirty = True
+
+    def _compute_snapshot(self) -> dict[str, float | int | None]:
         samples = list(self._samples)
         if not samples:
             return {
@@ -112,11 +131,6 @@ class ThroughputMonitor:
             "max_lag_ms": max(lag_values) if lag_values else None,
             "throughput_per_min": throughput_per_min,
         }
-
-    def reset(self) -> None:
-        """Clear all recorded samples."""
-
-        self._samples.clear()
 
     def _calculate_throughput_per_minute(
         self, samples: Iterable[ThroughputSample]

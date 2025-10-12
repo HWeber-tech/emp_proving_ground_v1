@@ -55,6 +55,7 @@ from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.backlog_tracker import EventBacklogTracker
 from src.trading.execution.liquidity_prober import LiquidityProber
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
+from src.trading.execution.performance_baseline import collect_performance_baseline
 from src.trading.execution.performance_monitor import ThroughputMonitor
 from src.trading.execution.resource_monitor import ResourceUsageMonitor
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
@@ -2497,6 +2498,71 @@ async def test_trading_manager_releases_reservation_on_execution_failure(
 
     stats = manager.get_execution_stats()
     assert stats.get("orders_failed") == 1
+
+
+@pytest.mark.asyncio()
+async def test_collect_performance_baseline_reports_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        throughput_monitor=ThroughputMonitor(window=8),
+        trade_throttle={"max_trades": 1, "window_seconds": 60.0},
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2150,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=[intent, intent])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+    await manager.on_trade_intent(intent)
+
+    baseline = collect_performance_baseline(
+        manager,
+        max_processing_ms=1_000.0,
+        max_lag_ms=1_000.0,
+    )
+
+    execution_stats = baseline["execution"]
+    assert isinstance(execution_stats, Mapping)
+    assert execution_stats.get("orders_submitted") == 1
+
+    throughput_summary = baseline["throughput"]
+    assert isinstance(throughput_summary, Mapping)
+    assert throughput_summary.get("samples", 0) >= 1
+
+    performance_snapshot = baseline["performance"]
+    assert isinstance(performance_snapshot, Mapping)
+    assert performance_snapshot.get("throughput", {}).get("samples") == throughput_summary.get(
+        "samples"
+    )
+
+    throttle_summary = baseline.get("throttle")
+    assert isinstance(throttle_summary, Mapping)
+    assert throttle_summary.get("state") in {"rate_limited", "cooldown", "min_interval"}
+
+    reports = baseline.get("reports")
+    assert isinstance(reports, Mapping)
+    assert "execution" in reports and "performance" in reports
 
 
 def test_describe_risk_interface_returns_runbook_on_error() -> None:

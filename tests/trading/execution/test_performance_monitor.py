@@ -49,3 +49,48 @@ def test_throughput_monitor_records_samples() -> None:
 def test_throughput_monitor_requires_positive_window() -> None:
     with pytest.raises(ValueError):
         ThroughputMonitor(window=0)
+
+
+def test_throughput_monitor_snapshot_caches_until_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor = ThroughputMonitor(window=4)
+
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    monitor.record(
+        started_at=base,
+        finished_at=base + timedelta(milliseconds=20),
+        ingested_at=base - timedelta(milliseconds=5),
+    )
+
+    call_count = {"value": 0}
+
+    original = ThroughputMonitor._percentile
+
+    def _counting_percentile(values, percentile):
+        call_count["value"] += 1
+        return original(values, percentile)
+
+    monkeypatch.setattr(
+        ThroughputMonitor,
+        "_percentile",
+        staticmethod(_counting_percentile),
+    )
+
+    snapshot_first = monitor.snapshot()
+    assert snapshot_first["samples"] == 1
+    assert call_count["value"] == 1
+
+    snapshot_second = monitor.snapshot()
+    assert snapshot_second == snapshot_first
+    assert call_count["value"] == 1, "cached snapshot should reuse percentile result"
+
+    monitor.record(
+        started_at=base + timedelta(milliseconds=40),
+        finished_at=base + timedelta(milliseconds=70),
+        ingested_at=base + timedelta(milliseconds=35),
+    )
+
+    snapshot_third = monitor.snapshot()
+    assert snapshot_third["samples"] == 2
+    assert call_count["value"] == 2, "new sample should invalidate cached snapshot"

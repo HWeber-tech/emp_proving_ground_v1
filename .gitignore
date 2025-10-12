@@ -106,6 +106,8 @@ src/operations/data/*
 !tests/data/
 !tests/data/*
 experiments/
+!emp/experiments/
+!emp/experiments/*
 !src/evolution/experiments/
 logs/
 *.log 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import deque
 from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Any, Mapping, MutableMapping
@@ -66,6 +67,12 @@ class PaperBrokerExecutionAdapter:
     _latency_samples: int = field(default=0, init=False, repr=False)
     _total_latency: float = field(default=0.0, init=False, repr=False)
     _last_latency: float | None = field(default=None, init=False, repr=False)
+    _order_history: deque[dict[str, object]] = field(
+        default_factory=lambda: deque(maxlen=512), init=False, repr=False
+    )
+    _error_history: deque[dict[str, object]] = field(
+        default_factory=lambda: deque(maxlen=512), init=False, repr=False
+    )
 
     def set_risk_context_provider(
         self, provider: RiskContextProvider | None
@@ -260,6 +267,8 @@ class PaperBrokerExecutionAdapter:
         if self._last_risk_error is not None:
             self._last_order["risk_error"] = dict(self._last_risk_error)
 
+        self._order_history.append(dict(self._last_order))
+
     def describe_last_error(self) -> Mapping[str, object] | None:
         """Expose the most recent execution failure metadata, if any."""
 
@@ -281,6 +290,24 @@ class PaperBrokerExecutionAdapter:
             "avg_latency_s": avg_latency,
             "last_latency_s": self._last_latency,
         }
+
+    def consume_order_history(self) -> list[Mapping[str, object]]:
+        """Return and clear the buffered successfully submitted orders."""
+
+        if not self._order_history:
+            return []
+        payload = [dict(entry) for entry in self._order_history]
+        self._order_history.clear()
+        return payload
+
+    def consume_error_history(self) -> list[Mapping[str, object]]:
+        """Return and clear the buffered broker submission failures."""
+
+        if not self._error_history:
+            return []
+        payload = [dict(entry) for entry in self._error_history]
+        self._error_history.clear()
+        return payload
 
     def _record_failure(
         self,
@@ -321,6 +348,7 @@ class PaperBrokerExecutionAdapter:
 
         self._register_failure()
         self._last_error = dict(payload)
+        self._error_history.append(dict(self._last_error))
 
     def _register_success(self, latency: float | None) -> None:
         self._total_orders += 1

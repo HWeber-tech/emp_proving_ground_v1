@@ -21,7 +21,7 @@ from decimal import Decimal
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
-from typing import Any, Mapping, MutableMapping, Sequence
+from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import EventBus
 from src.governance.system_config import SystemConfig
@@ -147,13 +147,13 @@ async def run_paper_trading_simulation(
 
             await asyncio.sleep(max(poll_interval, 0.01))
 
-            _capture_last_order(paper_engine, orders, seen_orders)
-            _capture_last_error(paper_engine, errors, seen_errors)
+            _capture_order_history(paper_engine, orders, seen_orders)
+            _capture_error_history(paper_engine, errors, seen_errors)
 
         # Capture one final snapshot after the loop exits in case the broker
         # updated its telemetry between the final poll and the runtime stop.
-        _capture_last_order(paper_engine, orders, seen_orders)
-        _capture_last_error(paper_engine, errors, seen_errors)
+        _capture_order_history(paper_engine, orders, seen_orders)
+        _capture_error_history(paper_engine, errors, seen_errors)
     finally:
         if stop_requested or runtime.running:
             await runtime.stop()
@@ -198,12 +198,75 @@ async def run_paper_trading_simulation(
     return report
 
 
-def _capture_last_order(
+def _capture_order_history(
     paper_engine: PaperBrokerExecutionAdapter,
     orders: list[Mapping[str, Any]],
     seen_orders: set[str],
 ) -> None:
+    supported, records = _consume_adapter_history(paper_engine, "consume_order_history")
+    if supported:
+        if not records:
+            return
+        for metadata in records:
+            _append_order_metadata(metadata, orders, seen_orders)
+        return
+
     metadata = paper_engine.describe_last_order()
+    _append_order_metadata(metadata, orders, seen_orders)
+
+
+def _capture_error_history(
+    paper_engine: PaperBrokerExecutionAdapter,
+    errors: list[Mapping[str, Any]],
+    seen_errors: set[tuple[Any, ...]],
+) -> None:
+    supported, records = _consume_adapter_history(paper_engine, "consume_error_history")
+    if supported:
+        if not records:
+            return
+        for payload in records:
+            _append_error_metadata(payload, errors, seen_errors)
+        return
+
+    payload = paper_engine.describe_last_error()
+    _append_error_metadata(payload, errors, seen_errors)
+
+
+def _consume_adapter_history(
+    adapter: PaperBrokerExecutionAdapter,
+    method_name: str,
+) -> tuple[bool, list[Mapping[str, Any]]]:
+    method = getattr(adapter, method_name, None)
+    if not callable(method):
+        return False, []
+    try:
+        records = method()
+    except Exception:  # pragma: no cover - defensive guard for adapter hooks
+        logger.debug(
+            "Failed to consume %s from paper broker adapter", method_name,
+            exc_info=True,
+        )
+        return True, []
+    if records is None:
+        return True, []
+    payloads: list[Mapping[str, Any]] = []
+    if isinstance(records, Iterable):
+        for entry in records:
+            if isinstance(entry, Mapping):
+                payloads.append(dict(entry))
+    else:  # pragma: no cover - diagnostics for unexpected payloads
+        logger.debug(
+            "Paper broker adapter returned unsupported history payload: %r",
+            records,
+        )
+    return True, payloads
+
+
+def _append_order_metadata(
+    metadata: Mapping[str, Any] | None,
+    orders: list[Mapping[str, Any]],
+    seen_orders: set[str],
+) -> None:
     if not metadata:
         return
     order_id = str(metadata.get("order_id", "")).strip()
@@ -214,12 +277,11 @@ def _capture_last_order(
     orders.append(dict(metadata))
 
 
-def _capture_last_error(
-    paper_engine: PaperBrokerExecutionAdapter,
+def _append_error_metadata(
+    payload: Mapping[str, Any] | None,
     errors: list[Mapping[str, Any]],
     seen_errors: set[tuple[Any, ...]],
 ) -> None:
-    payload = paper_engine.describe_last_error()
     if not payload:
         return
     signature = (

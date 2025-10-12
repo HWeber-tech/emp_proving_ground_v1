@@ -140,6 +140,50 @@ async def test_paper_broker_adapter_rejects_unsupported_order_type() -> None:
 
 
 @pytest.mark.asyncio
+async def test_paper_broker_adapter_consumes_order_history() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _StubBroker(order_id="BROKER-001")
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+        order_timeout=None,
+    )
+
+    await adapter.process_order({"symbol": "EURUSD", "side": "BUY", "quantity": 1.0})
+    broker._order_id = "BROKER-002"
+    await adapter.process_order({"symbol": "GBPUSD", "side": "SELL", "quantity": 2.0})
+
+    history = adapter.consume_order_history()
+    assert {entry["order_id"] for entry in history} == {"BROKER-001", "BROKER-002"}
+    assert adapter.consume_order_history() == []
+
+
+@pytest.mark.asyncio
+async def test_paper_broker_adapter_consumes_error_history() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _StubBroker()
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+    )
+
+    with pytest.raises(PaperBrokerError):
+        await adapter.process_order(
+            {
+                "symbol": "EURUSD",
+                "side": "BUY",
+                "quantity": 0.0,
+            }
+        )
+
+    errors = adapter.consume_error_history()
+    assert errors and errors[0]["stage"] == "validation"
+    assert adapter.consume_error_history() == []
+
+
+@pytest.mark.asyncio
 async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
     bus = _StubBus()
     monitor = PortfolioMonitor(bus)

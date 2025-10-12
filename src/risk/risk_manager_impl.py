@@ -47,6 +47,27 @@ __all__ = ["RiskManagerImpl", "PositionEntry"]
 _SECTOR_EPSILON = 1e-9
 
 
+def _coerce_flag(value: object, *, key: str) -> bool | None:
+    """Interpret heterogeneous boolean overrides used by runtime configs."""
+
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value != 0
+    if isinstance(value, str):
+        normalised = value.strip().lower()
+        if not normalised:
+            return None
+        if normalised in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalised in {"0", "false", "no", "n", "off"}:
+            return False
+    logger.warning("Ignoring invalid boolean override for %s: %r", key, value)
+    return None
+
+
 def _to_float(value: object | None, *, default: float = 0.0) -> float:
     """Coerce heterogeneous inputs to ``float`` at API boundaries."""
 
@@ -949,10 +970,14 @@ class RiskManagerImpl(RiskManagerProtocol):
             self._max_position_size = max(candidate_max, self._min_position_size)
 
         if "mandatory_stop_loss" in limits:
-            self._mandatory_stop_loss = bool(limits["mandatory_stop_loss"])
+            flag = _coerce_flag(limits["mandatory_stop_loss"], key="mandatory_stop_loss")
+            if flag is not None:
+                self._mandatory_stop_loss = flag
 
         if "research_mode" in limits:
-            self._research_mode = bool(limits["research_mode"])
+            flag = _coerce_flag(limits["research_mode"], key="research_mode")
+            if flag is not None:
+                self._research_mode = flag
 
         if "var_confidence" in limits:
             try:

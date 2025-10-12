@@ -199,6 +199,30 @@ def test_policy_governance_workflow_builds_tasks(tmp_path: Path) -> None:
     assert task.metadata["policy_id"] == "alpha.policy"
 
 
+def test_policy_ledger_deduplicates_approvals_on_update(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json")
+    manager = LedgerReleaseManager(store)
+
+    manager.promote(
+        policy_id="alpha.policy",
+        tactic_id="tactic.alpha",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk", "risk"),
+        evidence_id="diary-1",
+    )
+
+    record = manager.promote(
+        policy_id="alpha.policy",
+        tactic_id="tactic.alpha",
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("ops", "risk", "risk"),
+        evidence_id="diary-2",
+    )
+
+    assert record.approvals == ("ops", "risk")
+    assert record.history[-1]["approvals"] == ["ops", "risk"]
+
+
 def test_policy_ledger_from_dict_rejects_missing_identifiers() -> None:
     payload = {
         "policy_id": None,

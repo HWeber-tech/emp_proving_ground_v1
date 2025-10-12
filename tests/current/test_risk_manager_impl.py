@@ -139,6 +139,34 @@ async def test_validate_position_allows_research_mode_without_stop_loss() -> Non
 
 
 @pytest.mark.asyncio
+async def test_update_limits_coerces_boolean_strings() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    baseline = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000, "entry_price": 1.1}
+    )
+    manager.update_limits({"mandatory_stop_loss": "false"})
+    relaxed = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000, "entry_price": 1.1}
+    )
+
+    assert baseline is False
+    assert relaxed is True
+
+
+@pytest.mark.asyncio
+async def test_update_limits_enables_research_mode_via_string() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    manager.update_limits({"research_mode": "true"})
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000, "entry_price": 1.1}
+    )
+
+    assert result is True
+
+
+@pytest.mark.asyncio
 async def test_validate_position_rejects_total_exposure_breach() -> None:
     config = RiskConfig(
         max_total_exposure_pct=Decimal("0.02"),

@@ -135,11 +135,15 @@ class PolicyLedgerRecord:
         applied_timestamp = timestamp or datetime.now(tz=UTC)
         delta = self.policy_delta if policy_delta is None else _coerce_policy_delta(policy_delta)
         evidence = _normalise_evidence_id(evidence_id) or self.evidence_id
+        if approvals is None:
+            resolved_approvals = self.approvals
+        else:
+            resolved_approvals = _normalise_approvals(approvals)
         history_entry = {
             "prior_stage": self.stage.value,
             "next_stage": stage.value,
             "applied_at": applied_timestamp.isoformat(),
-            "approvals": sorted(tuple(approvals or self.approvals)),
+            "approvals": list(resolved_approvals),
             "evidence_id": evidence,
         }
         if delta is not None and not delta.is_empty():
@@ -149,7 +153,7 @@ class PolicyLedgerRecord:
             policy_id=self.policy_id,
             tactic_id=self.tactic_id,
             stage=stage,
-            approvals=tuple(sorted(tuple(approvals or self.approvals))),
+            approvals=resolved_approvals,
             evidence_id=evidence,
             threshold_overrides=dict(threshold_overrides or self.threshold_overrides),
             policy_delta=delta,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import bz2
+import gzip
 import importlib.util
 import json
 import sys
@@ -56,6 +58,43 @@ def test_parse_structured_log_line_handles_iso_timestamp() -> None:
     assert record.level == "info"
     assert record.event == "bootstrap.start"
     assert record.payload == {"component": "alpha"}
+
+
+def test_load_structured_logs_handles_gzip(tmp_path: Path) -> None:
+    payload = {
+        "timestamp": "2024-01-01T00:00:00Z",
+        "level": "INFO",
+        "event": "heartbeat",
+        "message": "tick",
+    }
+    gz_path = tmp_path / "run.jsonl.gz"
+    with gzip.open(gz_path, "wt", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
+
+    result = load_structured_logs([gz_path])
+    assert result.ignored_lines == 0
+    assert len(result.records) == 1
+    record = result.records[0]
+    assert record.event == "heartbeat"
+    assert record.level == "info"
+
+
+def test_load_structured_logs_handles_bz2(tmp_path: Path) -> None:
+    payload = {
+        "timestamp": "2024-01-02T00:00:00Z",
+        "level": "WARNING",
+        "event": "lag",
+    }
+    bz2_path = tmp_path / "run.jsonl.bz2"
+    with bz2.open(bz2_path, "wt", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
+
+    result = load_structured_logs([bz2_path])
+    assert result.ignored_lines == 0
+    assert len(result.records) == 1
+    record = result.records[0]
+    assert record.event == "lag"
+    assert record.level == "warning"
 
 
 def test_analyse_structured_logs_flags_errors() -> None:

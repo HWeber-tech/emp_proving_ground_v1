@@ -9,6 +9,9 @@ CLI tooling or notebooks.
 
 from __future__ import annotations
 
+import bz2
+import gzip
+import lzma
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -24,6 +27,14 @@ from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiarySt
 DEFAULT_WARN_GAP = timedelta(hours=1)
 DEFAULT_FAIL_GAP = timedelta(hours=6)
 DEFAULT_DIARY_COVERAGE_TOLERANCE = timedelta(minutes=15)
+
+_COMPRESSED_OPENERS = {
+    ".gz": gzip.open,
+    ".gzip": gzip.open,
+    ".bz2": bz2.open,
+    ".xz": lzma.open,
+    ".lzma": lzma.open,
+}
 
 
 class DryRunStatus(StrEnum):
@@ -628,14 +639,29 @@ def parse_structured_log_line(line: str) -> StructuredLogRecord | None:
     )
 
 
+def _open_log_stream(path: Path):
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    opener = _COMPRESSED_OPENERS.get(suffixes[-1]) if suffixes else None
+    if opener is None:
+        return open(path, "rt", encoding="utf-8", errors="replace")
+    return opener(path, "rt", encoding="utf-8", errors="replace")
+
+
+def _iter_log_lines(path: Path) -> Iterable[str]:
+    if not path.exists():
+        return
+    with _open_log_stream(path) as handle:
+        for line in handle:
+            yield line.rstrip("\r\n")
+
+
 def load_structured_logs(paths: Iterable[Path]) -> LogParseResult:
     """Load structured logs from the provided JSONL files."""
 
     records: list[StructuredLogRecord] = []
     ignored = 0
     for path in paths:
-        text = path.read_text(encoding="utf-8") if path.exists() else ""
-        for line in text.splitlines():
+        for line in _iter_log_lines(Path(path)):
             record = parse_structured_log_line(line)
             if record is None:
                 ignored += 1

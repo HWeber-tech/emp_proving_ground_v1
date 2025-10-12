@@ -42,8 +42,11 @@ def _normalise_timestamp(value: datetime | str | None, *, default: Callable[[], 
     if isinstance(value, datetime):
         return value.astimezone(UTC) if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, str):
+        text = value.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
         try:
-            parsed = datetime.fromisoformat(value)
+            parsed = datetime.fromisoformat(text)
         except ValueError:
             logger.debug("Failed to parse diary timestamp %r; falling back to default", value)
             return default()

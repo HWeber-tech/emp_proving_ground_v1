@@ -34,9 +34,14 @@ class _StubSignalFactory:
             },
             "lineage": {"dimension": self.dimension, "source": f"sensory.{self.dimension.lower()}"},
         }
+        value: dict[str, object] = {"confidence": self.confidence}
+        if self.dimension == "WHAT":
+            value["pattern_strength"] = self.strength
+        else:
+            value["strength"] = self.strength
         return SensorSignal(
             signal_type=self.dimension,
-            value={"strength": self.strength, "confidence": self.confidence},
+            value=value,
             confidence=self.confidence,
             timestamp=timestamp,
             metadata=metadata,
@@ -196,6 +201,9 @@ async def test_what_sensory_organ_wraps_sensor_payload() -> None:
     ]
     assert reading.data["dimension"] == "WHAT"
     assert reading.data["signal_strength"] == pytest.approx(0.35, rel=1e-6)
+    value = reading.data["value"]
+    assert isinstance(value, Mapping)
+    assert value.get("pattern_strength") == pytest.approx(reading.data["signal_strength"], rel=1e-6)
     assert reading.metadata.get("lineage", {}).get("dimension") == "WHAT"
     assert reading.metadata.get("quality", {}).get("source") == "stub.what"
 
@@ -276,4 +284,3 @@ async def test_why_sensory_organ_injects_narrative_context() -> None:
     assert sensor.seen_as_of is not None and sensor.seen_as_of.tzinfo is not None
     assert reading.data["dimension"] == "WHY"
     assert reading.metadata.get("quality", {}).get("source") == "stub.why"
-

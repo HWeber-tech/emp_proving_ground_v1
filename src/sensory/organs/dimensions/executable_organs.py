@@ -69,18 +69,47 @@ def _normalise_frame(
     return pd.DataFrame()
 
 
+def _coerce_numeric(value: Any) -> float | None:
+    """Best-effort conversion of ``value`` into a finite float."""
+
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(numeric) or math.isinf(numeric):
+        return None
+    return numeric
+
+
 def _extract_signal_strength(signal: SensorSignal) -> float:
     value = signal.value
     if isinstance(value, Mapping):
-        raw = value.get("strength")
-        try:
-            return float(raw)
-        except (TypeError, ValueError):
-            return 0.0
-    try:
-        return float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return 0.0
+        for key in ("strength", "pattern_strength", "signal_strength", "signal", "score"):
+            numeric = _coerce_numeric(value.get(key))
+            if numeric is not None:
+                return numeric
+        for candidate in value.values():
+            numeric = _coerce_numeric(candidate)
+            if numeric is not None:
+                return numeric
+
+    metadata = signal.metadata if isinstance(signal.metadata, Mapping) else None
+    if isinstance(metadata, Mapping):
+        for key in ("strength", "pattern_strength", "signal", "signal_strength"):
+            numeric = _coerce_numeric(metadata.get(key))
+            if numeric is not None:
+                return numeric
+        audit = metadata.get("audit")
+        if isinstance(audit, Mapping):
+            for key in ("signal", "strength", "pattern_strength", "score"):
+                numeric = _coerce_numeric(audit.get(key))
+                if numeric is not None:
+                    return numeric
+
+    numeric = _coerce_numeric(value)
+    if numeric is not None:
+        return numeric
+    return 0.0
 
 
 def _extract_confidence(signal: SensorSignal) -> float:

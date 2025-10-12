@@ -85,14 +85,21 @@ def test_build_coverage_matrix_groups_by_domain(coverage_report: Path) -> None:
     assert pytest.approx(matrix.totals.percent, rel=1e-6) == 62.5
 
     domain_names = [domain.name for domain in matrix.domains]
-    assert domain_names[:3] == ["other", "risk", "sensory"]
-    assert domain_names[3:] == ["understanding", "runtime"]
+    assert domain_names == ["risk", "other", "sensory", "understanding", "runtime"]
+
+    assert matrix.deprecated_files == ("src/market_intelligence/legacy_dimension.py",)
 
     sensory = next(domain for domain in matrix.domains if domain.name == "sensory")
-    assert sensory.files == 2
-    assert sensory.covered == 3
-    assert sensory.missed == 2
-    assert pytest.approx(sensory.percent, rel=1e-6) == 60.0
+    assert sensory.files == 1
+    assert sensory.covered == 2
+    assert sensory.missed == 1
+    assert sensory.percent == pytest.approx(66.67, rel=1e-6)
+
+    other = next(domain for domain in matrix.domains if domain.name == "other")
+    assert other.files == 2
+    assert other.covered == 1
+    assert other.missed == 2
+    assert other.percent == pytest.approx(33.33, rel=1e-6)
 
     understanding = next(
         domain for domain in matrix.domains if domain.name == "understanding"
@@ -118,8 +125,10 @@ def test_render_markdown_highlights_laggards(coverage_report: Path) -> None:
     assert "runtime" in markdown
     assert "understanding" in markdown
     assert "Domains below the 60.00% threshold" in markdown
-    assert "other (0.00%)" in markdown
+    assert "other (33.33%)" in markdown
     assert "risk (33.33%)" in markdown
+    assert "Deprecated namespace files detected:" in markdown
+    assert "- src/market_intelligence/legacy_dimension.py" in markdown
 
 
 def test_identify_laggards_filters_domains(coverage_report: Path) -> None:
@@ -127,7 +136,7 @@ def test_identify_laggards_filters_domains(coverage_report: Path) -> None:
 
     laggards = identify_laggards(matrix, threshold=70.0)
 
-    assert [domain.name for domain in laggards] == ["other", "risk", "sensory"]
+    assert [domain.name for domain in laggards] == ["risk", "other", "sensory"]
 
 
 def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
@@ -148,9 +157,9 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     assert exit_code == 0
     payload = json.loads(output_path.read_text())
     assert payload["threshold"] == 70.0
-    assert payload["laggards"] == ["other", "risk", "sensory"]
+    assert payload["laggards"] == ["risk", "other", "sensory"]
     assert payload["lagging_count"] == 3
-    assert payload["worst_domain"]["name"] == "other"
+    assert payload["worst_domain"]["name"] == "risk"
     totals = payload["totals"]
     assert totals["files"] == 7
     assert totals["coverage_percent"] == pytest.approx(62.5)
@@ -158,6 +167,9 @@ def test_cli_writes_json_payload(tmp_path: Path, coverage_report: Path) -> None:
     assert "src/sensory/foo.py" in payload["source_files"]
     assert "src/market_intelligence/legacy_dimension.py" in payload["source_files"]
     assert "src/understanding/legacy.py" in payload["source_files"]
+    assert payload["deprecated_files"] == [
+        "src/market_intelligence/legacy_dimension.py",
+    ]
 
 
 def test_cli_fails_when_laggards_present_and_flag_enabled(

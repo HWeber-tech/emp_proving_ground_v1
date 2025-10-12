@@ -53,14 +53,14 @@ _DOMAIN_PREFIXES: dict[tuple[str, ...], str] = {
     ("src", domain): domain for domain in _TRACKED_DOMAINS
 }
 
-# Legacy namespace aliases that should be categorised under the canonical
-# domains for reporting purposes.
-_DOMAIN_PREFIXES.update(
-    {
-        ("src", "intelligence"): "understanding",
-        ("src", "market_intelligence"): "sensory",
-    }
-)
+# Legacy namespace aliases that are still part of the repository but should map
+# onto canonical domains when coverage is reported.
+_DOMAIN_PREFIXES[("src", "intelligence")] = "understanding"
+
+# Namespaces that have been retired entirely.  Coverage entries pointing at
+# these paths indicate drift and should be surfaced explicitly instead of being
+# silently reclassified.
+_DEPRECATED_PREFIXES: tuple[tuple[str, ...], ...] = (("src", "market_intelligence"),)
 
 
 @dataclass
@@ -104,14 +104,18 @@ class CoverageMatrix:
     totals: CoverageDomain
     domains: tuple[CoverageDomain, ...]
     source_files: tuple[str, ...] = ()
+    deprecated_files: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        payload = {
             "generated_at": self.generated_at,
             "totals": self.totals.as_dict(),
             "domains": [domain.as_dict() for domain in self.domains],
             "source_files": list(self.source_files),
         }
+        if self.deprecated_files:
+            payload["deprecated_files"] = list(self.deprecated_files)
+        return payload
 
 
 def _normalise_parts(filename: str) -> tuple[str, ...]:
@@ -127,8 +131,7 @@ def _normalise_parts(filename: str) -> tuple[str, ...]:
     return tuple(parts)
 
 
-def _classify_domain(filename: str) -> str:
-    parts = _normalise_parts(filename)
+def _classify_domain(parts: tuple[str, ...]) -> str:
     for prefix, domain in _DOMAIN_PREFIXES.items():
         if parts[: len(prefix)] == prefix:
             return domain
@@ -160,6 +163,8 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
     total_covered = 0
     total_missed = 0
 
+    deprecated_files: set[str] = set()
+
     for class_node in _iter_class_nodes(root):
         filename = class_node.attrib.get("filename")
         if not filename:
@@ -167,10 +172,16 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
         covered, missed = _count_line_coverage(class_node)
         if covered == 0 and missed == 0:
             continue
-        normalised_filename = "/".join(_normalise_parts(filename))
+        parts = _normalise_parts(filename)
+        normalised_filename = "/".join(parts)
         if not normalised_filename:
             continue
-        domain = _classify_domain(filename)
+        for prefix in _DEPRECATED_PREFIXES:
+            if parts[: len(prefix)] == prefix:
+                deprecated_files.add(normalised_filename)
+                break
+
+        domain = _classify_domain(parts)
         totals = domain_totals.setdefault(
             domain,
             _DomainAccumulator(files=set(), covered=0, missed=0),
@@ -205,6 +216,7 @@ def build_coverage_matrix(coverage_report: Path) -> CoverageMatrix:
         totals=totals_domain,
         domains=tuple(domains),
         source_files=tuple(sorted(all_files)),
+        deprecated_files=tuple(sorted(deprecated_files)),
     )
 
 
@@ -253,6 +265,13 @@ def render_markdown(matrix: CoverageMatrix, *, threshold: float = 80.0) -> str:
             f"All tracked domains meet the {threshold:.2f}% coverage threshold."
         )
     lines.append("")
+
+    if matrix.deprecated_files:
+        lines.append("Deprecated namespace files detected:")
+        for path in matrix.deprecated_files:
+            lines.append(f"- {path}")
+        lines.append("")
+
     return "\n".join(lines)
 
 

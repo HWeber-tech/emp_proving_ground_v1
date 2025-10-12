@@ -1,6 +1,7 @@
 """Test-only strategy stub for the experimentation cycle smoke tests."""
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
 from typing import Any, Dict
 
@@ -14,6 +15,8 @@ class StubStrategy:
         return max(0.2, min(2.0, weight))
 
     def backtest(self, data_slice: Any) -> Any:
+        if self.params.get("mode") == "quick_error":
+            raise RuntimeError("quick eval failure")
         scale = self._scale()
         gross_profit = 120.0 * scale
         gross_loss = 40.0 * scale
@@ -31,6 +34,11 @@ class StubStrategy:
         )
 
     def full_backtest(self) -> Any:
+        mode = self.params.get("mode")
+        if mode == "full_error":
+            raise RuntimeError("full eval failure")
+        if mode == "full_timeout":
+            time.sleep(2)
         scale = self._scale() * 1.1
         return SimpleNamespace(
             gross_profit=150.0 * scale,

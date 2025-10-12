@@ -39,16 +39,26 @@ def test_emp_cycle_smoke(tmp_path):
         "0.3",
         "--ucb-c",
         "0.2",
+        "--seed",
+        "123",
+        "--git-sha",
+        "testsha",
     ]
 
     result = subprocess.run(cmd, env=env, cwd=Path.cwd(), check=True, capture_output=True, text=True)
     assert result.returncode == 0
 
     conn = findings_memory.connect(db_path)
-    stages = dict(conn.execute("SELECT id, stage FROM findings").fetchall())
+    rows = conn.execute("SELECT id, stage, notes FROM findings").fetchall()
+    stages = {row["id"]: row["stage"] for row in rows}
 
     assert "progress" in stages.values() or "tested" in stages.values()
     assert "screened" in stages.values()
+
+    for row in rows:
+        if row["stage"] in {"tested", "progress"}:
+            assert "seed:123" in (row["notes"] or "")
+            assert "git:testsha" in (row["notes"] or "")
 
     with open(baseline_path, "r", encoding="utf-8") as handle:
         baseline_data = json.load(handle)

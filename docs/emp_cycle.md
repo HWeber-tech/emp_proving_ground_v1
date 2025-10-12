@@ -24,11 +24,15 @@ The SQLite database lives at `data/experiments.sqlite` by default and exposes a 
 | `quick_metrics_json` | JSON of quick backtest metrics |
 | `quick_score` | Scalar score derived from quick metrics |
 | `full_metrics_json` | JSON of full backtest metrics |
-| `notes` | Free-form annotations |
+| `notes` | Free-form annotations (includes run metadata and failure reasons) |
+| `params_hash` | SHA1 hash of the sorted params JSON used for de-duplication |
+| `params_vec` | JSON list of eight integers representing the cached novelty vector |
+
+Identical ideas (same `params_hash`) are de-duplicated while in the `idea` or `screened` stages. Legacy rows are lazily backfilled with hash/vector information the first time they are touched.
 
 ## Novelty calculation
 
-Novelty is measured as the cosine distance between an idea's hashed parameter vector and prior entries. Parameters are flattened into sorted `"key=value"` tokens, mapped into eight integer buckets via a rolling hash, and compared using cosine distance. A score of `1.0` means the idea is entirely new; values near `0.0` indicate a close match to existing findings.
+Novelty is measured as the cosine distance between an idea's hashed parameter vector and the most similar recent entries (bounded to the latest ~5k rows). Parameters are flattened into sorted `"key=value"` tokens, mapped into eight integer buckets via a rolling hash, and compared using cosine distance. Cached vectors stored in `params_vec` keep the computation fast even with a large history. A score of `1.0` means the idea is entirely new; values near `0.0` indicate a close match.
 
 ## Tuning quick screen and selection
 
@@ -36,21 +40,44 @@ Novelty is measured as the cosine distance between an idea's hashed parameter ve
 * The CLI option `--quick-threshold` controls the minimum score required to promote an idea to the screened stage.
 * The selection step employs `ucb_lite = quick_score + c * novelty`; adjust `--ucb-c` to trade off exploration vs exploitation.
 
+## Progress KPI configuration
+
+The promotion decision is configurable:
+
+* `--kpi` selects the primary metric (default: `sharpe`).
+* `--kpi-threshold` enforces an absolute minimum for the KPI instead of comparing to the baseline.
+* `--risk-max-dd` constrains absolute drawdown (e.g., `25` for 25%).
+* `--kpi-secondary` accepts additional gates such as `winrate:>=:0.55`; specify multiple flags for multiple gates.
+
+The baseline (`data/baseline.json`) is updated only when the configured KPI signals progress and all constraints succeed.
+
+## Timeouts, metadata, and failure notes
+
+* `--full-timeout-secs` (default: 1200s) bounds the full backtest duration. Timeouts and exceptions mark the idea as `tested` with a `full_eval_error:<reason>` note instead of aborting the cycle.
+* `--seed` and `--git-sha` embed reproducibility metadata directly in the findings notes. The CLI auto-detects the git SHA when possible.
+
 ## Integrating real strategies and data
 
 * Provide a factory function via `EMP_STRATEGY_FACTORY="module:function"` so `emp.core.strategy_factory.make_strategy` can construct real strategies.
-* The quick screen receives a lightweight `data_slice` dictionary (`{"days": N, "symbols": [...]}`), which you can adapt inside your factory to load actual price data.
+* The quick screen relies on `emp.core.data_slice.make_slice` which produces a dictionary containing symbols, start/end timestamps, and duration. Adapt this payload inside your factory to load real data.
 * Override `--slice-days` and `--slice-symbols` to tune the quick screen sample.
 * For the full backtest, expose a `full_backtest()` method on your strategy, or fall back to `backtest(None)`.
 
-## Updating the baseline
+## Database hygiene
 
-The full backtest metrics are compared to `data/baseline.json` (created automatically if missing). When a candidate improves the baseline Sharpe ratio without exceeding the baseline max drawdown, the new metrics are atomically written back to the baseline file.
+Use `python -m emp.cli.emp_db_tools prune --keep-days 90 --stages idea,screened` to remove stale rows and `python -m emp.cli.emp_db_tools vacuum` to reclaim disk space.
+
+## Recipes
+
+* **Sharpe with strict drawdown**: `python -m emp.cli.emp_cycle ... --kpi sharpe --risk-max-dd 15`
+* **CAR/MDD focus**: set `--kpi car_mdd --kpi-threshold 1.1` and ensure your strategy reports the metric.
+* **Win-rate gate**: `--kpi-secondary winrate:>=:0.55`
+* **Monthly cleanup**: `python -m emp.cli.emp_db_tools prune --keep-days 30 --stages idea,screened`
 
 Run a cycle with:
 
 ```bash
-python -m emp.cli.emp_cycle --ideas-json samples/ideas.json --quick-threshold 0.6 --ucb-c 0.3
+python -m emp.cli.emp_cycle --ideas-json samples/ideas.json --quick-threshold 0.6 --ucb-c 0.3 --kpi sharpe --risk-max-dd 20
 ```
 
 The command emits concise stage summaries and updates both the findings database and baseline snapshot.

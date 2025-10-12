@@ -165,6 +165,20 @@ Throttle snapshots include both the resolved `scope_key` and a human readable
 Missing metadata gracefully collapses to a shared "None" scope, ensuring events
 without identifying context remain governed.
 
+### Scope snapshot exports
+
+`TradingManager.get_execution_stats()` now publishes a `trade_throttle_scopes`
+list alongside the aggregate throttle snapshot, capturing the latest posture for
+each active scope so dashboards and evidence packs can diff per-strategy
+utilisation without re-querying the throttle in-process. The manager also
+exposes `get_trade_throttle_scope_snapshots()` for callers that need a tuple of
+deep-copied payloads, and `collect_performance_baseline()` adds the same data as
+`throttle_scopes` so performance dossiers archive the guardrail state observed
+during a drill.【F:src/trading/trading_manager.py†L621-L725】【F:src/trading/execution/performance_baseline.py†L52-L74】
+Guardrail suites assert the scopes list populates when throttles block, the
+baseline helper includes the snapshots, and both surfaces clear the list once
+throttling is disabled.【F:tests/trading/test_trade_throttle.py†L171-L210】【F:tests/trading/test_trading_manager_execution.py†L2092-L2138】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】
+
 ### Minimum spacing guardrails
 
 The throttle also enforces a configurable minimum interval between trades via

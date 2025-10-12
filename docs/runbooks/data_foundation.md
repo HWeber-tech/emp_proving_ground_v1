@@ -193,6 +193,12 @@ dimensions, synthesises telemetry events for ingest results that lack a broker
 echo, reorders the final event list, and threads cache metrics plus ingest
 errors into the validation snapshot so evidence stays complete even if
 streaming pauses.【F:src/data_foundation/pipelines/operational_backbone.py†L305-L499】【F:src/runtime/runtime_builder.py†L1671-L1770】
+Latest iteration also attaches the CLI and pipeline to a shared `TaskSupervisor`
+so rehearsal workloads are registered and cancelled cleanly, adds
+`task_supervision`/`streaming_snapshots` blocks to the JSON and Markdown outputs,
+and records the supervised roster whenever pipeline results are generated; guardrail
+tests assert the supervisor list surfaces in both output formats and that the CLI
+invokes `cancel_all()` during shutdown.【F:tools/data_ingest/run_operational_backbone.py†L400-L520】【F:src/data_foundation/pipelines/operational_backbone.py†L120-L566】【F:tests/tools/test_run_operational_backbone.py†L71-L150】
 Set `KAFKA_INGEST_ENABLE_STREAMING=false` when rehearsing without a Kafka
 broker; the institutional provisioner will still publish ingest telemetry and
 surface topic metadata, but the supervised bridge remains idle so local runs

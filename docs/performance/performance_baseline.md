@@ -23,6 +23,8 @@ The returned dictionary contains:
 - `performance`: full assessment including backlog/resource posture and
   throttle summary.
 - `reports`: Markdown renderings that can be pasted directly into ops dossiers.
+- `throttle_scopes`: list of per-scope throttle snapshots captured at the time of
+  baseline generation for downstream evidence packs.
 
 The backlog snapshot now surfaces `latest_lag_ms`, `p95_lag_ms`, `breach_rate`,
 and `max_breach_streak` so trend analysis and drift detection can be done from a
@@ -59,6 +61,15 @@ Sample (truncated) output:
     "max_lag_ms": 0.013,
     "healthy": true
   },
+  "throttle_scopes": [
+    {
+      "state": "rate_limited",
+      "metadata": {
+        "scope": {"strategy_id": "alpha", "symbol": "EURUSD"},
+        "remaining_trades": 0
+      }
+    }
+  ],
   "performance": {
     "healthy": true,
     "backlog": {
@@ -85,4 +96,7 @@ Sample (truncated) output:
 
 Operators can archive the Markdown reports alongside the JSON payload to show
 baseline CPU/lag budgets remain within guardrails and that the trade throttle
-activates deterministically under burst conditions.
+activates deterministically under burst conditions. The dedicated
+`get_trade_throttle_scope_snapshots()` helper on the trading manager returns the
+same per-scope payloads used in the baseline so observability tooling can reuse
+the snapshots without rerunning the collection routine.【F:src/trading/trading_manager.py†L621-L725】【F:src/trading/execution/performance_baseline.py†L52-L74】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】

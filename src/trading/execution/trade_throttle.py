@@ -102,6 +102,7 @@ class TradeThrottleDecision:
     snapshot: Mapping[str, Any]
     reason: str | None = None
     retry_at: datetime | None = None
+    multiplier: float | None = None
 
     def as_dict(self) -> Mapping[str, Any]:
         """Return a serialisable view of the throttle snapshot."""
@@ -232,11 +233,20 @@ class TradeThrottle:
         )
         self._last_snapshot = snapshot
 
+        multiplier: float | None
+        if self._config.multiplier is None:
+            multiplier = None
+        else:
+            multiplier = float(self._config.multiplier)
+            if not math.isfinite(multiplier):
+                multiplier = None
+
         return TradeThrottleDecision(
             allowed=allowed,
             snapshot=snapshot,
             reason=reason,
             retry_at=retry_at,
+            multiplier=multiplier,
         )
 
     def snapshot(self) -> Mapping[str, Any]:

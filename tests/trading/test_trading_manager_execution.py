@@ -2128,6 +2128,69 @@ async def test_trade_throttle_handles_high_frequency_burst(
 
 
 @pytest.mark.asyncio()
+async def test_trade_throttle_applies_multiplier_to_quantity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={
+            "max_trades": 5,
+            "window_seconds": 120.0,
+            "multiplier": 0.5,
+        },
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=2.0,
+        price=1.2345,
+        confidence=0.85,
+        strategy_id="alpha",
+    )
+    setattr(intent, "event_id", "multiplier-1")
+
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    outcome = await manager.on_trade_intent(intent)
+
+    assert engine.calls == 1
+    assert intent.quantity == pytest.approx(1.0)
+
+    stats = manager.get_execution_stats()
+    assert stats["throttle_scalings"] == 1
+    assert stats["last_throttle_multiplier"] == pytest.approx(0.5)
+
+    throttle_snapshot = manager.get_trade_throttle_snapshot()
+    assert throttle_snapshot is not None
+    assert throttle_snapshot.get("multiplier") == pytest.approx(0.5)
+
+    events = manager.get_experiment_events()
+    scaling_events = [event for event in events if event["status"] == "throttle_scaled"]
+    assert scaling_events, "expected throttle scaling experiment event"
+    scaling_summary = scaling_events[0].get("metadata", {}).get("summary", {})
+    assert scaling_summary.get("throttle_multiplier") == pytest.approx(0.5)
+    assert scaling_summary.get("quantity_after_throttle") == pytest.approx(1.0)
+
+    assert outcome.executed is True
+    assert outcome.metadata.get("throttle_multiplier") == pytest.approx(0.5)
+    assert outcome.metadata.get("quantity_after_throttle") == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio()
 async def test_high_frequency_replay_throughput_remains_healthy(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

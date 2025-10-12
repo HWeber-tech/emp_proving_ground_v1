@@ -162,6 +162,18 @@ strategy may resume. Snapshots surface the configured spacing in
 cooldowns with observed behaviour. This guardrail satisfies the roadmap’s need
 to damp oscillatory bursts while keeping throttle explanations transparent.
 
+### Throttle sizing multipliers
+
+Governance teams can now soften bursty tactics instead of blocking them outright
+by setting `TradeThrottleConfig.multiplier`. When present, the trading manager
+scales validated trade quantities by the multiplier before reserving exposure
+and dispatching the order. The adjustment is recorded as a
+`throttle_scaled` experiment event, increments the execution stats via
+`throttle_scalings`, and surfaces a `throttle_multiplier` summary on trade
+outcomes so runbooks and dashboards capture both the original and adjusted
+sizes. Runtime configuration honours the `TRADE_THROTTLE_MULTIPLIER` extra,
+and throttle snapshots now expose the configured multiplier for observability.
+
 ### Window reset telemetry
 
 Throttle snapshots now report how saturated the rolling window is and when it

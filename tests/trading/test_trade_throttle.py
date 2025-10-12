@@ -240,3 +240,25 @@ def test_trade_throttle_prunes_stale_scoped_states() -> None:
     state_keys = list(throttle._states.keys())  # type: ignore[attr-defined]  # intentional: ensure stale scopes pruned
     assert len(state_keys) == 1
     assert any("omega" in part for part in state_keys[0])
+
+
+def test_trade_throttle_decision_surfaces_multiplier() -> None:
+    config = TradeThrottleConfig(
+        name="scoped",
+        max_trades=2,
+        window_seconds=120.0,
+        multiplier=0.65,
+    )
+    throttle = TradeThrottle(config)
+
+    moment = datetime(2024, 4, 10, 9, 30, tzinfo=timezone.utc)
+    decision = throttle.evaluate(now=moment, metadata={"strategy_id": "alpha"})
+
+    assert decision.allowed is True
+    assert decision.multiplier == pytest.approx(0.65)
+
+    snapshot = decision.as_dict()
+    assert snapshot.get("multiplier") == pytest.approx(0.65)
+    assert snapshot.get("active") is False
+    metadata = snapshot.get("metadata", {})
+    assert metadata.get("remaining_trades") == 1

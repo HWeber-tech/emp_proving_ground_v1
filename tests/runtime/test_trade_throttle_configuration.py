@@ -28,6 +28,7 @@ async def test_trade_throttle_configured_from_system_extras() -> None:
             "TRADE_THROTTLE_MAX_TRADES": "1",
             "TRADE_THROTTLE_WINDOW_SECONDS": "60",
             "TRADE_THROTTLE_MIN_SPACING_SECONDS": "30",
+            "TRADE_THROTTLE_MULTIPLIER": "0.75",
             "TRADE_THROTTLE_SCOPE_FIELDS": "strategy_id,symbol",
         },
     )
@@ -38,6 +39,7 @@ async def test_trade_throttle_configured_from_system_extras() -> None:
     throttle_snapshot = app.sensory_organ.trading_manager.get_trade_throttle_snapshot()
     assert throttle_snapshot is not None
     assert throttle_snapshot.get("name") == "compliance_guard"
+    assert throttle_snapshot.get("multiplier") == pytest.approx(0.75)
 
     metadata = throttle_snapshot.get("metadata")
     assert isinstance(metadata, dict)

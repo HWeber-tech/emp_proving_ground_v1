@@ -1,6 +1,7 @@
 """Trading Manager v1.0 - Risk-Aware Trade Execution Coordinator."""
 
 import logging
+import math
 import time
 from collections import deque
 from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
@@ -533,6 +534,8 @@ class TradingManager:
             "backlog_breaches": 0,
             "last_backlog_breach": None,
             "throttle_blocks": 0,
+            "throttle_scalings": 0,
+            "last_throttle_multiplier": None,
             "throttle_retry_at": None,
         }
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
@@ -626,6 +629,8 @@ class TradingManager:
             self._trade_throttle_snapshot = None
             self._execution_stats.pop("trade_throttle", None)
             self._execution_stats["throttle_retry_at"] = None
+            self._execution_stats["throttle_scalings"] = 0
+            self._execution_stats["last_throttle_multiplier"] = None
             return
 
         throttle_config = (
@@ -644,11 +649,18 @@ class TradingManager:
         self._execution_stats["throttle_blocks"] = coerce_int(
             self._execution_stats.get("throttle_blocks"), default=0
         )
+        self._execution_stats["throttle_scalings"] = 0
         retry_at = snapshot_dict.get("metadata")
         if isinstance(retry_at, Mapping):
             self._execution_stats["throttle_retry_at"] = retry_at.get("retry_at")
         else:
             self._execution_stats["throttle_retry_at"] = None
+        if throttle_config.multiplier is not None:
+            self._execution_stats["last_throttle_multiplier"] = float(
+                throttle_config.multiplier
+            )
+        else:
+            self._execution_stats["last_throttle_multiplier"] = None
 
     def _evaluate_trade_throttle(
         self,
@@ -837,21 +849,26 @@ class TradingManager:
                 if confidence is None:
                     confidence = base_confidence
 
-                notional = abs(float(quantity)) * abs(float(price))
+                original_quantity_float = float(quantity)
+                notional = abs(original_quantity_float) * abs(float(price))
                 drift_notional_value = notional
 
                 throttle_snapshot: Mapping[str, Any] | None = None
                 throttle_blocked = False
+                throttle_scaling_metadata: dict[str, Any] | None = None
+                throttle_scaling_summary: dict[str, Any] | None = None
                 throttle_decision = self._evaluate_trade_throttle(
                     strategy_id=strategy_id,
                     symbol=symbol,
                     confidence=confidence,
                     notional=notional,
                 )
+                if throttle_decision is not None:
+                    throttle_snapshot = throttle_decision.as_dict()
+
                 if throttle_decision is not None and not throttle_decision.allowed:
                     reason = throttle_decision.reason or "trade_throttle_active"
-                    throttle_snapshot = throttle_decision.as_dict()
-                    human_reason = throttle_snapshot.get("message")
+                    human_reason = throttle_snapshot.get("message") if throttle_snapshot else None
                     metadata_payload: dict[str, Any] = {
                         "reason": reason,
                         "throttle": throttle_snapshot,
@@ -898,6 +915,89 @@ class TradingManager:
                             release_metadata=None,
                         )
                         drift_event_emitted = True
+                elif throttle_decision is not None and throttle_decision.allowed:
+                    multiplier_value = throttle_decision.multiplier
+                    if multiplier_value is None and throttle_snapshot is not None:
+                        raw_multiplier = throttle_snapshot.get("multiplier")
+                        if raw_multiplier is not None:
+                            try:
+                                multiplier_value = float(raw_multiplier)
+                            except (TypeError, ValueError):
+                                multiplier_value = None
+                    if (
+                        multiplier_value is not None
+                        and math.isfinite(multiplier_value)
+                        and not math.isclose(multiplier_value, 1.0, rel_tol=1e-9, abs_tol=1e-9)
+                    ):
+                        adjusted_quantity_decimal = quantity * Decimal(
+                            str(multiplier_value)
+                        )
+                        try:
+                            adjusted_quantity_float = float(adjusted_quantity_decimal)
+                        except (TypeError, ValueError, OverflowError) as exc:
+                            logger.warning(
+                                "Trade throttle multiplier produced invalid quantity",
+                                extra={
+                                    "event_id": event_id,
+                                    "multiplier": multiplier_value,
+                                    "error": str(exc),
+                                },
+                            )
+                        else:
+                            if math.isfinite(adjusted_quantity_float) and self._update_intent_quantity(
+                                validated_intent, adjusted_quantity_float
+                            ):
+                                quantity = Decimal(str(adjusted_quantity_float))
+                                notional = abs(adjusted_quantity_float) * abs(float(price))
+                                drift_notional_value = notional
+                                throttle_scaling_summary = {
+                                    "throttle_multiplier": float(multiplier_value),
+                                    "quantity_before_throttle": original_quantity_float,
+                                    "quantity_after_throttle": adjusted_quantity_float,
+                                }
+                                throttle_scaling_metadata = {
+                                    "multiplier": float(multiplier_value),
+                                    "quantity_before": original_quantity_float,
+                                    "quantity_after": adjusted_quantity_float,
+                                }
+                                if throttle_snapshot is not None:
+                                    throttle_scaling_metadata["throttle"] = dict(
+                                        throttle_snapshot
+                                    )
+                                throttle_scaling_metadata["summary"] = dict(
+                                    throttle_scaling_summary
+                                )
+                                self._execution_stats["throttle_scalings"] = coerce_int(
+                                    self._execution_stats.get("throttle_scalings"), default=0
+                                ) + 1
+                                self._execution_stats["last_throttle_multiplier"] = float(
+                                    multiplier_value
+                                )
+                                self._record_experiment_event(
+                                    event_id=event_id,
+                                    status="throttle_scaled",
+                                    strategy_id=strategy_id,
+                                    symbol=symbol,
+                                    confidence=confidence,
+                                    notional=notional,
+                                    metadata=throttle_scaling_metadata,
+                                    decision=self._get_last_risk_decision(),
+                                )
+                                logger.info(
+                                    "Applied trade throttle multiplier %.4f to %s; quantity %.6f → %.6f",
+                                    multiplier_value,
+                                    event_id,
+                                    original_quantity_float,
+                                    adjusted_quantity_float,
+                                )
+                            else:
+                                logger.warning(
+                                    "Failed to apply trade throttle multiplier to intent",
+                                    extra={
+                                        "event_id": event_id,
+                                        "multiplier": multiplier_value,
+                                    },
+                                )
 
                 if not throttle_blocked:
                     cast(Any, self.portfolio_monitor).reserve_position(
@@ -937,6 +1037,8 @@ class TradingManager:
                         failure_metadata: dict[str, object] = {"error": str(exc)}
                         if notional:
                             failure_metadata["notional"] = float(notional)
+                        if throttle_scaling_summary:
+                            failure_metadata.update(throttle_scaling_summary)
                         release_metadata = self._extract_release_execution_metadata(
                             validated_intent
                         )
@@ -1004,6 +1106,8 @@ class TradingManager:
                                 "quantity": float(quantity),
                                 "price": float(price),
                             }
+                            if throttle_scaling_summary:
+                                success_metadata.update(throttle_scaling_summary)
                             if gate_decision_payload is not None:
                                 success_metadata["drift_gate"] = dict(gate_decision_payload)
                             release_metadata = self._extract_release_execution_metadata(
@@ -1060,6 +1164,8 @@ class TradingManager:
                             }
                             if notional:
                                 fallback_metadata["notional"] = float(notional)
+                            if throttle_scaling_summary:
+                                fallback_metadata.update(throttle_scaling_summary)
                             if gate_decision_payload is not None:
                                 fallback_metadata["drift_gate"] = dict(
                                     gate_decision_payload
@@ -2590,6 +2696,38 @@ class TradingManager:
                 if key in intent:
                     return Decimal(str(intent[key]))
         return Decimal("0")
+
+    @staticmethod
+    def _update_intent_quantity(intent: Any, quantity: float) -> bool:
+        """Attempt to mutate ``intent`` with the new quantity value."""
+
+        for attr in ("quantity", "size", "volume"):
+            if hasattr(intent, attr):
+                try:
+                    setattr(intent, attr, quantity)
+                    return True
+                except Exception:
+                    continue
+
+        if isinstance(intent, MutableMappingABC):
+            for key in ("quantity", "size", "volume"):
+                if key in intent:
+                    try:
+                        intent[key] = quantity
+                        return True
+                    except Exception:
+                        continue
+
+        metadata = getattr(intent, "metadata", None)
+        if isinstance(metadata, MutableMappingABC):
+            for key in ("quantity", "size", "volume"):
+                if key in metadata:
+                    try:
+                        metadata[key] = quantity
+                        return True
+                    except Exception:
+                        continue
+        return False
 
     @staticmethod
     def _extract_confidence(intent: Any) -> float | None:

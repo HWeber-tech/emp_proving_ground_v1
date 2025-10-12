@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 import importlib
@@ -19,13 +20,13 @@ class _CrashMapping(dict):
 
 
 @pytest.mark.asyncio
-async def test_calculate_position_size_exception_returns_configured_minimum() -> None:
+async def test_calculate_position_size_exception_returns_zero() -> None:
     config = RiskConfig(min_position_size=5_000, max_position_size=10_000)
     manager = RiskManagerImpl(initial_balance=10_000, risk_config=config)
 
     size = await manager.calculate_position_size(_CrashMapping())
 
-    assert size == pytest.approx(5_000.0)
+    assert size == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
@@ -50,6 +51,119 @@ async def test_calculate_position_size_returns_zero_when_below_minimum_lot() -> 
     )
 
     assert size == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_handles_non_finite_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+    monkeypatch.setattr(manager, "_compute_risk_budget", lambda: float("inf"))
+
+    size = await manager.calculate_position_size(
+        {"symbol": "EURUSD", "confidence": 0.6, "stop_loss_pct": 0.02}
+    )
+
+    assert size == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_returns_bounded_size() -> None:
+    config = RiskConfig(min_position_size=1_000, max_position_size=5_000)
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=config)
+
+    size = await manager.calculate_position_size(
+        {"symbol": "EURUSD", "confidence": 0.7, "stop_loss_pct": 0.02}
+    )
+
+    assert 1_000 <= size <= 5_000
+
+
+@pytest.mark.asyncio
+async def test_validate_position_rejects_non_positive_size() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 0.0, "entry_price": 1.2, "stop_loss_pct": 0.02}
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_rejects_non_positive_entry_price() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000.0, "entry_price": 0.0, "stop_loss_pct": 0.02}
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_rejects_out_of_bounds_sizes() -> None:
+    config = RiskConfig(min_position_size=1_000, max_position_size=5_000)
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=config)
+
+    below_min = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 100.0, "entry_price": 1.1, "stop_loss_pct": 0.02}
+    )
+    above_max = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 10_000.0, "entry_price": 1.1, "stop_loss_pct": 0.02}
+    )
+
+    assert below_min is False
+    assert above_max is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_requires_stop_loss_when_mandatory() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000.0, "entry_price": 1.2}
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_rejects_when_risk_budget_unavailable() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+    manager.update_account_balance(0)
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000.0, "entry_price": 1.1, "stop_loss_pct": 0.02}
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_rejects_on_aggregate_risk(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=RiskConfig())
+
+    monkeypatch.setattr(manager, "_aggregate_position_risk", lambda: {})
+    monkeypatch.setattr(manager.risk_manager, "assess_risk", lambda positions: 1.5)
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 1_000.0, "entry_price": 1.1, "stop_loss_pct": 0.01}
+    )
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_validate_position_accepts_valid_signal(monkeypatch: pytest.MonkeyPatch) -> None:
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=RiskConfig())
+
+    monkeypatch.setattr(manager, "_aggregate_position_risk", lambda: {})
+    monkeypatch.setattr(manager.risk_manager, "assess_risk", lambda positions: 0.5)
+
+    result = await manager.validate_position(
+        {"symbol": "EURUSD", "size": 2_000.0, "entry_price": 1.1, "stop_loss_pct": 0.01}
+    )
+
+    assert result is True
 
 
 def test_risk_manager_impl_accepts_mapping_payload() -> None:
@@ -366,6 +480,42 @@ def test_risk_manager_impl_update_limits_overrides_all_supported_fields() -> Non
     assert manager._sector_limits["fx"] == pytest.approx(0.05)
 
 
+def test_risk_manager_impl_update_limits_ignores_non_positive_overrides() -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    baseline_risk = manager._risk_per_trade
+    baseline_drawdown = manager.config.max_drawdown
+    baseline_exposure = manager.config.max_total_exposure
+    baseline_leverage = manager.config.max_leverage
+    baseline_min_size = manager._min_position_size
+    baseline_max_size = manager._max_position_size
+
+    manager.update_limits({"max_risk_per_trade_pct": 0.0})
+    assert manager._risk_per_trade == pytest.approx(baseline_risk)
+
+    manager.update_limits({"max_total_exposure_pct": 0.0})
+    assert manager.config.max_total_exposure == pytest.approx(baseline_exposure)
+
+    manager.update_limits({"max_drawdown": 0.0})
+    assert manager.config.max_drawdown == pytest.approx(0.0)
+    assert manager.config.max_total_exposure == pytest.approx(baseline_exposure)
+
+    manager.update_limits({"max_leverage": 0.0})
+    assert manager.config.max_leverage == pytest.approx(baseline_leverage)
+
+    manager.update_limits({"min_position_size": 0.0})
+    assert manager._min_position_size == pytest.approx(0.0)
+
+    manager.update_limits({"max_position_size": 0.0})
+    assert manager._max_position_size == pytest.approx(manager._min_position_size)
+
+    manager.update_limits({"instrument_sector_map": {"eurusd": ""}})
+    assert manager._instrument_sector_map == {}
+
+    manager.update_limits({"sector_exposure_limits": {"fx": 0.0}})
+    assert manager._sector_limits == {}
+
+
 def test_risk_manager_impl_check_risk_thresholds_handles_zero_budget() -> None:
     config = RiskConfig(
         instrument_sector_map={"EURUSD": "FX"},
@@ -384,3 +534,107 @@ def test_risk_manager_impl_evaluate_portfolio_risk_handles_bad_payload() -> None
     risk = manager.evaluate_portfolio_risk({"EURUSD": object()})
 
     assert risk == pytest.approx(0.0)
+
+
+def _build_sector_enabled_manager() -> RiskManagerImpl:
+    config = RiskConfig(
+        instrument_sector_map={"EURUSD": "FX"},
+        sector_exposure_limits={"FX": Decimal("0.05")},
+        max_position_size=250_000,
+    )
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    manager.add_position("EURUSD", 50_000, 1.2, stop_loss_pct=0.02)
+    return manager
+
+
+def test_get_risk_summary_includes_sector_and_market_metrics() -> None:
+    manager = _build_sector_enabled_manager()
+
+    summary = manager.get_risk_summary(
+        returns=[0.01, -0.004, 0.003],
+        confidence=0.95,
+    )
+
+    assert "sector_exposure" in summary
+    assert summary["sector_exposure"]["FX"]["exposure"] > 0.0
+    market_risk = summary["market_risk"]
+    assert market_risk["confidence"] == pytest.approx(0.95)
+    assert market_risk["expected_shortfall"]["historical"]["confidence"] == pytest.approx(0.95)
+
+
+def test_get_risk_summary_omits_sector_when_not_configured() -> None:
+    manager = RiskManagerImpl(initial_balance=25_000, risk_config=RiskConfig())
+
+    summary = manager.get_risk_summary()
+
+    assert "sector_exposure" not in summary
+
+
+def test_get_risk_summary_skips_market_risk_when_returns_empty(caplog: pytest.LogCaptureFixture) -> None:
+    manager = _build_sector_enabled_manager()
+
+    caplog.set_level(logging.WARNING, logger="src.risk.risk_manager_impl")
+
+    summary = manager.get_risk_summary(returns=[], confidence=0.9)
+
+    assert "market_risk" not in summary
+    assert any("Market risk computation skipped" in record.message for record in caplog.records)
+
+
+def test_calculate_portfolio_risk_reports_sector_and_market_metrics() -> None:
+    manager = _build_sector_enabled_manager()
+
+    metrics = manager.calculate_portfolio_risk(
+        returns=[0.006, -0.002, 0.001],
+        confidence=0.9,
+    )
+
+    assert metrics["risk_amount"] > 0.0
+    assert metrics["sector_exposure"]["FX"]["utilisation"] > 0.0
+    market_risk = metrics["market_risk"]
+    assert market_risk["confidence"] == pytest.approx(0.9)
+
+
+def test_calculate_portfolio_risk_handles_empty_returns(caplog: pytest.LogCaptureFixture) -> None:
+    manager = _build_sector_enabled_manager()
+    caplog.set_level(logging.WARNING, logger="src.risk.risk_manager_impl")
+
+    metrics = manager.calculate_portfolio_risk(returns=[], confidence=0.9)
+
+    assert "market_risk" not in metrics
+    assert any("Market risk computation skipped" in record.message for record in caplog.records)
+
+
+def test_calculate_portfolio_risk_without_sector_or_returns() -> None:
+    manager = RiskManagerImpl(initial_balance=20_000, risk_config=RiskConfig())
+    manager.add_position("EURUSD", 5_000, 1.0, stop_loss_pct=0.02)
+
+    metrics = manager.calculate_portfolio_risk()
+
+    assert "sector_exposure" not in metrics
+    assert "market_risk" not in metrics
+
+
+def test_get_position_risk_handles_missing_and_tracked_symbols() -> None:
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=RiskConfig())
+
+    assert manager.get_position_risk("EURUSD") == {}
+
+    manager.add_position("EURUSD", 25_000, 1.0, stop_loss_pct=0.02)
+    manager.update_position_value("EURUSD", 1.1)
+
+    snapshot = manager.get_position_risk("eurusd")
+
+    assert snapshot["symbol"] == "EURUSD"
+    assert snapshot["risk_amount"] > 0.0
+
+
+def test_update_account_balance_recomputes_drawdown_multiplier() -> None:
+    config = RiskConfig(max_drawdown_pct=Decimal("0.25"))
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    baseline_budget = manager._compute_risk_budget()
+
+    manager.update_account_balance(80_000)
+
+    assert manager._drawdown_multiplier == pytest.approx(0.25)
+    assert manager._compute_risk_budget() < baseline_budget * 0.3

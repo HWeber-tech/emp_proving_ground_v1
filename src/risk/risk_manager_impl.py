@@ -518,7 +518,7 @@ class RiskManagerImpl(RiskManagerProtocol):
 
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
-            return float(self._min_position_size)  # Fallback to configured minimum
+            return 0.0  # Fail closed when sizing is unreliable
 
     def target_allocation_from_volatility(
         self,
@@ -972,7 +972,7 @@ def create_risk_manager(
     return RiskManagerImpl(initial_balance, risk_config=risk_config)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - interactive smoke harness
 
     async def main() -> None:
         # Test the implementation

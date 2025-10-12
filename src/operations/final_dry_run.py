@@ -61,6 +61,12 @@ class FinalDryRunConfig:
     log_gap_fail: timedelta | None = None
     live_gap_alert: timedelta | None = None
     live_gap_severity: DryRunStatus = DryRunStatus.warn
+    diary_stale_warn: timedelta | None = None
+    diary_stale_fail: timedelta | None = None
+    performance_stale_warn: timedelta | None = None
+    performance_stale_fail: timedelta | None = None
+    evidence_check_interval: timedelta | None = None
+    evidence_initial_grace: timedelta = timedelta(minutes=15)
 
     def __post_init__(self) -> None:
         if not self.command:
@@ -141,6 +147,46 @@ class FinalDryRunConfig:
         except ValueError as exc:  # pragma: no cover - defensive guard
             raise ValueError("live_gap_severity must map to a DryRunStatus value") from exc
         object.__setattr__(self, "live_gap_severity", live_gap_severity)
+
+        def _validate_evidence_threshold(
+            label: str,
+            warn: timedelta | None,
+            fail: timedelta | None,
+        ) -> tuple[timedelta | None, timedelta | None]:
+            if warn is not None and warn <= timedelta(0):
+                raise ValueError(f"{label}_warn must be positive when provided")
+            if fail is not None and fail <= timedelta(0):
+                raise ValueError(f"{label}_fail must be positive when provided")
+            if warn is not None and fail is not None and fail < warn:
+                raise ValueError(
+                    f"{label}_fail must be greater than or equal to {label}_warn"
+                )
+            return warn, fail
+
+        diary_warn, diary_fail = _validate_evidence_threshold(
+            "diary_stale",
+            self.diary_stale_warn,
+            self.diary_stale_fail,
+        )
+        performance_warn, performance_fail = _validate_evidence_threshold(
+            "performance_stale",
+            self.performance_stale_warn,
+            self.performance_stale_fail,
+        )
+        object.__setattr__(self, "diary_stale_warn", diary_warn)
+        object.__setattr__(self, "diary_stale_fail", diary_fail)
+        object.__setattr__(self, "performance_stale_warn", performance_warn)
+        object.__setattr__(self, "performance_stale_fail", performance_fail)
+
+        check_interval = self.evidence_check_interval
+        if check_interval is not None and check_interval <= timedelta(0):
+            raise ValueError(
+                "evidence_check_interval must be positive when provided"
+            )
+        object.__setattr__(self, "evidence_check_interval", check_interval)
+
+        if self.evidence_initial_grace < timedelta(0):
+            raise ValueError("evidence_initial_grace must be non-negative")
 
 
 @dataclass(slots=True, frozen=True)
@@ -486,6 +532,170 @@ class _LogGapMonitor:
             raise
 
 
+class _EvidenceMonitor:
+    """Watch an evidence artefact for freshness and emit harness incidents."""
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        path: Path,
+        warn_after: timedelta | None,
+        fail_after: timedelta | None,
+        check_interval: timedelta,
+        initial_grace: timedelta,
+        started_at: datetime,
+        incidents: list[HarnessIncident],
+        incident_keys: set[tuple[str, ...]],
+        incident_lock: asyncio.Lock,
+        progress_reporter: _ProgressReporter | None,
+    ) -> None:
+        self._name = name
+        self._path = Path(path)
+        self._warn_after = warn_after
+        self._fail_after = fail_after
+        self._check_seconds = max(check_interval.total_seconds(), 0.05)
+        self._initial_grace = max(initial_grace, timedelta(0))
+        self._started_at = started_at
+        self._incidents = incidents
+        self._incident_keys = incident_keys
+        self._incident_lock = incident_lock
+        self._progress_reporter = progress_reporter
+        self._active_severity: DryRunStatus | None = None
+
+    async def run(self) -> None:
+        try:
+            while True:
+                await self._check()
+                await asyncio.sleep(self._check_seconds)
+        except asyncio.CancelledError:  # pragma: no cover - cooperative cancellation
+            raise
+
+    async def _check(self) -> None:
+        now = datetime.now(tz=UTC)
+        if now - self._started_at < self._initial_grace:
+            return
+
+        evaluation = self._evaluate(now)
+        if evaluation is None:
+            self._active_severity = None
+            return
+
+        severity, state, age, threshold_seconds, last_observed = evaluation
+        current_rank = (
+            _PROGRESS_SEVERITY_ORDER.get(self._active_severity, 0)
+            if self._active_severity is not None
+            else 0
+        )
+        new_rank = _PROGRESS_SEVERITY_ORDER.get(severity, 0)
+        if new_rank <= current_rank:
+            return
+
+        age_delta = timedelta(seconds=age)
+        threshold_delta = timedelta(seconds=threshold_seconds)
+        if state == "missing":
+            state_msg = "missing"
+        else:
+            state_msg = "stale"
+        message = (
+            f"{self._name} {state_msg} for {humanise_timedelta(age_delta)}; "
+            f"exceeds {severity.value.upper()} threshold "
+            f"{humanise_timedelta(threshold_delta)}"
+        )
+        metadata: dict[str, Any] = {
+            "path": self._path.as_posix(),
+            "state": state,
+            "age_seconds": age,
+            "threshold_seconds": threshold_seconds,
+        }
+        if last_observed is not None:
+            metadata["last_observed_at"] = last_observed.astimezone(UTC).isoformat()
+
+        incident = HarnessIncident(
+            severity=severity,
+            occurred_at=now,
+            message=message,
+            metadata=metadata,
+        )
+
+        recorded = await _append_incident(
+            incident=incident,
+            key=("evidence", self._name, severity.value),
+            incidents=self._incidents,
+            incident_keys=self._incident_keys,
+            lock=self._incident_lock,
+            progress_reporter=self._progress_reporter,
+        )
+        if recorded:
+            self._active_severity = severity
+
+    def _evaluate(
+        self, now: datetime
+    ) -> tuple[DryRunStatus, str, float, float, datetime | None] | None:
+        warn_seconds = (
+            self._warn_after.total_seconds() if self._warn_after is not None else None
+        )
+        fail_seconds = (
+            self._fail_after.total_seconds() if self._fail_after is not None else None
+        )
+
+        try:
+            stat = self._path.stat()
+        except FileNotFoundError:
+            stat = None
+        except OSError:
+            stat = None
+
+        exists = stat is not None and stat.st_size > 0 if stat is not None else False
+        if exists:
+            last_observed = datetime.fromtimestamp(stat.st_mtime, tz=UTC)
+            age_seconds = max((now - last_observed).total_seconds(), 0.0)
+        else:
+            last_observed = None
+            age_seconds = max((now - self._started_at).total_seconds(), 0.0)
+
+        severity: DryRunStatus | None = None
+        threshold_seconds: float | None = None
+
+        if fail_seconds is not None and age_seconds >= fail_seconds:
+            severity = DryRunStatus.fail
+            threshold_seconds = fail_seconds
+        elif warn_seconds is not None and age_seconds >= warn_seconds:
+            severity = DryRunStatus.warn
+            threshold_seconds = warn_seconds
+
+        if severity is None or threshold_seconds is None:
+            return None
+
+        state = "missing" if not exists else "stale"
+        return severity, state, age_seconds, threshold_seconds, last_observed
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def check_seconds(self) -> float:
+        return self._check_seconds
+
+
+def _default_evidence_interval(
+    explicit: timedelta | None,
+    warn: timedelta | None,
+    fail: timedelta | None,
+) -> timedelta:
+    if explicit is not None:
+        return explicit
+    candidates = [value for value in (warn, fail) if value is not None]
+    if not candidates:
+        return timedelta(minutes=1)
+    minimum = min(candidates)
+    seconds = minimum.total_seconds()
+    if seconds <= 0:
+        return timedelta(seconds=1)
+    return timedelta(seconds=max(seconds / 4.0, 0.1))
+
+
 async def perform_final_dry_run(
     config: FinalDryRunConfig,
     *,
@@ -502,7 +712,7 @@ async def perform_final_dry_run(
 
     incidents: list[HarnessIncident] = []
     incident_lock = asyncio.Lock()
-    incident_keys: set[tuple[str, str, str, str]] = set()
+    incident_keys: set[tuple[str, ...]] = set()
 
     log_lock = asyncio.Lock()
     log_file = log_path.open("w", encoding="utf-8")
@@ -561,6 +771,55 @@ async def perform_final_dry_run(
             incident_keys=incident_keys,
             incident_lock=incident_lock,
             progress_reporter=progress_reporter,
+        )
+
+    evidence_tasks: list[asyncio.Task[Any]] = []
+    evidence_monitors: list[_EvidenceMonitor] = []
+    if config.diary_path is not None and (
+        config.diary_stale_warn is not None or config.diary_stale_fail is not None
+    ):
+        evidence_monitors.append(
+            _EvidenceMonitor(
+                name="Decision diary",
+                path=config.diary_path,
+                warn_after=config.diary_stale_warn,
+                fail_after=config.diary_stale_fail,
+                check_interval=_default_evidence_interval(
+                    config.evidence_check_interval,
+                    config.diary_stale_warn,
+                    config.diary_stale_fail,
+                ),
+                initial_grace=config.evidence_initial_grace,
+                started_at=started_at,
+                incidents=incidents,
+                incident_keys=incident_keys,
+                incident_lock=incident_lock,
+                progress_reporter=progress_reporter,
+            )
+        )
+
+    if config.performance_path is not None and (
+        config.performance_stale_warn is not None
+        or config.performance_stale_fail is not None
+    ):
+        evidence_monitors.append(
+            _EvidenceMonitor(
+                name="Performance telemetry",
+                path=config.performance_path,
+                warn_after=config.performance_stale_warn,
+                fail_after=config.performance_stale_fail,
+                check_interval=_default_evidence_interval(
+                    config.evidence_check_interval,
+                    config.performance_stale_warn,
+                    config.performance_stale_fail,
+                ),
+                initial_grace=config.evidence_initial_grace,
+                started_at=started_at,
+                incidents=incidents,
+                incident_keys=incident_keys,
+                incident_lock=incident_lock,
+                progress_reporter=progress_reporter,
+            )
         )
 
     async def _pump_stream(
@@ -622,6 +881,19 @@ async def perform_final_dry_run(
             },
         ),
     ]
+
+    for monitor in evidence_monitors:
+        evidence_tasks.append(
+            supervisor.create(
+                monitor.run(),
+                name=f"dry-run-evidence-{monitor.name.lower().replace(' ', '-')}",
+                metadata={
+                    "component": "operations.final_dry_run.evidence_monitor",
+                    "evidence": monitor.name,
+                    "check_interval_seconds": monitor.check_seconds,
+                },
+            )
+        )
 
     gap_monitor_task: asyncio.Task[None] | None = None
     if gap_monitor is not None:
@@ -686,6 +958,12 @@ async def perform_final_dry_run(
         await timeout_task
 
     await asyncio.gather(*pump_tasks, return_exceptions=True)
+
+    for task in evidence_tasks:
+        task.cancel()
+    for task in evidence_tasks:
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
     if progress_task is not None:
         progress_task.cancel()

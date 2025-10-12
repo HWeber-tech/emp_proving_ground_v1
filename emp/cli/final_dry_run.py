@@ -175,6 +175,38 @@ def _load_notes(paths: Iterable[Path]) -> list[str]:
     help="Disable live log level monitoring during the run.",
 )
 @click.option(
+    "--diary-stale-warn-minutes",
+    type=float,
+    help="Warn when the decision diary has no updates for this many minutes.",
+)
+@click.option(
+    "--diary-stale-fail-minutes",
+    type=float,
+    help="Fail when the decision diary has no updates for this many minutes.",
+)
+@click.option(
+    "--performance-stale-warn-minutes",
+    type=float,
+    help="Warn when performance telemetry has no updates for this many minutes.",
+)
+@click.option(
+    "--performance-stale-fail-minutes",
+    type=float,
+    help="Fail when performance telemetry has no updates for this many minutes.",
+)
+@click.option(
+    "--evidence-check-interval-minutes",
+    type=float,
+    help="Override the polling interval (minutes) for evidence freshness monitors.",
+)
+@click.option(
+    "--evidence-initial-grace-minutes",
+    type=float,
+    default=15.0,
+    show_default=True,
+    help="Grace period (minutes) before evidence freshness checks begin.",
+)
+@click.option(
     "--live-gap-alert-minutes",
     type=float,
     help="Emit a harness incident when no logs arrive for this many minutes.",
@@ -262,6 +294,12 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     packet_archive: Path | None,
     packet_skip_raw: bool,
     no_log_monitor: bool,
+    diary_stale_warn_minutes: float | None,
+    diary_stale_fail_minutes: float | None,
+    performance_stale_warn_minutes: float | None,
+    performance_stale_fail_minutes: float | None,
+    evidence_check_interval_minutes: float | None,
+    evidence_initial_grace_minutes: float,
     live_gap_alert_minutes: float | None,
     live_gap_alert_severity: str,
     review_output: str | None,
@@ -323,6 +361,34 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         else None
     )
     live_severity = DryRunStatus(live_gap_alert_severity)
+    diary_stale_warn = (
+        timedelta(minutes=diary_stale_warn_minutes)
+        if diary_stale_warn_minutes is not None
+        else None
+    )
+    diary_stale_fail = (
+        timedelta(minutes=diary_stale_fail_minutes)
+        if diary_stale_fail_minutes is not None
+        else None
+    )
+    performance_stale_warn = (
+        timedelta(minutes=performance_stale_warn_minutes)
+        if performance_stale_warn_minutes is not None
+        else None
+    )
+    performance_stale_fail = (
+        timedelta(minutes=performance_stale_fail_minutes)
+        if performance_stale_fail_minutes is not None
+        else None
+    )
+    evidence_check_interval = (
+        timedelta(minutes=evidence_check_interval_minutes)
+        if evidence_check_interval_minutes is not None
+        else None
+    )
+    evidence_initial_grace = timedelta(
+        minutes=max(evidence_initial_grace_minutes, 0.0)
+    )
 
     config = FinalDryRunConfig(
         command=command,
@@ -346,6 +412,12 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         log_gap_fail=fail_gap,
         live_gap_alert=live_gap,
         live_gap_severity=live_severity,
+        diary_stale_warn=diary_stale_warn,
+        diary_stale_fail=diary_stale_fail,
+        performance_stale_warn=performance_stale_warn,
+        performance_stale_fail=performance_stale_fail,
+        evidence_check_interval=evidence_check_interval,
+        evidence_initial_grace=evidence_initial_grace,
     )
 
     workflow = run_final_dry_run_workflow(

@@ -33,6 +33,13 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
      --metadata sprint=phase2 --metadata run_id=final-dry-run-2025-10-12 \
      -- python3 main.py --symbols EURUSD,GBPUSD
    ```
+   When the diary or performance artefacts are expected to update continuously,
+   use `--diary-stale-warn-minutes` / `--diary-stale-fail-minutes` (and the
+   equivalent `--performance-*` switches) to surface live incidents if evidence
+   stops refreshing mid-run. The optional `--evidence-check-interval-minutes`
+   flag tightens or relaxes the polling cadence, while
+   `--evidence-initial-grace-minutes` controls how long the harness waits after
+   startup before enforcing freshness thresholds.
    The harness performs live log monitoring: stderr lines and structured logs
    with `level=error`/`critical`/`fatal` are captured immediately as harness
    incidents so operators can react before the post-run audit finishes. Pass

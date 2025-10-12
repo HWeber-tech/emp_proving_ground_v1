@@ -192,6 +192,58 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--diary-stale-warn-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Warn when the decision diary is missing updates for more than this many minutes during"
+            " the run (requires --diary)."
+        ),
+    )
+    parser.add_argument(
+        "--diary-stale-fail-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Fail when the decision diary is missing updates for more than this many minutes during"
+            " the run (requires --diary)."
+        ),
+    )
+    parser.add_argument(
+        "--performance-stale-warn-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Warn when the performance telemetry file is missing updates for more than this many"
+            " minutes during the run (requires --performance)."
+        ),
+    )
+    parser.add_argument(
+        "--performance-stale-fail-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Fail when the performance telemetry file is missing updates for more than this many"
+            " minutes during the run (requires --performance)."
+        ),
+    )
+    parser.add_argument(
+        "--evidence-check-interval-minutes",
+        type=float,
+        default=None,
+        help=(
+            "Override the polling interval (minutes) for evidence freshness monitors."
+        ),
+    )
+    parser.add_argument(
+        "--evidence-initial-grace-minutes",
+        type=float,
+        default=15.0,
+        help=(
+            "Grace period (minutes) after startup before evidence freshness is evaluated."
+        ),
+    )
+    parser.add_argument(
         "--live-gap-alert-minutes",
         type=float,
         default=None,
@@ -340,6 +392,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         else None
     )
     live_gap_severity = DryRunStatus(args.live_gap_alert_severity)
+    diary_stale_warn = (
+        timedelta(minutes=args.diary_stale_warn_minutes)
+        if args.diary_stale_warn_minutes is not None
+        else None
+    )
+    diary_stale_fail = (
+        timedelta(minutes=args.diary_stale_fail_minutes)
+        if args.diary_stale_fail_minutes is not None
+        else None
+    )
+    performance_stale_warn = (
+        timedelta(minutes=args.performance_stale_warn_minutes)
+        if args.performance_stale_warn_minutes is not None
+        else None
+    )
+    performance_stale_fail = (
+        timedelta(minutes=args.performance_stale_fail_minutes)
+        if args.performance_stale_fail_minutes is not None
+        else None
+    )
+    evidence_check_interval = (
+        timedelta(minutes=args.evidence_check_interval_minutes)
+        if args.evidence_check_interval_minutes is not None
+        else None
+    )
+    evidence_initial_grace = timedelta(
+        minutes=max(args.evidence_initial_grace_minutes, 0.0)
+    )
 
     config = FinalDryRunConfig(
         command=command,
@@ -363,6 +443,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         log_gap_fail=fail_gap,
         live_gap_alert=live_gap_alert,
         live_gap_severity=live_gap_severity,
+        diary_stale_warn=diary_stale_warn,
+        diary_stale_fail=diary_stale_fail,
+        performance_stale_warn=performance_stale_warn,
+        performance_stale_fail=performance_stale_fail,
+        evidence_check_interval=evidence_check_interval,
+        evidence_initial_grace=evidence_initial_grace,
     )
 
     workflow = run_final_dry_run_workflow(

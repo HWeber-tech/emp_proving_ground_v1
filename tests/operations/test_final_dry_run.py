@@ -376,3 +376,36 @@ async def test_final_dry_run_progress_updates_on_incident(tmp_path):
     assert result.status is DryRunStatus.fail
     final_payload = json.loads(progress_path.read_text(encoding="utf-8"))
     assert final_payload["phase"] == "complete"
+
+
+@pytest.mark.slow
+def test_final_dry_run_diary_staleness_incident(tmp_path):
+    diary_path = tmp_path / "diary.jsonl"
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=1.2),
+        required_duration=timedelta(seconds=0.6),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.2,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        diary_path=diary_path,
+        diary_stale_fail=timedelta(seconds=0.2),
+        evidence_check_interval=timedelta(seconds=0.05),
+        evidence_initial_grace=timedelta(seconds=0),
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.status is DryRunStatus.fail
+    assert any(
+        incident.severity is DryRunStatus.fail and "Decision diary" in incident.message
+        for incident in result.incidents
+    )
+    assert result.progress_path is not None
+    payload = json.loads(result.progress_path.read_text(encoding="utf-8"))
+    assert any(
+        item.get("severity") == DryRunStatus.fail.value
+        and "Decision diary" in item.get("message", "")
+        for item in payload.get("incidents", [])
+    )

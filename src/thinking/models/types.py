@@ -58,7 +58,16 @@ class CounterStrategyLike(Protocol):
     expected_effectiveness: Decimal
 
 
-class IntelligenceReportTD(TypedDict, total=False):
+class UnderstandingReportTD(TypedDict, total=False):
+    """Telemetry snapshot emitted by the competitive understanding system.
+
+    The structure retains the legacy ``intelligence_id`` field so downstream
+    callers that have not yet migrated continue to function while the new
+    ``understanding_id`` becomes the canonical identifier.
+    """
+
+    understanding_id: str
+    intelligence_id: str  # Backwards-compat alias (legacy field)
     signatures_detected: int
     competitors_analyzed: int
     counter_strategies_developed: int
@@ -66,11 +75,16 @@ class IntelligenceReportTD(TypedDict, total=False):
     timestamp: str
 
 
+# Backwards-compatible alias while the namespace transition continues.
+IntelligenceReportTD = UnderstandingReportTD
+
+
 __all__ = [
     "PredictionLike",
     "SurvivalResultLike",
     "RedTeamResultLike",
     "AttackReportTD",
+    "UnderstandingReportTD",
     "IntelligenceReportTD",
     "AlgorithmSignatureLike",
     "CompetitorBehaviorLike",

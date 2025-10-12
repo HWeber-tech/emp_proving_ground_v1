@@ -22,7 +22,7 @@ from src.thinking.models.types import (
     AlgorithmSignatureLike,
     CompetitorBehaviorLike,
     CounterStrategyLike,
-    IntelligenceReportTD,
+    UnderstandingReportTD,
 )
 
 
@@ -801,7 +801,11 @@ class CompetitiveIntelligenceSystem:
         self.counter_strategy_developer = CounterStrategyDeveloper()
         self.market_share_tracker = MarketShareTracker()
 
-        self._intelligence_history_key = "emp:competitive_intelligence"
+        self._understanding_history_key = "emp:competitive_understanding"
+        self._legacy_history_keys: tuple[str, ...] = ("emp:competitive_intelligence",)
+        # Backwards-compatible alias for external callers still referencing the
+        # legacy attribute name.
+        self._intelligence_history_key = self._understanding_history_key
 
     async def initialize(self) -> bool:
         return True
@@ -811,7 +815,7 @@ class CompetitiveIntelligenceSystem:
 
     async def identify_competitors(
         self, market_data: dict[str, object]
-    ) -> IntelligenceReportTD | Dict[str, Any]:
+    ) -> UnderstandingReportTD | Dict[str, Any]:
         """
         Identify and analyze competing algorithmic traders.
 
@@ -819,7 +823,7 @@ class CompetitiveIntelligenceSystem:
             market_data: Current market data
 
         Returns:
-            Comprehensive competitive intelligence report
+            Comprehensive competitive understanding report
         """
         try:
             # Step 1: Identify algorithmic signatures
@@ -856,13 +860,16 @@ class CompetitiveIntelligenceSystem:
                 competitor_behaviors, our_performance
             )
 
-            # Step 5: Store intelligence
+            # Step 5: Store understanding snapshot
             await self._store_intelligence(
                 signatures, competitor_behaviors, counter_strategies, market_share_analysis
             )
 
-            report = {
-                "intelligence_id": str(uuid.uuid4()),
+            understanding_id = str(uuid.uuid4())
+            report: UnderstandingReportTD = {
+                "understanding_id": understanding_id,
+                # Legacy alias kept until downstream consumers migrate.
+                "intelligence_id": understanding_id,
                 "signatures_detected": len(signatures),
                 "competitors_analyzed": len(competitor_behaviors),
                 "counter_strategies_developed": len(counter_strategies),
@@ -871,7 +878,7 @@ class CompetitiveIntelligenceSystem:
             }
 
             logger.info(
-                f"Competitive intelligence complete: "
+                f"Competitive understanding complete: "
                 f"{len(signatures)} signatures, "
                 f"{len(competitor_behaviors)} competitors, "
                 f"{len(counter_strategies)} counter-strategies"
@@ -936,9 +943,9 @@ class CompetitiveIntelligenceSystem:
         counters: Sequence[CounterStrategyLike],
         market_analysis: dict[str, object],
     ) -> None:
-        """Store competitive intelligence."""
+        """Store competitive understanding telemetry."""
         try:
-            intelligence = {
+            snapshot = {
                 "signatures": [
                     _to_mapping(s, keys=("algorithm_type", "frequency", "confidence"))
                     for s in signatures
@@ -949,64 +956,106 @@ class CompetitiveIntelligenceSystem:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
-            key = f"{self._intelligence_history_key}:{datetime.utcnow().date()}"
-            payload = json.dumps(intelligence, sort_keys=True, separators=(",", ":"))
+            record_date = datetime.utcnow().date()
+            key = f"{self._understanding_history_key}:{record_date}"
+            payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
             await self.state_store.set(key, payload, expire=86400 * 30)  # 30 days
 
         except Exception as e:
-            logger.error(f"Error storing intelligence: {e}")
+            logger.error(f"Error storing understanding snapshot: {e}")
 
     async def get_intelligence_stats(self) -> dict[str, object]:
-        """Get competitive intelligence statistics."""
+        """Get competitive understanding statistics (with legacy aliases)."""
         try:
-            keys = await self.state_store.keys(f"{self._intelligence_history_key}:*")
+            key_set: set[str] = set()
+            for prefix in (self._understanding_history_key, *self._legacy_history_keys):
+                try:
+                    candidates = await self.state_store.keys(f"{prefix}:*")
+                except Exception as exc:  # pragma: no cover - defensive logging path
+                    logger.debug(
+                        "Failed retrieving understanding keys for prefix %s: %s",
+                        prefix,
+                        exc,
+                        exc_info=exc,
+                    )
+                    continue
+                for candidate in candidates or ():
+                    key_set.add(str(candidate))
 
             total_signatures = 0
             total_competitors = 0
             total_counters = 0
 
-            for key in keys:
+            for key in sorted(key_set):
                 data = await self.state_store.get(key)
-                if data:
-                    try:
-                        record = json.loads(data)
-                    except json.JSONDecodeError as exc:
-                        logger.warning("Discarding invalid intelligence payload for %s", key, exc_info=exc)
-                        continue
+                if not data:
+                    continue
+                try:
+                    record = json.loads(data)
+                except json.JSONDecodeError as exc:
+                    logger.warning(
+                        "Discarding invalid understanding payload for %s", key, exc_info=exc
+                    )
+                    continue
 
-                    if not isinstance(record, dict):
-                        logger.warning(
-                            "Intelligence payload must be JSON object for %s; got %s",
-                            key,
-                            type(record),
-                        )
-                        continue
+                if not isinstance(record, dict):
+                    logger.warning(
+                        "Understanding payload must be JSON object for %s; got %s",
+                        key,
+                        type(record),
+                    )
+                    continue
 
-                    signatures = record.get("signatures", [])
-                    behaviors = record.get("behaviors", [])
-                    counters = record.get("counter_strategies", [])
+                signatures = record.get("signatures", [])
+                behaviors = record.get("behaviors", [])
+                counters = record.get("counter_strategies", [])
 
-                    if isinstance(signatures, list):
-                        total_signatures += len(signatures)
-                    if isinstance(behaviors, list):
-                        total_competitors += len(behaviors)
-                    if isinstance(counters, list):
-                        total_counters += len(counters)
+                if isinstance(signatures, list):
+                    total_signatures += len(signatures)
+                if isinstance(behaviors, list):
+                    total_competitors += len(behaviors)
+                if isinstance(counters, list):
+                    total_counters += len(counters)
 
-            return {
-                "total_intelligence_cycles": len(keys),
+            cycle_count = len(key_set)
+            now_iso = datetime.utcnow().isoformat()
+            base_stats = {
+                "total_understanding_cycles": cycle_count,
+                "total_understanding_signatures_detected": total_signatures,
+                "total_understanding_competitors_analyzed": total_competitors,
+                "total_understanding_counter_strategies_developed": total_counters,
+                "average_understanding_signatures_per_cycle": (
+                    total_signatures / cycle_count if cycle_count else 0
+                ),
+                "last_understanding": now_iso,
+            }
+            legacy_stats = {
+                "total_intelligence_cycles": cycle_count,
                 "total_signatures_detected": total_signatures,
                 "total_competitors_analyzed": total_competitors,
                 "total_counter_strategies_developed": total_counters,
-                "average_signatures_per_cycle": total_signatures / len(keys) if keys else 0,
-                "last_intelligence": datetime.utcnow().isoformat(),
+                "average_signatures_per_cycle": base_stats[
+                    "average_understanding_signatures_per_cycle"
+                ],
+                "last_intelligence": now_iso,
             }
 
+            combined: dict[str, object] = {**base_stats, **legacy_stats}
+            return combined
+
         except Exception as e:
-            logger.error(f"Error getting intelligence stats: {e}")
+            logger.error(f"Error getting understanding stats: {e}")
             return {
+                "total_understanding_cycles": 0,
+                "total_understanding_signatures_detected": 0,
+                "total_understanding_competitors_analyzed": 0,
+                "total_understanding_counter_strategies_developed": 0,
+                "average_understanding_signatures_per_cycle": 0,
+                "last_understanding": None,
                 "total_intelligence_cycles": 0,
                 "total_signatures_detected": 0,
                 "total_competitors_analyzed": 0,
+                "total_counter_strategies_developed": 0,
+                "average_signatures_per_cycle": 0,
                 "last_intelligence": None,
             }

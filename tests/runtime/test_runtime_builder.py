@@ -306,6 +306,50 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio()
+async def test_professional_app_summary_includes_runtime_application(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={"BOOTSTRAP_SYMBOLS": "EURUSD"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    runtime_app: RuntimeApplication | None = None
+
+    try:
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=True,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        runtime_summary = app.summary().get("runtime_application")
+        assert runtime_summary is not None
+
+        ingestion_block = runtime_summary.get("ingestion")
+        assert ingestion_block is not None
+        assert ingestion_block.get("name") == "skip-ingest"
+        assert ingestion_block.get("metadata", {}).get(
+            "reason"
+        ) == "skip-ingest flag enabled"
+
+        trading_block = runtime_summary.get("trading")
+        assert trading_block is not None
+        assert trading_block.get("name") == "professional-trading"
+        assert trading_block.get("metadata", {}).get("mode") == app.config.run_mode.value
+
+        # ``runtime_app`` should expose the same workload metadata for parity.
+        runtime_snapshot = runtime_app.summary()
+        assert runtime_snapshot.get("trading", {}).get("name") == "professional-trading"
+    finally:
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_builder_requires_trading_manager(tmp_path):
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

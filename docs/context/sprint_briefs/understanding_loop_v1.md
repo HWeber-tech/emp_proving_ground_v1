@@ -86,6 +86,7 @@
     belief/regime snapshots, understanding decisions, and ingest-failure
     telemetry so the router workstream can exercise end-to-end evidence under
     guardrail coverage even when Timescale falls back to cached frames.【F:src/data_foundation/pipelines/operational_backbone.py†L82-L366】【F:tests/integration/test_operational_backbone_pipeline.py†L198-L295】【F:tools/data_ingest/run_operational_backbone.py†L327-L378】
+  - Recalibration workflow now reapplies belief-buffer hyperparameters and regime thresholds from real-market frames, clearing historical state, publishing telemetry, and validating PSD covariance alongside bus events under guardrail coverage.【F:src/understanding/live_belief_manager.py†L200-L257】【F:src/understanding/belief.py†L314-L363】【F:tests/understanding/test_live_belief_manager.py†L204-L260】【F:tests/understanding/test_belief_updates.py†L312-L354】
   - Reflection builder now surfaces emerging tactics and experiments with first/last
     seen timestamps, decision counts, share, and gating metadata, rendering reviewer
     insights that call out regime filters and minimum confidence so governance sees

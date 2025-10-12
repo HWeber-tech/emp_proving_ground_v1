@@ -32,6 +32,7 @@ import re
 import pandas as pd
 from sqlalchemy import MetaData, Table, and_, bindparam, case, create_engine, func, select, text
 from sqlalchemy.engine import Connection, Engine, Row, RowMapping
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.core.coercion import coerce_float, coerce_int
@@ -165,7 +166,13 @@ class TimescaleConnectionSettings:
         return self.url != DEFAULT_SQLITE_FALLBACK
 
     def is_postgres(self) -> bool:
-        return self.url.startswith("postgresql") or ".postgres" in self.url
+        """Return ``True`` when the connection targets a PostgreSQL/Timescale backend."""
+
+        try:
+            backend = make_url(self.url).get_backend_name()
+        except Exception:  # pragma: no cover - defensive parsing guard
+            backend = self.url.split(":", 1)[0]
+        return backend.lower().startswith("postgres")
 
     def create_engine(self) -> Engine:
         """Instantiate a SQLAlchemy engine with sensible defaults."""

@@ -187,12 +187,24 @@ class BackboneConnectivityReport:
             "redis": self.redis,
             "kafka": self.kafka,
         }
+        payload["status"] = self.overall_status()
         if self.probes:
             payload["probes"] = [probe.as_dict() for probe in self.probes]
         return payload
 
     def probe_map(self) -> dict[str, ConnectivityProbeSnapshot]:
         return {probe.name: probe for probe in self.probes}
+
+    def overall_status(self) -> str:
+        """Aggregate probe statuses into a single severity string."""
+
+        statuses = [probe.status for probe in self.probes if probe.status]
+        if not statuses:
+            return "unknown"
+        for candidate in ("error", "off", "degraded"):
+            if candidate in statuses:
+                return candidate
+        return "ok"
 
 
 class RealDataManager(MarketDataGateway):
@@ -710,6 +722,7 @@ class RealDataManager(MarketDataGateway):
         start = time.perf_counter()
         healthy = False
         error: str | None = None
+        backend: str | None = None
         try:
             with self._engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
@@ -722,7 +735,19 @@ class RealDataManager(MarketDataGateway):
             "url": self._masked_timescale_url(),
             "configured": self._timescale_settings.configured,
         }
+        try:
+            backend = make_url(self._timescale_settings.url).get_backend_name()
+        except Exception:  # pragma: no cover - defensive parsing guard
+            backend = None
+        if backend:
+            details["backend"] = backend
         status = "ok" if healthy else "error"
+        if healthy and not self._timescale_settings.is_postgres():
+            status = "degraded"
+            if backend:
+                error = f"Timescale backend running on {backend}"
+            else:
+                error = "Timescale backend not using PostgreSQL/Timescale"
         return ConnectivityProbeSnapshot(
             name="timescale",
             healthy=healthy,

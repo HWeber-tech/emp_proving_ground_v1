@@ -100,7 +100,7 @@
   and surfaces samples/audits via `status()` so supervisors inherit sensory
   posture and live telemetry during live-shadow runs under regression
   coverage.【F:src/runtime/bootstrap_runtime.py†L214-L492】【F:tests/runtime/test_bootstrap_runtime_sensory.py†L120-L196】
-- Progress: Real data slice pipeline persists CSV fixtures into Timescale through the managed backbone, hydrates the real sensory organ, and emits belief states so cortex drills can rehearse on live-formatted evidence with CLI and integration coverage documenting the workflow.【F:src/data_integration/real_data_slice.py†L95-L198】【F:tests/integration/test_real_data_slice_ingest.py†L11-L39】【F:tools/data_ingest/run_real_data_slice.py†L1-L125】
+- Progress: Real data slice pipeline persists CSV fixtures into Timescale through the managed backbone, hydrates the real sensory organ, and emits belief states so cortex drills can rehearse on live-formatted evidence with the operational-backbone CLI and integration coverage documenting the workflow.【F:src/data_integration/real_data_slice.py†L95-L198】【F:tests/integration/test_real_data_slice_ingest.py†L11-L39】【F:tools/data_ingest/run_operational_backbone.py†L1-L210】【F:tests/tools/test_run_operational_backbone.py†L17-L105】
 - Progress: Belief/regime calibration helpers now derive Hebbian learning rates, variance caps, and calm/storm thresholds from historical EURUSD series, returning diagnostics and constructing calibrated belief/regime components that pass calm-versus-storm regression drills.【F:src/understanding/belief_regime_calibrator.py†L1-L175】【F:tests/operations/test_belief_regime_calibrator.py†L34-L136】
 
 ### Next (30–90 days)

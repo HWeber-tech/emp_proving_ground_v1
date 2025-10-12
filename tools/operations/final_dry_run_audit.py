@@ -98,6 +98,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override the minimum uptime ratio required for sign-off (0.0–1.0).",
     )
     parser.add_argument(
+        "--sign-off-min-sharpe",
+        type=float,
+        default=None,
+        help="Require the performance report to include a Sharpe ratio at or above this value.",
+    )
+    parser.add_argument(
         "--sign-off-allow-warnings",
         action="store_true",
         help="Allow WARN severities to pass sign-off instead of treating them as failures.",
@@ -144,6 +150,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.sign_off
         or args.sign_off_min_duration_hours is not None
         or args.sign_off_min_uptime_ratio is not None
+        or args.sign_off_min_sharpe is not None
         or args.sign_off_allow_warnings
         or args.sign_off_optional_diary
         or args.sign_off_optional_performance
@@ -167,6 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             require_diary=not args.sign_off_optional_diary,
             require_performance=not args.sign_off_optional_performance,
             allow_warnings=args.sign_off_allow_warnings,
+            minimum_sharpe_ratio=args.sign_off_min_sharpe,
         )
 
     if args.format == "json":

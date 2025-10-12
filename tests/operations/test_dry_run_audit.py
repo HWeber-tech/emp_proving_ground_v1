@@ -229,6 +229,7 @@ def test_dry_run_summary_combines_components() -> None:
         total_trades=10,
         roi=0.05,
         win_rate=0.6,
+        sharpe_ratio=1.1,
     )
     summary = DryRunSummary(
         generated_at=datetime(2024, 1, 2, tzinfo=UTC),
@@ -266,6 +267,7 @@ def test_sign_off_report_passes_with_all_criteria() -> None:
         total_trades=12,
         roi=0.02,
         win_rate=0.55,
+        sharpe_ratio=1.05,
     )
     summary = DryRunSummary(
         generated_at=datetime(2024, 1, 4, tzinfo=UTC),
@@ -279,6 +281,7 @@ def test_sign_off_report_passes_with_all_criteria() -> None:
         minimum_uptime_ratio=0.98,
         require_diary=True,
         require_performance=True,
+        minimum_sharpe_ratio=0.9,
     )
     assert isinstance(report, DryRunSignOffReport)
     assert report.status is DryRunStatus.pass_
@@ -286,6 +289,75 @@ def test_sign_off_report_passes_with_all_criteria() -> None:
     payload = report.as_dict()
     assert payload["status"] == "pass"
     assert payload["criteria"]["minimum_duration_seconds"] == 72 * 3600
+
+
+def test_sign_off_report_enforces_sharpe_threshold() -> None:
+    records = (
+        _record("2024-01-01T00:00:00", "info", "start", "start"),
+        _record("2024-01-04T00:00:00", "info", "end", "done"),
+    )
+    log_summary = DryRunLogSummary(
+        records=records,
+        ignored_lines=0,
+        level_counts={"info": 2},
+        event_counts={"start": 1, "end": 1},
+        gap_incidents=tuple(),
+        content_incidents=tuple(),
+        uptime_ratio=0.995,
+    )
+    perf_summary = DryRunPerformanceSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        total_trades=9,
+        roi=0.01,
+        win_rate=0.52,
+        sharpe_ratio=0.5,
+    )
+    summary = DryRunSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        log_summary=log_summary,
+        performance_summary=perf_summary,
+    )
+    report = assess_sign_off_readiness(
+        summary,
+        minimum_duration=timedelta(hours=24),
+        minimum_sharpe_ratio=0.9,
+    )
+    assert report.status is DryRunStatus.fail
+    assert any("Sharpe ratio" in finding.message for finding in report.findings)
+
+
+def test_sign_off_report_requires_sharpe_when_threshold_configured() -> None:
+    log_summary = DryRunLogSummary(
+        records=(
+            _record("2024-01-01T00:00:00", "info", "start", "start"),
+            _record("2024-01-04T00:00:00", "info", "end", "done"),
+        ),
+        ignored_lines=0,
+        level_counts={"info": 2},
+        event_counts={"start": 1, "end": 1},
+        gap_incidents=tuple(),
+        content_incidents=tuple(),
+        uptime_ratio=1.0,
+    )
+    perf_summary = DryRunPerformanceSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        period_start=datetime(2024, 1, 1, tzinfo=UTC),
+        total_trades=15,
+        roi=0.03,
+        win_rate=0.6,
+    )
+    summary = DryRunSummary(
+        generated_at=datetime(2024, 1, 4, tzinfo=UTC),
+        log_summary=log_summary,
+        performance_summary=perf_summary,
+    )
+    report = assess_sign_off_readiness(
+        summary,
+        minimum_sharpe_ratio=0.8,
+    )
+    assert report.status is DryRunStatus.fail
+    assert any("Sharpe ratio is unavailable" in finding.message for finding in report.findings)
 
 
 def test_sign_off_report_flags_missing_evidence() -> None:
@@ -384,7 +456,7 @@ def test_evaluate_dry_run_end_to_end(tmp_path: Path) -> None:
     performance_payload = {
         "generated_at": "2024-01-01T23:00:00Z",
         "period_start": "2024-01-01T00:00:00Z",
-        "aggregates": {"trades": 5, "roi": 0.1, "win_rate": 0.6},
+        "aggregates": {"trades": 5, "roi": 0.1, "win_rate": 0.6, "sharpe_ratio": 0.95},
         "metadata": {"window": "demo"},
     }
     performance_path.write_text(json.dumps(performance_payload), encoding="utf-8")
@@ -401,6 +473,8 @@ def test_evaluate_dry_run_end_to_end(tmp_path: Path) -> None:
     assert summary.diary_summary.total_entries == 1
     assert summary.performance_summary is not None
     assert summary.performance_summary.total_trades == 5
+    assert summary.performance_summary.sharpe_ratio == 0.95
+    assert summary.performance_summary.window_duration == timedelta(hours=23)
 
 
 def test_evaluate_dry_run_applies_minimum_duration(tmp_path: Path) -> None:

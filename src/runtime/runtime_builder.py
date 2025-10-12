@@ -1665,6 +1665,7 @@ async def _execute_timescale_ingest(
     kafka_lag_snapshot: KafkaConsumerLagSnapshot | None = None,
     record_kafka_readiness_snapshot: Callable[[KafkaReadinessSnapshot], None] | None = None,
     managed_manifest: Sequence[Mapping[str, object]] | None = None,
+    task_snapshots: Sequence[Mapping[str, object]] | None = None,
 ) -> tuple[bool, BackupReadinessSnapshot | None]:
     initial_results: dict[str, TimescaleIngestResult] = {}
     pipeline_result = None
@@ -1757,6 +1758,10 @@ async def _execute_timescale_ingest(
         telemetry_metadata["ingest_error"] = ingest_error
     if kafka_events:
         telemetry_metadata["kafka_event_count"] = len(kafka_events)
+    if task_snapshots:
+        telemetry_metadata["task_supervisor"] = {
+            "count": len(tuple(task_snapshots)),
+        }
     validation_snapshot = evaluate_data_backbone_validation(
         ingest_config=ingest_config,
         context=backbone_context,
@@ -1783,6 +1788,7 @@ async def _execute_timescale_ingest(
             ingest_config=ingest_config,
             context=backbone_context,
             metadata=telemetry_metadata,
+            task_snapshots=task_snapshots,
         )
         components = list(base_snapshot.components)
         components.append(
@@ -2502,6 +2508,7 @@ async def _execute_timescale_ingest(
         metadata=telemetry_metadata,
         spark_snapshot=spark_snapshot,
         spark_stress_snapshot=spark_stress_snapshot,
+        task_snapshots=task_snapshots,
     )
     logger.info(
         "🏗️ Data backbone readiness snapshot:\n%s",
@@ -3364,6 +3371,8 @@ def build_professional_runtime_application(
                     if managed_manifest:
                         execution_metadata["ingest.managed_connectors"] = len(managed_manifest)
 
+                    task_snapshots = app.task_snapshots()
+
                     with runtime_tracer.operation_span(
                         name="ingest.timescale_execute",
                         metadata=execution_metadata,
@@ -3397,6 +3406,7 @@ def build_professional_runtime_application(
                             kafka_lag_snapshot=None,
                             record_kafka_readiness_snapshot=kafka_readiness_recorder,
                             managed_manifest=managed_manifest,
+                            task_snapshots=task_snapshots,
                         )
                     if execution_span is not None and hasattr(execution_span, "set_attribute"):
                         execution_span.set_attribute("runtime.ingest.success", bool(success))

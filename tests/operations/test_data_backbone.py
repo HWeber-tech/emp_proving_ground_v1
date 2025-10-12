@@ -177,6 +177,21 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
         metadata={"cycles": 1},
     )
 
+    task_snapshots = (
+        {
+            "name": "ingest.kafka.bridge",
+            "state": "running",
+            "created_at": generated.isoformat(),
+            "metadata": {"namespace": "runtime.ingest"},
+        },
+        {
+            "name": "ingest.scheduler",
+            "state": "finished",
+            "created_at": generated.isoformat(),
+            "metadata": {"namespace": "runtime.ingest"},
+        },
+    )
+
     snapshot = evaluate_data_backbone_readiness(
         ingest_config=config,
         health_report=health_report,
@@ -189,6 +204,7 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
         metadata={"test": True},
         spark_snapshot=spark_snapshot,
         spark_stress_snapshot=spark_stress_snapshot,
+        task_snapshots=task_snapshots,
     )
 
     assert snapshot.status is BackboneStatus.warn
@@ -202,6 +218,11 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
     assert scheduler_component.metadata.get("enabled") is True
     assert scheduler_component.metadata.get("running") is False
     assert scheduler_component.metadata.get("interval_seconds") == 60.0
+    assert "task_supervision" in component_names
+    task_component = component_names["task_supervision"]
+    assert task_component.status is BackboneStatus.ok
+    assert task_component.metadata["task_count"] == 2
+    assert task_component.metadata["has_running_tasks"] is True
     assert "spark_exports" in component_names
     spark_component = component_names["spark_exports"]
     assert spark_component.status is BackboneStatus.warn
@@ -335,3 +356,41 @@ def test_data_backbone_readiness_surfaces_failover_and_recovery() -> None:
     plan_metadata = recovery_component.metadata["plan"]
     assert plan_metadata["daily_bars"]["lookback_days"] == 3
     assert plan_metadata["daily_bars"]["symbols"] == ["EURUSD"]
+
+
+def test_data_backbone_readiness_task_supervision_warn_on_absence() -> None:
+    config = _sample_ingest_config()
+
+    snapshot = evaluate_data_backbone_readiness(
+        ingest_config=config,
+        task_snapshots=tuple(),
+    )
+
+    components = {component.name: component for component in snapshot.components}
+    task_component = components["task_supervision"]
+    assert task_component.status is BackboneStatus.warn
+    assert task_component.summary == "no supervised tasks reported"
+    assert task_component.metadata["task_count"] == 0
+
+
+def test_data_backbone_readiness_task_supervision_fail_on_errors() -> None:
+    config = _sample_ingest_config()
+    generated = datetime(2025, 3, 2, tzinfo=UTC)
+
+    snapshot = evaluate_data_backbone_readiness(
+        ingest_config=config,
+        task_snapshots=(
+            {
+                "name": "ingest.pipeline",
+                "state": "failed",
+                "created_at": generated.isoformat(),
+                "metadata": {"namespace": "runtime.ingest"},
+            },
+        ),
+    )
+
+    components = {component.name: component for component in snapshot.components}
+    task_component = components["task_supervision"]
+    assert task_component.status is BackboneStatus.fail
+    assert "failed" in task_component.summary
+    assert task_component.metadata["task_count"] == 1

@@ -9,10 +9,11 @@ Timescale-backed readiness.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 from src.data_foundation.batch.spark_export import (
     SparkExportSnapshot,
@@ -164,6 +165,30 @@ def _summarise_metrics(metrics: IngestMetricsSnapshot | None) -> Mapping[str, ob
         "total_rows": metrics.total_rows(),
         "active_dimensions": list(metrics.active_dimensions()),
     }
+
+
+def _normalise_task_snapshots(
+    task_snapshots: Sequence[Mapping[str, object] | Any] | None,
+) -> list[dict[str, object]]:
+    """Convert task supervision entries into serialisable dictionaries."""
+
+    if not task_snapshots:
+        return []
+
+    serialised: list[dict[str, object]] = []
+    for entry in task_snapshots:
+        if isinstance(entry, Mapping):
+            serialised.append({str(key): entry[key] for key in entry})
+            continue
+        as_dict = getattr(entry, "as_dict", None)
+        if callable(as_dict):  # pragma: no cover - dataclass helper path
+            try:
+                payload = as_dict()
+            except Exception:
+                continue
+            if isinstance(payload, Mapping):
+                serialised.append({str(key): payload[key] for key in payload})
+    return serialised
 
 
 @dataclass(frozen=True)
@@ -374,6 +399,7 @@ def evaluate_data_backbone_readiness(
     metadata: Mapping[str, object] | None = None,
     spark_snapshot: SparkExportSnapshot | None = None,
     spark_stress_snapshot: SparkStressSnapshot | None = None,
+    task_snapshots: Sequence[Mapping[str, object] | Any] | None = None,
 ) -> DataBackboneReadinessSnapshot:
     """Fuse ingest outcomes and runtime wiring into a readiness snapshot."""
 
@@ -434,6 +460,66 @@ def evaluate_data_backbone_readiness(
             metadata=dict(_summarise_metrics(metrics_snapshot)),
         )
         components.append(metrics_component)
+
+    normalised_tasks = _normalise_task_snapshots(task_snapshots)
+    task_metadata: dict[str, object] | None = None
+    if task_snapshots is not None:
+        task_count = len(normalised_tasks)
+        state_counter = Counter(
+            str(task.get("state", "")).strip().lower() or "unknown"
+            for task in normalised_tasks
+        )
+        if "" in state_counter:
+            del state_counter[""]
+        unknown_count = state_counter.pop("unknown", 0)
+        failed_count = state_counter.get("failed", 0)
+        running_count = state_counter.get("running", 0)
+        cancelled_count = state_counter.get("cancelled", 0)
+
+        if failed_count:
+            task_status = BackboneStatus.fail
+            summary = f"{failed_count} supervised tasks failed"
+        elif task_count == 0:
+            task_status = BackboneStatus.warn
+            summary = "no supervised tasks reported"
+        elif running_count == 0:
+            task_status = BackboneStatus.warn
+            summary = "no active supervised tasks"
+        elif cancelled_count:
+            task_status = BackboneStatus.warn
+            summary = f"{cancelled_count} supervised tasks cancelled"
+        else:
+            task_status = BackboneStatus.ok
+            summary = f"{task_count} supervised tasks active"
+
+        if state_counter:
+            state_bits = ", ".join(
+                f"{state}:{count}"
+                for state, count in sorted(state_counter.items())
+            )
+            summary = f"{summary} (states: {state_bits})"
+        elif unknown_count and task_count:
+            summary = f"{summary} (unknown states: {unknown_count})"
+
+        task_metadata = {
+            "task_count": task_count,
+            "states": dict(state_counter),
+            "has_running_tasks": running_count > 0,
+        }
+        if unknown_count:
+            task_metadata["unknown_states"] = unknown_count
+        if normalised_tasks:
+            sample_limit = 5
+            task_metadata["sample"] = normalised_tasks[:sample_limit]
+
+        task_component = BackboneComponentSnapshot(
+            name="task_supervision",
+            status=task_status,
+            summary=summary,
+            metadata=task_metadata,
+        )
+        components.append(task_component)
+        overall = _combine_status(overall, task_component.status)
 
     if spark_snapshot is not None:
         spark_status = _spark_status_to_backbone(spark_snapshot.status)
@@ -607,6 +693,8 @@ def evaluate_data_backbone_readiness(
         )
         scheduler_metadata["enabled"] = context.scheduler_enabled
         combined_metadata["scheduler"] = scheduler_metadata
+    if task_metadata is not None:
+        combined_metadata["task_supervision"] = dict(task_metadata)
 
     return DataBackboneReadinessSnapshot(
         status=overall,

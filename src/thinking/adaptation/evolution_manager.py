@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from numbers import Real
 from typing import Callable, Deque, Iterable, Mapping, MutableMapping, Sequence
 
@@ -101,6 +101,28 @@ class _ManagedStrategyState:
         return None
 
 
+@dataclass(frozen=True)
+class EvolutionAdaptationResult:
+    """Summary emitted when the manager applies an adaptation."""
+
+    base_tactic_id: str
+    actions: tuple[Mapping[str, object], ...]
+    win_rate: float
+    observations: int
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, object]:
+        payload: dict[str, object] = {
+            "base_tactic_id": self.base_tactic_id,
+            "win_rate": float(self.win_rate),
+            "observations": int(self.observations),
+            "actions": [dict(action) for action in self.actions],
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
+
+
 class EvolutionManager:
     """Monitor tactic outcomes and trigger lightweight evolutionary trials."""
 
@@ -156,29 +178,29 @@ class EvolutionManager:
         stage: PolicyLedgerStage,
         outcomes: Mapping[str, object] | None,
         metadata: Mapping[str, object] | None = None,
-    ) -> None:
+    ) -> EvolutionAdaptationResult | None:
         """Process a decision diary outcome produced by the AlphaTrade loop."""
 
         state = self._states.get(decision.tactic_id)
         if state is None:
-            return
+            return None
         if self._paper_only and stage is not PolicyLedgerStage.PAPER:
-            return
+            return None
         if not self._feature_flags.adaptive_runs_enabled(override=self._adaptive_override):
-            return
+            return None
 
         win = self._derive_outcome(outcomes)
         if win is None:
-            return
+            return None
         state.record(win)
 
         observations = len(state.outcomes)
         if observations < self._min_observations:
-            return
+            return None
 
         win_rate = sum(state.outcomes) / observations
         if win_rate >= self._win_rate_threshold:
-            return
+            return None
 
         logger.info(
             "EvolutionManager triggering adaptation for tactic %s: win_rate=%.3f (< %.3f)",
@@ -186,8 +208,29 @@ class EvolutionManager:
             win_rate,
             self._win_rate_threshold,
         )
-        self._run_adaptation(decision.tactic_id, state, metadata=metadata)
+        actions = self._run_adaptation(
+            decision.tactic_id,
+            state,
+            metadata=metadata,
+        )
         state.outcomes.clear()
+        if not actions:
+            return None
+
+        summary_metadata: dict[str, object] = {
+            "threshold": float(self._win_rate_threshold),
+            "window_size": self._window_size,
+        }
+        if metadata:
+            summary_metadata.update({str(key): value for key, value in metadata.items()})
+
+        return EvolutionAdaptationResult(
+            base_tactic_id=decision.tactic_id,
+            actions=tuple(actions),
+            win_rate=float(win_rate),
+            observations=observations,
+            metadata=summary_metadata,
+        )
 
     def _run_adaptation(
         self,
@@ -195,25 +238,37 @@ class EvolutionManager:
         state: _ManagedStrategyState,
         *,
         metadata: Mapping[str, object] | None,
-    ) -> None:
+    ) -> list[Mapping[str, object]]:
+        actions: list[Mapping[str, object]] = []
         variant = state.next_variant()
         if variant is not None:
-            self._register_variant(variant, metadata=metadata)
-            self._degrade_base(tactic_id, state.config.degrade_multiplier)
-            return
+            registered = self._register_variant(variant, metadata=metadata)
+            if registered is not None:
+                actions.append(registered)
+            degraded = self._degrade_base(tactic_id, state.config.degrade_multiplier)
+            if degraded is not None:
+                actions.append(degraded)
+            return actions
         mutation_variant = self._build_mutation_variant(tactic_id, state)
         if mutation_variant is not None:
-            self._register_variant(mutation_variant, metadata=metadata)
-            self._degrade_base(tactic_id, state.config.degrade_multiplier)
-            return
-        self._degrade_base(tactic_id, state.config.degrade_multiplier)
+            registered = self._register_variant(mutation_variant, metadata=metadata)
+            if registered is not None:
+                actions.append(registered)
+            degraded = self._degrade_base(tactic_id, state.config.degrade_multiplier)
+            if degraded is not None:
+                actions.append(degraded)
+            return actions
+        degraded = self._degrade_base(tactic_id, state.config.degrade_multiplier)
+        if degraded is not None:
+            actions.append(degraded)
+        return actions
 
     def _register_variant(
         self,
         variant: StrategyVariant,
         *,
         metadata: Mapping[str, object] | None,
-    ) -> None:
+    ) -> Mapping[str, object] | None:
         tactic = variant.tactic
         if variant.trial_weight_multiplier != 1.0:
             tactic = replace(
@@ -232,18 +287,38 @@ class EvolutionManager:
         )
         if metadata:
             logger.debug("Variant metadata: %s", dict(metadata))
+        payload: dict[str, object] = {
+            "action": "register_variant",
+            "tactic_id": tactic.tactic_id,
+            "base_tactic_id": variant.base_tactic_id,
+            "base_weight": float(tactic.base_weight),
+            "registration": action,
+        }
+        if variant.rationale:
+            payload["rationale"] = variant.rationale
+        if variant.trial_weight_multiplier != 1.0:
+            payload["trial_weight_multiplier"] = float(variant.trial_weight_multiplier)
+        if tactic.description:
+            payload["description"] = tactic.description
+        if tactic.tags:
+            payload["tags"] = list(tactic.tags)
+        payload["guardrails"] = dict(tactic.guardrails)
+        payload["parameters"] = dict(tactic.parameters)
+        if metadata:
+            payload["metadata"] = {str(key): value for key, value in metadata.items()}
+        return payload
 
-    def _degrade_base(self, tactic_id: str, multiplier: float) -> None:
+    def _degrade_base(self, tactic_id: str, multiplier: float) -> Mapping[str, object] | None:
         if multiplier <= 0:
-            return
+            return None
         tactics = self._router.tactics()
         base = tactics.get(tactic_id)
         if base is None:
             logger.debug("Cannot degrade missing tactic %s", tactic_id)
-            return
+            return None
         new_weight = max(0.0, base.base_weight * multiplier)
         if new_weight == base.base_weight:
-            return
+            return None
         updated = replace(base, base_weight=new_weight)
         self._router.update_tactic(updated)
         logger.info(
@@ -252,6 +327,13 @@ class EvolutionManager:
             base.base_weight,
             new_weight,
         )
+        return {
+            "action": "degrade_base",
+            "tactic_id": tactic_id,
+            "from_weight": float(base.base_weight),
+            "to_weight": float(new_weight),
+            "multiplier": float(multiplier),
+        }
 
     def _build_catalogue_variant(
         self,
@@ -452,4 +534,5 @@ __all__ = [
     "CatalogueVariantRequest",
     "StrategyVariant",
     "ParameterMutation",
+    "EvolutionAdaptationResult",
 ]

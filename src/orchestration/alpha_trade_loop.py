@@ -296,8 +296,9 @@ class AlphaTradeLoopOrchestrator:
             extra_metadata=extra_metadata,
         )
 
+        adaptation_summary: Mapping[str, Any] | None = None
         if self._evolution_manager is not None:
-            self._evolution_manager.observe_iteration(
+            adaptation_result = self._evolution_manager.observe_iteration(
                 decision=decision,
                 stage=stage,
                 outcomes=diary_entry.outcomes,
@@ -306,6 +307,12 @@ class AlphaTradeLoopOrchestrator:
                     "policy_id": resolved_policy_id,
                 },
             )
+            if adaptation_result is not None:
+                adaptation_summary = adaptation_result.as_dict()
+                diary_entry = self._diary_store.merge_metadata(
+                    diary_entry.entry_id,
+                    {"evolution": adaptation_summary},
+                )
 
         reflection = self._reflection_builder.build(window=reflection_window)
 
@@ -322,6 +329,8 @@ class AlphaTradeLoopOrchestrator:
                 "tactic": stage_sources["tactic"].value,
             },
         }
+        if adaptation_summary is not None:
+            metadata["evolution"] = adaptation_summary
         if extra_metadata:
             metadata.update({str(key): value for key, value in extra_metadata.items()})
 

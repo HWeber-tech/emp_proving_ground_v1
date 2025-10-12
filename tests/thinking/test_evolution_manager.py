@@ -6,6 +6,7 @@ from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.governance.policy_ledger import PolicyLedgerStage
 from src.thinking.adaptation.evolution_manager import (
     CatalogueVariantRequest,
+    EvolutionAdaptationResult,
     EvolutionManager,
     ManagedStrategyConfig,
     ParameterMutation,
@@ -69,17 +70,27 @@ def test_evolution_manager_registers_variant_on_losses() -> None:
     )
 
     decision = _decision("momentum_core")
+    result: EvolutionAdaptationResult | None = None
     for _ in range(3):
-        manager.observe_iteration(
+        result = manager.observe_iteration(
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_pnl": -25.0},
         )
 
+    assert isinstance(result, EvolutionAdaptationResult)
     tactics = router.tactics()
     assert "momentum_core_explore" in tactics
     assert tactics["momentum_core"].base_weight == pytest.approx(0.5)
     assert tactics["momentum_core_explore"].base_weight == pytest.approx(0.99)
+
+    payload = result.as_dict()
+    assert payload["base_tactic_id"] == "momentum_core"
+    assert payload["observations"] == 3
+    assert payload["win_rate"] == pytest.approx(0.0)
+    actions = payload["actions"]
+    action_types = {action["action"] for action in actions}
+    assert {"register_variant", "degrade_base"}.issubset(action_types)
 
 
 def test_evolution_manager_respects_feature_flag() -> None:
@@ -95,13 +106,15 @@ def test_evolution_manager_respects_feature_flag() -> None:
     )
 
     decision = _decision("mean_rev")
+    result = None
     for _ in range(3):
-        manager.observe_iteration(
+        result = manager.observe_iteration(
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_pnl": -5.0},
         )
 
+    assert result is None
     assert router.tactics()["mean_rev"].base_weight == pytest.approx(1.0)
 
 
@@ -118,13 +131,15 @@ def test_evolution_manager_ignores_non_paper_stage() -> None:
     )
 
     decision = _decision("breakout")
+    result = None
     for _ in range(2):
-        manager.observe_iteration(
+        result = manager.observe_iteration(
             decision=decision,
             stage=PolicyLedgerStage.PILOT,
             outcomes={"paper_pnl": -12.0},
         )
 
+    assert result is None
     assert router.tactics()["breakout"].base_weight == pytest.approx(1.0)
 
 
@@ -187,14 +202,16 @@ def test_evolution_manager_registers_catalogue_variant() -> None:
     )
 
     decision = _decision("momentum_core")
+    result: EvolutionAdaptationResult | None = None
     for _ in range(3):
-        manager.observe_iteration(
+        result = manager.observe_iteration(
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_pnl": -25.0},
             metadata={"scenario": "losing-streak"},
         )
 
+    assert isinstance(result, EvolutionAdaptationResult)
     tactics = router.tactics()
     assert "momentum_trial_v1__trial" in tactics
     trial = tactics["momentum_trial_v1__trial"]
@@ -204,6 +221,13 @@ def test_evolution_manager_registers_catalogue_variant() -> None:
     assert trial.guardrails["force_paper"] is True
     assert trial.tags == ("momentum", "trial")
     assert router.tactics()["momentum_core"].base_weight == pytest.approx(0.5)
+
+    payload = result.as_dict()
+    actions = payload["actions"]
+    variant_action = next(a for a in actions if a["action"] == "register_variant")
+    assert variant_action["metadata"]["scenario"] == "losing-streak"
+    degrade_action = next(a for a in actions if a["action"] == "degrade_base")
+    assert degrade_action["tactic_id"] == "momentum_core"
 
 
 def test_evolution_manager_applies_parameter_mutation() -> None:
@@ -240,13 +264,15 @@ def test_evolution_manager_applies_parameter_mutation() -> None:
     )
 
     decision = _decision("mean_rev_core")
+    result = None
     for _ in range(2):
-        manager.observe_iteration(
+        result = manager.observe_iteration(
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_return": -0.02},
         )
 
+    assert isinstance(result, EvolutionAdaptationResult)
     tactics = router.tactics()
     assert tactics["mean_rev_core"].base_weight == pytest.approx(0.5)
 
@@ -255,3 +281,7 @@ def test_evolution_manager_applies_parameter_mutation() -> None:
     mutated = tactics[mutated_id]
     assert mutated.parameters["lookback"] == pytest.approx(24.0)
     assert mutated.base_weight == pytest.approx(0.75)
+
+    payload = result.as_dict()
+    actions = payload["actions"]
+    assert any(action["action"] == "register_variant" and action["tactic_id"] == mutated_id for action in actions)

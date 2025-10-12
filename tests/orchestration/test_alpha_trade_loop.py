@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
+from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage, PolicyLedgerStore
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 from src.orchestration.alpha_trade_loop import (
@@ -13,6 +14,11 @@ from src.orchestration.alpha_trade_loop import (
     ComplianceSeverity,
 )
 from src.trading.gating import DriftSentryGate
+from src.thinking.adaptation.evolution_manager import (
+    EvolutionManager,
+    ManagedStrategyConfig,
+    StrategyVariant,
+)
 from src.understanding.belief import BeliefDistribution, BeliefState
 from src.understanding.decision_diary import DecisionDiaryStore
 from src.understanding.router import (
@@ -474,3 +480,131 @@ def test_alpha_trade_loop_emits_stage_gate_compliance_event(tmp_path: Path) -> N
         event_metadata["release_stage_gate"]
         == "release_stage_paper_requires_paper_execution"
     )
+
+
+def test_alpha_trade_loop_annotates_evolution_metadata(tmp_path: Path) -> None:
+    router = UnderstandingRouter()
+    base_tactic = PolicyTactic(
+        tactic_id="alpha_loop",
+        base_weight=1.0,
+        parameters={"mode": "alpha"},
+        guardrails={"requires_diary": True},
+        regime_bias={"balanced": 1.0},
+        confidence_sensitivity=0.0,
+        description="Alpha loop baseline",
+        tags=("alpha",),
+    )
+    router.register_tactic(base_tactic)
+
+    diary_store = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    ledger_store.upsert(
+        policy_id="alpha_loop",
+        tactic_id="alpha_loop",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="dd-alpha-loop",
+    )
+    release_manager = LedgerReleaseManager(ledger_store)
+
+    variant = StrategyVariant(
+        variant_id="alpha_loop_trial",
+        tactic=PolicyTactic(
+            tactic_id="alpha_loop_trial",
+            base_weight=0.85,
+            parameters={"mode": "alpha", "regime_bias": "storm"},
+            guardrails={"force_paper": True},
+            description="Exploratory alpha variant",
+        ),
+        base_tactic_id="alpha_loop",
+        rationale="Register exploratory alpha variant after losses",
+        trial_weight_multiplier=1.1,
+    )
+
+    evolution_manager = EvolutionManager(
+        policy_router=router.policy_router,
+        strategies=(
+            ManagedStrategyConfig(
+                base_tactic_id="alpha_loop",
+                fallback_variants=(variant,),
+                degrade_multiplier=0.6,
+            ),
+        ),
+        window_size=2,
+        win_rate_threshold=0.5,
+        feature_flags=EvolutionFeatureFlags(env={"EVOLUTION_ENABLE_ADAPTIVE_RUNS": "1"}),
+    )
+
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=router,
+        diary_store=diary_store,
+        drift_gate=DriftSentryGate(),
+        release_manager=release_manager,
+        evolution_manager=evolution_manager,
+    )
+
+    base_time = datetime(2024, 4, 1, 9, 0, tzinfo=UTC)
+    distribution = BeliefDistribution(
+        mean=(0.0,),
+        covariance=((1.0,),),
+        strength=1.0,
+        confidence=0.6,
+        support=8,
+        decay=0.1,
+    )
+    second_result = None
+    for index in range(2):
+        regime_state = RegimeState(
+            regime="balanced",
+            confidence=0.8,
+            features={"momentum": -0.3},
+            timestamp=base_time + timedelta(minutes=index),
+        )
+        belief_state = BeliefState(
+            belief_id=f"belief-{index}",
+            version="1.0",
+            symbol="EURUSD",
+            generated_at=regime_state.timestamp,
+            features=("momentum",),
+            prior=distribution,
+            posterior=distribution,
+            lineage={"source": "unit-test"},
+        )
+        belief_snapshot = BeliefSnapshot(
+            belief_id=belief_state.belief_id,
+            regime_state=regime_state,
+            features={"momentum": -0.3},
+            metadata={"iteration": index},
+            fast_weights_enabled=True,
+            feature_flags={},
+        )
+
+        result = orchestrator.run_iteration(
+            belief_snapshot,
+            belief_state=belief_state,
+            policy_id="alpha_loop",
+            outcomes={"paper_pnl": -50.0},
+            notes=(f"iteration-{index}",),
+        )
+
+        if index == 0:
+            assert "evolution" not in result.metadata
+        else:
+            second_result = result
+
+    assert second_result is not None
+    evolution_meta = second_result.metadata.get("evolution")
+    assert evolution_meta is not None
+    assert evolution_meta["base_tactic_id"] == "alpha_loop"
+    assert evolution_meta["observations"] == 2
+    actions = evolution_meta["actions"]
+    action_types = {action["action"] for action in actions}
+    assert {"register_variant", "degrade_base"} <= action_types
+
+    diary_evolution = second_result.diary_entry.metadata.get("evolution")
+    assert diary_evolution == evolution_meta
+
+    router_tactics = router.policy_router.tactics()
+    assert router_tactics["alpha_loop"].base_weight == pytest.approx(0.6)
+    assert router_tactics["alpha_loop_trial"].base_weight == pytest.approx(0.935)

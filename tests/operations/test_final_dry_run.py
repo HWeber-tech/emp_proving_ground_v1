@@ -8,6 +8,7 @@ import pytest
 
 from src.operations.dry_run_audit import DryRunStatus
 from src.operations.final_dry_run import FinalDryRunConfig, run_final_dry_run
+from src.operations.final_dry_run_workflow import run_final_dry_run_workflow
 
 
 _HEARTBEAT_SCRIPT = r"""
@@ -86,3 +87,43 @@ def test_final_dry_run_detects_early_exit(tmp_path):
         incident.message.startswith("Dry run completed before") for incident in result.incidents
     )
     assert result.summary.status is DryRunStatus.fail
+
+
+def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):
+    packet_dir = tmp_path / "packet"
+    archive_path = tmp_path / "packet.tar.gz"
+
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.8),
+        required_duration=timedelta(seconds=0.6),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.8,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+    )
+
+    workflow = run_final_dry_run_workflow(
+        config,
+        evidence_dir=packet_dir,
+        evidence_archive=archive_path,
+        review_run_label="Test Run",
+        review_attendees=("Alice", "Bob"),
+        review_notes=("Inspect metrics",),
+    )
+
+    assert workflow.run_result.status is DryRunStatus.pass_
+
+    packet = workflow.evidence_packet
+    assert packet is not None
+    assert packet.summary_json.exists()
+    assert packet.summary_markdown.exists()
+    assert packet.archive_path == archive_path
+    assert archive_path.exists()
+
+    review = workflow.review
+    assert review is not None
+    assert review.status is DryRunStatus.pass_
+    assert review.run_label == "Test Run"
+    assert set(review.attendees) == {"Alice", "Bob"}
+    assert review.evidence_packet == packet

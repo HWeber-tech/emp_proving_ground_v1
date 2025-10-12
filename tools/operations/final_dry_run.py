@@ -5,16 +5,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Sequence
 
 from src.operations.dry_run_audit import DryRunStatus
-from src.operations.final_dry_run import (
-    FinalDryRunConfig,
-    run_final_dry_run,
-)
+from src.operations.final_dry_run import FinalDryRunConfig
+from src.operations.final_dry_run_workflow import run_final_dry_run_workflow
 
 
 def _parse_key_value(text: str) -> tuple[str, str]:
@@ -27,6 +24,19 @@ def _parse_key_value(text: str) -> tuple[str, str]:
     if not key:
         raise argparse.ArgumentTypeError("Key cannot be empty")
     return key, value
+
+
+def _load_notes(paths: Sequence[Path]) -> list[str]:
+    notes: list[str] = []
+    for path in paths:
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            line = line.strip()
+            if line:
+                notes.append(line)
+    return notes
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -128,6 +138,91 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional path to write the final summary bundle as Markdown.",
     )
     parser.add_argument(
+        "--packet-dir",
+        type=Path,
+        help="Write an evidence packet (summaries + artefacts) to this directory.",
+    )
+    parser.add_argument(
+        "--packet-archive",
+        type=Path,
+        help="Optional path to a .tar.gz archive of the evidence packet.",
+    )
+    parser.add_argument(
+        "--packet-skip-raw",
+        action="store_true",
+        help="Skip copying raw logs/diary/performance artefacts into the packet.",
+    )
+    parser.add_argument(
+        "--review-output",
+        type=Path,
+        help="Write the review brief to this path (use '-' for stdout).",
+    )
+    parser.add_argument(
+        "--review-format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="Format for the review brief output (default: markdown).",
+    )
+    parser.add_argument(
+        "--review-run-label",
+        help="Optional display name for the dry run in the review brief.",
+    )
+    parser.add_argument(
+        "--attendee",
+        action="append",
+        dest="attendees",
+        default=None,
+        metavar="NAME",
+        help="Add an attendee to the review brief (can be supplied multiple times).",
+    )
+    parser.add_argument(
+        "--note",
+        action="append",
+        dest="notes",
+        default=None,
+        metavar="TEXT",
+        help="Attach a free-form note to the review brief (can be supplied multiple times).",
+    )
+    parser.add_argument(
+        "--notes-file",
+        action="append",
+        dest="notes_files",
+        default=None,
+        metavar="PATH",
+        help="Load notes from a text file (one entry per line).",
+    )
+    parser.add_argument(
+        "--no-review",
+        action="store_true",
+        help="Skip generating the review brief.",
+    )
+    parser.add_argument(
+        "--review-include-summary",
+        dest="review_include_summary",
+        action="store_true",
+        default=True,
+        help="Include the full dry run summary in the review brief (default).",
+    )
+    parser.add_argument(
+        "--review-skip-summary",
+        dest="review_include_summary",
+        action="store_false",
+        help="Do not embed the dry run summary in the review brief.",
+    )
+    parser.add_argument(
+        "--review-include-sign-off",
+        dest="review_include_sign_off",
+        action="store_true",
+        default=True,
+        help="Include the sign-off assessment in the review brief (default).",
+    )
+    parser.add_argument(
+        "--review-skip-sign-off",
+        dest="review_include_sign_off",
+        action="store_false",
+        help="Do not embed the sign-off assessment in the review brief.",
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         help=(
@@ -148,8 +243,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not command:
         parser.error("No runtime command supplied; provide it after '--'.")
 
+    if args.packet_archive is not None and args.packet_dir is None:
+        parser.error("--packet-archive requires --packet-dir")
+    if args.packet_skip_raw and args.packet_dir is None:
+        parser.error("--packet-skip-raw requires --packet-dir")
+    if args.no_review and args.review_output is not None:
+        parser.error("--no-review cannot be combined with --review-output")
+
     metadata_pairs = dict(_parse_key_value(item) for item in args.metadata)
     env_pairs = dict(_parse_key_value(item) for item in args.env)
+
+    attendees = tuple(args.attendees or ())
+    notes_list = list(args.notes or ())
+    notes_files = [Path(path) for path in (args.notes_files or ())]
+    notes_list.extend(_load_notes(notes_files))
+    review_notes = tuple(notes_list)
 
     duration = timedelta(hours=args.duration_hours)
     required_duration = (
@@ -176,7 +284,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         environment=env_pairs or None,
     )
 
-    result = run_final_dry_run(config)
+    workflow = run_final_dry_run_workflow(
+        config,
+        evidence_dir=args.packet_dir,
+        evidence_archive=args.packet_archive,
+        include_raw_artifacts=not args.packet_skip_raw,
+        review_run_label=args.review_run_label,
+        review_attendees=attendees,
+        review_notes=review_notes,
+        create_review=not args.no_review,
+    )
+    result = workflow.run_result
 
     print(f"Final dry run status: {result.status.value.upper()}")
     print(f"  Runtime command: {' '.join(result.config.command)}")
@@ -194,6 +312,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  Log summary status: {result.summary.log_summary.status.value if result.summary.log_summary else 'n/a'}")
     if result.sign_off is not None:
         print(f"  Sign-off status: {result.sign_off.status.value.upper()}")
+    if workflow.evidence_packet is not None:
+        print(f"  Evidence packet directory: {workflow.evidence_packet.output_dir}")
+        if workflow.evidence_packet.archive_path is not None:
+            print(f"  Evidence packet archive: {workflow.evidence_packet.archive_path}")
+    if workflow.review is not None:
+        print(f"  Review status: {workflow.review.status.value.upper()}")
+        if args.review_output is not None:
+            review_text = (
+                json.dumps(workflow.review.as_dict(), indent=2)
+                if args.review_format == "json"
+                else workflow.review.to_markdown(
+                    include_summary=args.review_include_summary,
+                    include_sign_off=args.review_include_sign_off,
+                )
+            )
+            if args.review_output.as_posix() == "-":
+                print(review_text)
+            else:
+                args.review_output.write_text(review_text, encoding="utf-8")
+                print(f"  Review written to: {args.review_output}")
+        else:
+            print("  Review brief not written (pass --review-output or '--review-output -' to emit).")
 
     if args.json_report is not None:
         payload = {
@@ -204,12 +344,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload["sign_off"] = result.sign_off.as_dict()
         if result.incidents:
             payload["incidents"] = [incident.as_dict() for incident in result.incidents]
+        if workflow.review is not None:
+            payload["review"] = workflow.review.as_dict()
         args.json_report.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if args.markdown_report is not None:
         parts = [result.summary.to_markdown()]
         if result.sign_off is not None:
             parts.append(result.sign_off.to_markdown())
+        if workflow.review is not None:
+            parts.append(
+                workflow.review.to_markdown(
+                    include_summary=args.review_include_summary,
+                    include_sign_off=args.review_include_sign_off,
+                )
+            )
         args.markdown_report.write_text("\n".join(parts), encoding="utf-8")
 
     if result.status is DryRunStatus.fail:

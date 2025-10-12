@@ -39,6 +39,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional path to a decision diary JSON file",
     )
     parser.add_argument(
+        "--diary-min-entries-per-day",
+        type=int,
+        default=0,
+        help=(
+            "Require at least this many diary entries per calendar day within the log window "
+            "(default: 0 — no per-day requirement)."
+        ),
+    )
+    parser.add_argument(
+        "--diary-daily-gap-severity",
+        choices=(DryRunStatus.warn.value, DryRunStatus.fail.value),
+        default=DryRunStatus.warn.value,
+        help=(
+            "Severity assigned when a day is missing the minimum diary entries "
+            "(default: warn)."
+        ),
+    )
+    parser.add_argument(
         "--performance",
         type=Path,
         help="Optional path to a strategy performance JSON report",
@@ -143,6 +161,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         performance_path=args.performance,
         log_gap_warn=warn_gap,
         log_gap_fail=fail_gap,
+        diary_min_entries_per_day=(
+            args.diary_min_entries_per_day
+            if args.diary_min_entries_per_day > 0
+            else None
+        ),
+        diary_daily_issue_severity=DryRunStatus(args.diary_daily_gap_severity),
     )
 
     sign_off_report = None

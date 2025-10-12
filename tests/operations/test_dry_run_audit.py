@@ -188,7 +188,7 @@ def test_summarise_diary_entries_warns_for_partial_coverage() -> None:
     start = datetime(2024, 1, 1, 0, 0, tzinfo=UTC)
     end = datetime(2024, 1, 1, 5, 0, tzinfo=UTC)
     entry = DecisionDiaryEntry(
-        entry_id="mid", 
+        entry_id="mid",
         recorded_at=datetime(2024, 1, 1, 2, 0, tzinfo=UTC),
         policy_id="alpha",
         decision={"status": "ok"},
@@ -204,6 +204,57 @@ def test_summarise_diary_entries_warns_for_partial_coverage() -> None:
     reasons = {issue.entry_id for issue in summary.issues}
     assert "coverage/start_gap" in reasons
     assert "coverage/end_gap" in reasons
+
+
+def test_summarise_diary_entries_enforces_daily_minimum_warn() -> None:
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    end = datetime(2024, 1, 3, tzinfo=UTC)
+    entry_day_one = DecisionDiaryEntry(
+        entry_id="d1",
+        recorded_at=datetime(2024, 1, 1, 8, tzinfo=UTC),
+        policy_id="alpha",
+        decision={"status": "ok"},
+        regime_state={"regime": "calm"},
+        outcomes={"status": "ok"},
+    )
+    summary = summarise_diary_entries(
+        (entry_day_one,),
+        expected_window=(start, end),
+        minimum_entries_per_day=1,
+        daily_coverage_severity=DryRunStatus.warn,
+    )
+    assert summary.status is DryRunStatus.warn
+    missing_days = {
+        issue.metadata.get("day")
+        for issue in summary.issues
+        if issue.entry_id.startswith("coverage/daily/")
+    }
+    assert missing_days
+
+
+def test_summarise_diary_entries_enforces_daily_minimum_fail() -> None:
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    end = datetime(2024, 1, 1, 23, 59, tzinfo=UTC)
+    entry = DecisionDiaryEntry(
+        entry_id="only",
+        recorded_at=datetime(2024, 1, 1, 12, tzinfo=UTC),
+        policy_id="alpha",
+        decision={"status": "ok"},
+        regime_state={"regime": "calm"},
+        outcomes={"status": "ok"},
+    )
+    summary = summarise_diary_entries(
+        (entry,),
+        expected_window=(start, end),
+        minimum_entries_per_day=2,
+        daily_coverage_severity=DryRunStatus.fail,
+    )
+    assert summary.status is DryRunStatus.fail
+    assert any(
+        issue.metadata.get("required_entries") == 2
+        for issue in summary.issues
+        if issue.entry_id.startswith("coverage/daily/")
+    )
 
 
 def test_dry_run_summary_combines_components() -> None:

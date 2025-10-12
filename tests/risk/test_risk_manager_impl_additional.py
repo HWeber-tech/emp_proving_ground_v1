@@ -446,6 +446,55 @@ def test_risk_manager_impl_update_market_regime_records_metadata() -> None:
     assert detector.calls
 
 
+def test_risk_manager_impl_update_market_regime_fail_closed_on_errors() -> None:
+    class FlakyDetector:
+        def __init__(self, recovery_result: MarketRegimeResult) -> None:
+            self._result = recovery_result
+            self.calls = 0
+
+        def detect_regime(
+            self, _market_data: Mapping[str, object] | list[float]
+        ) -> MarketRegimeResult:
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("regime detector unavailable")
+            return self._result
+
+    recovery = MarketRegimeResult(
+        regime=RegimeLabel("normal"),
+        confidence=0.8,
+        realised_volatility=0.01,
+        annualised_volatility=0.05,
+        sample_size=100,
+        risk_multiplier=0.75,
+        blocked=False,
+        timestamp=datetime.now(timezone.utc),
+        diagnostics={"sample_size": 100.0},
+    )
+    detector = FlakyDetector(recovery)
+    manager = RiskManagerImpl(
+        initial_balance=50_000,
+        risk_config=RiskConfig(),
+        market_regime_detector=detector,
+    )
+
+    failure = manager.update_market_regime([0.01, -0.02, 0.03])
+
+    assert failure.regime.value == "unknown"
+    assert failure.risk_multiplier == pytest.approx(0.0)
+    assert failure.blocked is True
+    assert manager._regime_risk_multiplier == pytest.approx(0.0)
+    assert manager.telemetry["regime_blocked"] is True
+    assert manager.telemetry["regime_error"] == "regime detector unavailable"
+
+    recovered = manager.update_market_regime([0.02, -0.01, 0.04])
+
+    assert recovered is recovery
+    assert manager.telemetry["last_regime"] == "normal"
+    assert "regime_error" not in manager.telemetry
+    assert manager._regime_risk_multiplier == pytest.approx(recovery.risk_multiplier)
+
+
 def test_risk_manager_impl_update_limits_overrides_all_supported_fields() -> None:
     manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
 

@@ -11,7 +11,7 @@ import logging
 import math
 from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 
 from pydantic import ValidationError
@@ -36,6 +36,7 @@ from src.data_foundation.config.sizing_config import SizingConfig, load_sizing_c
 from src.trading.risk.market_regime_detector import (
     MarketRegimeDetector,
     MarketRegimeResult,
+    RegimeLabel,
 )
 
 logger = logging.getLogger(__name__)
@@ -638,13 +639,48 @@ class RiskManagerImpl(RiskManagerProtocol):
     def update_market_regime(
         self, market_data: Mapping[str, object] | Sequence[float] | Iterable[float]
     ) -> MarketRegimeResult:
-        """Ingest market data, classify the regime, and adjust risk throttles."""
+        """Ingest market data, classify the regime, and adjust risk throttles.
 
-        result = self._market_regime_detector.detect_regime(market_data)
+        The detector occasionally raises when the upstream feed delivers empty
+        samples or malformed payloads.  Rather than propagating the error and
+        crashing the trading loop, we fail closed: throttle all risk by setting
+        the regime multiplier to zero and mark the telemetry as blocked so
+        governance dashboards surface the degraded posture.
+        """
+
+        try:
+            result = self._market_regime_detector.detect_regime(market_data)
+        except Exception as exc:
+            logger.exception(
+                "market_regime_detection_failed",
+                extra={
+                    "detector": type(self._market_regime_detector).__name__,
+                },
+            )
+            failure = MarketRegimeResult(
+                regime=RegimeLabel("unknown"),
+                confidence=0.0,
+                realised_volatility=0.0,
+                annualised_volatility=0.0,
+                sample_size=0,
+                risk_multiplier=0.0,
+                blocked=True,
+                timestamp=datetime.now(timezone.utc),
+                diagnostics={"sample_size": 0.0},
+            )
+            self._regime_risk_multiplier = 0.0
+            self.telemetry["last_regime"] = failure.regime.value
+            self.telemetry["regime_confidence"] = failure.confidence
+            self.telemetry["regime_blocked"] = True
+            self.telemetry["regime_error"] = str(exc)
+            self._last_regime = failure
+            return failure
+
         self._regime_risk_multiplier = max(0.0, float(result.risk_multiplier))
         self.telemetry["last_regime"] = result.regime.value
         self.telemetry["regime_confidence"] = result.confidence
         self.telemetry["regime_blocked"] = result.blocked
+        self.telemetry.pop("regime_error", None)
         self._last_regime = result
         logger.info(
             "market_regime_update",

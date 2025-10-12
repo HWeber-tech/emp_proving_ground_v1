@@ -1227,6 +1227,8 @@ class TradingManager:
         if candidate is None:
             return None
         if isinstance(candidate, datetime):
+            if candidate.tzinfo is None:
+                return candidate.replace(tzinfo=timezone.utc)
             return candidate
         if isinstance(candidate, (int, float)):
             try:

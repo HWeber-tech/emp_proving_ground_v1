@@ -100,6 +100,48 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
     assert store.exists(entry.entry_id)
 
 
+def test_decision_diary_merge_metadata(tmp_path, fixed_uuid) -> None:
+    _ = fixed_uuid
+    store = DecisionDiaryStore(tmp_path / "diary.json", now=_fixed_now)
+
+    decision = PolicyDecision(
+        tactic_id="alpha.shadow",
+        parameters={"size": 1},
+        selected_weight=1.0,
+        guardrails={},
+        rationale="",
+        experiments_applied=(),
+        reflection_summary={},
+    )
+    regime = RegimeState(
+        regime="calm",
+        confidence=0.5,
+        features={},
+        timestamp=_fixed_now(),
+    )
+
+    entry = store.record(
+        policy_id="alpha.policy",
+        decision=decision,
+        regime_state=regime,
+        outcomes={"test": True},
+        metadata={"session": "alpha"},
+    )
+
+    updated = store.merge_metadata(
+        entry.entry_id,
+        {"session": "alpha-updated", "trade_execution": {"status": "throttled"}},
+    )
+
+    assert updated.metadata["session"] == "alpha-updated"
+    assert updated.metadata["trade_execution"]["status"] == "throttled"
+
+    reloaded = DecisionDiaryStore(tmp_path / "diary.json")
+    reloaded_entry = reloaded.get(entry.entry_id)
+    assert reloaded_entry is not None
+    assert reloaded_entry.metadata["session"] == "alpha-updated"
+    assert reloaded_entry.metadata["trade_execution"]["status"] == "throttled"
+
 def test_decision_diary_publish_event(tmp_path, fixed_uuid, monkeypatch) -> None:
     _ = fixed_uuid
     events: list[object] = []

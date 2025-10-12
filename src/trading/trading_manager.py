@@ -4,6 +4,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from numbers import Integral
@@ -105,6 +106,27 @@ logger = logging.getLogger(__name__)
 
 
 _ENGINE_UNSET = object()
+
+
+@dataclass(frozen=True, slots=True)
+class TradeIntentOutcome:
+    """Structured result emitted after handling a trade intent."""
+
+    status: str
+    executed: bool
+    throttle: Mapping[str, Any] | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: dict[str, Any] = {
+            "status": self.status,
+            "executed": self.executed,
+        }
+        if self.throttle is not None:
+            payload["throttle"] = dict(self.throttle)
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
 
 
 def _coerce_risk_config(
@@ -478,7 +500,7 @@ class TradingManager:
 
         return decision
 
-    async def on_trade_intent(self, event: TradeIntent) -> None:
+    async def on_trade_intent(self, event: TradeIntent) -> TradeIntentOutcome:
         """
         Handle incoming trade intents with integrated risk management.
 
@@ -500,6 +522,7 @@ class TradingManager:
         base_symbol: str | None = None
         strategy_id: str | None = None
         base_confidence: float | None = None
+        trade_outcome: TradeIntentOutcome | None = None
         try:
             logger.info(f"Received trade intent: {event_id}")
 
@@ -614,6 +637,8 @@ class TradingManager:
                 notional = abs(float(quantity)) * abs(float(price))
                 drift_notional_value = notional
 
+                throttle_snapshot: Mapping[str, Any] | None = None
+                throttle_blocked = False
                 throttle_decision = self._evaluate_trade_throttle(
                     strategy_id=strategy_id,
                     symbol=symbol,
@@ -650,6 +675,13 @@ class TradingManager:
                     logger.warning("Throttled trade intent %s: %s", event_id, log_reason)
                     drift_event_status = "throttled"
                     drift_confidence_value = confidence
+                    throttle_blocked = True
+                    trade_outcome = TradeIntentOutcome(
+                        status="throttled",
+                        executed=False,
+                        throttle=throttle_snapshot,
+                        metadata=metadata_payload,
+                    )
                     if gate_decision is not None and not drift_event_emitted:
                         await self._publish_drift_gate_event(
                             decision=gate_decision,
@@ -662,142 +694,49 @@ class TradingManager:
                             release_metadata=None,
                         )
                         drift_event_emitted = True
-                    return
 
-                cast(Any, self.portfolio_monitor).reserve_position(
-                    symbol, float(quantity), price
-                )
-
-                start = time.perf_counter()
-                current_submitted = coerce_int(
-                    self._execution_stats.get("orders_submitted"), default=0
-                )
-                self._execution_stats["orders_submitted"] = current_submitted + 1
-                try:
-                    result = await self.execution_engine.process_order(validated_intent)
-                except Exception as exc:
-                    try:
-                        release_quantity = float(quantity)
-                    except Exception:
-                        release_quantity = coerce_float(quantity, default=0.0)
-                    if release_quantity:
-                        try:
-                            cast(Any, self.portfolio_monitor).release_position(
-                                symbol, release_quantity
-                            )
-                        except Exception:  # pragma: no cover - diagnostic guardrail
-                            logger.debug(
-                                "Failed to release reserved position after execution error",
-                                exc_info=True,
-                            )
-                    logger.exception("Execution engine error for trade intent %s", event_id)
-                    self._record_execution_failure(exc)
-                    decision = self._get_last_risk_decision()
-                    failure_metadata: dict[str, object] = {"error": str(exc)}
-                    if notional:
-                        failure_metadata["notional"] = float(notional)
-                    release_metadata = self._extract_release_execution_metadata(validated_intent)
-                    if release_metadata:
-                        failure_metadata["release_execution"] = release_metadata
-                    if release_metadata:
-                        await self._publish_release_route_event(
-                            event_id=event_id,
-                            strategy_id=strategy_id,
-                            status="failed",
-                            release_metadata=release_metadata,
-                        )
-                    self._record_experiment_event(
-                        event_id=event_id,
-                        status="failed",
-                        strategy_id=strategy_id,
-                        symbol=symbol,
-                        confidence=confidence,
-                        notional=notional,
-                        metadata=failure_metadata,
-                        decision=decision,
+                if not throttle_blocked:
+                    cast(Any, self.portfolio_monitor).reserve_position(
+                        symbol, float(quantity), price
                     )
-                    drift_event_status = "execution_error"
-                    drift_confidence_value = confidence
-                    drift_release_metadata = release_metadata
-                    if gate_decision is not None and not drift_event_emitted:
-                        await self._publish_drift_gate_event(
-                            decision=gate_decision,
-                            event_id=event_id,
-                            status=drift_event_status,
-                            strategy_id=strategy_id,
-                            symbol=symbol,
-                            confidence=drift_confidence_value,
-                            notional=drift_notional_value,
-                            release_metadata=drift_release_metadata,
-                        )
-                        drift_event_emitted = True
-                else:
-                    latency_ms = (time.perf_counter() - start) * 1000.0
-                    self._record_execution_success(latency_ms, result)
-                    decision = self._get_last_risk_decision()
-                    if self._execution_stats.get("last_successful_order"):
-                        if notional > 0:
-                            self._roi_executed_trades += 1
-                            self._roi_total_notional += notional
-                        success_metadata: dict[str, object] = {
-                            "latency_ms": float(latency_ms),
-                            "notional": float(notional),
-                            "quantity": float(quantity),
-                            "price": float(price),
-                        }
-                        if gate_decision_payload is not None:
-                            success_metadata["drift_gate"] = dict(gate_decision_payload)
-                        release_metadata = self._extract_release_execution_metadata(
+
+                    start = time.perf_counter()
+                    current_submitted = coerce_int(
+                        self._execution_stats.get("orders_submitted"), default=0
+                    )
+                    self._execution_stats["orders_submitted"] = current_submitted + 1
+                    try:
+                        result = await self.execution_engine.process_order(
                             validated_intent
                         )
-                        if release_metadata:
-                            success_metadata["release_execution"] = release_metadata
-                        if release_metadata:
-                            await self._publish_release_route_event(
-                                event_id=event_id,
-                                strategy_id=strategy_id,
-                                status="executed",
-                                release_metadata=release_metadata,
-                            )
-                        self._record_experiment_event(
-                            event_id=event_id,
-                            status="executed",
-                            strategy_id=strategy_id,
-                            symbol=symbol,
-                            confidence=confidence,
-                            notional=notional,
-                            metadata=success_metadata,
-                            decision=decision,
+                    except Exception as exc:
+                        try:
+                            release_quantity = float(quantity)
+                        except Exception:
+                            release_quantity = coerce_float(quantity, default=0.0)
+                        if release_quantity:
+                            try:
+                                cast(Any, self.portfolio_monitor).release_position(
+                                    symbol, release_quantity
+                                )
+                            except Exception:  # pragma: no cover - diagnostic guardrail
+                                logger.debug(
+                                    "Failed to release reserved position after execution error",
+                                    exc_info=True,
+                                )
+                        logger.exception(
+                            "Execution engine error for trade intent %s", event_id
                         )
-                        drift_event_status = "executed"
-                        drift_confidence_value = confidence
-                        drift_release_metadata = release_metadata
-                        if gate_decision is not None and not drift_event_emitted:
-                            await self._publish_drift_gate_event(
-                                decision=gate_decision,
-                                event_id=event_id,
-                                status=drift_event_status,
-                                strategy_id=strategy_id,
-                                symbol=symbol,
-                                confidence=drift_confidence_value,
-                                notional=drift_notional_value,
-                                release_metadata=drift_release_metadata,
-                        )
-                        drift_event_emitted = True
-                    else:
-                        error_reason = str(
-                            self._execution_stats.get("last_error") or "execution_failed"
-                        )
-                        fallback_metadata: dict[str, object] = {"reason": error_reason}
+                        self._record_execution_failure(exc)
+                        decision = self._get_last_risk_decision()
+                        failure_metadata: dict[str, object] = {"error": str(exc)}
                         if notional:
-                            fallback_metadata["notional"] = float(notional)
-                        if gate_decision_payload is not None:
-                            fallback_metadata["drift_gate"] = dict(gate_decision_payload)
+                            failure_metadata["notional"] = float(notional)
                         release_metadata = self._extract_release_execution_metadata(
                             validated_intent
                         )
                         if release_metadata:
-                            fallback_metadata["release_execution"] = release_metadata
+                            failure_metadata["release_execution"] = release_metadata
                         if release_metadata:
                             await self._publish_release_route_event(
                                 event_id=event_id,
@@ -812,12 +751,18 @@ class TradingManager:
                             symbol=symbol,
                             confidence=confidence,
                             notional=notional,
-                            metadata=fallback_metadata,
+                            metadata=failure_metadata,
                             decision=decision,
                         )
-                        drift_event_status = "execution_failed"
+                        drift_event_status = "execution_error"
                         drift_confidence_value = confidence
                         drift_release_metadata = release_metadata
+                        trade_outcome = TradeIntentOutcome(
+                            status="failed",
+                            executed=False,
+                            throttle=self.get_trade_throttle_snapshot(),
+                            metadata=failure_metadata,
+                        )
                         if gate_decision is not None and not drift_event_emitted:
                             await self._publish_drift_gate_event(
                                 decision=gate_decision,
@@ -830,6 +775,122 @@ class TradingManager:
                                 release_metadata=drift_release_metadata,
                             )
                             drift_event_emitted = True
+                    else:
+                        latency_ms = (time.perf_counter() - start) * 1000.0
+                        self._record_execution_success(latency_ms, result)
+                        decision = self._get_last_risk_decision()
+                        if self._execution_stats.get("last_successful_order"):
+                            if notional > 0:
+                                self._roi_executed_trades += 1
+                                self._roi_total_notional += notional
+                            success_metadata: dict[str, object] = {
+                                "latency_ms": float(latency_ms),
+                                "notional": float(notional),
+                                "quantity": float(quantity),
+                                "price": float(price),
+                            }
+                            if gate_decision_payload is not None:
+                                success_metadata["drift_gate"] = dict(gate_decision_payload)
+                            release_metadata = self._extract_release_execution_metadata(
+                                validated_intent
+                            )
+                            if release_metadata:
+                                success_metadata["release_execution"] = release_metadata
+                            if release_metadata:
+                                await self._publish_release_route_event(
+                                    event_id=event_id,
+                                    strategy_id=strategy_id,
+                                    status="executed",
+                                    release_metadata=release_metadata,
+                                )
+                            self._record_experiment_event(
+                                event_id=event_id,
+                                status="executed",
+                                strategy_id=strategy_id,
+                                symbol=symbol,
+                                confidence=confidence,
+                                notional=notional,
+                                metadata=success_metadata,
+                                decision=decision,
+                            )
+                            drift_event_status = "executed"
+                            drift_confidence_value = confidence
+                            drift_release_metadata = release_metadata
+                            trade_outcome = TradeIntentOutcome(
+                                status="executed",
+                                executed=True,
+                                throttle=self.get_trade_throttle_snapshot(),
+                                metadata=success_metadata,
+                            )
+                            if gate_decision is not None and not drift_event_emitted:
+                                await self._publish_drift_gate_event(
+                                    decision=gate_decision,
+                                    event_id=event_id,
+                                    status=drift_event_status,
+                                    strategy_id=strategy_id,
+                                    symbol=symbol,
+                                    confidence=drift_confidence_value,
+                                    notional=drift_notional_value,
+                                    release_metadata=drift_release_metadata,
+                                )
+                                drift_event_emitted = True
+                        else:
+                            error_reason = str(
+                                self._execution_stats.get("last_error")
+                                or "execution_failed"
+                            )
+                            fallback_metadata: dict[str, object] = {
+                                "reason": error_reason
+                            }
+                            if notional:
+                                fallback_metadata["notional"] = float(notional)
+                            if gate_decision_payload is not None:
+                                fallback_metadata["drift_gate"] = dict(
+                                    gate_decision_payload
+                                )
+                            release_metadata = self._extract_release_execution_metadata(
+                                validated_intent
+                            )
+                            if release_metadata:
+                                fallback_metadata["release_execution"] = release_metadata
+                            if release_metadata:
+                                await self._publish_release_route_event(
+                                    event_id=event_id,
+                                    strategy_id=strategy_id,
+                                    status="failed",
+                                    release_metadata=release_metadata,
+                                )
+                            self._record_experiment_event(
+                                event_id=event_id,
+                                status="failed",
+                                strategy_id=strategy_id,
+                                symbol=symbol,
+                                confidence=confidence,
+                                notional=notional,
+                                metadata=fallback_metadata,
+                                decision=decision,
+                            )
+                            drift_event_status = "execution_failed"
+                            drift_confidence_value = confidence
+                            drift_release_metadata = release_metadata
+                            trade_outcome = TradeIntentOutcome(
+                                status="failed",
+                                executed=False,
+                                throttle=self.get_trade_throttle_snapshot(),
+                                metadata=fallback_metadata,
+                            )
+                            if gate_decision is not None and not drift_event_emitted:
+                                await self._publish_drift_gate_event(
+                                    decision=gate_decision,
+                                    event_id=event_id,
+                                    status=drift_event_status,
+                                    strategy_id=strategy_id,
+                                    symbol=symbol,
+                                    confidence=drift_confidence_value,
+                                    notional=drift_notional_value,
+                                    release_metadata=drift_release_metadata,
+                                )
+                                drift_event_emitted = True
 
             else:
                 logger.warning(f"Trade intent {event_id} was rejected by the Risk Gateway")
@@ -853,6 +914,12 @@ class TradingManager:
                 )
                 drift_event_status = "risk_rejected"
                 drift_confidence_value = base_confidence
+                trade_outcome = TradeIntentOutcome(
+                    status="rejected",
+                    executed=False,
+                    throttle=self.get_trade_throttle_snapshot(),
+                    metadata=rejection_metadata or {},
+                )
                 if gate_decision is not None and not drift_event_emitted:
                     await self._publish_drift_gate_event(
                         decision=gate_decision,
@@ -886,6 +953,13 @@ class TradingManager:
                     release_metadata=drift_release_metadata,
                 )
                 drift_event_emitted = True
+            if trade_outcome is None:
+                trade_outcome = TradeIntentOutcome(
+                    status="error",
+                    executed=False,
+                    throttle=self.get_trade_throttle_snapshot(),
+                    metadata={"error": str(e)},
+                )
         finally:
             finished_wall = datetime.now(tz=timezone.utc)
             ingestion_timestamp = self._resolve_intent_timestamp(event)
@@ -910,6 +984,15 @@ class TradingManager:
             await self._emit_policy_snapshot()
             await self._emit_risk_interface_snapshot()
             await self._emit_risk_snapshot()
+
+        if trade_outcome is None:
+            trade_outcome = TradeIntentOutcome(
+                status="noop",
+                executed=False,
+                throttle=self.get_trade_throttle_snapshot(),
+                metadata={},
+            )
+        return trade_outcome
 
     def _record_execution_success(self, latency_ms: float, result: object) -> None:
         """Record a successful execution attempt."""

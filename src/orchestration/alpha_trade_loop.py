@@ -121,6 +121,13 @@ class AlphaTradeLoopOrchestrator:
         thresholds = self._release_manager.resolve_thresholds(policy_id)
         return dict(thresholds) if thresholds is not None else None
 
+    def annotate_diary_entry(
+        self, entry_id: str, metadata: Mapping[str, Any] | None
+    ) -> DecisionDiaryEntry:
+        """Attach additional metadata to a previously recorded diary entry."""
+
+        return self._diary_store.merge_metadata(entry_id, metadata)
+
     @staticmethod
     def _stage_order(stage: PolicyLedgerStage) -> int:
         if stage is PolicyLedgerStage.EXPERIMENT:

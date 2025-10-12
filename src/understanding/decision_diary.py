@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, MutableMapping, Sequence
@@ -492,6 +492,38 @@ class DecisionDiaryStore:
         )
         self._publish_entry(entry)
         return entry
+
+    def merge_metadata(
+        self,
+        entry_id: str,
+        metadata: Mapping[str, Any] | None,
+    ) -> DecisionDiaryEntry:
+        """Merge additional metadata into an existing diary entry."""
+
+        if not metadata:
+            entry = self._entries.get(entry_id)
+            if entry is None:
+                raise KeyError(f"Decision diary entry {entry_id} not found")
+            return entry
+
+        if not isinstance(metadata, Mapping):
+            raise TypeError("metadata must be a mapping when provided")
+
+        entry = self._entries.get(entry_id)
+        if entry is None:
+            raise KeyError(f"Decision diary entry {entry_id} not found")
+
+        merged = dict(entry.metadata)
+        merged.update({str(key): value for key, value in metadata.items()})
+        new_entry = replace(entry, metadata=merged)
+        self._entries[entry.entry_id] = new_entry
+        self._dump()
+        logger.info(
+            "Decision diary entry metadata merged",
+            extra={"entry_id": entry.entry_id},
+        )
+        self._publish_entry(new_entry)
+        return new_entry
 
     def export_markdown(self, *, since: datetime | None = None) -> str:
         since_ts = _normalise_timestamp(since, default=lambda: datetime.fromtimestamp(0, tz=UTC)) if since else None

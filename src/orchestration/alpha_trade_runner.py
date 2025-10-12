@@ -20,9 +20,10 @@ end-to-end AlphaTrade runs without manual glue code inside the test fixtures.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Any, Callable, Mapping, MutableMapping, Sequence
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Callable, Mapping, MutableMapping, Sequence
 
 from src.orchestration.alpha_trade_loop import (
     AlphaTradeLoopOrchestrator,
@@ -30,6 +31,9 @@ from src.orchestration.alpha_trade_loop import (
 )
 from src.understanding.belief import BeliefEmitter, BeliefState, RegimeFSM, RegimeSignal
 from src.understanding.router import BeliefSnapshot, UnderstandingRouter
+
+if TYPE_CHECKING:
+    from src.trading.trading_manager import TradeIntentOutcome
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -56,6 +60,7 @@ class AlphaTradeRunResult:
     loop_result: AlphaTradeLoopResult
     trade_metadata: Mapping[str, Any] | None
     trade_intent: Mapping[str, Any] | None
+    trade_outcome: "TradeIntentOutcome | None"
 
 
 TradeBuilder = Callable[
@@ -153,8 +158,30 @@ class AlphaTradeLoopRunner:
                 trade_overrides,
             )
 
+        trade_outcome: "TradeIntentOutcome | None" = None
         if intent_payload is not None:
-            await self._trading_manager.on_trade_intent(intent_payload)
+            outcome = await self._trading_manager.on_trade_intent(intent_payload)
+            trade_outcome = outcome
+            if outcome is not None:
+                trade_execution_payload: dict[str, Any] = {
+                    "status": outcome.status,
+                    "executed": outcome.executed,
+                }
+                if outcome.metadata:
+                    trade_execution_payload["metadata"] = dict(outcome.metadata)
+                if outcome.throttle:
+                    trade_execution_payload["throttle"] = dict(outcome.throttle)
+                updated_entry = self._orchestrator.annotate_diary_entry(
+                    loop_result.diary_entry.entry_id,
+                    {"trade_execution": trade_execution_payload},
+                )
+                merged_loop_metadata = dict(loop_result.metadata)
+                merged_loop_metadata["trade_execution"] = trade_execution_payload
+                loop_result = replace(
+                    loop_result,
+                    diary_entry=updated_entry,
+                    metadata=MappingProxyType(merged_loop_metadata),
+                )
 
         return AlphaTradeRunResult(
             belief_state=belief_state,
@@ -162,6 +189,7 @@ class AlphaTradeLoopRunner:
             loop_result=loop_result,
             trade_metadata=dict(trade_plan.metadata or {}),
             trade_intent=dict(intent_payload) if intent_payload is not None else None,
+            trade_outcome=trade_outcome,
         )
 
     def _default_trade_builder(

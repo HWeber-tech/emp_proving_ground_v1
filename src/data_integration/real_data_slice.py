@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 import pandas as pd
 
@@ -35,6 +35,7 @@ __all__ = [
     "RealDataSliceConfig",
     "RealDataSliceOutcome",
     "ingest_daily_slice_from_csv",
+    "ingest_daily_slice_from_provider",
     "fetch_enriched_market_frame",
     "build_belief_from_market_data",
     "run_real_data_slice",
@@ -45,8 +46,9 @@ __all__ = [
 class RealDataSliceConfig:
     """Configuration describing the real-market slice to ingest."""
 
-    csv_path: Path
     symbol: str
+    csv_path: Path | None = None
+    provider: str | None = None
     source: str = "fixture"
     lookback_days: int | None = None
     belief_id: str = "real-data-slice"
@@ -114,6 +116,9 @@ def ingest_daily_slice_from_csv(
 ) -> TimescaleIngestResult:
     """Load a CSV of daily bars and persist it into Timescale."""
 
+    if csv_path is None:
+        raise ValueError("csv_path must be provided when ingesting from CSV")
+
     frame = _load_csv(csv_path)
     normalised_symbol = symbol.strip().upper()
     frame = frame.loc[frame["symbol"].str.upper() == normalised_symbol].copy()
@@ -146,6 +151,44 @@ def ingest_daily_slice_from_csv(
     )
     orchestrator = TimescaleBackboneOrchestrator(settings)
     results = orchestrator.run(plan=plan, fetch_daily=_fetch_daily)
+    ingest_result = results.get(
+        "daily_bars",
+        TimescaleIngestResult.empty(dimension="daily_bars", source=source),
+    )
+    return ingest_result
+
+
+def ingest_daily_slice_from_provider(
+    *,
+    symbol: str,
+    settings: TimescaleConnectionSettings,
+    source: str = "provider",
+    lookback_days: int | None = None,
+    fetch_daily: Callable[[list[str], int], pd.DataFrame] | None = None,
+) -> TimescaleIngestResult:
+    """Fetch daily bars from an external provider and persist them into Timescale."""
+
+    normalised_symbol = symbol.strip().upper()
+    if not normalised_symbol:
+        raise ValueError("symbol must not be empty when ingesting from a provider")
+
+    days = lookback_days if lookback_days is not None else 60
+    days = max(days, 1)
+
+    plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(
+            symbols=[normalised_symbol],
+            lookback_days=days,
+            source=source,
+        )
+    )
+
+    orchestrator = TimescaleBackboneOrchestrator(settings)
+    run_kwargs: dict[str, object] = {"plan": plan}
+    if fetch_daily is not None:
+        run_kwargs["fetch_daily"] = fetch_daily
+    results = orchestrator.run(**run_kwargs)
+
     ingest_result = results.get(
         "daily_bars",
         TimescaleIngestResult.empty(dimension="daily_bars", source=source),
@@ -257,16 +300,38 @@ def run_real_data_slice(
     *,
     config: RealDataSliceConfig,
     settings: TimescaleConnectionSettings,
+    fetch_daily: Callable[[list[str], int], pd.DataFrame] | None = None,
 ) -> RealDataSliceOutcome:
     """Ingest a CSV slice, retrieve enriched data, and emit a belief state."""
 
-    ingest_result = ingest_daily_slice_from_csv(
-        csv_path=config.csv_path,
-        symbol=config.symbol,
-        settings=settings,
-        source=config.source,
-        lookback_days=config.lookback_days,
-    )
+    use_csv = config.csv_path is not None
+    use_provider = config.provider is not None
+    if not use_csv and not use_provider:
+        raise ValueError("RealDataSliceConfig must provide either a csv_path or provider")
+    if use_csv and use_provider:
+        raise ValueError("Specify only one of csv_path or provider for the data slice")
+
+    if use_csv:
+        ingest_result = ingest_daily_slice_from_csv(
+            csv_path=config.csv_path,
+            symbol=config.symbol,
+            settings=settings,
+            source=config.source,
+            lookback_days=config.lookback_days,
+        )
+    else:
+        provider_source = (
+            config.source
+            if config.source != "fixture"
+            else (config.provider or "provider")
+        )
+        ingest_result = ingest_daily_slice_from_provider(
+            symbol=config.symbol,
+            settings=settings,
+            source=provider_source,
+            lookback_days=config.lookback_days,
+            fetch_daily=fetch_daily,
+        )
 
     lookback = (
         config.lookback_days

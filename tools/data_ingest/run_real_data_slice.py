@@ -44,13 +44,17 @@ def main() -> None:
     parser.add_argument(
         "--csv-path",
         type=Path,
-        default=Path("tests/data/eurusd_daily_slice.csv"),
-        help="CSV containing daily market data (defaults to project fixture)",
+        help="CSV containing daily market data (defaults to project fixture unless a provider is used)",
     )
     parser.add_argument(
         "--symbol",
         type=str,
         help="Symbol to ingest; defaults to the first symbol present in the CSV",
+    )
+    parser.add_argument(
+        "--provider",
+        type=str,
+        help="Optional market data provider to download from (e.g. yahoo); bypasses CSV ingest",
     )
     parser.add_argument(
         "--timescale-url",
@@ -67,8 +71,7 @@ def main() -> None:
     parser.add_argument(
         "--source",
         type=str,
-        default="fixture",
-        help="Source label recorded in Timescale (default: fixture)",
+        help="Source label recorded in Timescale (defaults to provider or fixture)",
     )
     parser.add_argument(
         "--belief-id",
@@ -78,11 +81,27 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    csv_path = args.csv_path.resolve()
-    if not csv_path.exists():
+    provider = args.provider.strip() if args.provider else None
+
+    csv_path: Path | None
+    if args.csv_path is not None:
+        csv_path = args.csv_path.resolve()
+    elif provider is None:
+        csv_path = Path("tests/data/eurusd_daily_slice.csv").resolve()
+    else:
+        csv_path = None
+
+    if csv_path is not None and not csv_path.exists():
         raise FileNotFoundError(f"CSV file not found: {csv_path}")
 
-    symbol = args.symbol.strip() if args.symbol else _default_symbol(csv_path)
+    if args.symbol:
+        symbol = args.symbol.strip()
+    elif csv_path is not None:
+        symbol = _default_symbol(csv_path)
+    else:
+        raise ValueError("Symbol must be provided when ingesting from a provider without a CSV")
+    if not symbol:
+        raise ValueError("Symbol must not be empty")
 
     _ensure_sqlite_parent(args.timescale_url)
     settings = TimescaleConnectionSettings(
@@ -90,10 +109,13 @@ def main() -> None:
         application_name="real-data-slice-cli",
     )
 
+    source = (args.source.strip() if args.source else "") or provider or "fixture"
+
     config = RealDataSliceConfig(
-        csv_path=csv_path,
         symbol=symbol,
-        source=args.source,
+        csv_path=csv_path,
+        provider=provider,
+        source=source,
         lookback_days=args.lookback_days,
         belief_id=args.belief_id,
     )

@@ -225,14 +225,18 @@ class BootstrapTradingStack:
             confidence=float(snapshot.synthesis.confidence),
         )
         intent.metadata.setdefault("stop_loss_pct", self.stop_loss_pct)
-        intent.metadata.setdefault(
-            "intelligence_snapshot",
-            {
-                "unified_score": unified_score,
-                "confidence": float(snapshot.synthesis.confidence),
-                "narrative": snapshot.synthesis.dominant_narrative.value,
-            },
-        )
+        understanding_snapshot = {
+            "unified_score": unified_score,
+            "confidence": float(snapshot.synthesis.confidence),
+            "narrative": snapshot.synthesis.dominant_narrative.value,
+        }
+        intent.metadata.setdefault("understanding_snapshot", understanding_snapshot)
+        # Remove legacy terminology to keep downstream tooling aligned with the
+        # understanding-first namespace. Older keys are dropped rather than
+        # duplicated so consumers do not accidentally depend on deprecated
+        # aliases.
+        if isinstance(intent.metadata, MutableMapping):
+            intent.metadata.pop("intelligence_snapshot", None)
 
         await self.trading_manager.on_trade_intent(intent)
         decision = self.trading_manager.risk_gateway.get_last_decision()

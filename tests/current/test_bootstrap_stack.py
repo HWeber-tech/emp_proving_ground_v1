@@ -159,6 +159,9 @@ async def test_bootstrap_trading_stack_executes_trade() -> None:
     policy_snapshot = trading_manager.get_last_policy_snapshot()
     assert policy_snapshot is not None
     assert policy_snapshot.symbol == "EURUSD"
+    intent_metadata = getattr(result["intent"], "metadata", {})
+    assert "understanding_snapshot" in intent_metadata
+    assert "intelligence_snapshot" not in intent_metadata
 
 
 @pytest.mark.asyncio()

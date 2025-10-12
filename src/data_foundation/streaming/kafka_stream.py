@@ -1371,6 +1371,18 @@ class KafkaIngestEventPublisher:
             except Exception:  # pragma: no cover - safety net for runtime failures
                 self._logger.exception("Kafka producer flush failed for topic %s", topic)
 
+    def checkup(self) -> bool:
+        """Run a lightweight producer health probe (best-effort)."""
+
+        flush = getattr(self._producer, "flush", None)
+        if callable(flush):
+            try:
+                flush(0)
+            except Exception:
+                self._logger.exception("Kafka producer flush failed during checkup")
+                return False
+        return True
+
 
 @dataclass(frozen=True)
 class KafkaIngestBackfillSummary:

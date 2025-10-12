@@ -5,14 +5,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
 
 import pandas as pd
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from src.core.market_data import MarketDataGateway
 from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
     ManagedRedisCache,
     RedisCachePolicy,
     RedisConnectionSettings,
@@ -34,12 +37,12 @@ from src.data_foundation.persist.timescale import TimescaleConnectionSettings, T
 from src.data_foundation.persist.timescale_reader import TimescaleQueryResult, TimescaleReader
 from src.data_foundation.streaming.kafka_stream import (
     KafkaConnectionSettings,
+    KafkaIngestEventPublisher,
     create_ingest_event_publisher,
 )
 from src.runtime.task_supervisor import TaskSupervisor
 
 if TYPE_CHECKING:  # pragma: no cover - typing support only
-    from src.data_foundation.streaming.kafka_stream import KafkaIngestEventPublisher
     from src.governance.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
@@ -115,6 +118,22 @@ def _normalise_calendars(values: Sequence[str] | None) -> tuple[str, ...]:
     return tuple(seen)
 
 
+@dataclass(slots=True, frozen=True)
+class BackboneConnectivityReport:
+    """Structured status for core data backbone services."""
+
+    timescale: bool
+    redis: bool
+    kafka: bool
+
+    def as_dict(self) -> dict[str, bool]:
+        return {
+            "timescale": self.timescale,
+            "redis": self.redis,
+            "kafka": self.kafka,
+        }
+
+
 class RealDataManager(MarketDataGateway):
     """Coordinate Timescale storage, Redis caching, and Kafka streaming."""
 
@@ -128,7 +147,7 @@ class RealDataManager(MarketDataGateway):
         kafka_settings: KafkaConnectionSettings | None = None,
         cache_policy: RedisCachePolicy | None = None,
         managed_cache: ManagedRedisCache | None = None,
-        ingest_publisher: "KafkaIngestEventPublisher" | None = None,
+        ingest_publisher: KafkaIngestEventPublisher | None = None,
         engine: Engine | None = None,
         task_supervisor: TaskSupervisor | None = None,
         auto_close_engine: bool | None = None,
@@ -389,6 +408,15 @@ class RealDataManager(MarketDataGateway):
     def cache_metrics(self, *, reset: bool = False) -> Mapping[str, int | str]:
         return self._cache.metrics(reset=reset)
 
+    def connectivity_report(self) -> BackboneConnectivityReport:
+        """Expose health indicators for Timescale, Redis, and Kafka connectors."""
+
+        return BackboneConnectivityReport(
+            timescale=self._check_timescale(),
+            redis=self._check_redis(),
+            kafka=self._check_kafka(),
+        )
+
     def start_ingest_scheduler(
         self,
         plan_factory: Callable[[], TimescaleBackbonePlan],
@@ -550,6 +578,41 @@ class RealDataManager(MarketDataGateway):
             self._cache.invalidate(("timescale:",))
         except Exception:  # pragma: no cover - cache failures should not break ingest
             logger.debug("Timescale cache invalidation failed", exc_info=True)
+
+    def _check_timescale(self) -> bool:
+        try:
+            with self._engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception:
+            logger.exception("Timescale connectivity probe failed")
+            return False
+        return True
+
+    def _check_redis(self) -> bool:
+        client = getattr(self._cache, "raw_client", None)
+        if client is None or isinstance(client, InMemoryRedis):
+            return False
+        ping = getattr(client, "ping", None)
+        if not callable(ping):
+            return False
+        try:
+            ping()
+        except Exception:
+            logger.exception("Redis connectivity probe failed")
+            return False
+        return True
+
+    def _check_kafka(self) -> bool:
+        if self._kafka_publisher is None:
+            return False
+        checkup = getattr(self._kafka_publisher, "checkup", None)
+        if callable(checkup):
+            try:
+                return bool(checkup())
+            except Exception:
+                logger.exception("Kafka connectivity probe failed")
+                return False
+        return True
 
     def _configured_macro_calendars(self) -> tuple[str, ...]:
         payload = self._extras.get("TIMESCALE_MACRO_CALENDARS")

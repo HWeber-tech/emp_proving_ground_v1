@@ -7,6 +7,7 @@ import pandas as pd
 import pandas.testing as pdt
 import pytest
 
+from src.data_foundation.cache.redis_cache import ManagedRedisCache, RedisCachePolicy
 from src.data_foundation.ingest import timescale_pipeline as ingest_pipeline
 from src.data_foundation.ingest.scheduler import IngestSchedule
 from src.data_foundation.ingest.timescale_pipeline import (
@@ -16,6 +17,7 @@ from src.data_foundation.ingest.timescale_pipeline import (
 )
 from src.data_foundation.persist.timescale import TimescaleConnectionSettings
 from src.data_foundation.schemas import MacroEvent
+from src.data_foundation.streaming.kafka_stream import KafkaIngestEventPublisher
 from src.runtime.task_supervisor import TaskSupervisor
 
 import src.data_integration.real_data_integration as real_data_module
@@ -243,3 +245,55 @@ async def test_real_data_manager_scheduler_uses_supervisor(tmp_path):
     assert supervisor.active_count == 0
 
     await manager.shutdown()
+
+
+class _HealthyRedis:
+    def ping(self) -> bool:
+        return True
+
+
+class _HealthyKafkaProducer:
+    def produce(self, topic, value, key=None) -> None:  # pragma: no cover - noop
+        return None
+
+    def flush(self, timeout=None) -> None:  # pragma: no cover - noop
+        return None
+
+
+def test_real_data_manager_connectivity_report_defaults(tmp_path):
+    url = f"sqlite:///{tmp_path / 'connectivity_default.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    manager = RealDataManager(timescale_settings=settings)
+
+    report = manager.connectivity_report()
+    assert report.timescale is True
+    assert report.redis is False
+    assert report.kafka is False
+
+    manager.close()
+
+
+def test_real_data_manager_connectivity_report_full_stack(tmp_path):
+    url = f"sqlite:///{tmp_path / 'connectivity_full.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    redis_policy = RedisCachePolicy.institutional_defaults()
+    redis_cache = ManagedRedisCache(_HealthyRedis(), redis_policy)
+    publisher = KafkaIngestEventPublisher(
+        _HealthyKafkaProducer(),
+        topic_map={"daily_bars": "telemetry.ingest"},
+    )
+
+    manager = RealDataManager(
+        timescale_settings=settings,
+        managed_cache=redis_cache,
+        ingest_publisher=publisher,
+    )
+
+    report = manager.connectivity_report()
+    assert report.timescale is True
+    assert report.redis is True
+    assert report.kafka is True
+
+    manager.close()

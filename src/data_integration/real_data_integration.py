@@ -5,13 +5,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Sequence
 
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.url import make_url
 
 from src.core.market_data import MarketDataGateway
 from src.data_foundation.cache.redis_cache import (
@@ -145,19 +147,52 @@ def _normalise_calendars(values: Sequence[str] | None) -> tuple[str, ...]:
 
 
 @dataclass(slots=True, frozen=True)
+class ConnectivityProbeSnapshot:
+    """Fine-grained result describing a single connectivity probe."""
+
+    name: str
+    healthy: bool
+    status: str
+    latency_ms: float | None = None
+    error: str | None = None
+    details: Mapping[str, object] | None = None
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "name": self.name,
+            "healthy": self.healthy,
+            "status": self.status,
+        }
+        if self.latency_ms is not None:
+            payload["latency_ms"] = round(float(self.latency_ms), 3)
+        if self.error:
+            payload["error"] = self.error
+        if self.details:
+            payload["details"] = dict(self.details)
+        return payload
+
+
+@dataclass(slots=True, frozen=True)
 class BackboneConnectivityReport:
     """Structured status for core data backbone services."""
 
     timescale: bool
     redis: bool
     kafka: bool
+    probes: tuple[ConnectivityProbeSnapshot, ...] = field(default_factory=tuple)
 
-    def as_dict(self) -> dict[str, bool]:
-        return {
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
             "timescale": self.timescale,
             "redis": self.redis,
             "kafka": self.kafka,
         }
+        if self.probes:
+            payload["probes"] = [probe.as_dict() for probe in self.probes]
+        return payload
+
+    def probe_map(self) -> dict[str, ConnectivityProbeSnapshot]:
+        return {probe.name: probe for probe in self.probes}
 
 
 class RealDataManager(MarketDataGateway):
@@ -437,10 +472,17 @@ class RealDataManager(MarketDataGateway):
     def connectivity_report(self) -> BackboneConnectivityReport:
         """Expose health indicators for Timescale, Redis, and Kafka connectors."""
 
+        timescale_probe = self._check_timescale()
+        redis_probe = self._check_redis()
+        kafka_probe = self._check_kafka()
+
+        probes = (timescale_probe, redis_probe, kafka_probe)
+
         return BackboneConnectivityReport(
-            timescale=self._check_timescale(),
-            redis=self._check_redis(),
-            kafka=self._check_kafka(),
+            timescale=timescale_probe.healthy,
+            redis=redis_probe.healthy,
+            kafka=kafka_probe.healthy,
+            probes=probes,
         )
 
     def start_ingest_scheduler(
@@ -605,40 +647,142 @@ class RealDataManager(MarketDataGateway):
         except Exception:  # pragma: no cover - cache failures should not break ingest
             logger.debug("Timescale cache invalidation failed", exc_info=True)
 
-    def _check_timescale(self) -> bool:
+    def _masked_timescale_url(self) -> str:
+        try:
+            url_obj = make_url(self._timescale_settings.url)
+            return url_obj.render_as_string(hide_password=True)
+        except Exception:
+            return self._timescale_settings.url
+
+    def _check_timescale(self) -> ConnectivityProbeSnapshot:
+        start = time.perf_counter()
+        healthy = False
+        error: str | None = None
         try:
             with self._engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
+                healthy = True
         except Exception:
             logger.exception("Timescale connectivity probe failed")
-            return False
-        return True
+            error = "Timescale connection failed"
+        latency_ms = (time.perf_counter() - start) * 1000
+        details: dict[str, object] = {
+            "url": self._masked_timescale_url(),
+            "configured": self._timescale_settings.configured,
+        }
+        status = "ok" if healthy else "error"
+        return ConnectivityProbeSnapshot(
+            name="timescale",
+            healthy=healthy,
+            status=status,
+            latency_ms=latency_ms,
+            error=error,
+            details=details,
+        )
 
-    def _check_redis(self) -> bool:
+    def _check_redis(self) -> ConnectivityProbeSnapshot:
+        start = time.perf_counter()
         client = getattr(self._cache, "raw_client", None)
-        if client is None or isinstance(client, InMemoryRedis):
-            return False
+        details: dict[str, object] = {
+            "namespace": self._cache_policy.namespace,
+            "ttl_seconds": self._cache_policy.ttl_seconds,
+            "max_keys": self._cache_policy.max_keys,
+        }
+        if client is not None:
+            details["client_class"] = type(client).__name__
+        if client is None:
+            latency_ms = (time.perf_counter() - start) * 1000
+            return ConnectivityProbeSnapshot(
+                name="redis",
+                healthy=False,
+                status="off",
+                latency_ms=latency_ms,
+                error="redis client not configured",
+                details=details,
+            )
+        if isinstance(client, InMemoryRedis):
+            latency_ms = (time.perf_counter() - start) * 1000
+            return ConnectivityProbeSnapshot(
+                name="redis",
+                healthy=False,
+                status="degraded",
+                latency_ms=latency_ms,
+                error="in-memory redis fallback active",
+                details=details,
+            )
         ping = getattr(client, "ping", None)
         if not callable(ping):
-            return False
+            latency_ms = (time.perf_counter() - start) * 1000
+            return ConnectivityProbeSnapshot(
+                name="redis",
+                healthy=False,
+                status="error",
+                latency_ms=latency_ms,
+                error="redis client missing ping()",
+                details=details,
+            )
         try:
             ping()
         except Exception:
             logger.exception("Redis connectivity probe failed")
-            return False
-        return True
+            error = "redis ping failed"
+            healthy = False
+        else:
+            error = None
+            healthy = True
+        latency_ms = (time.perf_counter() - start) * 1000
+        status = "ok" if healthy else "error"
+        return ConnectivityProbeSnapshot(
+            name="redis",
+            healthy=healthy,
+            status=status,
+            latency_ms=latency_ms,
+            error=error,
+            details=details,
+        )
 
-    def _check_kafka(self) -> bool:
-        if self._kafka_publisher is None:
-            return False
-        checkup = getattr(self._kafka_publisher, "checkup", None)
+    def _check_kafka(self) -> ConnectivityProbeSnapshot:
+        start = time.perf_counter()
+        publisher = self._kafka_publisher
+        if publisher is None:
+            latency_ms = (time.perf_counter() - start) * 1000
+            return ConnectivityProbeSnapshot(
+                name="kafka",
+                healthy=False,
+                status="off",
+                latency_ms=latency_ms,
+                error="kafka publisher not configured",
+                details={},
+            )
+        details: dict[str, object] = {}
+        topic_map = getattr(publisher, "_topic_map", None)
+        if isinstance(topic_map, Mapping):
+            details["topics"] = sorted(str(topic) for topic in topic_map.values())
+        default_topic = getattr(publisher, "_default_topic", None)
+        if default_topic:
+            details["default_topic"] = default_topic
+        checkup = getattr(publisher, "checkup", None)
+        error: str | None = None
+        healthy = True
         if callable(checkup):
             try:
-                return bool(checkup())
+                healthy = bool(checkup())
+                if not healthy:
+                    error = "kafka checkup returned falsy"
             except Exception:
                 logger.exception("Kafka connectivity probe failed")
-                return False
-        return True
+                healthy = False
+                error = "kafka checkup raised exception"
+        latency_ms = (time.perf_counter() - start) * 1000
+        status = "ok" if healthy else "error"
+        return ConnectivityProbeSnapshot(
+            name="kafka",
+            healthy=healthy,
+            status=status,
+            latency_ms=latency_ms,
+            error=error,
+            details=details,
+        )
 
     def _configured_macro_calendars(self) -> tuple[str, ...]:
         payload = self._extras.get("TIMESCALE_MACRO_CALENDARS")

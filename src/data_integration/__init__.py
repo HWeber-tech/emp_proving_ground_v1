@@ -28,7 +28,11 @@ from src.data_foundation.cache.redis_cache import (
 from src.data_foundation.persist.timescale import TimescaleConnectionSettings
 from src.data_foundation.streaming.kafka_stream import KafkaConnectionSettings
 
-from .real_data_integration import BackboneConnectivityReport, RealDataManager
+from .real_data_integration import (
+    BackboneConnectivityReport,
+    ConnectivityProbeSnapshot,
+    RealDataManager,
+)
 
 
 @dataclass(frozen=True)
@@ -153,4 +157,5 @@ __all__ = [
     "DataIssue",
     "ADVANCED_PROVIDERS_AVAILABLE",
     "BackboneConnectivityReport",
+    "ConnectivityProbeSnapshot",
 ]

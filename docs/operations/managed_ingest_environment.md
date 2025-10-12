@@ -50,9 +50,11 @@ python -m tools.operations.managed_ingest_connectors \
 ```
 
 The report mirrors the manifest exposed by the runtime builder, including the
-managed connector snapshot and probe health.  The `--env-file` flag injects the
-dotenv entries before extras overrides, so the CLI can run without mutating the
-process environment.
+managed connector snapshot and probe health.  Connectivity probes now emit
+status strings (`ok`, `degraded`, `off`, `error`) together with latency and the
+sanitised endpoint so operations can confirm a full Timescale→Redis→Kafka
+handshake at a glance.  The `--env-file` flag injects the dotenv entries before
+extras overrides, so the CLI can run without mutating the process environment.
 
 ## 3b. Combined readiness check
 

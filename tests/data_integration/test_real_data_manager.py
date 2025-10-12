@@ -271,6 +271,17 @@ def test_real_data_manager_connectivity_report_defaults(tmp_path):
     assert report.redis is False
     assert report.kafka is False
 
+    probes = {probe.name: probe for probe in report.probes}
+    assert set(probes) == {"timescale", "redis", "kafka"}
+    assert probes["timescale"].status == "ok"
+    assert probes["timescale"].latency_ms is not None
+    assert probes["timescale"].error is None
+    assert probes["redis"].status == "degraded"
+    assert probes["redis"].healthy is False
+    assert probes["redis"].error == "in-memory redis fallback active"
+    assert probes["kafka"].status == "off"
+    assert probes["kafka"].error == "kafka publisher not configured"
+
     manager.close()
 
 
@@ -295,6 +306,14 @@ def test_real_data_manager_connectivity_report_full_stack(tmp_path):
     assert report.timescale is True
     assert report.redis is True
     assert report.kafka is True
+
+    probes = {probe.name: probe for probe in report.probes}
+    assert probes["timescale"].status == "ok"
+    assert probes["redis"].status == "ok"
+    assert probes["redis"].error is None
+    assert probes["kafka"].status == "ok"
+    assert probes["kafka"].error is None
+    assert probes["kafka"].details.get("topics") == ["telemetry.ingest"]
 
     manager.close()
 

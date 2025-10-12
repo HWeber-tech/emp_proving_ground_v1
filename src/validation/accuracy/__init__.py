@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .intelligence_validator import IntelligenceValidator
+from .understanding_validator import IntelligenceValidator, UnderstandingValidator
 
-__all__ = ["IntelligenceValidator"]
+__all__ = ["UnderstandingValidator", "IntelligenceValidator"]

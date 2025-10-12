@@ -70,7 +70,7 @@ from src.operations.roi import (
 )
 from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
-from src.trading.execution.backlog_tracker import EventBacklogTracker
+from src.trading.execution.backlog_tracker import BacklogObservation, EventBacklogTracker
 from src.trading.execution.performance_monitor import ThroughputMonitor
 from src.trading.execution.performance_report import build_execution_performance_report
 from src.trading.execution.resource_monitor import ResourceUsageMonitor
@@ -332,6 +332,8 @@ class TradingManager:
             "throughput": self._throughput_monitor.snapshot(),
             "resource_usage": self._resource_monitor.snapshot(),
             "backlog": self._backlog_tracker.snapshot(),
+            "backlog_breaches": 0,
+            "last_backlog_breach": None,
             "throttle_blocks": 0,
             "throttle_retry_at": None,
         }
@@ -977,8 +979,44 @@ class TradingManager:
                 logger.debug("Failed to record throughput metrics", exc_info=True)
             else:
                 self._execution_stats["throughput"] = self._throughput_monitor.snapshot()
-            self._backlog_tracker.record(lag_ms=lag_ms, timestamp=started_wall)
-            self._execution_stats["backlog"] = self._backlog_tracker.snapshot()
+            backlog_observation = self._backlog_tracker.record(
+                lag_ms=lag_ms, timestamp=started_wall
+            )
+            backlog_snapshot = self._backlog_tracker.snapshot()
+            self._execution_stats["backlog"] = backlog_snapshot
+            if backlog_observation and backlog_observation.breach:
+                breach_count = coerce_int(
+                    self._execution_stats.get("backlog_breaches"), default=0
+                )
+                breach_count += 1
+                self._execution_stats["backlog_breaches"] = breach_count
+                breach_timestamp = backlog_observation.timestamp.astimezone(
+                    timezone.utc
+                ).isoformat()
+                self._execution_stats["last_backlog_breach"] = breach_timestamp
+                metadata_payload: dict[str, Any] = {
+                    "lag_ms": float(backlog_observation.lag_ms),
+                    "threshold_ms": float(backlog_observation.threshold_ms),
+                    "breach_timestamp": breach_timestamp,
+                }
+                if isinstance(backlog_snapshot, Mapping):
+                    metadata_payload["backlog"] = dict(backlog_snapshot)
+                logger.warning(
+                    "Backlog threshold exceeded for trade intent %s: lag %.2f ms exceeds %.2f ms",
+                    event_id,
+                    backlog_observation.lag_ms,
+                    backlog_observation.threshold_ms,
+                )
+                self._record_experiment_event(
+                    event_id=f"{event_id}-backlog",
+                    status="backlog_breach",
+                    strategy_id=strategy_id,
+                    symbol=base_symbol,
+                    confidence=drift_confidence_value if drift_confidence_value is not None else base_confidence,
+                    notional=drift_notional_value,
+                    metadata=metadata_payload,
+                    decision=self._get_last_risk_decision(),
+                )
             resource_snapshot = self._resource_monitor.sample()
             self._execution_stats["resource_usage"] = resource_snapshot
             await self._emit_policy_snapshot()

@@ -8,8 +8,18 @@ from src.trading.execution.backlog_tracker import EventBacklogTracker
 def test_backlog_tracker_records_samples_and_breaches() -> None:
     tracker = EventBacklogTracker(threshold_ms=100.0, window=8)
     base = datetime.now(tz=timezone.utc)
-    tracker.record(lag_ms=50.0, timestamp=base)
-    tracker.record(lag_ms=150.0, timestamp=base + timedelta(milliseconds=10))
+    observation_ok = tracker.record(lag_ms=50.0, timestamp=base)
+    assert observation_ok is not None
+    assert observation_ok.breach is False
+    assert observation_ok.lag_ms == 50.0
+
+    observation_breach = tracker.record(
+        lag_ms=150.0, timestamp=base + timedelta(milliseconds=10)
+    )
+    assert observation_breach is not None
+    assert observation_breach.breach is True
+    assert observation_breach.lag_ms == 150.0
+    assert observation_breach.threshold_ms == 100.0
     snapshot = tracker.snapshot()
     assert snapshot["samples"] == 2
     assert snapshot["max_lag_ms"] == 150.0

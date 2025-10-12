@@ -25,6 +25,14 @@ The monitor accepts ingestion timestamps from `ingested_at`, `created_at`,
 `timestamp`, or `ts` attributes on trade intents. Timestamps may be aware
 `datetime` objects, Unix epoch numbers, or ISO-8601 strings.
 
+Execution stats additionally expose aggregate backlog counters so operators can
+prove that bursts remain under control:
+
+| Field | Description |
+| --- | --- |
+| `backlog_breaches` | Total lag breaches recorded since the manager was instantiated. |
+| `last_backlog_breach` | ISO timestamp of the most recent backlog breach warning. |
+
 `TradingManager.assess_throughput_health()` consumes the snapshot and evaluates
 latency budgets:
 
@@ -57,7 +65,11 @@ Event ingest lag also drives a dedicated `backlog` snapshot populated by the new
 
 Operators can tighten or relax `threshold_ms` when instantiating the trading
 manager. Monitoring the breach counter alongside throughput makes backlog
-surges explicit during replay drills.
+surges explicit during replay drills. Every breach now returns a
+`BacklogObservation`, triggers a warning log, increments the global
+`backlog_breaches` counter, and emits a `backlog_breach` experiment event with
+the offending lag payload so diaries and dashboards capture the exact moment
+latency budgets were exceeded.
 
 ### Resource usage snapshot
 

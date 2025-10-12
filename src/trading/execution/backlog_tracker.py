@@ -17,6 +17,16 @@ class BacklogBreach:
     lag_ms: float
 
 
+@dataclass(frozen=True)
+class BacklogObservation:
+    """Structured result returned after recording a backlog sample."""
+
+    timestamp: datetime
+    lag_ms: float
+    threshold_ms: float
+    breach: bool
+
+
 class EventBacklogTracker:
     """Tracks lag between ingestion and processing to detect backlogs."""
 
@@ -42,11 +52,14 @@ class EventBacklogTracker:
 
         return self._window
 
-    def record(self, *, lag_ms: float | None, timestamp: datetime | None = None) -> None:
-        """Record an observed lag measurement."""
+    def record(
+        self, *, lag_ms: float | None, timestamp: datetime | None = None
+    ) -> BacklogObservation | None:
+        """Record an observed lag measurement and return the observation."""
 
         if lag_ms is None:
-            return
+            return None
+
         lag_value = max(float(lag_ms), 0.0)
         if timestamp is None:
             timestamp = datetime.now(tz=UTC)
@@ -59,11 +72,19 @@ class EventBacklogTracker:
         if len(self._samples) > self._window:
             self._samples = self._samples[-self._window :]
 
+        breach = False
         if lag_value > self._threshold_ms:
-            breach = BacklogBreach(timestamp=timestamp, lag_ms=lag_value)
-            self._breaches.append(breach)
+            breach = True
+            self._breaches.append(BacklogBreach(timestamp=timestamp, lag_ms=lag_value))
             if len(self._breaches) > self._window:
                 self._breaches = self._breaches[-self._window :]
+
+        return BacklogObservation(
+            timestamp=timestamp,
+            lag_ms=lag_value,
+            threshold_ms=self._threshold_ms,
+            breach=breach,
+        )
 
     def snapshot(self) -> Mapping[str, object | None]:
         """Return a snapshot describing backlog posture."""

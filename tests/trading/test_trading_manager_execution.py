@@ -2000,6 +2000,68 @@ async def test_high_frequency_replay_throughput_remains_healthy(
 
 
 @pytest.mark.asyncio()
+async def test_backlog_breach_records_event(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        backlog_threshold_ms=10.0,
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(intent, "ingested_at", datetime.now(tz=timezone.utc) - timedelta(seconds=1.5))
+
+    validate_mock: AsyncMock = AsyncMock(return_value=intent)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    caplog.set_level(logging.WARNING, logger="src.trading.trading_manager")
+
+    await manager.on_trade_intent(intent)
+
+    stats = manager.get_execution_stats()
+    assert stats["orders_submitted"] == 1
+    backlog_snapshot = stats.get("backlog")
+    assert isinstance(backlog_snapshot, Mapping)
+    assert backlog_snapshot.get("breaches", 0) >= 1
+    assert stats["backlog_breaches"] == 1
+    assert stats["last_backlog_breach"] is not None
+
+    events = manager.get_experiment_events()
+    backlog_events = [event for event in events if event.get("status") == "backlog_breach"]
+    assert backlog_events, "expected backlog breach event to be recorded"
+    metadata = backlog_events[0].get("metadata", {})
+    assert metadata.get("lag_ms") is not None
+    assert metadata.get("threshold_ms") == 10.0
+
+    backlog_logs = [
+        record.getMessage()
+        for record in caplog.records
+        if "Backlog threshold exceeded" in record.getMessage()
+    ]
+    assert backlog_logs, "expected backlog breach warning to be logged"
+
+
+@pytest.mark.asyncio()
 async def test_trading_manager_records_throughput_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

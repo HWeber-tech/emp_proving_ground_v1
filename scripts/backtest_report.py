@@ -19,7 +19,75 @@ from src.system.requirements_check import assert_scientific_stack  # noqa: E402
 
 assert_scientific_stack()
 
-from src.data_foundation.replay.multidim_replayer import MultiDimReplayer  # noqa: E402
+try:  # pragma: no cover - optional dependency surface
+    from src.data_foundation.replay.multidim_replayer import (  # type: ignore[import-not-found]  # noqa: E402
+        MultiDimReplayer,
+    )
+except Exception:  # pragma: no cover - fallback when legacy module removed
+
+    class MultiDimReplayer:  # type: ignore[misc]
+        """Lightweight JSONL replayer compatible with the legacy interface."""
+
+        def __init__(
+            self,
+            *,
+            md_path: str,
+            macro_path: str | None = None,
+            yields_path: str | None = None,
+        ) -> None:
+            self._md_path = md_path
+            self._macro_path = macro_path
+            self._yields_path = yields_path
+
+        def _iter_jsonl(self, path: str | None):
+            if not path:
+                return
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    for line in handle:
+                        text = line.strip()
+                        if not text:
+                            continue
+                        try:
+                            yield json.loads(text)
+                        except Exception:
+                            continue
+            except FileNotFoundError:
+                return
+            except Exception:
+                return
+
+        def replay(
+            self,
+            *,
+            on_md,
+            on_macro=None,
+            on_yield=None,
+            limit: int | None = None,
+        ) -> int:
+            emitted = 0
+            if callable(on_md):
+                for event in self._iter_jsonl(self._md_path) or []:
+                    try:
+                        on_md(event)
+                    except Exception:
+                        pass
+                    emitted += 1
+                    if limit is not None and emitted >= limit:
+                        break
+            if callable(on_macro):
+                for event in self._iter_jsonl(self._macro_path) or []:
+                    try:
+                        on_macro(event)
+                    except Exception:
+                        pass
+            if callable(on_yield):
+                for event in self._iter_jsonl(self._yields_path) or []:
+                    try:
+                        on_yield(event)
+                    except Exception:
+                        pass
+            return emitted
 
 try:
     from src.sensory.dimensions.microstructure import RollingMicrostructure  # type: ignore[reportMissingImports]  # legacy
@@ -45,7 +113,28 @@ except Exception:
             }
 
 
-from src.data_foundation.persist.parquet_writer import write_events_parquet  # noqa: E402
+try:  # pragma: no cover - optional dependency surface
+    from src.data_foundation.persist.parquet_writer import (  # type: ignore[import-not-found]  # noqa: E402
+        write_events_parquet,
+    )
+except Exception:  # pragma: no cover - legacy shim removed
+
+    def write_events_parquet(events, out_dir: str, partition: str | None = None) -> None:
+        """Fallback writer storing events as newline-delimited JSON."""
+
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+            suffix = partition or "events"
+            path = os.path.join(out_dir, f"{suffix}.jsonl")
+            with open(path, "w", encoding="utf-8") as handle:
+                for event in events:
+                    try:
+                        handle.write(json.dumps(event) + "\n")
+                    except Exception:
+                        continue
+        except Exception:
+            # Best-effort fallback; ignore errors to preserve script flow
+            return
 
 
 def macro_proximity_signal(
@@ -91,7 +180,10 @@ except Exception:
 
 
 from src.data_foundation.config.execution_config import load_execution_config  # noqa: E402
-from src.data_foundation.config.risk_portfolio_config import load_portfolio_risk_config  # noqa: E402
+from src.risk.reporting.report_generator import (  # noqa: E402
+    PortfolioRiskLimits,
+    load_portfolio_limits,
+)
 from src.data_foundation.config.sizing_config import load_sizing_config  # noqa: E402
 from src.data_foundation.config.vol_config import load_vol_config  # noqa: E402
 from src.data_foundation.config.why_config import load_why_config  # noqa: E402
@@ -169,7 +261,12 @@ def main() -> int:
     vol_cfg = load_vol_config()
     why_cfg = load_why_config()
     exec_cfg = load_execution_config()
-    prisk_cfg = load_portfolio_risk_config()
+    try:
+        prisk_cfg: PortfolioRiskLimits | None = load_portfolio_limits()
+    except FileNotFoundError:
+        prisk_cfg = None
+    except Exception:
+        prisk_cfg = None
     size_cfg = load_sizing_config()
     # CLI overrides for WHY config
     if args.why_weight_macro is not None:

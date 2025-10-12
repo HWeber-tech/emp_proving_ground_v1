@@ -189,3 +189,47 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload.get("orders")
     assert payload.get("decisions") == report.decisions
+
+
+@pytest.mark.asyncio()
+async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> None:
+    async def handler(request: web.Request) -> web.Response:
+        await request.json()
+        return web.Response(status=503, text="gateway down")
+
+    base_url, shutdown, _captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "qa"),
+        evidence_id="paper-sim-evidence",
+    )
+
+    diary_path = tmp_path / "diary.json"
+
+    extras = _build_extras(base_url, ledger_path, diary_path, max_ticks=4)
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+
+    try:
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=0,
+            max_runtime=1.5,
+            poll_interval=0.05,
+        )
+    finally:
+        await shutdown()
+
+    assert report.orders == []
+    assert report.errors, "Broker failure should populate error telemetry"
+    error_snapshot = report.errors[0]
+    assert error_snapshot.get("stage") == "broker_submission"
+    exception_text = str(error_snapshot.get("exception"))
+    assert "503" in exception_text or "gateway" in exception_text.lower()
+    assert report.decisions >= 1
+    assert report.paper_broker and report.paper_broker.get("base_url") == base_url

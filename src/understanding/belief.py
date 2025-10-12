@@ -289,10 +289,10 @@ class BeliefBuffer:
         if lineage is None:
             raise ValueError("sensory snapshot must include lineage metadata")
 
-        features = self._extract_features(sensory_snapshot)
-        ordered_features = self._ensure_feature_order(features)
+        feature_values: MutableMapping[str, float] = dict(self._extract_features(sensory_snapshot))
+        ordered_features = self._ensure_feature_order(feature_values)
 
-        observation = np.array([features[name] for name in ordered_features], dtype=float)
+        observation = np.array([feature_values[name] for name in ordered_features], dtype=float)
         symbol = sensory_snapshot.get("symbol") if isinstance(sensory_snapshot, Mapping) else None
         generated_at = sensory_snapshot.get("generated_at") if isinstance(sensory_snapshot, Mapping) else None
         if not isinstance(generated_at, datetime):
@@ -302,11 +302,16 @@ class BeliefBuffer:
         if prior_state is None:
             prior_mean = np.zeros_like(observation)
             prior_covariance = np.eye(observation.size) * 1e-6
-            prior_strength = features.get("integrated_strength", 0.0)
-            prior_confidence = features.get("integrated_confidence", 0.0)
+            prior_strength = feature_values.get("integrated_strength", 0.0)
+            prior_confidence = feature_values.get("integrated_confidence", 0.0)
         else:
             prior_mean = np.array(prior_state.posterior.mean)
             prior_covariance = np.array(prior_state.posterior.covariance)
+            prior_mean, prior_covariance = self._align_prior_dimensions(
+                prior_mean,
+                prior_covariance,
+                observation.size,
+            )
             prior_strength = prior_state.posterior.strength
             prior_confidence = prior_state.posterior.confidence
 
@@ -332,10 +337,10 @@ class BeliefBuffer:
         self._latest_covariance_max = posterior_max
         self._latest_covariance_min = posterior_min
 
-        integrated_strength = features.get("integrated_strength", prior_strength)
-        integrated_confidence = features.get("integrated_confidence", prior_confidence)
+        integrated_strength = feature_values.get("integrated_strength", prior_strength)
+        integrated_confidence = feature_values.get("integrated_confidence", prior_confidence)
 
-        volatility_sample = self._compute_volatility_sample(features)
+        volatility_sample = self._compute_volatility_sample(feature_values)
         volatility: float | None = None
         if volatility_sample is not None:
             self._volatility_history.append(float(volatility_sample))
@@ -390,7 +395,7 @@ class BeliefBuffer:
             "learning_rate": self._learning_rate,
             "decay": self._decay,
             "regime_hint": regime_hint,
-            "observation": {name: float(value) for name, value in features.items()},
+            "observation": {name: float(value) for name, value in feature_values.items()},
         }
         if volatility_sample is not None:
             metadata["volatility_sample"] = float(volatility_sample)
@@ -416,12 +421,31 @@ class BeliefBuffer:
         self._states.appendleft(state)
         return state
 
-    def _ensure_feature_order(self, features: Mapping[str, float]) -> tuple[str, ...]:
+    def _ensure_feature_order(self, features: MutableMapping[str, float]) -> tuple[str, ...]:
         if self._feature_order is None:
             self._feature_order = tuple(sorted(features))
-        missing = set(self._feature_order) - set(features)
+            return self._feature_order
+
+        existing = set(self._feature_order)
+        missing = [name for name in self._feature_order if name not in features]
         if missing:
-            raise ValueError(f"missing features in sensory snapshot: {sorted(missing)!r}")
+            for name in missing:
+                features[name] = 0.0
+            logger.debug(
+                "BeliefBuffer %s backfilled missing features: %s",
+                self._belief_id,
+                missing,
+            )
+
+        extras = sorted(name for name in features if name not in existing)
+        if extras:
+            self._feature_order = self._feature_order + tuple(extras)
+            logger.debug(
+                "BeliefBuffer %s extended feature order with: %s",
+                self._belief_id,
+                extras,
+            )
+
         return self._feature_order
 
     def _extract_features(self, snapshot: Mapping[str, object]) -> Mapping[str, float]:
@@ -490,6 +514,28 @@ class BeliefBuffer:
         if not samples:
             return None
         return float(np.mean(samples))
+
+    def _align_prior_dimensions(
+        self,
+        mean: np.ndarray,
+        covariance: np.ndarray,
+        target_size: int,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        current_size = int(mean.shape[0])
+        if current_size == target_size:
+            return mean, covariance
+
+        if current_size > target_size:
+            trimmed_mean = mean[:target_size]
+            trimmed_covariance = covariance[:target_size, :target_size]
+            return trimmed_mean, trimmed_covariance
+
+        expanded_mean = np.zeros(target_size, dtype=float)
+        expanded_mean[:current_size] = mean
+
+        expanded_covariance = np.eye(target_size, dtype=float) * self._min_variance
+        expanded_covariance[:current_size, :current_size] = covariance
+        return expanded_mean, expanded_covariance
 
 
 @dataclass(slots=True, frozen=True)

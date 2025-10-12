@@ -259,3 +259,51 @@ def test_belief_buffer_requires_lineage_metadata() -> None:
 
     with pytest.raises(ValueError):
         buffer.update(snapshot)
+
+
+def test_belief_buffer_handles_dynamic_feature_sets() -> None:
+    buffer = BeliefBuffer(belief_id="dynamic-belief", learning_rate=0.15, decay=0.05, min_variance=1e-6)
+    base_time = datetime(2025, 7, 1, tzinfo=UTC)
+
+    def _snapshot(dimensions: Mapping[str, Mapping[str, float]], offset: int) -> Mapping[str, object]:
+        return {
+            "symbol": "EURUSD",
+            "generated_at": base_time + timedelta(minutes=offset),
+            "integrated_signal": {"strength": 0.25, "confidence": 0.8},
+            "dimensions": dimensions,
+            "lineage": {"source": "tests.dynamic", "sequence": offset},
+        }
+
+    initial_dimensions = {
+        "WHAT": {"signal": 0.2, "confidence": 0.85},
+        "HOW": {"signal": 0.1, "confidence": 0.75},
+    }
+    buffer.update(_snapshot(initial_dimensions, 0))
+    original_order = buffer.feature_order
+    assert original_order is not None
+
+    expanded_dimensions = {
+        "WHAT": {"signal": 0.22, "confidence": 0.82},
+        "HOW": {"signal": 0.14, "confidence": 0.7},
+        "EXTRA": {"signal": 0.55, "confidence": 0.5},
+    }
+    expanded_state = buffer.update(_snapshot(expanded_dimensions, 1))
+    extended_order = buffer.feature_order
+    assert extended_order is not None
+    assert len(extended_order) > len(original_order)
+    assert "EXTRA_signal" in extended_order
+    assert "EXTRA_confidence" in extended_order
+    assert len(expanded_state.posterior.mean) == len(extended_order)
+    assert expanded_state.metadata["observation"]["EXTRA_signal"] == pytest.approx(0.55)
+
+    contracted_dimensions = {
+        "WHAT": {"signal": 0.18, "confidence": 0.88},
+        "HOW": {"signal": 0.09, "confidence": 0.78},
+    }
+    contracted_state = buffer.update(_snapshot(contracted_dimensions, 2))
+    observation = contracted_state.metadata["observation"]
+    assert observation["EXTRA_signal"] == pytest.approx(0.0)
+    assert observation["EXTRA_confidence"] == pytest.approx(0.0)
+
+    covariance = np.array(contracted_state.posterior.covariance)
+    assert covariance.shape == (len(extended_order), len(extended_order))

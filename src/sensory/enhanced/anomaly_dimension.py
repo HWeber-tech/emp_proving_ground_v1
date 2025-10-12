@@ -14,7 +14,7 @@ from src.sensory.enhanced._shared import (
     safe_timestamp,
 )
 
-__all__ = ["AnomalyUnderstandingEngine", "AnomalyIntelligenceEngine"]
+__all__ = ["AnomalyUnderstandingEngine"]
 
 
 class AnomalyUnderstandingEngine:
@@ -124,13 +124,3 @@ class AnomalyUnderstandingEngine:
             "z_score": float(synthetic_z),
         }
         return build_legacy_payload(reading, source="sensory.anomaly", extras=extras)
-
-    def analyze_anomaly_intelligence(
-        self, data: Mapping[str, Any] | Sequence[float] | Iterable[float] | Any | None = None
-    ) -> ReadingAdapter:
-        """Legacy alias maintained for backwards compatibility."""
-
-        return self.analyze_anomaly_understanding(data)
-
-
-AnomalyIntelligenceEngine = AnomalyUnderstandingEngine

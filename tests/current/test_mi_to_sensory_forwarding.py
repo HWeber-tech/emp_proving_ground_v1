@@ -9,23 +9,19 @@ import pytest
 
 from src.core.base import MarketData
 from src.sensory.enhanced.what_dimension import TechnicalRealityEngine
-from src.sensory.enhanced.why_dimension import (
-    EnhancedFundamentalIntelligenceEngine,
-    EnhancedFundamentalUnderstandingEngine,
-)
+from src.sensory.enhanced.why_dimension import EnhancedFundamentalUnderstandingEngine
 from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 
 def test_sensory_dimension_exports_are_canonical() -> None:
+    why_module = importlib.import_module("src.sensory.enhanced.why_dimension")
     assert TechnicalRealityEngine.__module__ == "src.sensory.enhanced.what_dimension"
     assert (
         EnhancedFundamentalUnderstandingEngine.__module__
         == "src.sensory.enhanced.why_dimension"
     )
-    assert (
-        EnhancedFundamentalIntelligenceEngine
-        is EnhancedFundamentalUnderstandingEngine
-    )
+    with pytest.raises(AttributeError):
+        getattr(why_module, "EnhancedFundamentalIntelligenceEngine")
 
 
 @pytest.mark.asyncio

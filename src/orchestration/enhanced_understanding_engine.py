@@ -187,13 +187,7 @@ class EnhancedEngineProto(Protocol):
     def analyze_fundamental_understanding(
         self, market_data: MarketData
     ) -> Awaitable[DimensionalReading]: ...
-    def analyze_fundamental_intelligence(
-        self, market_data: MarketData
-    ) -> Awaitable[DimensionalReading]: ...
     def analyze_institutional_understanding(
-        self, market_data: MarketData
-    ) -> Awaitable[DimensionalReading]: ...
-    def analyze_institutional_intelligence(
         self, market_data: MarketData
     ) -> Awaitable[DimensionalReading]: ...
     def analyze_technical_reality(
@@ -202,13 +196,7 @@ class EnhancedEngineProto(Protocol):
     def analyze_temporal_understanding(
         self, market_data: MarketData
     ) -> Awaitable[DimensionalReading]: ...
-    def analyze_temporal_intelligence(
-        self, market_data: MarketData
-    ) -> Awaitable[DimensionalReading]: ...
     def analyze_anomaly_understanding(
-        self, market_data: MarketData
-    ) -> Awaitable[DimensionalReading]: ...
-    def analyze_anomaly_intelligence(
         self, market_data: MarketData
     ) -> Awaitable[DimensionalReading]: ...
 

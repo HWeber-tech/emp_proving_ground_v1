@@ -18,7 +18,7 @@ def test_sensory_why_canonical_surface_all():
     assert hasattr(mod, "__all__")
     exports = getattr(mod, "__all__")
     assert "EnhancedFundamentalUnderstandingEngine" in exports
-    assert "EnhancedFundamentalIntelligenceEngine" in exports
+    assert "EnhancedFundamentalIntelligenceEngine" not in exports
 
 
 def test_sensory_when_canonical_surface_all():
@@ -26,7 +26,7 @@ def test_sensory_when_canonical_surface_all():
     assert hasattr(mod, "__all__")
     exports = getattr(mod, "__all__")
     assert "ChronalUnderstandingEngine" in exports
-    assert "ChronalIntelligenceEngine" in exports
+    assert "ChronalIntelligenceEngine" not in exports
 
 
 def test_sensory_how_canonical_surface_all():
@@ -34,7 +34,7 @@ def test_sensory_how_canonical_surface_all():
     assert hasattr(mod, "__all__")
     exports = getattr(mod, "__all__")
     assert "InstitutionalUnderstandingEngine" in exports
-    assert "InstitutionalIntelligenceEngine" in exports
+    assert "InstitutionalIntelligenceEngine" not in exports
 
 
 def test_sensory_anomaly_canonical_surface_all():
@@ -42,7 +42,7 @@ def test_sensory_anomaly_canonical_surface_all():
     assert hasattr(mod, "__all__")
     exports = getattr(mod, "__all__")
     assert "AnomalyUnderstandingEngine" in exports
-    assert "AnomalyIntelligenceEngine" in exports
+    assert "AnomalyIntelligenceEngine" not in exports
 
 
 def test_no_heavy_imports_on_sensory_import(monkeypatch: pytest.MonkeyPatch):

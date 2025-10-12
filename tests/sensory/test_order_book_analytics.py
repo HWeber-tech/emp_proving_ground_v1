@@ -60,5 +60,5 @@ def test_how_sensor_incorporates_order_book_metrics() -> None:
     order_book_meta = metadata.get("order_book")
     assert isinstance(order_book_meta, dict)
     assert {"imbalance", "value_area_low", "value_area_high"} <= set(order_book_meta)
-    assert signal.value.get("participation_ratio") is not None
-
+    assert signal.value.get("order_book_participation_ratio") is not None
+    assert "participation_ratio" not in signal.value

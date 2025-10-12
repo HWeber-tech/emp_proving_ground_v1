@@ -429,10 +429,10 @@ python scripts/sensory_demo.py
 ```python
 # Initialize individual dimensional engines
 from sensory.dimensions.enhanced_what_dimension import TechnicalRealityEngine
-from sensory.dimensions.enhanced_how_dimension import InstitutionalIntelligenceEngine
+from sensory.dimensions.enhanced_how_dimension import InstitutionalUnderstandingEngine
 
 what_engine = TechnicalRealityEngine()
-how_engine = InstitutionalIntelligenceEngine()
+how_engine = InstitutionalUnderstandingEngine()
 
 # Perform dimensional analysis
 what_reading = await what_engine.analyze_technical_reality(market_data)
@@ -543,11 +543,11 @@ Main orchestration engine that coordinates all dimensional analysis.
 
 #### DimensionalEngines
 Individual engines for each dimension:
-- `FundamentalIntelligenceEngine` (WHY)
-- `InstitutionalIntelligenceEngine` (HOW)  
+- `EnhancedFundamentalUnderstandingEngine` (WHY)
+- `InstitutionalUnderstandingEngine` (HOW)  
 - `TechnicalRealityEngine` (WHAT)
-- `ChronalIntelligenceEngine` (WHEN)
-- `AnomalyIntelligenceEngine` (ANOMALY)
+- `ChronalUnderstandingEngine` (WHEN)
+- `AnomalyUnderstandingEngine` (ANOMALY)
 
 #### Support Classes
 - `CorrelationAnalyzer`: Cross-dimensional correlation analysis
@@ -650,4 +650,3 @@ For questions, issues, or contributions:
 ---
 
 **The Multidimensional Market Intelligence System represents the evolution from traditional single-dimensional analysis to true market understanding through interconnected intelligence. It embodies the principle that markets are complex adaptive systems requiring sophisticated, multi-faceted analysis for genuine comprehension.**
-

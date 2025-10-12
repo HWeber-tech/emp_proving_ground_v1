@@ -11,7 +11,7 @@ from src.sensory.enhanced._shared import (
     safe_timestamp,
 )
 
-__all__ = ["ChronalUnderstandingEngine", "ChronalIntelligenceEngine"]
+__all__ = ["ChronalUnderstandingEngine"]
 
 
 class ChronalUnderstandingEngine:
@@ -82,13 +82,3 @@ class ChronalUnderstandingEngine:
         )
         extras = {"session": session, "minute_of_day": float(minute_of_day)}
         return build_legacy_payload(reading, source="sensory.when", extras=extras)
-
-    def analyze_temporal_intelligence(
-        self, data: Mapping[str, Any] | Any | None = None
-    ) -> ReadingAdapter:
-        """Legacy alias maintained for backwards compatibility."""
-
-        return self.analyze_temporal_understanding(data)
-
-
-ChronalIntelligenceEngine = ChronalUnderstandingEngine

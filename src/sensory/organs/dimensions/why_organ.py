@@ -141,13 +141,6 @@ class WhyEngine:
             logger.error(f"Error in fundamental understanding analysis: {e}")
             return {}
 
-    def analyze_fundamental_intelligence(
-        self, market_data: list[MarketData], symbol: str = "UNKNOWN"
-    ) -> dict[str, object]:
-        """Legacy alias maintained for compatibility with intelligence naming."""
-
-        return self.analyze_fundamental_understanding(market_data, symbol)
-
     def get_dimensional_reading(
         self, market_data: List[MarketData], symbol: str = "UNKNOWN"
     ) -> DimensionalReading:

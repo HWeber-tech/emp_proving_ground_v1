@@ -28,6 +28,7 @@ class FastWeightConstraints:
     max_active_fraction: float = 0.4
     prune_tolerance: float = 1e-6
     excitatory_only: bool = False
+    allow_inhibitory: bool | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - dataclass validation
         if self.baseline < 0.0:
@@ -44,6 +45,14 @@ class FastWeightConstraints:
             raise ValueError("prune_tolerance must be non-negative")
         if not isinstance(self.excitatory_only, bool):
             raise TypeError("excitatory_only must be a boolean flag")
+        allow = self.allow_inhibitory
+        if allow is None:
+            allow = not self.excitatory_only
+        elif not isinstance(allow, bool):
+            raise TypeError("allow_inhibitory must be a boolean flag or None")
+        if allow and self.excitatory_only:
+            raise ValueError("allow_inhibitory=True conflicts with excitatory_only")
+        object.__setattr__(self, "allow_inhibitory", bool(allow))
 
 
 @dataclass(frozen=True)
@@ -302,6 +311,14 @@ def parse_fast_weight_constraints(
         attr="excitatory_only",
         coercer=_coerce_bool,
     )
+    _maybe_set(
+        "FAST_WEIGHT_ALLOW_INHIBITORY",
+        attr="allow_inhibitory",
+        coercer=_coerce_bool,
+    )
+
+    if "excitatory_only" in updates and "allow_inhibitory" not in updates:
+        updates["allow_inhibitory"] = not bool(updates["excitatory_only"])
 
     if not updates:
         return None

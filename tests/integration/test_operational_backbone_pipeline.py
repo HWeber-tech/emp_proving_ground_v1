@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -7,7 +8,7 @@ from typing import Any, Iterable
 import pandas as pd
 import pytest
 
-from src.core.event_bus import EventBus
+from src.core.event_bus import EventBus, Event
 from src.data_foundation.persist.timescale import TimescaleConnectionSettings
 from src.data_foundation.pipelines.operational_backbone import (
     OperationalBackbonePipeline,
@@ -21,6 +22,7 @@ from src.data_integration.real_data_integration import RealDataManager
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.thinking.adaptation.policy_router import PolicyRouter, PolicyTactic
 from src.understanding.router import UnderstandingRouter
+from src.runtime.task_supervisor import TaskSupervisor
 
 
 class _FakeKafkaProducer:
@@ -64,6 +66,27 @@ class _FakeKafkaConsumer:
         if not self._queue:
             return None
         return _FakeKafkaMessage(self._queue.popleft())
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _StreamingKafkaConsumer:
+    def __init__(self, producer: _FakeKafkaProducer) -> None:
+        self._producer = producer
+        self._cursor = 0
+        self._subscribed: tuple[str, ...] = ()
+        self.closed = False
+
+    def subscribe(self, topics: Iterable[str]) -> None:
+        self._subscribed = tuple(str(topic) for topic in topics)
+
+    def poll(self, timeout: float | None = None) -> _FakeKafkaMessage | None:
+        if self._cursor >= len(self._producer.messages):
+            return None
+        payload = dict(self._producer.messages[self._cursor])
+        self._cursor += 1
+        return _FakeKafkaMessage(payload)
 
     def close(self) -> None:
         self.closed = True
@@ -294,3 +317,83 @@ async def test_operational_backbone_pipeline_understanding_failover(
         assert result_failover.understanding_decision is not None
     finally:
         await pipeline.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_streaming_supervision(tmp_path) -> None:
+    url = f"sqlite:///{tmp_path / 'pipeline_streaming.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    producer = _FakeKafkaProducer()
+    publisher = KafkaIngestEventPublisher(
+        producer,
+        topic_map={
+            "daily_bars": "telemetry.ingest",
+        },
+    )
+
+    manager = RealDataManager(timescale_settings=settings, ingest_publisher=publisher)
+    event_bus = EventBus()
+    sensory = RealSensoryOrgan()
+    supervisor = TaskSupervisor(namespace="operational-stream-test")
+
+    await event_bus.start()
+
+    received: list[Event] = []
+    received_event = asyncio.Event()
+
+    def _collect(event: Event) -> None:
+        received.append(event)
+        received_event.set()
+
+    subscription = event_bus.subscribe("telemetry.ingest", _collect)
+
+    streaming_consumer = _StreamingKafkaConsumer(producer)
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        return KafkaIngestEventConsumer(
+            streaming_consumer,
+            topics=("telemetry.ingest",),
+            event_bus=event_bus,
+            poll_timeout=0.01,
+            idle_sleep=0.01,
+        )
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=sensory,
+        auto_close_consumer=False,
+        task_supervisor=supervisor,
+        event_topics=("telemetry.ingest",),
+    )
+
+    streaming_task = await pipeline.start_streaming()
+    assert streaming_task is not None
+    assert supervisor.active_count == 1
+
+    base = datetime(2024, 6, 1, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=None,
+    )
+
+    await pipeline.execute(
+        request,
+        fetch_daily=lambda symbols, lookback: _daily_frame(base),
+        fetch_intraday=lambda symbols, lookback, interval: pd.DataFrame(),
+        poll_consumer=False,
+    )
+
+    await asyncio.wait_for(received_event.wait(), timeout=1.0)
+    assert received
+    assert received[-1].type == "telemetry.ingest"
+
+    await pipeline.stop_streaming()
+    assert supervisor.active_count == 0
+
+    await pipeline.shutdown()
+    await event_bus.stop()
+    event_bus.unsubscribe(subscription)

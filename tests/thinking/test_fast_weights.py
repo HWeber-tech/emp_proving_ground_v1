@@ -18,6 +18,8 @@ def test_controller_clamps_inhibitory_when_disabled() -> None:
         )
     )
 
+    assert controller.constraints.allow_inhibitory is False
+
     result = controller.constrain(
         fast_weights={"alpha": 0.4, "beta": 1.3},
         tactic_ids=("alpha", "beta"),
@@ -45,15 +47,29 @@ def test_controller_tracks_inhibitory_when_allowed() -> None:
         )
     )
 
-    assert result.weights == {}
-    assert result.metrics.total == 2
-    assert result.metrics.active == 0
-    assert result.metrics.active_percentage == pytest.approx(0.0)
-    assert result.metrics.sparsity == pytest.approx(1.0)
-    assert result.metrics.active_ids == ()
-    assert result.metrics.dormant_ids == ("alpha", "bravo")
-    assert result.metrics.max_multiplier == pytest.approx(1.0)
-    assert result.metrics.min_multiplier == pytest.approx(1.0)
+    assert controller.constraints.allow_inhibitory is True
+
+    result = controller.constrain(
+        fast_weights={"alpha": 0.8, "bravo": 0.95},
+        tactic_ids=("alpha", "bravo"),
+    )
+
+    assert result.weights == {
+        "alpha": pytest.approx(0.8),
+        "bravo": pytest.approx(0.95),
+    }
+    metrics = result.metrics
+    assert metrics.total == 2
+    assert metrics.active == 0
+    assert metrics.inhibitory == 2
+    assert metrics.suppressed_inhibitory == 0
+    assert metrics.active_percentage == pytest.approx(0.0)
+    assert metrics.sparsity == pytest.approx(1.0)
+    assert metrics.active_ids == ()
+    assert metrics.dormant_ids == ("alpha", "bravo")
+    assert metrics.inhibitory_ids == ("alpha", "bravo")
+    assert metrics.max_multiplier == pytest.approx(0.95)
+    assert metrics.min_multiplier == pytest.approx(0.8)
 
 
 def test_constraints_parser_builds_overrides_from_mapping() -> None:
@@ -74,6 +90,7 @@ def test_constraints_parser_builds_overrides_from_mapping() -> None:
     assert constraints.max_active_fraction == pytest.approx(0.25)
     assert constraints.prune_tolerance == pytest.approx(0.0001)
     assert constraints.excitatory_only is True
+    assert constraints.allow_inhibitory is False
 
 
 def test_controller_excitatory_mode_clamps_below_baseline() -> None:

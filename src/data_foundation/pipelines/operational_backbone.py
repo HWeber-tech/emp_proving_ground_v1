@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
+from typing import Any, Callable, Mapping, MutableMapping, Sequence
 
 import pandas as pd
 
@@ -23,9 +23,7 @@ from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.understanding.belief import BeliefState, RegimeSignal
 from src.understanding.live_belief_manager import LiveBeliefManager
 from src.understanding.router import BeliefSnapshot, UnderstandingDecision, UnderstandingRouter
-
-if TYPE_CHECKING:  # pragma: no cover - typing support only
-    from src.runtime.task_supervisor import TaskSupervisor
+from src.runtime.task_supervisor import TaskSupervisor
 
 FetchDailyFn = Callable[[list[str], int], pd.DataFrame]
 FetchIntradayFn = Callable[[list[str], int, str], pd.DataFrame]
@@ -112,6 +110,9 @@ class OperationalBackbonePipeline:
         belief_manager: LiveBeliefManager | None = None,
         understanding_router: UnderstandingRouter | None = None,
         belief_id: str | None = None,
+        task_supervisor: TaskSupervisor | None = None,
+        streaming_task_name: str | None = None,
+        streaming_metadata: Mapping[str, object] | None = None,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
@@ -130,6 +131,15 @@ class OperationalBackbonePipeline:
         self._belief_manager = belief_manager
         self._understanding_router = understanding_router
         self._belief_id = belief_id
+        self._task_supervisor = task_supervisor
+        self._owns_task_supervisor = False
+        self._streaming_task: asyncio.Task[None] | None = None
+        self._streaming_stop_event: asyncio.Event | None = None
+        self._streaming_consumer: KafkaIngestEventConsumer | None = None
+        self._streaming_consumer_owned = False
+        self._streaming_task_name = streaming_task_name or "operational.kafka.stream"
+        self._streaming_metadata = dict(streaming_metadata) if streaming_metadata else None
+        self._streaming_started_bus = False
 
     async def execute(
         self,
@@ -342,12 +352,21 @@ class OperationalBackbonePipeline:
                     )
 
             consumer, owns_consumer = self._resolve_consumer()
-            if poll_consumer and consumer is not None:
+            streaming_active = (
+                self._streaming_task is not None
+                and not self._streaming_task.done()
+            )
+            if poll_consumer and consumer is not None and not streaming_active:
                 while True:
                     processed = await asyncio.to_thread(consumer.poll_once)
                     if not processed:
                         break
-                if owns_consumer or self._auto_close_consumer:
+                should_close = owns_consumer or (
+                    self._auto_close_consumer
+                    and self._streaming_task is None
+                    and consumer is not self._streaming_consumer
+                )
+                if should_close:
                     consumer.close()
 
             return OperationalBackboneResult(
@@ -371,13 +390,130 @@ class OperationalBackbonePipeline:
                 if bus_started_here:
                     await self._event_bus.stop()
 
+    def _ensure_task_supervisor(self) -> TaskSupervisor:
+        if self._task_supervisor is None:
+            self._task_supervisor = TaskSupervisor(
+                namespace="operational_backbone.kafka",
+            )
+            self._owns_task_supervisor = True
+        return self._task_supervisor
+
+    async def start_streaming(
+        self,
+        *,
+        task_name: str | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> asyncio.Task[None] | None:
+        """Launch a supervised Kafka streaming loop feeding the event bus."""
+
+        if self._streaming_task is not None:
+            if not self._streaming_task.done():
+                return self._streaming_task
+            await self.stop_streaming()
+
+        consumer = self._streaming_consumer
+        owns_consumer = self._streaming_consumer_owned
+        if consumer is None:
+            if self._consumer is not None:
+                consumer = self._consumer
+                owns_consumer = False
+            elif self._consumer_factory is not None:
+                consumer = self._consumer_factory()
+                owns_consumer = consumer is not None
+            else:
+                return None
+
+        if consumer is None:
+            return None
+
+        if self._event_bus is not None and not self._event_bus.is_running():
+            await self._event_bus.start()
+            self._streaming_started_bus = True
+
+        stop_event = asyncio.Event()
+        supervisor = self._ensure_task_supervisor()
+
+        base_metadata: dict[str, object] = dict(self._streaming_metadata or {})
+        if metadata:
+            base_metadata.update({str(k): v for k, v in metadata.items() if v is not None})
+
+        run_task_name = task_name or self._streaming_task_name
+
+        async def _runner() -> None:
+            try:
+                await consumer.run_forever(stop_event)
+            finally:
+                if owns_consumer and consumer is not self._consumer:
+                    try:
+                        consumer.close()
+                    except Exception:  # pragma: no cover - defensive logging
+                        logger.debug(
+                            "Kafka ingest consumer close failed during streaming shutdown",
+                            exc_info=True,
+                        )
+
+        task = supervisor.create(
+            _runner(),
+            name=run_task_name,
+            metadata=base_metadata or None,
+        )
+        self._streaming_task = task
+        self._streaming_stop_event = stop_event
+        self._streaming_consumer = consumer
+        self._streaming_consumer_owned = owns_consumer and consumer is not self._consumer
+        return task
+
+    async def stop_streaming(self, *, cancel_timeout: float | None = None) -> None:
+        """Stop the streaming task and clean up supervised resources."""
+
+        task = self._streaming_task
+        if task is None:
+            return
+
+        stop_event = self._streaming_stop_event
+        if stop_event is not None:
+            stop_event.set()
+
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=cancel_timeout)
+        except asyncio.TimeoutError:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        finally:
+            self._streaming_task = None
+            self._streaming_stop_event = None
+
+        if self._streaming_consumer is not None:
+            if self._streaming_consumer_owned:
+                try:
+                    self._streaming_consumer.close()
+                except Exception:  # pragma: no cover - defensive logging
+                    logger.debug(
+                        "Kafka ingest consumer close failed after streaming",
+                        exc_info=True,
+                    )
+            self._streaming_consumer = None
+            self._streaming_consumer_owned = False
+
+        if self._owns_task_supervisor and self._task_supervisor is not None:
+            await self._task_supervisor.cancel_all()
+            self._task_supervisor = None
+            self._owns_task_supervisor = False
+
+        if self._event_bus is not None and self._streaming_started_bus:
+            await self._event_bus.stop()
+            self._streaming_started_bus = False
+
     async def shutdown(self) -> None:
         if self._manager_shutdown:
             return
+        await self.stop_streaming()
         await self._manager.shutdown()
         self._manager_shutdown = True
 
     def _resolve_consumer(self) -> tuple[KafkaIngestEventConsumer | None, bool]:
+        if self._streaming_consumer is not None:
+            return self._streaming_consumer, False
         if self._consumer_factory is not None:
             consumer = self._consumer_factory()
             return consumer, True if consumer is not None else False

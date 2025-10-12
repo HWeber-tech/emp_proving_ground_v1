@@ -222,6 +222,11 @@
   `TradingManager.assess_throughput_health()` plus refreshed docs so operations
   teams can assert latency budgets from a single verdict under guardrail
   coverage.【F:src/trading/execution/performance_monitor.py†L1-L127】【F:src/trading/trading_manager.py†L1201-L1353】【F:docs/performance/trading_throughput_monitoring.md†L1-L84】【F:tests/trading/execution/test_performance_monitor.py†L17-L156】【F:tests/trading/test_trading_manager_execution.py†L1756-L1905】
+- Progress: Performance health reporting now renders the same assessment as a
+  Markdown evidence pack via `build_performance_health_report`, with
+  `TradingManager.generate_performance_health_report()` exposing the helper for
+  runbooks; docs and regression suites capture the healthy/degraded render paths
+  so operators can export supervisory snapshots without bespoke scripts.【F:src/trading/execution/performance_report.py†L129-L225】【F:src/trading/trading_manager.py†L1696-L1757】【F:docs/performance/trading_throughput_monitoring.md†L69-L73】【F:tests/trading/execution/test_performance_report.py†L78-L128】【F:tests/trading/test_trading_manager_execution.py†L359-L458】
 - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage

@@ -29,6 +29,27 @@ from src.data_integration.real_data_integration import RealDataManager
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 
 
+try:  # pragma: no cover - optional dependency mirrors production Redis wiring
+    import fakeredis
+except Exception:  # pragma: no cover
+    fakeredis = None  # type: ignore[assignment]
+
+
+def _managed_cache(policy: RedisCachePolicy | None = None) -> ManagedRedisCache:
+    policy = policy or RedisCachePolicy.institutional_defaults()
+    if fakeredis is not None:
+        client = fakeredis.FakeRedis()
+    else:
+        client = InMemoryRedis()
+    return ManagedRedisCache(client, policy)
+
+
+def _flush_cache(cache: ManagedRedisCache) -> None:
+    flush = getattr(cache.raw_client, "flushall", None)
+    if callable(flush):  # pragma: no branch - optional dependency cleanup
+        flush()
+
+
 def _daily_frame(base: datetime) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -83,7 +104,7 @@ def _build_manager(
     settings: TimescaleConnectionSettings,
     broker: InMemoryKafkaBroker,
 ) -> tuple[RealDataManager, ManagedRedisCache, KafkaIngestEventPublisher]:
-    cache = ManagedRedisCache(InMemoryRedis(), RedisCachePolicy.institutional_defaults())
+    cache = _managed_cache(RedisCachePolicy.institutional_defaults())
     publisher = KafkaIngestEventPublisher(
         broker.create_producer(),
         topic_map={"daily_bars": "telemetry.ingest", "intraday_trades": "telemetry.ingest"},
@@ -165,3 +186,4 @@ async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
     finally:
         await manager.shutdown()
         cache.metrics(reset=True)
+        _flush_cache(cache)

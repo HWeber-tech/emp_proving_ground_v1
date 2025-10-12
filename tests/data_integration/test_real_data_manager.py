@@ -7,7 +7,11 @@ import pandas as pd
 import pandas.testing as pdt
 import pytest
 
-from src.data_foundation.cache.redis_cache import ManagedRedisCache, RedisCachePolicy
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisCachePolicy,
+)
 from src.data_foundation.ingest import timescale_pipeline as ingest_pipeline
 from src.data_foundation.ingest.scheduler import IngestSchedule
 from src.data_foundation.ingest.timescale_pipeline import (
@@ -22,6 +26,21 @@ from src.runtime.task_supervisor import TaskSupervisor
 
 import src.data_integration.real_data_integration as real_data_module
 from src.data_integration.real_data_integration import RealDataManager
+
+
+try:  # pragma: no cover - optional dependency improves fidelity
+    import fakeredis
+except Exception:  # pragma: no cover - fallback when fakeredis unavailable
+    fakeredis = None  # type: ignore[assignment]
+
+
+def _managed_cache(policy: RedisCachePolicy | None = None) -> ManagedRedisCache:
+    policy = policy or RedisCachePolicy.institutional_defaults()
+    if fakeredis is not None:
+        client = fakeredis.FakeRedis()
+    else:
+        client = InMemoryRedis()
+    return ManagedRedisCache(client, policy)
 
 
 class DummyPublisher:
@@ -86,10 +105,12 @@ def test_real_data_manager_ingest_fetch_and_cache(tmp_path):
     url = f"sqlite:///{tmp_path / 'manager_timescale.db'}"
     settings = TimescaleConnectionSettings(url=url)
     publisher = DummyPublisher()
+    cache = _managed_cache()
 
     manager = RealDataManager(
         timescale_settings=settings,
         ingest_publisher=publisher,
+        managed_cache=cache,
     )
 
     base = datetime(2024, 1, 2, tzinfo=timezone.utc)
@@ -124,16 +145,21 @@ def test_real_data_manager_ingest_fetch_and_cache(tmp_path):
     assert daily.iloc[-1]["close"] == pytest.approx(1.125)
 
     manager.close()
+    flush = getattr(cache.raw_client, "flushall", None)
+    if callable(flush):  # pragma: no branch - optional dependency cleanup
+        flush()
 
 
 def test_real_data_manager_ingest_market_slice_defaults(monkeypatch, tmp_path):
     url = f"sqlite:///{tmp_path / 'market_slice.db'}"
     settings = TimescaleConnectionSettings(url=url)
     publisher = DummyPublisher()
+    cache = _managed_cache()
 
     manager = RealDataManager(
         timescale_settings=settings,
         ingest_publisher=publisher,
+        managed_cache=cache,
     )
 
     base = datetime(2024, 3, 4, tzinfo=timezone.utc)
@@ -207,6 +233,9 @@ def test_real_data_manager_ingest_market_slice_defaults(monkeypatch, tmp_path):
     assert daily.iloc[-1]["close"] == pytest.approx(1.125)
 
     manager.close()
+    flush = getattr(cache.raw_client, "flushall", None)
+    if callable(flush):  # pragma: no branch
+        flush()
 
 
 @pytest.mark.asyncio()

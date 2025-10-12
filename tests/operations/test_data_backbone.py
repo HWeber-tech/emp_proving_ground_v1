@@ -58,6 +58,27 @@ from src.operations.spark_stress import (
 )
 
 
+try:  # pragma: no cover - optional dependency mirrors production Redis wiring
+    import fakeredis
+except Exception:  # pragma: no cover
+    fakeredis = None  # type: ignore[assignment]
+
+
+def _managed_cache(policy: RedisCachePolicy | None = None) -> ManagedRedisCache:
+    policy = policy or RedisCachePolicy.institutional_defaults()
+    if fakeredis is not None:
+        client = fakeredis.FakeRedis()
+    else:
+        client = InMemoryRedis()
+    return ManagedRedisCache(client, policy)
+
+
+def _flush_cache(cache: ManagedRedisCache) -> None:
+    flush = getattr(cache.raw_client, "flushall", None)
+    if callable(flush):  # pragma: no branch - optional dependency cleanup
+        flush()
+
+
 def _daily_frame(base: datetime) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -113,7 +134,7 @@ async def test_evaluate_data_backbone_readiness_combines_signals(tmp_path) -> No
     settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'readiness.db'}")
     broker = InMemoryKafkaBroker()
 
-    cache = ManagedRedisCache(InMemoryRedis(), RedisCachePolicy.institutional_defaults())
+    cache = _managed_cache(RedisCachePolicy.institutional_defaults())
     publisher = KafkaIngestEventPublisher(
         broker.create_producer(),
         topic_map={"daily_bars": "telemetry.ingest", "intraday_trades": "telemetry.ingest"},
@@ -165,6 +186,7 @@ async def test_evaluate_data_backbone_readiness_combines_signals(tmp_path) -> No
         )
     finally:
         await pipeline.shutdown()
+        _flush_cache(cache)
 
     ingest_results = result.ingest_results
     health_report = evaluate_ingest_health(ingest_results, plan=plan)

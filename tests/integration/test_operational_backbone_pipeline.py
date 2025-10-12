@@ -30,6 +30,27 @@ from src.thinking.adaptation.policy_router import PolicyRouter, PolicyTactic
 from src.understanding.router import UnderstandingRouter
 
 
+try:  # pragma: no cover - optional dependency mirrors production Redis wiring
+    import fakeredis
+except Exception:  # pragma: no cover - fallback when fakeredis unavailable
+    fakeredis = None  # type: ignore[assignment]
+
+
+def _managed_cache(policy: RedisCachePolicy | None = None) -> ManagedRedisCache:
+    policy = policy or RedisCachePolicy.institutional_defaults()
+    if fakeredis is not None:
+        client = fakeredis.FakeRedis()
+    else:
+        client = InMemoryRedis()
+    return ManagedRedisCache(client, policy)
+
+
+def _flush_cache(cache: ManagedRedisCache) -> None:
+    flush = getattr(cache.raw_client, "flushall", None)
+    if callable(flush):  # pragma: no branch - optional dependency cleanup
+        flush()
+
+
 KAFKA_TOPICS = {
     "daily_bars": "telemetry.ingest",
     "intraday_trades": "telemetry.ingest",
@@ -117,7 +138,7 @@ def _build_manager(
     broker: InMemoryKafkaBroker,
     topic_map: dict[str, str],
 ) -> tuple[RealDataManager, ManagedRedisCache]:
-    cache = ManagedRedisCache(InMemoryRedis(), RedisCachePolicy.institutional_defaults())
+    cache = _managed_cache(RedisCachePolicy.institutional_defaults())
     publisher = KafkaIngestEventPublisher(
         broker.create_producer(),
         topic_map=topic_map,
@@ -185,6 +206,7 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
         )
     finally:
         await pipeline.shutdown()
+        _flush_cache(cache)
 
     messages = broker.snapshot()
     assert messages, "Kafka publisher should record ingest telemetry"
@@ -299,6 +321,7 @@ async def test_operational_backbone_pipeline_understanding_failover(
     finally:
         await pipeline.shutdown()
         cache.metrics(reset=True)
+        _flush_cache(cache)
 
 
 @pytest.mark.asyncio()
@@ -365,6 +388,7 @@ async def test_operational_backbone_pipeline_streaming_supervision(tmp_path) -> 
     await event_bus.stop()
     event_bus.unsubscribe(subscription)
     cache.metrics(reset=True)
+    _flush_cache(cache)
 
 
 @pytest.mark.asyncio()
@@ -428,3 +452,4 @@ async def test_operational_backbone_streaming_feeds_sensory(tmp_path) -> None:
 
     await pipeline.shutdown()
     cache.metrics(reset=True)
+    _flush_cache(cache)

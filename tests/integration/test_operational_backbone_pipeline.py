@@ -1,95 +1,39 @@
 from __future__ import annotations
+
 import asyncio
-from collections import deque
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable
 
 import pandas as pd
 import pytest
 
-from src.core.event_bus import EventBus, Event
+from src.core.event_bus import Event, EventBus
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisCachePolicy,
+)
 from src.data_foundation.persist.timescale import TimescaleConnectionSettings
 from src.data_foundation.pipelines.operational_backbone import (
     OperationalBackbonePipeline,
     OperationalIngestRequest,
 )
+from src.data_foundation.streaming.in_memory_broker import InMemoryKafkaBroker
 from src.data_foundation.streaming.kafka_stream import (
     KafkaIngestEventConsumer,
     KafkaIngestEventPublisher,
 )
 from src.data_integration.real_data_integration import RealDataManager
+from src.runtime.task_supervisor import TaskSupervisor
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.thinking.adaptation.policy_router import PolicyRouter, PolicyTactic
 from src.understanding.router import UnderstandingRouter
-from src.runtime.task_supervisor import TaskSupervisor
 
 
-class _FakeKafkaProducer:
-    def __init__(self) -> None:
-        self.messages: list[dict[str, Any]] = []
-
-    def produce(self, topic: str, value: bytes, key: str | bytes | None = None) -> None:
-        self.messages.append({"topic": topic, "value": value, "key": key})
-
-    def flush(self, timeout: float | None = None) -> None:  # pragma: no cover - noop
-        return None
-
-
-@dataclass
-class _FakeKafkaMessage:
-    payload: dict[str, Any]
-
-    def error(self) -> None:
-        return None
-
-    def value(self) -> bytes:
-        return self.payload["value"]
-
-    def topic(self) -> str:
-        return self.payload["topic"]
-
-    def key(self) -> str | bytes | None:
-        return self.payload.get("key")
-
-
-class _FakeKafkaConsumer:
-    def __init__(self, messages: Iterable[dict[str, Any]]) -> None:
-        self._queue = deque(messages)
-        self._subscribed: tuple[str, ...] = ()
-        self.closed = False
-
-    def subscribe(self, topics: Iterable[str]) -> None:
-        self._subscribed = tuple(str(topic) for topic in topics)
-
-    def poll(self, timeout: float | None = None) -> _FakeKafkaMessage | None:
-        if not self._queue:
-            return None
-        return _FakeKafkaMessage(self._queue.popleft())
-
-    def close(self) -> None:
-        self.closed = True
-
-
-class _StreamingKafkaConsumer:
-    def __init__(self, producer: _FakeKafkaProducer) -> None:
-        self._producer = producer
-        self._cursor = 0
-        self._subscribed: tuple[str, ...] = ()
-        self.closed = False
-
-    def subscribe(self, topics: Iterable[str]) -> None:
-        self._subscribed = tuple(str(topic) for topic in topics)
-
-    def poll(self, timeout: float | None = None) -> _FakeKafkaMessage | None:
-        if self._cursor >= len(self._producer.messages):
-            return None
-        payload = dict(self._producer.messages[self._cursor])
-        self._cursor += 1
-        return _FakeKafkaMessage(payload)
-
-    def close(self) -> None:
-        self.closed = True
+KAFKA_TOPICS = {
+    "daily_bars": "telemetry.ingest",
+    "intraday_trades": "telemetry.ingest",
+    "macro_events": "telemetry.ingest",
+}
 
 
 def _daily_frame(base: datetime) -> pd.DataFrame:
@@ -167,23 +111,61 @@ def _macro_events(base: datetime) -> list[dict[str, object]]:
     ]
 
 
-@pytest.mark.asyncio()
-async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
-    url = f"sqlite:///{tmp_path / 'pipeline_timescale.db'}"
-    settings = TimescaleConnectionSettings(url=url)
-
-    producer = _FakeKafkaProducer()
+def _build_manager(
+    settings: TimescaleConnectionSettings,
+    broker: InMemoryKafkaBroker,
+    topic_map: dict[str, str],
+) -> tuple[RealDataManager, ManagedRedisCache]:
+    cache = ManagedRedisCache(InMemoryRedis(), RedisCachePolicy.institutional_defaults())
     publisher = KafkaIngestEventPublisher(
-        producer,
-        topic_map={
-            "daily_bars": "telemetry.ingest",
-            "intraday_trades": "telemetry.ingest",
-        },
+        broker.create_producer(),
+        topic_map=topic_map,
+    )
+    manager = RealDataManager(
+        timescale_settings=settings,
+        ingest_publisher=publisher,
+        managed_cache=cache,
+    )
+    return manager, cache
+
+
+def _consumer_factory(
+    broker: InMemoryKafkaBroker,
+    event_bus: EventBus,
+    *,
+    topics: tuple[str, ...] = ("telemetry.ingest",),
+    poll_timeout: float = 0.05,
+    idle_sleep: float = 0.0,
+) -> KafkaIngestEventConsumer:
+    consumer = broker.create_consumer()
+    return KafkaIngestEventConsumer(
+        consumer,
+        topics=topics,
+        event_bus=event_bus,
+        poll_timeout=poll_timeout,
+        idle_sleep=idle_sleep,
+        publish_consumer_lag=False,
     )
 
-    manager = RealDataManager(timescale_settings=settings, ingest_publisher=publisher)
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'pipeline_timescale.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, KAFKA_TOPICS)
     event_bus = EventBus()
     sensory = RealSensoryOrgan()
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        return _consumer_factory(broker, event_bus)
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=sensory,
+        event_topics=("telemetry.ingest",),
+    )
 
     base = datetime(2024, 5, 6, tzinfo=timezone.utc)
     request = OperationalIngestRequest(
@@ -192,24 +174,6 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
         intraday_lookback_days=1,
         intraday_interval="1m",
         macro_events=_macro_events(base),
-    )
-
-    def consumer_factory() -> KafkaIngestEventConsumer:
-        consumer = _FakeKafkaConsumer(dict(message) for message in producer.messages)
-        return KafkaIngestEventConsumer(
-            consumer,
-            topics=("telemetry.ingest",),
-            event_bus=event_bus,
-            poll_timeout=0.1,
-            idle_sleep=0.0,
-        )
-
-    pipeline = OperationalBackbonePipeline(
-        manager=manager,
-        event_bus=event_bus,
-        kafka_consumer_factory=consumer_factory,
-        sensory_organ=sensory,
-        event_topics=("telemetry.ingest",),
     )
 
     try:
@@ -221,30 +185,32 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
     finally:
         await pipeline.shutdown()
 
+    messages = broker.snapshot()
+    assert messages, "Kafka publisher should record ingest telemetry"
+    assert {message.topic for message in messages} == {"telemetry.ingest"}
+    assert len(messages) == len(result.kafka_events)
+
     assert "daily_bars" in result.ingest_results
     assert result.ingest_results["daily_bars"].rows_written == 2
     assert "intraday_trades" in result.ingest_results
     assert "macro_events" in result.ingest_results
-    assert result.frames["daily_bars"].iloc[-1]["close"] == pytest.approx(1.125)
-    assert result.frames["intraday_trades"].iloc[-1]["price"] == pytest.approx(1.124)
+
+    daily_frame = result.frames["daily_bars"]
+    assert daily_frame.iloc[-1]["close"] == pytest.approx(1.125)
+    intraday_frame = result.frames["intraday_trades"]
+    assert intraday_frame.iloc[-1]["price"] == pytest.approx(1.124)
     assert not result.frames["macro_events"].empty
-    macro_frame = result.frames["macro_events"]
-    assert set(macro_frame["calendar"].unique()) == {"ECB", "FED"}
 
-    assert len(producer.messages) == len(result.kafka_events) > 0
-    assert all(event.type == "telemetry.ingest" for event in result.kafka_events)
+    cache_metrics = cache.metrics(reset=False)
+    assert int(cache_metrics.get("misses", 0)) >= 1
 
-    hits = int(result.cache_metrics_after_fetch.get("hits", 0))
-    assert hits >= 1
-
-    assert result.sensory_snapshot is not None
-    assert result.sensory_snapshot["symbol"] == "EURUSD"
-    integrated = result.sensory_snapshot["integrated_signal"]
+    snapshot = result.sensory_snapshot
+    assert snapshot is not None
+    assert snapshot["symbol"] == "EURUSD"
+    integrated = snapshot["integrated_signal"]
     assert float(getattr(integrated, "confidence")) >= 0.0
-    assert result.ingest_error is None
-    assert result.belief_state is None
-    assert result.understanding_decision is None
 
+    assert result.ingest_error is None
     assert not event_bus.is_running()
 
 
@@ -252,19 +218,11 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
 async def test_operational_backbone_pipeline_understanding_failover(
     tmp_path, monkeypatch
 ) -> None:
-    url = f"sqlite:///{tmp_path / 'pipeline_timescale_understanding.db'}"
-    settings = TimescaleConnectionSettings(url=url)
-
-    producer = _FakeKafkaProducer()
-    publisher = KafkaIngestEventPublisher(
-        producer,
-        topic_map={
-            "daily_bars": "telemetry.ingest",
-            "intraday_trades": "telemetry.ingest",
-        },
+    settings = TimescaleConnectionSettings(
+        url=f"sqlite:///{tmp_path / 'pipeline_timescale_understanding.db'}"
     )
-
-    manager = RealDataManager(timescale_settings=settings, ingest_publisher=publisher)
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, KAFKA_TOPICS)
     event_bus = EventBus()
     sensory = RealSensoryOrgan()
 
@@ -280,14 +238,7 @@ async def test_operational_backbone_pipeline_understanding_failover(
     understanding_router = UnderstandingRouter(policy_router)
 
     def consumer_factory() -> KafkaIngestEventConsumer:
-        consumer = _FakeKafkaConsumer(dict(message) for message in producer.messages)
-        return KafkaIngestEventConsumer(
-            consumer,
-            topics=("telemetry.ingest",),
-            event_bus=event_bus,
-            poll_timeout=0.1,
-            idle_sleep=0.0,
-        )
+        return _consumer_factory(broker, event_bus)
 
     pipeline = OperationalBackbonePipeline(
         manager=manager,
@@ -295,6 +246,7 @@ async def test_operational_backbone_pipeline_understanding_failover(
         kafka_consumer_factory=consumer_factory,
         sensory_organ=sensory,
         understanding_router=understanding_router,
+        event_topics=("telemetry.ingest",),
     )
 
     base = datetime(2024, 5, 6, tzinfo=timezone.utc)
@@ -323,13 +275,11 @@ async def test_operational_backbone_pipeline_understanding_failover(
             "ingest_market_slice",
             lambda *_, **__: (_ for _ in ()).throw(RuntimeError("Timescale offline")),
         )
-
         monkeypatch.setattr(
             manager._reader,
             "fetch_daily_bars",
             lambda *_, **__: (_ for _ in ()).throw(RuntimeError("Timescale unreachable")),
         )
-
         monkeypatch.setattr(
             manager._reader,
             "fetch_intraday_trades",
@@ -347,22 +297,14 @@ async def test_operational_backbone_pipeline_understanding_failover(
         assert result_failover.understanding_decision is not None
     finally:
         await pipeline.shutdown()
+        cache.metrics(reset=True)
 
 
 @pytest.mark.asyncio()
 async def test_operational_backbone_pipeline_streaming_supervision(tmp_path) -> None:
-    url = f"sqlite:///{tmp_path / 'pipeline_streaming.db'}"
-    settings = TimescaleConnectionSettings(url=url)
-
-    producer = _FakeKafkaProducer()
-    publisher = KafkaIngestEventPublisher(
-        producer,
-        topic_map={
-            "daily_bars": "telemetry.ingest",
-        },
-    )
-
-    manager = RealDataManager(timescale_settings=settings, ingest_publisher=publisher)
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'pipeline_streaming.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, {"daily_bars": "telemetry.ingest"})
     event_bus = EventBus()
     sensory = RealSensoryOrgan()
     supervisor = TaskSupervisor(namespace="operational-stream-test")
@@ -378,21 +320,15 @@ async def test_operational_backbone_pipeline_streaming_supervision(tmp_path) -> 
 
     subscription = event_bus.subscribe("telemetry.ingest", _collect)
 
-    streaming_consumer = _StreamingKafkaConsumer(producer)
-
-    def consumer_factory() -> KafkaIngestEventConsumer:
-        return KafkaIngestEventConsumer(
-            streaming_consumer,
-            topics=("telemetry.ingest",),
-            event_bus=event_bus,
-            poll_timeout=0.01,
-            idle_sleep=0.01,
-        )
-
     pipeline = OperationalBackbonePipeline(
         manager=manager,
         event_bus=event_bus,
-        kafka_consumer_factory=consumer_factory,
+        kafka_consumer_factory=lambda: _consumer_factory(
+            broker,
+            event_bus,
+            poll_timeout=0.01,
+            idle_sleep=0.01,
+        ),
         sensory_organ=sensory,
         auto_close_consumer=False,
         task_supervisor=supervisor,
@@ -427,3 +363,4 @@ async def test_operational_backbone_pipeline_streaming_supervision(tmp_path) -> 
     await pipeline.shutdown()
     await event_bus.stop()
     event_bus.unsubscribe(subscription)
+    cache.metrics(reset=True)

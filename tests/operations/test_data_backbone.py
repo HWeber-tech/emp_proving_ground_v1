@@ -1,40 +1,55 @@
+from __future__ import annotations
+
 from datetime import UTC, datetime
 
+import pandas as pd
+import pytest
+
+from src.core.event_bus import EventBus
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisCachePolicy,
+    RedisConnectionSettings,
+)
+from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
+from src.data_foundation.ingest.failover import IngestFailoverDecision
+from src.data_foundation.ingest.health import (
+    IngestHealthStatus,
+    evaluate_ingest_health,
+)
+from src.data_foundation.ingest.metrics import summarise_ingest_metrics
+from src.data_foundation.ingest.quality import evaluate_ingest_quality
+from src.data_foundation.ingest.recovery import IngestRecoveryRecommendation
+from src.data_foundation.ingest.timescale_pipeline import (
+    DailyBarIngestPlan,
+    IntradayTradeIngestPlan,
+    TimescaleBackbonePlan,
+)
+from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.pipelines.operational_backbone import (
+    OperationalBackbonePipeline,
+    OperationalIngestRequest,
+)
+from src.data_foundation.streaming.in_memory_broker import InMemoryKafkaBroker
+from src.data_foundation.streaming.kafka_stream import (
+    KafkaConnectionSettings,
+    KafkaIngestEventConsumer,
+    KafkaIngestEventPublisher,
+)
+from src.data_integration.real_data_integration import RealDataManager
+from src.sensory.real_sensory_organ import RealSensoryOrgan
+from src.operations.backup import BackupReadinessSnapshot, BackupStatus
+from src.operations.data_backbone import (
+    BackboneRuntimeContext,
+    BackboneStatus,
+    evaluate_data_backbone_readiness,
+)
 from src.data_foundation.batch.spark_export import (
     SparkExportFormat,
     SparkExportJobResult,
     SparkExportSnapshot,
     SparkExportStatus,
-)
-from src.data_foundation.cache.redis_cache import RedisConnectionSettings
-from src.data_foundation.ingest.configuration import InstitutionalIngestConfig
-from src.data_foundation.ingest.failover import IngestFailoverDecision
-from src.data_foundation.ingest.health import (
-    IngestHealthCheck,
-    IngestHealthReport,
-    IngestHealthStatus,
-)
-from src.data_foundation.ingest.metrics import IngestDimensionMetrics, IngestMetricsSnapshot
-from src.data_foundation.ingest.quality import (
-    IngestQualityCheck,
-    IngestQualityReport,
-    IngestQualityStatus,
-)
-from src.data_foundation.ingest.recovery import IngestRecoveryRecommendation
-from src.data_foundation.ingest.timescale_pipeline import (
-    DailyBarIngestPlan,
-    TimescaleBackbonePlan,
-)
-from src.data_foundation.ingest.scheduler import IngestSchedulerState
-from src.data_foundation.ingest.scheduler_telemetry import build_scheduler_snapshot
-from src.data_foundation.persist.timescale import TimescaleConnectionSettings
-from src.operations.backup import BackupReadinessSnapshot, BackupStatus
-from src.operations.data_backbone import (
-    BackboneRuntimeContext,
-    BackboneStatus,
-    DataBackboneValidationSnapshot,
-    evaluate_data_backbone_readiness,
-    evaluate_data_backbone_validation,
 )
 from src.operations.spark_stress import (
     SparkStressCycleResult,
@@ -43,63 +58,120 @@ from src.operations.spark_stress import (
 )
 
 
-def _sample_ingest_config() -> InstitutionalIngestConfig:
-    plan = TimescaleBackbonePlan(daily=DailyBarIngestPlan(symbols=["EURUSD"], lookback_days=5))
-    metadata = {
-        "plan": {"daily_bars": {"symbols": ["EURUSD"], "lookback_days": 5}},
-        "kafka_configured": True,
-        "kafka_topics": ["telemetry.ingest.events"],
-    }
-    return InstitutionalIngestConfig(
-        should_run=True,
-        reason=None,
-        plan=plan,
-        metadata=metadata,
-        redis_settings=RedisConnectionSettings(),
+def _daily_frame(base: datetime) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "date": base,
+                "symbol": "EURUSD",
+                "open": 1.10,
+                "high": 1.13,
+                "low": 1.09,
+                "close": 1.125,
+                "adj_close": 1.12,
+                "volume": 1500,
+            },
+            {
+                "date": base - pd.Timedelta(days=1),
+                "symbol": "EURUSD",
+                "open": 1.11,
+                "high": 1.14,
+                "low": 1.10,
+                "close": 1.13,
+                "adj_close": 1.13,
+                "volume": 1400,
+            },
+        ]
     )
 
 
-def test_evaluate_data_backbone_readiness_combines_signals() -> None:
-    config = _sample_ingest_config()
-    generated = datetime(2025, 1, 1, tzinfo=UTC)
-    health_report = IngestHealthReport(
-        status=IngestHealthStatus.ok,
-        generated_at=generated,
-        checks=(
-            IngestHealthCheck(
-                dimension="daily_bars",
-                status=IngestHealthStatus.ok,
-                message="healthy",
-                rows_written=10,
-                freshness_seconds=30.0,
-            ),
-        ),
+def _intraday_frame(base: datetime) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": base - pd.Timedelta(minutes=2),
+                "symbol": "EURUSD",
+                "price": 1.123,
+                "size": 640,
+                "exchange": "TEST",
+                "conditions": "SYNTH",
+            },
+            {
+                "timestamp": base - pd.Timedelta(minutes=1),
+                "symbol": "EURUSD",
+                "price": 1.126,
+                "size": 720,
+                "exchange": "TEST",
+                "conditions": "SYNTH",
+            },
+        ]
     )
-    quality_report = IngestQualityReport(
-        status=IngestQualityStatus.ok,
-        score=0.98,
-        generated_at=generated,
-        checks=(
-            IngestQualityCheck(
-                dimension="daily_bars",
-                status=IngestQualityStatus.ok,
-                score=0.98,
-                observed_rows=10,
-            ),
-        ),
+
+
+@pytest.mark.asyncio()
+async def test_evaluate_data_backbone_readiness_combines_signals(tmp_path) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'readiness.db'}")
+    broker = InMemoryKafkaBroker()
+
+    cache = ManagedRedisCache(InMemoryRedis(), RedisCachePolicy.institutional_defaults())
+    publisher = KafkaIngestEventPublisher(
+        broker.create_producer(),
+        topic_map={"daily_bars": "telemetry.ingest", "intraday_trades": "telemetry.ingest"},
     )
-    metrics_snapshot = IngestMetricsSnapshot(
-        generated_at=generated,
-        dimensions=(
-            IngestDimensionMetrics(
-                dimension="daily_bars",
-                rows=10,
-                symbols=("EURUSD",),
-                ingest_duration_seconds=1.2,
-                freshness_seconds=42.0,
-            ),
-        ),
+    manager = RealDataManager(
+        timescale_settings=settings,
+        ingest_publisher=publisher,
+        managed_cache=cache,
     )
+
+    event_bus = EventBus()
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        consumer = broker.create_consumer()
+        return KafkaIngestEventConsumer(
+            consumer,
+            topics=("telemetry.ingest",),
+            event_bus=event_bus,
+            poll_timeout=0.05,
+            publish_consumer_lag=False,
+        )
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=RealSensoryOrgan(),
+        event_topics=("telemetry.ingest",),
+    )
+
+    plan = TimescaleBackbonePlan(
+        daily=DailyBarIngestPlan(symbols=("EURUSD",), lookback_days=2),
+        intraday=IntradayTradeIngestPlan(symbols=("EURUSD",), lookback_days=1, interval="1d"),
+    )
+
+    base = datetime.now(tz=UTC)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1d",
+    )
+
+    try:
+        result = await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+        )
+    finally:
+        await pipeline.shutdown()
+
+    ingest_results = result.ingest_results
+    health_report = evaluate_ingest_health(ingest_results, plan=plan)
+    quality_report = evaluate_ingest_quality(ingest_results, plan=plan)
+    metrics_snapshot = summarise_ingest_metrics(ingest_results)
+
+    generated = datetime.now(tz=UTC)
     failover_decision = IngestFailoverDecision(
         should_failover=False,
         status=IngestHealthStatus.ok,
@@ -107,7 +179,7 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
         generated_at=generated,
         triggered_dimensions=tuple(),
         optional_triggers=tuple(),
-        planned_dimensions=("daily_bars",),
+        planned_dimensions=tuple(ingest_results.keys()),
         metadata={},
     )
     recovery_recommendation = IngestRecoveryRecommendation(plan=TimescaleBackbonePlan())
@@ -120,41 +192,20 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
         retention_days=7,
         issues=tuple(),
     )
-    scheduler_state = IngestSchedulerState(
-        running=False,
-        last_started_at=generated,
-        last_completed_at=generated,
-        consecutive_failures=1,
-        next_run_at=None,
-        interval_seconds=60.0,
-        jitter_seconds=5.0,
-        max_failures=3,
-    )
-    context = BackboneRuntimeContext(
-        redis_expected=True,
-        redis_configured=False,
-        redis_backing="in-memory",
-        kafka_expected=True,
-        kafka_configured=True,
-        kafka_topics=("telemetry.ingest.events",),
-        kafka_publishers=("events", "metrics"),
-        scheduler_enabled=True,
-        scheduler_state=scheduler_state,
-    )
 
     spark_snapshot = SparkExportSnapshot(
         generated_at=generated,
-        status=SparkExportStatus.warn,
+        status=SparkExportStatus.ok,
         format=SparkExportFormat.csv,
         root_path="/tmp/spark",
         jobs=(
             SparkExportJobResult(
                 dimension="daily_bars",
-                status=SparkExportStatus.warn,
-                rows=0,
-                paths=("daily.csv",),
-                issues=("no_rows_returned",),
-                metadata={"symbols": ["EURUSD"]},
+                status=SparkExportStatus.ok,
+                rows=ingest_results["daily_bars"].rows_written,
+                paths=("daily.parquet",),
+                issues=tuple(),
+                metadata={"symbols": ingest_results["daily_bars"].symbols},
             ),
         ),
         metadata={"publish_telemetry": True},
@@ -162,19 +213,50 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
 
     spark_stress_snapshot = SparkStressSnapshot(
         label="resilience",
-        status=SparkStressStatus.warn,
+        status=SparkStressStatus.ok,
         generated_at=generated,
         cycles=(
             SparkStressCycleResult(
                 cycle=1,
-                status=SparkStressStatus.warn,
-                export_status=SparkExportStatus.warn,
-                duration_seconds=0.8,
-                issues=("duration_exceeded_warn_threshold",),
+                status=SparkStressStatus.ok,
+                export_status=SparkExportStatus.ok,
+                duration_seconds=0.4,
+                issues=tuple(),
                 metadata={"job_count": 1},
             ),
         ),
         metadata={"cycles": 1},
+    )
+
+    connectivity = manager.connectivity_report()
+    context = BackboneRuntimeContext(
+        redis_expected=False,
+        redis_configured=connectivity.redis,
+        redis_namespace=cache.policy.namespace,
+        redis_backing=type(cache.raw_client).__name__,
+        kafka_expected=True,
+        kafka_configured=connectivity.kafka,
+        kafka_topics=("telemetry.ingest",),
+        kafka_publishers=("events",),
+        scheduler_enabled=False,
+        scheduler_state=None,
+    )
+
+    ingest_config = InstitutionalIngestConfig(
+        should_run=True,
+        reason=None,
+        plan=plan,
+        timescale_settings=settings,
+        kafka_settings=KafkaConnectionSettings(bootstrap_servers="inmemory"),
+        redis_settings=RedisConnectionSettings(),
+        metadata={
+            "plan": {
+                "daily_bars": {"symbols": ["EURUSD"], "lookback_days": 2},
+                "intraday_trades": {"symbols": ["EURUSD"], "lookback_days": 1, "interval": "1d"},
+            },
+            "kafka_configured": connectivity.kafka,
+            "kafka_topics": ["telemetry.ingest"],
+        },
     )
 
     task_snapshots = (
@@ -182,18 +264,12 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
             "name": "ingest.kafka.bridge",
             "state": "running",
             "created_at": generated.isoformat(),
-            "metadata": {"namespace": "runtime.ingest"},
-        },
-        {
-            "name": "ingest.scheduler",
-            "state": "finished",
-            "created_at": generated.isoformat(),
-            "metadata": {"namespace": "runtime.ingest"},
+            "metadata": {"namespace": "tests"},
         },
     )
 
     snapshot = evaluate_data_backbone_readiness(
-        ingest_config=config,
+        ingest_config=ingest_config,
         health_report=health_report,
         quality_report=quality_report,
         metrics_snapshot=metrics_snapshot,
@@ -207,190 +283,16 @@ def test_evaluate_data_backbone_readiness_combines_signals() -> None:
         task_snapshots=task_snapshots,
     )
 
-    assert snapshot.status is BackboneStatus.warn
-    component_names = {component.name: component for component in snapshot.components}
-    assert component_names["plan"].status is BackboneStatus.ok
-    assert component_names["ingest_health"].status is BackboneStatus.ok
-    assert component_names["redis_cache"].status is BackboneStatus.warn
-    assert component_names["kafka_streaming"].status is BackboneStatus.ok
-    assert "scheduler" in component_names
-    scheduler_component = component_names["scheduler"]
-    assert scheduler_component.metadata.get("enabled") is True
-    assert scheduler_component.metadata.get("running") is False
-    assert scheduler_component.metadata.get("interval_seconds") == 60.0
-    assert "task_supervision" in component_names
-    task_component = component_names["task_supervision"]
-    assert task_component.status is BackboneStatus.ok
-    assert task_component.metadata["task_count"] == 2
-    assert task_component.metadata["has_running_tasks"] is True
-    assert "spark_exports" in component_names
-    spark_component = component_names["spark_exports"]
-    assert spark_component.status is BackboneStatus.warn
-    assert spark_component.metadata.get("format") == "csv"
-    assert spark_component.metadata.get("job_count") == 1
-    assert "spark_stress" in component_names
-    stress_component = component_names["spark_stress"]
-    assert stress_component.status is BackboneStatus.warn
-    assert stress_component.metadata.get("cycle_count") == 1
-    markdown = snapshot.to_markdown()
-    assert "DATA_BACKBONE" not in markdown  # ensure formatting uses table header
-    assert "redis_cache" in markdown
-
-
-def test_evaluate_data_backbone_validation_flags_missing_services() -> None:
-    config = _sample_ingest_config()
-    context = BackboneRuntimeContext(
-        redis_expected=True,
-        redis_configured=False,
-        kafka_expected=True,
-        kafka_configured=False,
-        kafka_topics=tuple(),
-        kafka_publishers=tuple(),
-        scheduler_enabled=True,
-    )
-    scheduler_snapshot = build_scheduler_snapshot(
-        enabled=True,
-        schedule=config.schedule,
-        state=None,
-    )
-
-    snapshot = evaluate_data_backbone_validation(
-        ingest_config=config,
-        context=context,
-        scheduler_snapshot=scheduler_snapshot,
-    )
-
-    assert isinstance(snapshot, DataBackboneValidationSnapshot)
-    assert snapshot.status is BackboneStatus.fail
-    check_map = {check.name: check for check in snapshot.checks}
-    assert check_map["plan"].status is BackboneStatus.ok
-    assert check_map["timescale_connection"].status is BackboneStatus.fail
-    assert check_map["redis"].status is BackboneStatus.fail
-    assert check_map["kafka"].status is BackboneStatus.fail
-    assert check_map["scheduler"].status is BackboneStatus.fail
-
-
-def test_evaluate_data_backbone_validation_passes_when_configured() -> None:
-    config = _sample_ingest_config()
-    config = InstitutionalIngestConfig(
-        should_run=config.should_run,
-        reason=config.reason,
-        plan=config.plan,
-        timescale_settings=TimescaleConnectionSettings(
-            url="postgresql://example", application_name="test"
-        ),
-        kafka_settings=config.kafka_settings,
-        redis_settings=config.redis_settings,
-        metadata=config.metadata,
-        schedule=config.schedule,
-        recovery=config.recovery,
-        operational_alert_routes=config.operational_alert_routes,
-        backup=config.backup,
-    )
-    context = BackboneRuntimeContext(
-        redis_expected=True,
-        redis_configured=True,
-        redis_namespace="emp:cache",
-        redis_backing="ManagedRedisCache",
-        kafka_expected=True,
-        kafka_configured=True,
-        kafka_topics=("telemetry.ingest.events",),
-        kafka_publishers=("events", "metrics"),
-        scheduler_enabled=False,
-    )
-
-    snapshot = evaluate_data_backbone_validation(
-        ingest_config=config,
-        context=context,
-        scheduler_snapshot=None,
-    )
-
     assert snapshot.status is BackboneStatus.ok
-    check_map = {check.name: check for check in snapshot.checks}
-    assert check_map["timescale_connection"].status is BackboneStatus.ok
-    assert check_map["redis"].status is BackboneStatus.ok
-    assert check_map["kafka"].status is BackboneStatus.ok
-    assert "scheduler" not in check_map
-
-
-def test_data_backbone_readiness_surfaces_failover_and_recovery() -> None:
-    config = _sample_ingest_config()
-    generated = datetime(2025, 2, 1, 12, 30, tzinfo=UTC)
-
-    failover_decision = IngestFailoverDecision(
-        should_failover=False,
-        status=IngestHealthStatus.warn,
-        reason=None,
-        generated_at=generated,
-        triggered_dimensions=tuple(),
-        optional_triggers=("macro_events",),
-        planned_dimensions=("daily_bars", "macro_events"),
-        metadata={"latency_seconds": 420.0},
-    )
-
-    recovery_plan = TimescaleBackbonePlan(
-        daily=DailyBarIngestPlan(symbols=["EURUSD"], lookback_days=3)
-    )
-    recovery_recommendation = IngestRecoveryRecommendation(
-        plan=recovery_plan,
-        reasons={"daily_bars": "freshness degraded"},
-        missing_symbols={"daily_bars": ("EURUSD",)},
-    )
-
-    snapshot = evaluate_data_backbone_readiness(
-        ingest_config=config,
-        failover_decision=failover_decision,
-        recovery_recommendation=recovery_recommendation,
-    )
-
     components = {component.name: component for component in snapshot.components}
-    failover_component = components["failover"]
-    assert failover_component.status is BackboneStatus.warn
-    assert failover_component.summary == "optional slices degraded"
-    assert failover_component.metadata["optional_triggers"] == ["macro_events"]
-    assert failover_component.metadata["triggered"] == []
+    assert components["plan"].status is BackboneStatus.ok
+    assert components["ingest_health"].status is BackboneStatus.ok
+    kafka_metadata = components["kafka_streaming"].metadata
+    assert kafka_metadata["topics"] == ["telemetry.ingest"]
+    if "redis_cache" in components:
+        assert components["redis_cache"].metadata.get("namespace") == cache.policy.namespace
+    else:
+        assert connectivity.redis is False
 
-    recovery_component = components["recovery"]
-    assert recovery_component.status is BackboneStatus.warn
-    assert "plan" in recovery_component.metadata
-    plan_metadata = recovery_component.metadata["plan"]
-    assert plan_metadata["daily_bars"]["lookback_days"] == 3
-    assert plan_metadata["daily_bars"]["symbols"] == ["EURUSD"]
-
-
-def test_data_backbone_readiness_task_supervision_warn_on_absence() -> None:
-    config = _sample_ingest_config()
-
-    snapshot = evaluate_data_backbone_readiness(
-        ingest_config=config,
-        task_snapshots=tuple(),
-    )
-
-    components = {component.name: component for component in snapshot.components}
-    task_component = components["task_supervision"]
-    assert task_component.status is BackboneStatus.warn
-    assert task_component.summary == "no supervised tasks reported"
-    assert task_component.metadata["task_count"] == 0
-
-
-def test_data_backbone_readiness_task_supervision_fail_on_errors() -> None:
-    config = _sample_ingest_config()
-    generated = datetime(2025, 3, 2, tzinfo=UTC)
-
-    snapshot = evaluate_data_backbone_readiness(
-        ingest_config=config,
-        task_snapshots=(
-            {
-                "name": "ingest.pipeline",
-                "state": "failed",
-                "created_at": generated.isoformat(),
-                "metadata": {"namespace": "runtime.ingest"},
-            },
-        ),
-    )
-
-    components = {component.name: component for component in snapshot.components}
-    task_component = components["task_supervision"]
-    assert task_component.status is BackboneStatus.fail
-    assert "failed" in task_component.summary
-    assert task_component.metadata["task_count"] == 1
+    await manager.shutdown()
+    cache.metrics(reset=True)

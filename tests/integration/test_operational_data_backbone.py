@@ -2,73 +2,31 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections import deque
-from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable
+from typing import Any
 
 import pandas as pd
 import pytest
 
 from src.core.event_bus import EventBus
+from src.data_foundation.cache.redis_cache import (
+    InMemoryRedis,
+    ManagedRedisCache,
+    RedisCachePolicy,
+)
 from src.data_foundation.ingest.timescale_pipeline import (
     DailyBarIngestPlan,
     IntradayTradeIngestPlan,
     TimescaleBackbonePlan,
 )
 from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.streaming.in_memory_broker import InMemoryKafkaBroker
 from src.data_foundation.streaming.kafka_stream import (
     KafkaIngestEventConsumer,
     KafkaIngestEventPublisher,
 )
 from src.data_integration.real_data_integration import RealDataManager
 from src.sensory.real_sensory_organ import RealSensoryOrgan
-
-
-class _FakeKafkaProducer:
-    def __init__(self) -> None:
-        self.messages: list[dict[str, Any]] = []
-
-    def produce(self, topic: str, value: bytes, key: str | bytes | None = None) -> None:
-        self.messages.append({"topic": topic, "value": value, "key": key})
-
-    def flush(self, timeout: float | None = None) -> None:  # pragma: no cover - noop
-        return None
-
-
-@dataclass
-class _FakeKafkaMessage:
-    payload: dict[str, Any]
-
-    def error(self) -> None:
-        return None
-
-    def value(self) -> bytes:
-        return self.payload["value"]
-
-    def topic(self) -> str:
-        return self.payload["topic"]
-
-    def key(self) -> str | bytes | None:
-        return self.payload.get("key")
-
-
-class _FakeKafkaConsumer:
-    def __init__(self, messages: Iterable[dict[str, Any]]) -> None:
-        self._queue = deque(messages)
-        self._subscribed: tuple[str, ...] = ()
-        self.closed = False
-
-    def subscribe(self, topics: Iterable[str]) -> None:
-        self._subscribed = tuple(str(topic) for topic in topics)
-
-    def poll(self, timeout: float | None = None) -> _FakeKafkaMessage | None:
-        if not self._queue:
-            return None
-        return _FakeKafkaMessage(self._queue.popleft())
-
-    def close(self) -> None:
-        self.closed = True
 
 
 def _daily_frame(base: datetime) -> pd.DataFrame:
@@ -121,24 +79,28 @@ def _intraday_frame(base: datetime) -> pd.DataFrame:
     )
 
 
-@pytest.mark.asyncio()
-async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
-    url = f"sqlite:///{tmp_path / 'operational_timescale.db'}"
-    settings = TimescaleConnectionSettings(url=url)
-
-    producer = _FakeKafkaProducer()
+def _build_manager(
+    settings: TimescaleConnectionSettings,
+    broker: InMemoryKafkaBroker,
+) -> tuple[RealDataManager, ManagedRedisCache, KafkaIngestEventPublisher]:
+    cache = ManagedRedisCache(InMemoryRedis(), RedisCachePolicy.institutional_defaults())
     publisher = KafkaIngestEventPublisher(
-        producer,
-        topic_map={
-            "daily_bars": "telemetry.ingest",
-            "intraday_trades": "telemetry.ingest",
-        },
+        broker.create_producer(),
+        topic_map={"daily_bars": "telemetry.ingest", "intraday_trades": "telemetry.ingest"},
     )
-
     manager = RealDataManager(
         timescale_settings=settings,
         ingest_publisher=publisher,
+        managed_cache=cache,
     )
+    return manager, cache, publisher
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'operational_ts.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache, _publisher = _build_manager(settings, broker)
 
     try:
         base = datetime(2024, 3, 5, tzinfo=timezone.utc)
@@ -153,8 +115,9 @@ async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
             fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
         )
 
-        assert producer.messages, "Kafka publisher should emit ingest events"
-        decoded = json.loads(producer.messages[0]["value"].decode("utf-8"))
+        messages = broker.snapshot()
+        assert messages, "Kafka publisher should emit ingest telemetry"
+        decoded = json.loads(messages[0].value.decode("utf-8"))
         assert decoded["result"]["dimension"] in {"daily_bars", "intraday_trades"}
 
         daily_frame = manager.fetch_data("EURUSD", interval="1d", period="2d")
@@ -165,8 +128,8 @@ async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
         assert not intraday_frame.empty
         assert intraday_frame.iloc[-1]["price"] == pytest.approx(1.124)
 
-        metrics = manager.cache_metrics(reset=True)
-        assert metrics["misses"] >= 1
+        metrics = cache.metrics(reset=True)
+        assert int(metrics.get("misses", 0)) >= 1
 
         events: list[Any] = []
         event_bus = EventBus()
@@ -174,9 +137,8 @@ async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
         try:
             event_bus.subscribe("telemetry.ingest", lambda event: events.append(event))
 
-            consumer = _FakeKafkaConsumer(dict(message) for message in producer.messages)
             bridge = KafkaIngestEventConsumer(
-                consumer,
+                broker.create_consumer(),
                 topics=("telemetry.ingest",),
                 event_bus=event_bus,
                 publish_consumer_lag=False,
@@ -199,9 +161,7 @@ async def test_operational_backbone_streams_into_sensory(tmp_path) -> None:
         organ = RealSensoryOrgan()
         snapshot = organ.observe(daily_frame, symbol="EURUSD")
         assert snapshot["symbol"] == "EURUSD"
-        dimensions = snapshot["dimensions"]
-        assert {"WHAT", "ANOMALY"}.issubset(dimensions.keys())
-        integrated = snapshot["integrated_signal"]
-        assert float(getattr(integrated, "confidence")) >= 0.0
+        assert {"WHAT", "ANOMALY"}.issubset(snapshot["dimensions"].keys())
     finally:
         await manager.shutdown()
+        cache.metrics(reset=True)

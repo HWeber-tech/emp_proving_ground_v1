@@ -4,15 +4,24 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, MutableMapping, Sequence
+from typing import Any, Callable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
 import pandas as pd
 
 from src.core.event_bus import Event, EventBus, SubscriptionHandle
 from src.data_foundation.persist.timescale import TimescaleIngestResult
-from src.data_foundation.streaming.kafka_stream import KafkaIngestEventConsumer
+from src.data_foundation.streaming.kafka_stream import (
+    KafkaConnectionSettings,
+    KafkaIngestEventConsumer,
+    create_ingest_event_consumer,
+    ingest_topic_config_from_mapping,
+)
 from src.data_integration.real_data_integration import RealDataManager
+from src.governance.system_config import SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
+
+if TYPE_CHECKING:  # pragma: no cover - typing support only
+    from src.runtime.task_supervisor import TaskSupervisor
 
 FetchDailyFn = Callable[[list[str], int], pd.DataFrame]
 FetchIntradayFn = Callable[[list[str], int, str], pd.DataFrame]
@@ -236,8 +245,94 @@ class OperationalBackbonePipeline:
         return None, False
 
 
+def create_operational_backbone_pipeline(
+    system_config: SystemConfig,
+    *,
+    event_bus: EventBus,
+    sensory_organ: RealSensoryOrgan | None = None,
+    task_supervisor: "TaskSupervisor | None" = None,
+    extras_override: Mapping[str, str] | None = None,
+    kafka_consumer: KafkaIngestEventConsumer | None = None,
+    kafka_consumer_factory: KafkaConsumerFactory | None = None,
+    kafka_deserializer: Callable[[bytes | bytearray | str], Mapping[str, object]] | None = None,
+    event_topics: Sequence[str] | None = None,
+    auto_close_consumer: bool | None = None,
+    manager_kwargs: Mapping[str, object] | None = None,
+) -> OperationalBackbonePipeline:
+    """Instantiate an operational backbone pipeline from ``SystemConfig``.
+
+    The helper wires together a :class:`RealDataManager` with the configured
+    Timescale/Redis/Kafka settings, creates an optional Kafka ingest bridge, and
+    returns a ready-to-run :class:`OperationalBackbonePipeline`.  Callers can
+    provide overrides for specific manager settings (e.g. stub publishers in
+    tests) via ``manager_kwargs``.
+    """
+
+    extras: dict[str, str] = dict(system_config.extras or {})
+    if extras_override:
+        extras.update({str(key): str(value) for key, value in extras_override.items()})
+
+    manager_params = dict(manager_kwargs or {})
+    manager_params.setdefault("system_config", system_config)
+    manager_params.setdefault("extras", extras)
+    if task_supervisor is not None:
+        manager_params.setdefault("task_supervisor", task_supervisor)
+
+    manager = RealDataManager(**manager_params)
+
+    created_consumer = False
+    bridge = kafka_consumer
+    if bridge is None:
+        kafka_settings = KafkaConnectionSettings.from_mapping(extras)
+        bridge = create_ingest_event_consumer(
+            kafka_settings,
+            extras,
+            event_bus=event_bus,
+            consumer_factory=kafka_consumer_factory,
+            deserializer=kafka_deserializer,
+        )
+        created_consumer = bridge is not None
+
+    if event_topics is not None:
+        resolved_topics = tuple(
+            dict.fromkeys(str(topic).strip() for topic in event_topics if str(topic).strip())
+        )
+    else:
+        topic_map, default_topic = ingest_topic_config_from_mapping(extras)
+        candidate_topics = [
+            str(default_topic).strip() if default_topic else "telemetry.ingest"
+        ]
+        candidate_topics.extend(topic_map.values())
+        if sensory_organ is not None:
+            candidate_topics.append("telemetry.sensory.snapshot")
+        resolved_topics = tuple(
+            dict.fromkeys(topic for topic in candidate_topics if topic)
+        )
+
+    if auto_close_consumer is None:
+        auto_close_consumer = created_consumer
+
+    try:
+        pipeline = OperationalBackbonePipeline(
+            manager=manager,
+            event_bus=event_bus,
+            kafka_consumer=bridge,
+            sensory_organ=sensory_organ,
+            event_topics=resolved_topics,
+            auto_close_consumer=bool(auto_close_consumer),
+        )
+    except Exception:
+        manager.close()
+        if created_consumer and bridge is not None:
+            bridge.close()
+        raise
+
+    return pipeline
+
+
 __all__ = [
     "OperationalBackbonePipeline",
     "OperationalBackboneResult",
     "OperationalIngestRequest",
+    "create_operational_backbone_pipeline",
 ]

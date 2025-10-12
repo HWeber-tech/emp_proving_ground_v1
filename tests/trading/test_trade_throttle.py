@@ -109,3 +109,39 @@ def test_trade_throttle_scopes_by_metadata_field() -> None:
     assert missing_scope_second.allowed is False
     missing_scope = missing_scope_second.snapshot.get("metadata", {}).get("scope", {})
     assert missing_scope == {"strategy_id": None}
+
+
+def test_trade_throttle_enforces_minimum_spacing() -> None:
+    config = TradeThrottleConfig(
+        name="spacing",
+        max_trades=10,
+        window_seconds=300.0,
+        min_spacing_seconds=30.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 14, 0, 0, tzinfo=timezone.utc)
+
+    first = throttle.evaluate(now=base, metadata={"strategy_id": "alpha"})
+    assert first.allowed is True
+    assert first.snapshot["state"] == "open"
+
+    second = throttle.evaluate(
+        now=base + timedelta(seconds=10), metadata={"strategy_id": "alpha"}
+    )
+    assert second.allowed is False
+    assert second.snapshot["state"] == "min_interval"
+    assert second.reason == "min_interval_30s"
+    assert second.retry_at == base + timedelta(seconds=30)
+    assert second.snapshot.get("message", "").startswith(
+        "Throttled: minimum interval of"
+    )
+    metadata = second.snapshot.get("metadata", {})
+    assert metadata.get("min_spacing_seconds") == 30.0
+    assert metadata.get("recent_trades") == 1
+
+    third = throttle.evaluate(
+        now=base + timedelta(seconds=35), metadata={"strategy_id": "alpha"}
+    )
+    assert third.allowed is True
+    assert third.snapshot["state"] == "open"

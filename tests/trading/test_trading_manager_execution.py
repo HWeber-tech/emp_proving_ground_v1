@@ -1730,7 +1730,7 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     assert "message" in throttle_metadata
     throttle_snapshot = throttle_metadata.get("throttle")
     assert isinstance(throttle_snapshot, Mapping)
-    assert throttle_snapshot.get("state") in {"rate_limited", "cooldown"}
+    assert throttle_snapshot.get("state") in {"rate_limited", "cooldown", "min_interval"}
     assert "message" in throttle_snapshot
     throttle_context = throttle_snapshot.get("metadata", {}).get("context", {})
     assert throttle_context.get("symbol") == "EURUSD"
@@ -1738,7 +1738,7 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
 
     snapshot = manager.get_trade_throttle_snapshot()
     assert snapshot is not None
-    assert snapshot.get("state") in {"rate_limited", "cooldown"}
+    assert snapshot.get("state") in {"rate_limited", "cooldown", "min_interval"}
 
     manager.configure_trade_throttle(None)
     assert manager.get_trade_throttle_snapshot() is None

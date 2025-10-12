@@ -99,6 +99,19 @@ Throttle snapshots include both the resolved `scope_key` and a human readable
 Missing metadata gracefully collapses to a shared "None" scope, ensuring events
 without identifying context remain governed.
 
+### Minimum spacing guardrails
+
+The throttle also enforces a configurable minimum interval between trades via
+`min_spacing_seconds`. When set, each scope must wait the specified number of
+seconds after a permitted order before another trade is allowed, even if the
+rate-limit window still has capacity. Breaches emit a `min_interval` state with
+an operator-friendly message such as “Throttled: minimum interval of 30 seconds
+between trades…”, plus a `retry_at` timestamp so teams know precisely when the
+strategy may resume. Snapshots surface the configured spacing in
+`metadata.min_spacing_seconds`, enabling dashboards to contrast per-strategy
+cooldowns with observed behaviour. This guardrail satisfies the roadmap’s need
+to damp oscillatory bursts while keeping throttle explanations transparent.
+
 This instrumentation provides the quantitative evidence required by the roadmap
 to demonstrate that throttling keeps the system responsive under bursty trading
 conditions.

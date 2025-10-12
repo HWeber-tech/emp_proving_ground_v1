@@ -2586,6 +2586,8 @@ def _build_bootstrap_workload(
     }
     if reason:
         metadata["reason"] = reason
+    metadata["workload_kind"] = "data_backbone"
+    metadata["supervised_components"] = ("data_backbone", "drift_monitor")
 
     async def _run_bootstrap() -> None:
         if reason:
@@ -2602,7 +2604,11 @@ def _build_bootstrap_workload(
 
 
 def _build_skip_workload(reason: str) -> RuntimeWorkload:
-    metadata = {"reason": reason}
+    metadata = {
+        "reason": reason,
+        "workload_kind": "data_backbone",
+        "supervised_components": (),
+    }
 
     async def _skip() -> None:
         logger.info("⏭️ Ingest skipped: %s", reason)
@@ -3054,6 +3060,8 @@ def build_professional_runtime_application(
                 "reason": ingest_config.reason,
                 "plan": dict(ingest_config.metadata),
             }
+            metadata["workload_kind"] = "data_backbone"
+            metadata["supervised_components"] = ("data_backbone", "drift_monitor")
 
             async def _run_institutional() -> None:
                 plan_metadata: dict[str, object] = {
@@ -4144,6 +4152,11 @@ def build_professional_runtime_application(
         "mode": app.config.run_mode.value,
         "protocol": app.config.connection_protocol.value,
     }
+    trading_metadata["workload_kind"] = "understanding_loop"
+    trading_metadata["supervised_components"] = (
+        "understanding_loop",
+        "trade_execution",
+    )
     risk_startup_callback = _prepare_trading_risk_enforcement(app, trading_metadata)
 
     trading = RuntimeWorkload(

@@ -1,12 +1,13 @@
 import asyncio
+import contextlib
 import json
 from collections import deque
+from dataclasses import replace
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any, Mapping
 
 import io
-import json
 import logging
 
 import pytest
@@ -57,6 +58,7 @@ from src.runtime import (
     build_professional_predator_app,
     build_professional_runtime_application,
 )
+from src.runtime.predator_app import ProfessionalPredatorApp
 from src.runtime.task_supervisor import TaskSupervisor
 from src.runtime.runtime_builder import (
     _normalise_ingest_plan_metadata,
@@ -463,6 +465,134 @@ async def test_professional_app_summary_includes_runtime_application(tmp_path):
             await runtime_app.shutdown()
         await app.shutdown()
 
+
+@pytest.mark.asyncio()
+async def test_runtime_builder_labels_workload_components(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_HEALTHCHECK_ENABLED": "false",
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    runtime_app: RuntimeApplication | None = None
+
+    try:
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=False,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        summary = runtime_app.summary()
+        ingestion_metadata = summary["ingestion"]["metadata"]
+        assert ingestion_metadata["workload_kind"] == "data_backbone"
+        assert tuple(ingestion_metadata["supervised_components"]) == (
+            "data_backbone",
+            "drift_monitor",
+        )
+
+        trading_metadata = summary["trading"]["metadata"]
+        assert trading_metadata["workload_kind"] == "understanding_loop"
+        assert tuple(trading_metadata["supervised_components"]) == (
+            "understanding_loop",
+            "trade_execution",
+        )
+    finally:
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_builder_ingest_failure_keeps_trading_running(
+    caplog: pytest.LogCaptureFixture,
+    tmp_path,
+):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_HEALTHCHECK_ENABLED": "false",
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    attempts = {"count": 0}
+    first_failure = asyncio.Event()
+    successful_retry = asyncio.Event()
+
+    runtime_app: RuntimeApplication | None = None
+    run_task: asyncio.Task[None] | None = None
+
+    try:
+        await app.start()
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=False,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        original_ingestion = runtime_app.ingestion
+        assert original_ingestion is not None
+
+        async def _flaky_ingest() -> None:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                first_failure.set()
+                raise RuntimeError("tier0 ingest failure")
+            successful_retry.set()
+            await asyncio.sleep(0)
+
+        runtime_app.ingestion = replace(
+            original_ingestion,
+            factory=_flaky_ingest,
+        )
+
+        caplog.set_level(logging.ERROR, logger="src.runtime.predator_app")
+
+        run_task = asyncio.create_task(runtime_app.run())
+
+        await asyncio.wait_for(first_failure.wait(), timeout=2.0)
+        await asyncio.sleep(0)
+
+        failure_messages = [
+            record.getMessage()
+            for record in caplog.records
+            if "tier0-ingest-workload failed" in record.getMessage()
+        ]
+        assert failure_messages, "expected supervised ingest failure logs"
+
+        await asyncio.wait_for(successful_retry.wait(), timeout=5.0)
+        await asyncio.sleep(0)
+
+        summary = runtime_app.summary()
+        trading_name = runtime_app.trading.name if runtime_app.trading else None
+        assert trading_name is not None
+        assert summary["workload_states"].get(trading_name) == "running"
+        assert attempts["count"] >= 2
+
+        trading_snapshots = runtime_app.task_snapshots()
+        assert any(
+            snapshot.get("name") == "professional-trading-workload"
+            and snapshot.get("state") == "running"
+            for snapshot in trading_snapshots
+        )
+    finally:
+        app.request_shutdown()
+        if run_task is not None:
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(run_task, timeout=5.0)
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
 
 @pytest.mark.asyncio()
 async def test_builder_requires_trading_manager(tmp_path):

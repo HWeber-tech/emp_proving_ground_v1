@@ -56,12 +56,13 @@
   - Progress: System validation evaluator now normalises structured reports into
     readiness snapshots, annotates failing checks, derives alert events, and
     publishes via the failover helper under pytest coverage so dashboards retain
-  degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L233-L889】【F:tests/operations/test_system_validation.py†L1-L195】
+    degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L233-L889】【F:tests/operations/test_system_validation.py†L1-L195】
   - Progress: Event bus failover helper now powers security, system validation,
     compliance readiness, incident response, evolution experiment, and evolution
     tuning publishers, replacing ad-hoc blanket handlers with typed errors and
     structured logging so transport regressions escalate consistently across
     modules.【F:src/operations/event_bus_failover.py†L1-L174】【F:src/operations/incident_response.py†L675-L715】【F:src/operations/evolution_experiments.py†L297-L342】【F:src/operations/evolution_tuning.py†L410-L433】【F:tests/operations/test_event_bus_failover.py†L1-L164】【F:tests/operations/test_incident_response.py†L135-L179】【F:tests/operations/test_evolution_experiments.py†L135-L191】【F:tests/operations/test_evolution_tuning.py†L226-L281】
+  - Progress: Dry-run audit ingestion now streams gz/bz2/xz JSONL archives and trims trailing `Z` suffixes from diary timestamps so compressed evidence packets drop straight into observability dashboards, with regression coverage over gzip/bz2 fixtures and the diary normaliser.【F:src/operations/dry_run_audit.py†L31-L671】【F:src/understanding/decision_diary.py†L41-L54】【F:tests/operations/test_dry_run_audit.py†L1-L47】
   - Progress: Async event-bus diagnostics now expose `task_snapshots()` (with TopicBus delegation) and the professional runtime records the resulting metadata under `event_bus_tasks`, giving observers a live roster of supervised worker and handler tasks while keeping the probe best-effort; regression coverage asserts the metadata contract and summary wiring.【F:src/core/_event_bus_impl.py†L291-L708】【F:src/runtime/predator_app.py†L1491-L1512】【F:tests/current/test_event_bus_task_supervision.py†L103-L156】【F:tests/current/test_runtime_professional_app.py†L433-L461】
   - Progress: Execution readiness telemetry now rides the shared failover
     helper, logging runtime publish failures, escalating unexpected exceptions,

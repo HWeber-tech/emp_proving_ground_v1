@@ -32,10 +32,7 @@
 
 - Document existing stubs, remove unused imports, and align module exports to
   prepare for incremental implementation.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
-- Progress: Intelligence package now drops the deprecated `specialized_predators`
-  shim entirely while the lazy loader in the package root continues to expose the
-  canonical ecosystem exports; direct module imports now raise deterministically
-  under regression coverage so callers move to the supported surface.【F:src/intelligence/__init__.py†L35-L175】【F:tests/current/test_public_api_intelligence.py†L52-L87】
+- Progress: Intelligence package now lazily exposes the canonical sentient adaptation engine from `src.sentient.adaptation`, keeps legacy imports working via a lightweight shim, and retires the old `specialized_predators` surface; regression coverage proves duplicate class definitions are gone and removed modules raise deterministically so callers migrate to the supported API.【F:src/intelligence/__init__.py†L23-L193】【F:src/sentient/adaptation/sentient_adaptation_engine.py†L1-L211】【F:src/intelligence/sentient_adaptation.py†L1-L22】【F:tests/current/test_public_api_intelligence.py†L1-L87】
 - Define telemetry contracts for population health, lineage snapshots, and
   experiment metadata; add placeholder tests to lock schemas.
 - Progress: Legacy portfolio evolution module now raises a descriptive

@@ -65,7 +65,7 @@ def test_throughput_monitor_snapshot_caches_until_record(
 
     call_count = {"value": 0}
 
-    original = ThroughputMonitor._percentile
+    original = ThroughputMonitor._percentile_sorted
 
     def _counting_percentile(values, percentile):
         call_count["value"] += 1
@@ -73,7 +73,7 @@ def test_throughput_monitor_snapshot_caches_until_record(
 
     monkeypatch.setattr(
         ThroughputMonitor,
-        "_percentile",
+        "_percentile_sorted",
         staticmethod(_counting_percentile),
     )
 

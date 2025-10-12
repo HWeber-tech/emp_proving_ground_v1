@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from bisect import bisect_left, insort
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from statistics import mean
-from typing import Deque, Iterable, Mapping
+import math
+from typing import Deque, Iterable, Mapping, Sequence
 
 UTC = timezone.utc
 
@@ -27,8 +28,13 @@ class ThroughputMonitor:
     def __init__(self, *, window: int = 256) -> None:
         if window <= 0:
             raise ValueError("window must be positive")
-        self._window = window
-        self._samples: Deque[ThroughputSample] = deque(maxlen=window)
+        self._window = int(window)
+        self._samples: Deque[ThroughputSample] = deque()
+        self._durations_sorted: list[float] = []
+        self._duration_sum: float = 0.0
+        self._lag_values_sorted: list[float] = []
+        self._lag_sum: float = 0.0
+        self._lag_count: int = 0
         self._last_snapshot: dict[str, float | int | None] | None = None
         self._dirty = True
 
@@ -76,14 +82,19 @@ class ThroughputMonitor:
                 ingested_at = ingested_at.astimezone(UTC)
             lag_ms = max((started_at - ingested_at).total_seconds() * 1000.0, 0.0)
 
-        self._samples.append(
-            ThroughputSample(
-                started_at=started_at,
-                finished_at=finished_at,
-                duration_ms=duration_ms,
-                lag_ms=lag_ms,
-            )
+        sample = ThroughputSample(
+            started_at=started_at,
+            finished_at=finished_at,
+            duration_ms=duration_ms,
+            lag_ms=lag_ms,
         )
+
+        if len(self._samples) == self._window:
+            removed = self._samples.popleft()
+            self._remove_sample_stats(removed)
+
+        self._samples.append(sample)
+        self._add_sample_stats(sample)
         self._dirty = True
 
     def snapshot(self) -> Mapping[str, float | int | None]:
@@ -101,12 +112,17 @@ class ThroughputMonitor:
         """Clear all recorded samples."""
 
         self._samples.clear()
+        self._durations_sorted.clear()
+        self._duration_sum = 0.0
+        self._lag_values_sorted.clear()
+        self._lag_sum = 0.0
+        self._lag_count = 0
         self._last_snapshot = None
         self._dirty = True
 
     def _compute_snapshot(self) -> dict[str, float | int | None]:
-        samples = list(self._samples)
-        if not samples:
+        count = len(self._samples)
+        if count == 0:
             return {
                 "samples": 0,
                 "avg_processing_ms": None,
@@ -117,46 +133,95 @@ class ThroughputMonitor:
                 "throughput_per_min": None,
             }
 
-        durations = [sample.duration_ms for sample in samples]
-        lag_values = [sample.lag_ms for sample in samples if sample.lag_ms is not None]
+        avg_processing = self._duration_sum / count
+        p95_processing = self._percentile_sorted(self._durations_sorted, 95.0)
+        max_processing = self._durations_sorted[-1]
 
-        throughput_per_min = self._calculate_throughput_per_minute(samples)
+        if self._lag_count:
+            avg_lag = self._lag_sum / self._lag_count
+            max_lag = self._lag_values_sorted[-1]
+        else:
+            avg_lag = None
+            max_lag = None
+
+        throughput_per_min = self._calculate_throughput_per_minute()
 
         return {
-            "samples": len(samples),
-            "avg_processing_ms": mean(durations),
-            "p95_processing_ms": self._percentile(durations, 95),
-            "max_processing_ms": max(durations),
-            "avg_lag_ms": mean(lag_values) if lag_values else None,
-            "max_lag_ms": max(lag_values) if lag_values else None,
+            "samples": count,
+            "avg_processing_ms": avg_processing,
+            "p95_processing_ms": p95_processing,
+            "max_processing_ms": max_processing,
+            "avg_lag_ms": avg_lag,
+            "max_lag_ms": max_lag,
             "throughput_per_min": throughput_per_min,
         }
 
-    def _calculate_throughput_per_minute(
-        self, samples: Iterable[ThroughputSample]
-    ) -> float | None:
-        ordered = list(samples)
-        if len(ordered) < 2:
+    def _calculate_throughput_per_minute(self) -> float | None:
+        if len(self._samples) < 2:
             return None
 
-        start = ordered[0].started_at
-        end = ordered[-1].finished_at
+        start = self._samples[0].started_at
+        end = self._samples[-1].finished_at
         elapsed_seconds = (end - start).total_seconds()
         if elapsed_seconds <= 0:
             return None
-        return len(ordered) / (elapsed_seconds / 60.0)
+        return len(self._samples) / (elapsed_seconds / 60.0)
+
+    def _add_sample_stats(self, sample: ThroughputSample) -> None:
+        duration = float(sample.duration_ms)
+        insort(self._durations_sorted, duration)
+        self._duration_sum += duration
+
+        if sample.lag_ms is None:
+            return
+
+        lag = float(sample.lag_ms)
+        insort(self._lag_values_sorted, lag)
+        self._lag_sum += lag
+        self._lag_count += 1
+
+    def _remove_sample_stats(self, sample: ThroughputSample) -> None:
+        duration = float(sample.duration_ms)
+        self._remove_sorted_value(self._durations_sorted, duration)
+        self._duration_sum -= duration
+
+        if sample.lag_ms is None:
+            return
+
+        lag = float(sample.lag_ms)
+        self._remove_sorted_value(self._lag_values_sorted, lag)
+        self._lag_sum -= lag
+        self._lag_count = max(self._lag_count - 1, 0)
 
     @staticmethod
-    def _percentile(values: Iterable[float], percentile: float) -> float:
-        values_list = sorted(values)
-        if not values_list:
+    def _remove_sorted_value(container: list[float], value: float) -> None:
+        index = bisect_left(container, value)
+        length = len(container)
+        tolerance = 1e-9
+        while index < length:
+            candidate = container[index]
+            if math.isclose(candidate, value, rel_tol=tolerance, abs_tol=tolerance):
+                container.pop(index)
+                return
+            if candidate > value and not math.isclose(candidate, value, rel_tol=tolerance, abs_tol=tolerance):
+                break
+            index += 1
+
+        for idx, candidate in enumerate(container):
+            if math.isclose(candidate, value, rel_tol=tolerance, abs_tol=tolerance):
+                container.pop(idx)
+                return
+
+    @staticmethod
+    def _percentile_sorted(values: Sequence[float], percentile: float) -> float:
+        if not values:
             return 0.0
-        if percentile <= 0:
-            return values_list[0]
-        if percentile >= 100:
-            return values_list[-1]
-        rank = (percentile / 100.0) * (len(values_list) - 1)
+        if percentile <= 0.0:
+            return values[0]
+        if percentile >= 100.0:
+            return values[-1]
+        rank = (percentile / 100.0) * (len(values) - 1)
         lower = int(rank)
-        upper = min(lower + 1, len(values_list) - 1)
+        upper = min(lower + 1, len(values) - 1)
         weight = rank - lower
-        return values_list[lower] * (1.0 - weight) + values_list[upper] * weight
+        return values[lower] * (1.0 - weight) + values[upper] * weight

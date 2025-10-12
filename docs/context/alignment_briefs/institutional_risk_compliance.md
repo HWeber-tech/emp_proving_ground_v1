@@ -69,6 +69,7 @@
   publish the same enriched metadata through broker events so responders inherit
   a single audited context across telemetry surfaces under regression
   coverage.【F:src/trading/risk/risk_gateway.py†L232-L430】【F:tests/current/test_risk_gateway_validation.py†L1-L213】【F:tests/trading/test_fix_broker_interface_events.py†L15-L152】
+- Progress: A Phase II completion refresh audit now captures the new `stop_loss_pips` regressions that prove percentage conversion and floor clamping, recording the closed coverage gap and follow-up telemetry recommendation for ingest teams.【F:docs/reports/governance_risk_phase2_code_audit_refresh.md†L1-L34】【F:tests/current/test_risk_gateway_validation.py†L210-L276】
 - Completion: Risk gateway now enforces confidence-notional, leverage, and sector exposure caps derived from `RiskConfig`, rejecting violations with reason-coded telemetry and guardrail coverage for each path.【F:src/trading/risk/risk_gateway.py†L336-L513】【F:tests/current/test_risk_gateway_validation.py†L452-L576】
 - Progress: Professional runtime summaries now pin the shared risk API runbook,
   attach runtime metadata, merge resolved interface details, and surface

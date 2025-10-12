@@ -474,6 +474,81 @@ def test_assess_performance_health_flags_violations(
     } <= set(resource_result["violations"].keys())
     assert "throttle" not in assessment
 
+
+@pytest.mark.asyncio()
+async def test_assess_performance_health_surfaces_throttle_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={
+            "max_trades": 1,
+            "window_seconds": 60.0,
+            "scope_fields": ("strategy_id", "symbol"),
+        },
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2105,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(intent, "event_id", "throttle-meta-1")
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=[intent, intent])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(intent)
+    await manager.on_trade_intent(intent)
+
+    assessment = manager.assess_performance_health(
+        max_processing_ms=1_000.0,
+        max_lag_ms=1_000.0,
+    )
+
+    throttle_summary = assessment.get("throttle")
+    assert isinstance(throttle_summary, Mapping)
+    assert throttle_summary.get("state") in {
+        "open",
+        "rate_limited",
+        "cooldown",
+        "min_interval",
+    }
+    assert "remaining_trades" in throttle_summary
+    assert throttle_summary["remaining_trades"] is not None
+    assert "window_utilisation" in throttle_summary
+    utilisation = throttle_summary["window_utilisation"]
+    assert utilisation is None or 0.0 <= float(utilisation) <= 1.0
+    assert "retry_in_seconds" in throttle_summary
+    retry_seconds = throttle_summary["retry_in_seconds"]
+    assert retry_seconds is None or float(retry_seconds) >= 0.0
+    assert "window_reset_in_seconds" in throttle_summary
+    window_reset = throttle_summary["window_reset_in_seconds"]
+    assert window_reset is None or float(window_reset) >= 0.0
+    context = throttle_summary.get("context")
+    assert isinstance(context, Mapping)
+    assert context.get("symbol") == "EURUSD"
+    scope = throttle_summary.get("scope")
+    assert isinstance(scope, Mapping)
+    assert scope.get("strategy_id") == "alpha"
+    assert "scope_key" in throttle_summary
+    assert isinstance(throttle_summary["scope_key"], list)
+
 @pytest.mark.asyncio()
 async def test_trading_manager_records_execution_stats(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _noop(*_args, **_kwargs) -> None:

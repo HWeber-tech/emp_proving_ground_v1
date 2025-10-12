@@ -60,7 +60,17 @@ assessment above it:
 - Validates CPU and memory samples from `ResourceUsageMonitor` using optional
   limits (`max_cpu_percent`, `max_memory_mb`, `max_memory_percent`).
 - Surfaces the throttle state (active/reason/message) alongside the health
-  summary so operators can see whether rate limits contributed to a slowdown.
+  summary so operators can see whether rate limits contributed to a slowdown,
+  now including remaining trade credits, window utilisation, retry timers,
+  and scope metadata so dashboards can display the exact guardrail posture
+  without re-parsing the full snapshot payload.
+
+When populated, `assessment["throttle"]` contains:
+
+- `remaining_trades` and `max_trades` for the active scope
+- `window_utilisation`, `window_reset_in_seconds`, and `window_reset_at`
+- `retry_in_seconds` / `retry_at` countdown values
+- The resolved `context`, `scope`, and `scope_key` entries used to evaluate the throttle
 
 The helper returns a dictionary containing the component verdicts (throughput,
 backlog, resource) plus an overall `healthy` flag. When resource thresholds are

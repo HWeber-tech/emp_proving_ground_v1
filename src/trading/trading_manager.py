@@ -1999,13 +1999,36 @@ class TradingManager:
             }
             metadata = throttle_snapshot.get("metadata")
             if isinstance(metadata, MappingABC):
+                if "max_trades" in metadata:
+                    summary["max_trades"] = metadata.get("max_trades")
+                if "remaining_trades" in metadata:
+                    summary["remaining_trades"] = metadata.get("remaining_trades")
+                if "window_utilisation" in metadata:
+                    summary["window_utilisation"] = metadata.get("window_utilisation")
                 retry_at = metadata.get("retry_at")
                 if retry_at is not None:
                     summary["retry_at"] = retry_at
+                if "retry_in_seconds" in metadata:
+                    summary["retry_in_seconds"] = metadata.get("retry_in_seconds")
+                if "window_reset_in_seconds" in metadata:
+                    summary["window_reset_in_seconds"] = metadata.get(
+                        "window_reset_in_seconds"
+                    )
+                if "window_reset_at" in metadata:
+                    summary["window_reset_at"] = metadata.get("window_reset_at")
+                for field in ("min_spacing_seconds", "cooldown_seconds"):
+                    if field in metadata:
+                        summary[field] = metadata.get(field)
                 context = metadata.get("context")
                 if isinstance(context, MappingABC) and context:
                     summary["context"] = dict(context)
+                scope = metadata.get("scope")
+                if isinstance(scope, MappingABC) and scope:
+                    summary["scope"] = dict(scope)
             throttle_summary = summary
+            scope_key = throttle_snapshot.get("scope_key")
+            if isinstance(scope_key, (list, tuple)) and scope_key:
+                summary["scope_key"] = list(scope_key)
 
         overall_checks: list[bool] = [bool(throughput_health.get("healthy"))]
         if backlog_result["evaluated"]:

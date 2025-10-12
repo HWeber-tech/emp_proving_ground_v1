@@ -428,3 +428,34 @@ async def test_professional_predator_app_summary_exposes_risk_api_errors():
     assert interface_details.get("manager") == "broken"
 
     await app.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_professional_predator_app_summary_includes_event_bus_tasks():
+    config = SystemConfig()
+    event_bus = EventBus()
+    sensory = _StubSensory()
+    broker = _StubBroker()
+
+    await event_bus.start()
+
+    app = ProfessionalPredatorApp(
+        config=config,
+        event_bus=event_bus,
+        sensory_organ=sensory,
+        broker_interface=broker,
+        fix_connection_manager=_StubFixManager(),
+        sensors={"stub": _StubSensor()},
+    )
+
+    await app.start()
+    try:
+        summary = app.summary()
+        task_entries = summary.get("event_bus_tasks")
+        assert isinstance(task_entries, list)
+        assert any(
+            entry.get("metadata", {}).get("task") == "worker" for entry in task_entries
+        )
+    finally:
+        await app.shutdown()
+        await event_bus.stop()

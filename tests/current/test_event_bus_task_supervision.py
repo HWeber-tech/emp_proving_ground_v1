@@ -3,7 +3,7 @@ from typing import Any, Awaitable
 
 import pytest
 
-from src.core.event_bus import AsyncEventBus, Event
+from src.core.event_bus import AsyncEventBus, Event, TopicBus
 
 
 class _RecordingFactory:
@@ -98,6 +98,31 @@ async def test_event_bus_default_supervisor_tracks_worker_tasks() -> None:
 
     assert supervisor is not None
     assert supervisor.active_count == 0
+
+
+@pytest.mark.asyncio()
+async def test_event_bus_task_snapshots_expose_worker_metadata() -> None:
+    bus = AsyncEventBus()
+    await bus.start()
+    try:
+        snapshots = bus.task_snapshots()
+        assert snapshots, "Expected worker task snapshot when bus is running"
+        assert any(
+            entry.get("metadata", {}).get("task") == "worker" for entry in snapshots
+        )
+    finally:
+        await bus.stop()
+
+
+@pytest.mark.asyncio()
+async def test_topic_bus_task_snapshots_delegate() -> None:
+    bus = AsyncEventBus()
+    topic_bus = TopicBus(bus)
+    await bus.start()
+    try:
+        assert topic_bus.task_snapshots() == bus.task_snapshots()
+    finally:
+        await bus.stop()
 
 
 @pytest.mark.asyncio()

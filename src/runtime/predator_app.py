@@ -1496,6 +1496,21 @@ class ProfessionalPredatorApp:
                 event_bus_payload["markdown"] = markdown
             summary_payload["event_bus"] = event_bus_payload
 
+        bus_task_snapshots: tuple[dict[str, object], ...] = ()
+        event_bus_instance = self.event_bus
+        if event_bus_instance is not None:
+            snapshot_fn = getattr(event_bus_instance, "task_snapshots", None)
+            if callable(snapshot_fn):
+                try:
+                    bus_task_snapshots = tuple(snapshot_fn())
+                except Exception:  # pragma: no cover - diagnostics only
+                    self._logger.debug(
+                        "Failed to capture event bus task snapshots for summary",
+                        exc_info=True,
+                    )
+        if bus_task_snapshots:
+            summary_payload["event_bus_tasks"] = [dict(entry) for entry in bus_task_snapshots]
+
         if self._last_system_validation_snapshot is not None:
             system_validation_snapshot = self._last_system_validation_snapshot
             system_validation_payload: dict[str, object] = {

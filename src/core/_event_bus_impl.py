@@ -288,6 +288,22 @@ class AsyncEventBus:
             self._record_dropped_event()
             return None
 
+    def task_snapshots(self) -> tuple[dict[str, object], ...]:
+        """Expose metadata describing supervised event-bus tasks."""
+
+        supervisor = self._task_supervisor
+        if supervisor is None:
+            return ()
+        describe = getattr(supervisor, "describe", None)
+        if not callable(describe):
+            return ()
+        try:
+            snapshots = describe()
+        except Exception:  # pragma: no cover - diagnostics should stay best-effort
+            logger.debug("Failed to describe event bus supervised tasks", exc_info=True)
+            return ()
+        return tuple(snapshots)
+
     async def start(self) -> None:
         """Start worker loop on current event loop."""
         if self._running:
@@ -682,6 +698,14 @@ class TopicBus:
             except Exception:
                 logger.exception("TopicBus.publish_sync unexpected error during fan-out")
                 return 0
+
+    def task_snapshots(self) -> tuple[dict[str, object], ...]:
+        """Delegate to the underlying async bus for supervised task metadata."""
+
+        snapshots = getattr(self._bus, "task_snapshots", None)
+        if not callable(snapshots):
+            return ()
+        return snapshots()
 
     def subscribe_topic(
         self,

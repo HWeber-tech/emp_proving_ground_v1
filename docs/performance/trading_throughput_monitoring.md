@@ -134,6 +134,20 @@ strategy may resume. Snapshots surface the configured spacing in
 cooldowns with observed behaviour. This guardrail satisfies the roadmap’s need
 to damp oscillatory bursts while keeping throttle explanations transparent.
 
+### Runtime configuration extras
+
+`build_professional_predator_app()` now resolves trade throttle settings straight
+from `SystemConfig.extras`. It first honours a JSON blob (`TRADE_THROTTLE_CONFIG`)
+or file path (`TRADE_THROTTLE_CONFIG_PATH`), then normalises individual knobs
+such as `TRADE_THROTTLE_NAME`, `TRADE_THROTTLE_MAX_TRADES`,
+`TRADE_THROTTLE_WINDOW_SECONDS`, `TRADE_THROTTLE_MIN_SPACING_SECONDS`,
+`TRADE_THROTTLE_COOLDOWN_SECONDS`, `TRADE_THROTTLE_MULTIPLIER`, and
+`TRADE_THROTTLE_SCOPE_FIELDS`. The resulting payload is passed into
+`BootstrapRuntime(trade_throttle=…)`, ensuring paper pilots and supervised boots
+can dial governance guardrails via environment variables or config files without
+touching code, while regression coverage asserts the extras path produces the
+expected scope-aware throttle snapshot.【F:src/runtime/predator_app.py†L1723-L2470】【F:src/runtime/bootstrap_runtime.py†L123-L201】【F:tests/runtime/test_trade_throttle_configuration.py†L1-L55】
+
 This instrumentation provides the quantitative evidence required by the roadmap
 to demonstrate that throttling keeps the system responsive under bursty trading
 conditions.

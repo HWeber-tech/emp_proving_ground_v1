@@ -29,6 +29,11 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     first_meta = first.snapshot.get("metadata", {})
     assert first_meta.get("remaining_trades") == 0
     assert first_meta.get("retry_in_seconds") is None
+    assert first_meta.get("window_utilisation") == pytest.approx(1.0)
+    assert first_meta.get("window_reset_in_seconds") == pytest.approx(60.0)
+    reset_at = first_meta.get("window_reset_at")
+    assert isinstance(reset_at, str)
+    assert datetime.fromisoformat(reset_at) == base + timedelta(seconds=60)
 
     second_time = base + timedelta(seconds=5)
     second = throttle.evaluate(now=second_time, metadata={"symbol": "EURUSD"})
@@ -50,6 +55,14 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
         expected_retry_seconds
     )
     assert second_metadata.get("remaining_trades") == 0
+    assert second_metadata.get("window_utilisation") == pytest.approx(1.0)
+    expected_reset = base + timedelta(seconds=60)
+    reset_at_second = second_metadata.get("window_reset_at")
+    assert isinstance(reset_at_second, str)
+    assert datetime.fromisoformat(reset_at_second) == expected_reset
+    assert second_metadata.get("window_reset_in_seconds") == pytest.approx(
+        max((expected_reset - second_time).total_seconds(), 0.0)
+    )
     context = second_metadata.get("context", {})
     assert context.get("symbol") == "EURUSD"
 
@@ -64,6 +77,12 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
         remaining = max((third.retry_at - third_time).total_seconds(), 0.0)
         third_meta = third.snapshot.get("metadata", {})
         assert third_meta.get("retry_in_seconds") == pytest.approx(remaining)
+        reset_at_third = third_meta.get("window_reset_at")
+        assert isinstance(reset_at_third, str)
+        reset_dt_third = datetime.fromisoformat(reset_at_third)
+        assert third_meta.get("window_reset_in_seconds") == pytest.approx(
+            max((reset_dt_third - third_time).total_seconds(), 0.0)
+        )
     else:
         # Without cooldown, the retry time should remain anchored to the rolling window.
         assert third.allowed is False
@@ -72,12 +91,20 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
         assert third.snapshot["state"] == "rate_limited"
         third_meta = third.snapshot.get("metadata", {})
         assert third_meta.get("retry_in_seconds") == pytest.approx(45.0)
+        reset_at_third = third_meta.get("window_reset_at")
+        assert isinstance(reset_at_third, str)
+        reset_dt_third = datetime.fromisoformat(reset_at_third)
+        assert third_meta.get("window_reset_in_seconds") == pytest.approx(
+            max((reset_dt_third - third_time).total_seconds(), 0.0)
+        )
 
     resume_time = base + timedelta(seconds=75)
     fourth = throttle.evaluate(now=resume_time, metadata={"symbol": "EURUSD"})
     assert fourth.allowed is True
     assert fourth.snapshot["state"] == "open"
     assert fourth.retry_at is None
+    fourth_meta = fourth.snapshot.get("metadata", {})
+    assert fourth_meta.get("window_utilisation") == pytest.approx(1.0)
 
 
 def test_trade_throttle_scopes_by_metadata_field() -> None:
@@ -97,12 +124,19 @@ def test_trade_throttle_scopes_by_metadata_field() -> None:
     assert alpha_first.allowed is True
     alpha_meta = alpha_first.snapshot.get("metadata", {})
     assert alpha_meta.get("remaining_trades") == 0
+    assert alpha_meta.get("window_utilisation") == pytest.approx(1.0)
+    alpha_reset = alpha_meta.get("window_reset_at")
+    assert isinstance(alpha_reset, str)
+    assert datetime.fromisoformat(alpha_reset) == base + timedelta(seconds=60)
+    assert alpha_meta.get("window_reset_in_seconds") == pytest.approx(60.0)
 
     beta_first = throttle.evaluate(
         now=base + timedelta(seconds=1),
         metadata={"strategy_id": "beta", "symbol": "EURUSD"},
     )
     assert beta_first.allowed is True, "independent scope should allow different strategy"
+    beta_meta = beta_first.snapshot.get("metadata", {})
+    assert beta_meta.get("window_utilisation") == pytest.approx(1.0)
 
     alpha_second = throttle.evaluate(
         now=base + timedelta(seconds=2),
@@ -120,6 +154,8 @@ def test_trade_throttle_scopes_by_metadata_field() -> None:
         now=base + timedelta(seconds=3), metadata={"symbol": "EURUSD"}
     )
     assert missing_scope_first.allowed is True
+    missing_scope_meta = missing_scope_first.snapshot.get("metadata", {})
+    assert missing_scope_meta.get("window_utilisation") == pytest.approx(1.0)
 
     missing_scope_second = throttle.evaluate(
         now=base + timedelta(seconds=4), metadata={"symbol": "EURUSD"}
@@ -143,6 +179,8 @@ def test_trade_throttle_enforces_minimum_spacing() -> None:
     first = throttle.evaluate(now=base, metadata={"strategy_id": "alpha"})
     assert first.allowed is True
     assert first.snapshot["state"] == "open"
+    first_meta = first.snapshot.get("metadata", {})
+    assert first_meta.get("window_utilisation") == pytest.approx(0.1)
 
     second = throttle.evaluate(
         now=base + timedelta(seconds=10), metadata={"strategy_id": "alpha"}
@@ -158,6 +196,13 @@ def test_trade_throttle_enforces_minimum_spacing() -> None:
     assert metadata.get("min_spacing_seconds") == 30.0
     assert metadata.get("recent_trades") == 1
     assert metadata.get("retry_in_seconds") == pytest.approx(20.0)
+    assert metadata.get("window_utilisation") == pytest.approx(0.1)
+    reset_at = metadata.get("window_reset_at")
+    assert isinstance(reset_at, str)
+    reset_dt = datetime.fromisoformat(reset_at)
+    assert metadata.get("window_reset_in_seconds") == pytest.approx(
+        max((reset_dt - (base + timedelta(seconds=10))).total_seconds(), 0.0)
+    )
 
     third = throttle.evaluate(
         now=base + timedelta(seconds=35), metadata={"strategy_id": "alpha"}

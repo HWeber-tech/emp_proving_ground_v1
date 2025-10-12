@@ -201,6 +201,17 @@ class TradeThrottle:
 
         recent_trades = len(state.timestamps)
 
+        window_reset_at: datetime | None = None
+        window_reset_in_seconds: float | None = None
+        if state.timestamps:
+            oldest_trade = state.timestamps[0]
+            reset_target = oldest_trade + window_duration
+            window_reset_at = reset_target
+            window_reset_in_seconds = max(
+                (reset_target - moment).total_seconds(),
+                0.0,
+            )
+
         snapshot = self._build_snapshot(
             state=throttle_state,
             active=active,
@@ -213,6 +224,8 @@ class TradeThrottle:
             recent_trades=recent_trades,
             cooldown_until=state.cooldown_until,
             moment=moment,
+            window_reset_at=window_reset_at,
+            window_reset_in_seconds=window_reset_in_seconds,
         )
         self._last_snapshot = snapshot
 
@@ -243,6 +256,8 @@ class TradeThrottle:
             recent_trades=0,
             cooldown_until=None,
             moment=now,
+            window_reset_at=None,
+            window_reset_in_seconds=None,
         )
 
     def _build_snapshot(
@@ -259,6 +274,8 @@ class TradeThrottle:
         recent_trades: int,
         cooldown_until: datetime | None,
         moment: datetime,
+        window_reset_at: datetime | None,
+        window_reset_in_seconds: float | None,
     ) -> Mapping[str, Any]:
         remaining_trades = max(self._config.max_trades - int(recent_trades), 0)
 
@@ -286,6 +303,13 @@ class TradeThrottle:
             meta_payload["cooldown_until"] = cooldown_until.astimezone(UTC).isoformat()
         if metadata:
             meta_payload["context"] = dict(metadata)
+        utilisation = recent_trades / float(self._config.max_trades)
+        utilisation = min(max(utilisation, 0.0), 1.0)
+        meta_payload["window_utilisation"] = utilisation
+        if window_reset_at is not None:
+            meta_payload["window_reset_at"] = window_reset_at.astimezone(UTC).isoformat()
+        if window_reset_in_seconds is not None:
+            meta_payload["window_reset_in_seconds"] = max(window_reset_in_seconds, 0.0)
 
         retry_iso: str | None = None
         retry_in_seconds: float | None = None

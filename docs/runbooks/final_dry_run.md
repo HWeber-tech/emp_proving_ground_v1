@@ -20,6 +20,11 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
      --metadata sprint=phase2 --metadata run_id=final-dry-run-2025-10-12 \
      -- python3 main.py --symbols EURUSD,GBPUSD
    ```
+   The harness performs live log monitoring: stderr lines and structured logs
+   with `level=error`/`critical`/`fatal` are captured immediately as harness
+   incidents so operators can react before the post-run audit finishes. Pass
+   `--no-log-monitor` if the runtime emits noisy warnings that should only be
+   handled during the evidence review.
 3. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
 
 ## Evidence bundle

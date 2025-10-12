@@ -153,6 +153,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Skip copying raw logs/diary/performance artefacts into the packet.",
     )
     parser.add_argument(
+        "--no-log-monitor",
+        action="store_true",
+        help=(
+            "Disable real-time log level monitoring during the run (post-run audit still "
+            "captures issues)."
+        ),
+    )
+    parser.add_argument(
         "--review-output",
         type=Path,
         help="Write the review brief to this path (use '-' for stdout).",
@@ -282,6 +290,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         minimum_sharpe_ratio=args.minimum_sharpe_ratio,
         metadata=metadata_pairs,
         environment=env_pairs or None,
+        monitor_log_levels=not args.no_log_monitor,
     )
 
     workflow = run_final_dry_run_workflow(

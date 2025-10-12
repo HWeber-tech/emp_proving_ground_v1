@@ -30,6 +30,8 @@ __all__ = [
 
 
 _MIN_DURATION_TOLERANCE = timedelta(seconds=0.1)
+_LOG_FAIL_LEVELS = ("error", "exception", "critical", "fatal")
+_LOG_WARN_LEVELS = ("warning", "warn")
 
 
 @dataclass(slots=True, frozen=True)
@@ -50,6 +52,7 @@ class FinalDryRunConfig:
     minimum_sharpe_ratio: float | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
     environment: Mapping[str, str] | None = None
+    monitor_log_levels: bool = True
 
     def __post_init__(self) -> None:
         if not self.command:
@@ -95,6 +98,8 @@ class FinalDryRunConfig:
             }
             object.__setattr__(self, "environment", normalised_env)
 
+        object.__setattr__(self, "monitor_log_levels", bool(self.monitor_log_levels))
+
 
 @dataclass(slots=True, frozen=True)
 class HarnessIncident:
@@ -139,6 +144,7 @@ class FinalDryRunResult:
         statuses: list[DryRunStatus] = [self.summary.status]
         if self.sign_off is not None:
             statuses.append(self.sign_off.status)
+        statuses.extend(incident.severity for incident in self.incidents)
         if any(status is DryRunStatus.fail for status in statuses):
             return DryRunStatus.fail
         if any(status is DryRunStatus.warn for status in statuses):
@@ -161,6 +167,8 @@ async def perform_final_dry_run(
     raw_log_path = config.log_directory / f"final_dry_run_{slug}.log"
 
     incidents: list[HarnessIncident] = []
+    incident_lock = asyncio.Lock()
+    incident_keys: set[tuple[str, str, str, str]] = set()
 
     log_lock = asyncio.Lock()
     log_file = log_path.open("w", encoding="utf-8")
@@ -193,6 +201,15 @@ async def perform_final_dry_run(
             text = line.decode("utf-8", errors="replace").rstrip("\n")
             observed_at = datetime.now(tz=UTC)
             record = _normalise_log_line(text, stream_name, observed_at)
+            await _maybe_record_log_incident(
+                record,
+                stream_name,
+                observed_at,
+                config,
+                incidents,
+                incident_keys,
+                incident_lock,
+            )
             json_line = json.dumps(record, separators=(",", ":"))
             async with log_lock:
                 log_file.write(json_line + "\n")
@@ -439,3 +456,80 @@ def _normalise_log_line(text: str, stream: str, observed_at: datetime) -> Mappin
         "payload": payload,
     }
     return record
+
+
+async def _maybe_record_log_incident(
+    record: Mapping[str, Any],
+    stream: str,
+    observed_at: datetime,
+    config: FinalDryRunConfig,
+    incidents: list[HarnessIncident],
+    incident_keys: set[tuple[str, str, str, str]],
+    lock: asyncio.Lock,
+) -> None:
+    if not config.monitor_log_levels:
+        return
+
+    level = str(record.get("level") or "").lower()
+    severity: DryRunStatus | None = None
+    if level in _LOG_FAIL_LEVELS or (not level and stream == "stderr"):
+        severity = DryRunStatus.fail
+    elif level in _LOG_WARN_LEVELS:
+        severity = DryRunStatus.warn
+    elif stream == "stderr":
+        severity = DryRunStatus.fail
+
+    if severity is None:
+        return
+
+    message = _derive_incident_message(record)
+    event = record.get("event")
+    key = (severity.value, stream, level, message)
+
+    async with lock:
+        if key in incident_keys:
+            return
+        incident_keys.add(key)
+        incidents.append(
+            HarnessIncident(
+                severity=severity,
+                occurred_at=observed_at,
+                message=_format_incident_message(level, stream, message, event),
+                metadata={
+                    "level": level or None,
+                    "stream": stream,
+                    "event": event,
+                },
+            )
+        )
+
+
+def _derive_incident_message(record: Mapping[str, Any]) -> str:
+    message = record.get("message")
+    if isinstance(message, str) and message.strip():
+        return message
+    payload = record.get("payload")
+    if isinstance(payload, Mapping):
+        structured = payload.get("structured")
+        if isinstance(structured, Mapping):
+            structured_message = structured.get("message")
+            if isinstance(structured_message, str) and structured_message.strip():
+                return structured_message
+            structured_event = structured.get("event")
+            if isinstance(structured_event, str) and structured_event.strip():
+                return structured_event
+        raw = payload.get("raw")
+        if isinstance(raw, str) and raw.strip():
+            return raw
+    return "runtime emitted log entry"
+
+
+def _format_incident_message(
+    level: str,
+    stream: str,
+    message: str,
+    event: Any,
+) -> str:
+    level_token = level.upper() if level else stream.upper()
+    suffix = f" — event: {event}" if event else ""
+    return f"Runtime emitted {level_token} log on {stream}: {message}{suffix}"

@@ -50,6 +50,46 @@ sys.exit(0)
 """
 
 
+_ERROR_ONCE_SCRIPT = r"""
+import datetime
+import json
+import signal
+import sys
+import time
+
+_running = True
+
+
+def _stop(_signum, _frame):  # pragma: no cover - signal path
+    global _running
+    _running = False
+
+
+signal.signal(signal.SIGINT, _stop)
+signal.signal(signal.SIGTERM, _stop)
+
+
+def _emit(level, event, message):
+    payload = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "level": level,
+        "event": event,
+        "message": message,
+    }
+    print(json.dumps(payload), flush=True)
+
+
+_emit("info", "startup", "Runtime initialised")
+_emit("error", "unexpected", "Boom! encountered fatal condition")
+
+start = time.time()
+while _running and time.time() - start < 4.0:
+    time.sleep(0.1)
+
+sys.exit(0)
+"""
+
+
 @pytest.mark.slow
 def test_final_dry_run_success(tmp_path):
     config = FinalDryRunConfig(
@@ -171,3 +211,41 @@ async def test_perform_final_dry_run_supervises_background_tasks(tmp_path):
     assert supervisor.active_count == 0
 
     await supervisor.cancel_all()
+
+
+def test_final_dry_run_records_log_incidents(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _ERROR_ONCE_SCRIPT],
+        duration=timedelta(seconds=0.6),
+        required_duration=timedelta(seconds=0.3),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.5,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.status is DryRunStatus.fail
+    assert any(
+        incident.severity is DryRunStatus.fail and "ERROR log" in incident.message
+        for incident in result.incidents
+    )
+
+
+def test_final_dry_run_monitor_can_be_disabled(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _ERROR_ONCE_SCRIPT],
+        duration=timedelta(seconds=0.6),
+        required_duration=timedelta(seconds=0.3),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.5,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        monitor_log_levels=False,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.status is DryRunStatus.fail
+    assert not result.incidents

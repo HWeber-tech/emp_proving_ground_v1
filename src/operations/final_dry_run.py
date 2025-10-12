@@ -206,6 +206,13 @@ class _LogStats:
             }
 
 
+_PROGRESS_SEVERITY_ORDER: Mapping[DryRunStatus, int] = {
+    DryRunStatus.fail: 3,
+    DryRunStatus.warn: 2,
+    DryRunStatus.pass_: 1,
+}
+
+
 class _ProgressReporter:
     """Persist periodic progress snapshots for the dry run harness."""
 
@@ -225,6 +232,7 @@ class _ProgressReporter:
         self._interval_seconds = max(interval.total_seconds(), 0.01)
         self._status = "pending"
         self._phase = "startup"
+        self._highest_severity: DryRunStatus | None = None
         self._lock = asyncio.Lock()
 
     async def run(self) -> None:
@@ -234,6 +242,35 @@ class _ProgressReporter:
                 await self.write(status=self._status, phase="running")
         except asyncio.CancelledError:
             raise
+
+    async def record_incident(
+        self,
+        *,
+        incident: HarnessIncident,
+        incidents: Sequence[HarnessIncident],
+    ) -> None:
+        """Capture a new incident in the progress snapshot immediately."""
+
+        severity = incident.severity
+        current_rank = (
+            _PROGRESS_SEVERITY_ORDER.get(self._highest_severity, 0)
+            if self._highest_severity is not None
+            else 0
+        )
+        new_rank = _PROGRESS_SEVERITY_ORDER.get(severity, 0)
+        if new_rank >= current_rank:
+            self._highest_severity = severity
+
+        status_value = (
+            self._highest_severity.value
+            if self._highest_severity is not None
+            else self._status
+        )
+        await self.write(
+            status=status_value,
+            phase="running",
+            incidents=incidents,
+        )
 
     async def write(
         self,
@@ -248,6 +285,16 @@ class _ProgressReporter:
     ) -> None:
         if status is not None:
             self._status = status
+            severity = _status_to_severity(status)
+            if severity is not None:
+                current_rank = (
+                    _PROGRESS_SEVERITY_ORDER.get(self._highest_severity, 0)
+                    if self._highest_severity is not None
+                    else 0
+                )
+                new_rank = _PROGRESS_SEVERITY_ORDER.get(severity, 0)
+                if new_rank >= current_rank:
+                    self._highest_severity = severity
         if phase is not None:
             self._phase = phase
         now_value = now or datetime.now(tz=UTC)
@@ -366,7 +413,11 @@ async def perform_final_dry_run(
     else:
         progress_path_value = config.progress_path
 
-    async def _pump_stream(stream: asyncio.StreamReader | None, stream_name: str) -> None:
+    async def _pump_stream(
+        stream: asyncio.StreamReader | None,
+        stream_name: str,
+        progress: _ProgressReporter | None,
+    ) -> None:
         if stream is None:
             return
         while True:
@@ -384,6 +435,7 @@ async def perform_final_dry_run(
                 incidents,
                 incident_keys,
                 incident_lock,
+                progress,
             )
             json_line = json.dumps(record, separators=(",", ":"))
             async with log_lock:
@@ -401,7 +453,7 @@ async def perform_final_dry_run(
 
     pump_tasks = [
         supervisor.create(
-            _pump_stream(process.stdout, "stdout"),
+            _pump_stream(process.stdout, "stdout", progress_reporter),
             name="dry-run-stdout",
             metadata={
                 "component": "operations.final_dry_run.pump",
@@ -409,7 +461,7 @@ async def perform_final_dry_run(
             },
         ),
         supervisor.create(
-            _pump_stream(process.stderr, "stderr"),
+            _pump_stream(process.stderr, "stderr", progress_reporter),
             name="dry-run-stderr",
             metadata={
                 "component": "operations.final_dry_run.pump",
@@ -672,6 +724,13 @@ def _normalise_log_line(text: str, stream: str, observed_at: datetime) -> Mappin
     return record
 
 
+def _status_to_severity(value: str) -> DryRunStatus | None:
+    try:
+        return DryRunStatus(value)
+    except ValueError:
+        return None
+
+
 async def _maybe_record_log_incident(
     record: Mapping[str, Any],
     stream: str,
@@ -680,6 +739,7 @@ async def _maybe_record_log_incident(
     incidents: list[HarnessIncident],
     incident_keys: set[tuple[str, str, str, str]],
     lock: asyncio.Lock,
+    progress_reporter: _ProgressReporter | None,
 ) -> None:
     if not config.monitor_log_levels:
         return
@@ -704,17 +764,23 @@ async def _maybe_record_log_incident(
         if key in incident_keys:
             return
         incident_keys.add(key)
-        incidents.append(
-            HarnessIncident(
-                severity=severity,
-                occurred_at=observed_at,
-                message=_format_incident_message(level, stream, message, event),
-                metadata={
-                    "level": level or None,
-                    "stream": stream,
-                    "event": event,
-                },
-            )
+        incident = HarnessIncident(
+            severity=severity,
+            occurred_at=observed_at,
+            message=_format_incident_message(level, stream, message, event),
+            metadata={
+                "level": level or None,
+                "stream": stream,
+                "event": event,
+            },
+        )
+        incidents.append(incident)
+        snapshot = tuple(incidents)
+
+    if progress_reporter is not None:
+        await progress_reporter.record_incident(
+            incident=incident,
+            incidents=snapshot,
         )
 
 

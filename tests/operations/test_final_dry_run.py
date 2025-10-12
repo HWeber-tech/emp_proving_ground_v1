@@ -90,6 +90,16 @@ sys.exit(0)
 """
 
 
+async def _wait_for_file(path, timeout: float = 2.0) -> None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while loop.time() < deadline:
+        if path.exists():
+            return
+        await asyncio.sleep(0.05)
+    raise TimeoutError(f"Timed out waiting for {path}")
+
+
 @pytest.mark.slow
 def test_final_dry_run_success(tmp_path):
     config = FinalDryRunConfig(
@@ -262,3 +272,42 @@ def test_final_dry_run_monitor_can_be_disabled(tmp_path):
 
     assert result.status is DryRunStatus.fail
     assert not result.incidents
+
+
+@pytest.mark.asyncio()
+async def test_final_dry_run_progress_updates_on_incident(tmp_path):
+    progress_path = tmp_path / "progress.json"
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _ERROR_ONCE_SCRIPT],
+        duration=timedelta(seconds=1.4),
+        required_duration=timedelta(seconds=1.0),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.0,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        progress_path=progress_path,
+        progress_interval=timedelta(seconds=30),
+    )
+
+    run_task = asyncio.create_task(perform_final_dry_run(config))
+
+    await _wait_for_file(progress_path)
+    incidents: list[dict[str, object]] = []
+    for _ in range(40):
+        progress_payload = json.loads(progress_path.read_text(encoding="utf-8"))
+        incidents = progress_payload.get("incidents", [])
+        if incidents:
+            break
+        await asyncio.sleep(0.05)
+    else:  # pragma: no cover - defensive guard
+        pytest.fail("expected incidents to be written to progress snapshot")
+
+    assert progress_payload["status"] == DryRunStatus.fail.value
+    assert any(incident.get("severity") == DryRunStatus.fail.value for incident in incidents)
+    assert progress_payload["phase"] in {"running", "complete"}
+
+    result = await run_task
+
+    assert result.status is DryRunStatus.fail
+    final_payload = json.loads(progress_path.read_text(encoding="utf-8"))
+    assert final_payload["phase"] == "complete"

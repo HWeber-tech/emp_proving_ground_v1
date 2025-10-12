@@ -13,6 +13,7 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    ```sh
    tools/operations/final_dry_run.py \
      --log-dir artifacts/final_dry_run/2025-10-12 \
+     --progress-path artifacts/final_dry_run/2025-10-12/progress.json \
      --duration-hours 72 \
      --minimum-uptime-ratio 0.98 \
      --diary data/diaries/final_dry_run.jsonl \
@@ -30,12 +31,15 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
 ## Evidence bundle
 - Structured logs: `<log-dir>/final_dry_run_<timestamp>.jsonl`
 - Raw runtime logs: `<log-dir>/final_dry_run_<timestamp>.log`
+- Progress telemetry: `<log-dir>/final_dry_run_<timestamp>_progress.json`
 - JSON summary (optional): provide `--json-report summary.json`
 - Markdown summary (optional): provide `--markdown-report summary.md`
 - Evidence packet (optional): pass `--packet-dir artifacts/final_dry_run/2025-10-12/packet --packet-archive artifacts/final_dry_run/2025-10-12/packet.tar.gz` to bundle summaries plus raw artefacts in a review-ready archive.
 - Review brief (optional): add `--review-output review.md` (or `--review-output -` for stdout) to emit the meeting brief generated from the audit and sign-off records.
 
 The JSON summary contains the dry run audit (`summary`) plus the sign-off report. Harness incidents (unexpected exits, duration shortfalls) are embedded into `summary.metadata.harness_incidents`.
+
+Progress snapshots default to every 5 minutes; adjust with `--progress-interval-minutes` or disable by setting it to `0` when invoking the CLI.
 
 ## Sign-off criteria mapping
 - **Duration**: enforced via `--duration-hours` / `--required-duration-hours` (default 72h)

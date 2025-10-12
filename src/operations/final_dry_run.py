@@ -6,6 +6,7 @@ import json
 import os
 import signal
 from asyncio.subprocess import PIPE, Process
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -41,6 +42,8 @@ class FinalDryRunConfig:
     command: Sequence[str]
     duration: timedelta
     log_directory: Path
+    progress_path: Path | None = None
+    progress_interval: timedelta | None = timedelta(minutes=5)
     diary_path: Path | None = None
     performance_path: Path | None = None
     minimum_uptime_ratio: float = 0.98
@@ -82,6 +85,14 @@ class FinalDryRunConfig:
         )
         object.__setattr__(self, "diary_path", diary_path)
         object.__setattr__(self, "performance_path", performance_path)
+
+        progress_path = (
+            Path(self.progress_path) if self.progress_path is not None else None
+        )
+        object.__setattr__(self, "progress_path", progress_path)
+
+        if self.progress_interval is not None and self.progress_interval <= timedelta(0):
+            raise ValueError("progress_interval must be positive when provided")
 
         if self.minimum_sharpe_ratio is not None and self.minimum_sharpe_ratio < 0:
             raise ValueError("minimum_sharpe_ratio must be non-negative when provided")
@@ -133,6 +144,7 @@ class FinalDryRunResult:
     sign_off: DryRunSignOffReport | None
     log_path: Path
     raw_log_path: Path
+    progress_path: Path | None
     incidents: tuple[HarnessIncident, ...] = field(default_factory=tuple)
 
     @property
@@ -191,6 +203,28 @@ async def perform_final_dry_run(
         raw_file.close()
         raise RuntimeError(f"Failed to launch dry run command: {exc}") from exc
 
+    progress_reporter: _ProgressReporter | None = None
+    progress_task: asyncio.Task[None] | None = None
+    progress_path_value: Path | None = None
+    if config.progress_interval is not None:
+        progress_path_value = (
+            config.progress_path
+            or config.log_directory / f"final_dry_run_{slug}_progress.json"
+        )
+        progress_reporter = _ProgressReporter(
+            path=progress_path_value,
+            config=config,
+            stats=stats,
+            started_at=started_at,
+        )
+        await progress_reporter.write(
+            status="starting",
+            now=started_at,
+            phase="startup",
+        )
+    else:
+        progress_path_value = config.progress_path
+
     async def _pump_stream(stream: asyncio.StreamReader | None, stream_name: str) -> None:
         if stream is None:
             return
@@ -216,6 +250,7 @@ async def perform_final_dry_run(
                 raw_file.write(text + "\n")
                 log_file.flush()
                 raw_file.flush()
+            await stats.record(stream_name, record["level"], observed_at)
 
     owns_supervisor = False
     supervisor = task_supervisor
@@ -241,6 +276,17 @@ async def perform_final_dry_run(
             },
         ),
     ]
+
+    if progress_reporter is not None and config.progress_interval is not None:
+        progress_task = supervisor.create(
+            progress_reporter.run(),
+            name="dry-run-progress-reporter",
+            metadata={
+                "component": "operations.final_dry_run.progress",
+                "interval_seconds": config.progress_interval.total_seconds(),
+            },
+        )
+        await progress_reporter.write(status="running")
 
     duration_seconds = config.duration.total_seconds()
     timeout_task = supervisor.create(
@@ -269,7 +315,10 @@ async def perform_final_dry_run(
         exit_code = wait_task.result()
     else:
         timed_out = True
-        exit_code = await _terminate_process(process, config.shutdown_grace.total_seconds())
+        exit_code = await _terminate_process(
+            process,
+            config.shutdown_grace.total_seconds(),
+        )
 
     if not wait_task.done():
         exit_code = await wait_task
@@ -279,6 +328,11 @@ async def perform_final_dry_run(
         await timeout_task
 
     await asyncio.gather(*pump_tasks, return_exceptions=True)
+
+    if progress_task is not None:
+        progress_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await progress_task
 
     if owns_supervisor:
         await supervisor.cancel_all()
@@ -315,6 +369,8 @@ async def perform_final_dry_run(
             )
         )
 
+    stats_snapshot = await stats.snapshot()
+
     metadata: dict[str, Any] = {
         "command": list(config.command),
         "started_at": started_at.astimezone(UTC).isoformat(),
@@ -326,7 +382,12 @@ async def perform_final_dry_run(
         "log_path": str(log_path),
         "raw_log_path": str(raw_log_path),
         "harness_incidents": [incident.as_dict() for incident in incidents],
+        "log_line_counts": dict(stats_snapshot["lines"]),
+        "log_level_counts": dict(stats_snapshot["levels"]),
+        "log_total_lines": stats_snapshot.get("total_lines", 0),
     }
+    if progress_path_value is not None:
+        metadata["progress_path"] = str(progress_path_value)
     metadata.update(config.metadata)
 
     summary = evaluate_dry_run(
@@ -348,7 +409,7 @@ async def perform_final_dry_run(
         minimum_sharpe_ratio=config.minimum_sharpe_ratio,
     )
 
-    return FinalDryRunResult(
+    result = FinalDryRunResult(
         config=config,
         started_at=started_at,
         ended_at=ended_at,
@@ -357,10 +418,22 @@ async def perform_final_dry_run(
         sign_off=sign_off,
         log_path=log_path,
         raw_log_path=raw_log_path,
+        progress_path=progress_path_value,
         incidents=tuple(incidents),
     )
 
+    if progress_reporter is not None:
+        await progress_reporter.write(
+            status=result.status.value,
+            now=ended_at,
+            phase="complete",
+            exit_code=exit_code,
+            incidents=result.incidents,
+            summary=result.summary,
+            sign_off=result.sign_off,
+        )
 
+    return result
 def run_final_dry_run(config: FinalDryRunConfig) -> FinalDryRunResult:
     """Synchronous helper wrapping :func:`perform_final_dry_run`."""
 

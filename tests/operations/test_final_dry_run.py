@@ -114,6 +114,12 @@ def test_final_dry_run_success(tmp_path):
     assert payload["stream"] == "stdout"
     assert payload["payload"]["structured"]["event"] == "heartbeat"
 
+    assert result.progress_path is not None
+    progress = json.loads(result.progress_path.read_text(encoding="utf-8"))
+    assert progress["status"] == DryRunStatus.pass_.value
+    assert progress["phase"] == "complete"
+    assert progress["total_lines"] >= 1
+
 
 def test_final_dry_run_detects_early_exit(tmp_path):
     config = FinalDryRunConfig(
@@ -133,6 +139,10 @@ def test_final_dry_run_detects_early_exit(tmp_path):
         incident.message.startswith("Dry run completed before") for incident in result.incidents
     )
     assert result.summary.status is DryRunStatus.fail
+    assert result.progress_path is not None
+    progress = json.loads(result.progress_path.read_text(encoding="utf-8"))
+    assert progress["status"] == DryRunStatus.fail.value
+    assert progress["phase"] == "complete"
 
 
 def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):
@@ -166,6 +176,8 @@ def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):
     assert packet.summary_markdown.exists()
     assert packet.archive_path == archive_path
     assert archive_path.exists()
+    raw_names = {path.name for path in packet.raw_artifacts}
+    assert any(name.endswith("_progress.json") for name in raw_names)
 
     review = workflow.review
     assert review is not None
@@ -202,6 +214,7 @@ async def test_perform_final_dry_run_supervises_background_tasks(tmp_path):
         "dry-run-stderr",
         "dry-run-duration-timeout",
         "dry-run-process-wait",
+        "dry-run-progress-reporter",
     }
     assert expected_names.issubset(task_names)
 

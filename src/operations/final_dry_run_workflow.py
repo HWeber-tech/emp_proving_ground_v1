@@ -49,6 +49,8 @@ async def perform_final_dry_run_workflow(
     log_paths: list[Path] = [run_result.log_path]
     if run_result.raw_log_path != run_result.log_path:
         log_paths.append(run_result.raw_log_path)
+    if run_result.progress_path is not None:
+        log_paths.append(run_result.progress_path)
 
     evidence_packet: DryRunPacketPaths | None = None
     if evidence_dir is not None:

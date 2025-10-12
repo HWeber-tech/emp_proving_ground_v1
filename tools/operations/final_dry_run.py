@@ -59,6 +59,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Target runtime duration in hours (default: 72).",
     )
     parser.add_argument(
+        "--progress-path",
+        type=Path,
+        help="Write periodic progress updates to this JSON file.",
+    )
+    parser.add_argument(
+        "--progress-interval-minutes",
+        type=float,
+        default=5.0,
+        help=(
+            "Interval in minutes between progress snapshots (set to 0 to disable)."
+        ),
+    )
+    parser.add_argument(
         "--required-duration-hours",
         type=float,
         default=None,
@@ -274,11 +287,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         else None
     )
     shutdown_grace = timedelta(seconds=max(args.shutdown_grace_seconds, 0.0))
+    progress_interval = (
+        timedelta(minutes=args.progress_interval_minutes)
+        if args.progress_interval_minutes > 0
+        else None
+    )
 
     config = FinalDryRunConfig(
         command=command,
         duration=duration,
         log_directory=args.log_dir,
+        progress_path=args.progress_path,
+        progress_interval=progress_interval,
         diary_path=args.diary,
         performance_path=args.performance,
         minimum_uptime_ratio=args.minimum_uptime_ratio,
@@ -311,6 +331,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  Duration: {result.duration}")
     print(f"  Logs: {result.log_path}")
     print(f"  Raw logs: {result.raw_log_path}")
+    if result.progress_path is not None:
+        print(f"  Progress: {result.progress_path}")
     if result.incidents:
         print("  Harness incidents:")
         for incident in result.incidents:

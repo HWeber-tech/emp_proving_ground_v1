@@ -36,7 +36,9 @@ __all__ = [
 # time light while ensuring callers resolve the single source of truth instead
 # of legacy shim modules.
 _LAZY_EXPORTS: dict[str, str] = {
-    "SentientAdaptationEngine": "src.intelligence.sentient_adaptation:SentientAdaptationEngine",
+    "SentientAdaptationEngine": (
+        "src.sentient.adaptation.sentient_adaptation_engine:SentientAdaptationEngine"
+    ),
     "PredictiveMarketModeler": (
         "src.thinking.prediction.predictive_market_modeler:PredictiveMarketModeler"
     ),

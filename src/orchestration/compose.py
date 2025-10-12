@@ -46,7 +46,9 @@ def _import_optional_class(module: str, name: str) -> Optional[type[Any]]:
 
 _SentientAdaptationEngine = cast(
     Optional[type[AdaptationService]],
-    _import_optional_class("src.intelligence", "SentientAdaptationEngine"),
+    _import_optional_class(
+        "src.sentient.adaptation.sentient_adaptation_engine", "SentientAdaptationEngine"
+    ),
 )
 
 

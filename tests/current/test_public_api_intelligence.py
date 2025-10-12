@@ -47,6 +47,7 @@ def test_intelligence_facade_resolves_canonical_symbols(caplog):
     assert "Configured logging" not in joined
 
     canonical_map = {
+        "SentientAdaptationEngine": "src.sentient.adaptation.sentient_adaptation_engine",
         "RedTeamAI": "src.thinking.adversarial.red_team_ai",
         "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer",
         "MarketGAN": "src.thinking.adversarial.market_gan",

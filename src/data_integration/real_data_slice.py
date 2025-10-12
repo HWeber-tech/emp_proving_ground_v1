@@ -34,10 +34,12 @@ from src.understanding.belief_real_data_utils import (
 __all__ = [
     "RealDataSliceConfig",
     "RealDataSliceOutcome",
+    "BeliefSequenceResult",
     "ingest_daily_slice_from_csv",
     "ingest_daily_slice_from_provider",
     "fetch_enriched_market_frame",
     "build_belief_from_market_data",
+    "build_belief_sequence_from_market_data",
     "run_real_data_slice",
 ]
 
@@ -78,6 +80,18 @@ class _InMemoryEventBus:
     def publish_from_sync(self, event: Event) -> int:
         self.events.append(event)
         return 1
+
+
+
+@dataclass(slots=True, frozen=True)
+class BeliefSequenceResult:
+    """Captured belief and regime history across a real-data slice."""
+
+    snapshots: tuple[Mapping[str, object], ...]
+    belief_states: tuple[BeliefState, ...]
+    regime_signals: tuple[RegimeSignal, ...]
+    calibration: BeliefRegimeCalibration | None
+    events: tuple[Event, ...]
 
 
 
@@ -294,6 +308,74 @@ def build_belief_from_market_data(
     state = emitter.emit(snapshot)
     regime_signal = regime_fsm.publish(state)
     return snapshot, state, regime_signal, calibration
+
+
+def build_belief_sequence_from_market_data(
+    *,
+    market_data: pd.DataFrame,
+    symbol: str,
+    belief_id: str,
+    event_bus: _InMemoryEventBus | None = None,
+) -> BeliefSequenceResult:
+    """Generate a belief/regime timeline by replaying the market data slice."""
+
+    if market_data.empty:
+        raise ValueError("Market data frame is empty; cannot build belief sequence")
+
+    frame = (
+        market_data.sort_values("timestamp")
+        .reset_index(drop=True)
+        .copy()
+    )
+
+    organ = RealSensoryOrgan(event_bus=None)
+    bus = event_bus or _InMemoryEventBus()
+    calibration = calibrate_from_market_data(frame)
+
+    if calibration is not None:
+        buffer, emitter, regime_fsm = build_calibrated_belief_components(
+            calibration,
+            belief_id=belief_id,
+            regime_signal_id=f"{belief_id}-regime",
+            event_bus=bus,
+        )
+        volatility_feature = calibration.volatility_feature
+    else:
+        buffer = BeliefBuffer(belief_id=belief_id)
+        emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+        regime_fsm = RegimeFSM(event_bus=bus, signal_id=f"{belief_id}-regime")
+        volatility_feature = "HOW_signal"
+
+    snapshots: list[Mapping[str, object]] = []
+    belief_states: list[BeliefState] = []
+    regime_signals: list[RegimeSignal] = []
+    thresholds_scaled = False
+
+    for idx in range(len(frame)):
+        window = frame.iloc[: idx + 1]
+        snapshot = organ.observe(window, symbol=symbol)
+        snapshots.append(snapshot)
+
+        if not thresholds_scaled:
+            volatility_hint = extract_snapshot_volatility(snapshot, volatility_feature)
+            scale = resolve_threshold_scale(calibration, volatility_hint)
+            if scale is not None:
+                regime_fsm.apply_threshold_scale(scale)
+            thresholds_scaled = True
+
+        state = emitter.emit(snapshot)
+        signal = regime_fsm.publish(state)
+
+        belief_states.append(state)
+        regime_signals.append(signal)
+
+    return BeliefSequenceResult(
+        snapshots=tuple(snapshots),
+        belief_states=tuple(belief_states),
+        regime_signals=tuple(regime_signals),
+        calibration=calibration,
+        events=tuple(bus.events),
+    )
 
 
 def run_real_data_slice(

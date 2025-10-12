@@ -359,6 +359,59 @@ def test_assess_performance_health_reports_success(
     assert "throttle" not in assessment
 
 
+def test_generate_performance_health_report_renders_markdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    now = datetime.now(tz=timezone.utc)
+    throughput = ThroughputMonitor(window=16)
+    throughput.record(
+        started_at=now,
+        finished_at=now + timedelta(milliseconds=120),
+        ingested_at=now - timedelta(milliseconds=35),
+    )
+    backlog = EventBacklogTracker(threshold_ms=200.0)
+    backlog.record(lag_ms=120.0, timestamp=now)
+    resource_monitor = StaticResourceMonitor(
+        {
+            "timestamp": now.isoformat(),
+            "cpu_percent": 42.0,
+            "memory_mb": 512.0,
+            "memory_percent": 36.0,
+        }
+    )
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        throughput_monitor=throughput,
+        backlog_tracker=backlog,
+        resource_monitor=resource_monitor,
+    )
+
+    report = manager.generate_performance_health_report(
+        max_processing_ms=200.0,
+        max_lag_ms=200.0,
+        backlog_threshold_ms=180.0,
+        max_cpu_percent=75.0,
+        max_memory_mb=1024.0,
+        max_memory_percent=70.0,
+    )
+
+    assert "# Performance health assessment" in report
+    assert "Overall status: Healthy" in report
+    assert "## Throughput" in report
+    assert "## Backlog" in report
+    assert "## Resource utilisation" in report
+
+
 def test_assess_performance_health_flags_violations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from src.trading.execution.performance_report import build_execution_performance_report
+from src.trading.execution.performance_report import (
+    build_execution_performance_report,
+    build_performance_health_report,
+)
 
 
 def test_build_execution_performance_report_includes_throttle_and_throughput() -> None:
@@ -75,3 +78,55 @@ def test_build_execution_performance_report_handles_missing_sections() -> None:
     assert "Throughput window" not in report
     assert "Event backlog" not in report
     assert "Resource usage snapshot" not in report
+
+
+def test_build_performance_health_report_includes_sections() -> None:
+    assessment = {
+        "healthy": True,
+        "throughput": {
+            "healthy": True,
+            "max_processing_ms": 120.0,
+            "max_lag_ms": 40.0,
+            "samples": 8,
+        },
+        "backlog": {
+            "evaluated": True,
+            "healthy": True,
+            "threshold_ms": 180.0,
+            "max_lag_ms": 75.0,
+            "samples": 6,
+        },
+        "resource": {
+            "healthy": True,
+            "status": "ok",
+            "limits": {"max_cpu_percent": 75.0},
+            "sample": {
+                "timestamp": "2024-07-01T12:00:00+00:00",
+                "cpu_percent": 35.0,
+            },
+            "violations": {},
+        },
+        "throttle": {
+            "active": False,
+            "reason": None,
+            "message": None,
+            "context": {"strategy_id": "alpha"},
+        },
+    }
+
+    report = build_performance_health_report(assessment)
+
+    assert "# Performance health assessment" in report
+    assert "Overall status: Healthy" in report
+    assert "## Throughput" in report
+    assert "## Backlog" in report
+    assert "## Resource utilisation" in report
+    assert "## Trade throttle" in report
+
+
+def test_build_performance_health_report_handles_missing_data() -> None:
+    report = build_performance_health_report({})
+
+    assert "No throughput data" in report
+    assert "No backlog data" in report
+    assert "No resource data" in report

@@ -72,7 +72,10 @@ from src.operations.sensory_drift import SensoryDriftSnapshot
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.execution.backlog_tracker import BacklogObservation, EventBacklogTracker
 from src.trading.execution.performance_monitor import ThroughputMonitor
-from src.trading.execution.performance_report import build_execution_performance_report
+from src.trading.execution.performance_report import (
+    build_execution_performance_report,
+    build_performance_health_report,
+)
 from src.trading.execution.resource_monitor import ResourceUsageMonitor
 from src.trading.execution.trade_throttle import (
     TradeThrottle,
@@ -1689,6 +1692,28 @@ class TradingManager:
         """Render a Markdown summary of execution throughput and throttle posture."""
 
         return build_execution_performance_report(self.get_execution_stats())
+
+    def generate_performance_health_report(
+        self,
+        *,
+        max_processing_ms: float = 250.0,
+        max_lag_ms: float = 250.0,
+        backlog_threshold_ms: float | None = None,
+        max_cpu_percent: float | None = None,
+        max_memory_mb: float | None = None,
+        max_memory_percent: float | None = None,
+    ) -> str:
+        """Render a Markdown summary of the current performance health posture."""
+
+        assessment = self.assess_performance_health(
+            max_processing_ms=max_processing_ms,
+            max_lag_ms=max_lag_ms,
+            backlog_threshold_ms=backlog_threshold_ms,
+            max_cpu_percent=max_cpu_percent,
+            max_memory_mb=max_memory_mb,
+            max_memory_percent=max_memory_percent,
+        )
+        return build_performance_health_report(assessment)
 
     def assess_throughput_health(
         self,

@@ -66,6 +66,12 @@ backlog, resource) plus an overall `healthy` flag. When resource thresholds are
 defined but no process metrics are available, the helper marks the resource
 status as `"no_data"` so missing baselines surface in smoke tests.
 
+For evidence packs or runbook snippets, call
+`TradingManager.generate_performance_health_report()` which renders the same
+assessment as a Markdown report. The renderer mirrors the structure of the
+execution performance summary, surfacing throughput bounds, backlog posture,
+resource utilisation, and throttle context in a reviewer-friendly format.
+
 ### Backlog posture
 
 Event ingest lag also drives a dedicated `backlog` snapshot populated by the new

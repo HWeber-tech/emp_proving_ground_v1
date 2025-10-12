@@ -212,6 +212,75 @@ async def test_runtime_application_ingest_failure_does_not_stop_trading(
 
 
 @pytest.mark.asyncio()
+async def test_runtime_application_ingest_torture_retries_without_crash(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    attempts = 0
+    ingest_ready = asyncio.Event()
+    release_ingest = asyncio.Event()
+    trade_ready = asyncio.Event()
+    release_trade = asyncio.Event()
+
+    async def _ingest() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise RuntimeError(f"ingest failure #{attempts}")
+        ingest_ready.set()
+        await release_ingest.wait()
+
+    async def _trade() -> None:
+        trade_ready.set()
+        await release_trade.wait()
+
+    app = RuntimeApplication(
+        ingestion=RuntimeWorkload(
+            name="ingest-torture",
+            factory=_ingest,
+            description="Fail twice before succeeding",
+            restart_policy=WorkloadRestartPolicy(max_restarts=5, backoff_seconds=0.0),
+        ),
+        trading=RuntimeWorkload(
+            name="trade-torture",
+            factory=_trade,
+            description="Trading loop should stay alive",
+        ),
+    )
+
+    with caplog.at_level(logging.ERROR, logger=app._logger.name):
+        run_task = asyncio.create_task(app.run())
+        try:
+            await asyncio.wait_for(trade_ready.wait(), timeout=1.0)
+            await asyncio.wait_for(ingest_ready.wait(), timeout=1.0)
+
+            snapshots = app.task_snapshots()
+            assert any(
+                snapshot.get("name") == "trade-torture-workload"
+                and snapshot.get("state") == "running"
+                for snapshot in snapshots
+            )
+            ingest_snapshot = next(
+                snapshot
+                for snapshot in snapshots
+                if snapshot.get("name") == "ingest-torture-workload"
+            )
+            assert ingest_snapshot.get("state") == "running"
+            assert ingest_snapshot.get("restarts") == 2
+
+            messages = [record.getMessage() for record in caplog.records]
+            assert sum("ingest-torture" in message and "failed" in message for message in messages) >= 2
+        finally:
+            release_ingest.set()
+            release_trade.set()
+            await asyncio.wait_for(run_task, timeout=1.0)
+
+    assert attempts == 3
+    summary = app.summary()
+    assert summary["workload_states"].get("ingest-torture") == "finished"
+    assert summary["workload_states"].get("trade-torture") == "finished"
+
+
+@pytest.mark.asyncio()
 async def test_supervise_background_task_provisions_fallback_supervisor() -> None:
     class DummyApp:
         pass

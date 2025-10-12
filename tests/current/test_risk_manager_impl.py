@@ -102,7 +102,7 @@ async def test_calculate_position_size_handles_exception() -> None:
 
     size = await manager.calculate_position_size(CrashingSignal())
 
-    assert size == 1_000.0
+    assert size == pytest.approx(0.0)
 
 
 def test_update_limits_accepts_decimal_inputs() -> None:

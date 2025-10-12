@@ -533,7 +533,22 @@ def test_risk_manager_impl_evaluate_portfolio_risk_handles_bad_payload() -> None
 
     risk = manager.evaluate_portfolio_risk({"EURUSD": object()})
 
-    assert risk == pytest.approx(0.0)
+    assert risk == pytest.approx(1.0)
+
+
+def test_risk_manager_impl_evaluate_portfolio_risk_fail_closed_on_engine_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
+
+    def _boom(_: Mapping[str, float]) -> float:
+        raise RuntimeError("engine boom")
+
+    monkeypatch.setattr(manager.risk_manager, "assess_risk", _boom)
+
+    risk = manager.evaluate_portfolio_risk({"EURUSD": 1_000.0})
+
+    assert risk == pytest.approx(1.0)
 
 
 def _build_sector_enabled_manager() -> RiskManagerImpl:

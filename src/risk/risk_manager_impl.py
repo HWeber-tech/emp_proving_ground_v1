@@ -848,11 +848,23 @@ class RiskManagerImpl(RiskManagerProtocol):
         context: Mapping[str, object] | None = None,
     ) -> float:
         try:
-            numeric_positions: Dict[str, float] = {k: float(v) for k, v in positions.items()}
+            numeric_positions: Dict[str, float] = {
+                symbol: float(value)
+                for symbol, value in positions.items()
+            }
+        except (TypeError, ValueError) as exc:
+            logger.error(
+                "Failed to normalise positions for portfolio risk assessment",
+                exc_info=exc,
+            )
+            # Fail closed so upstream callers treat the snapshot as a breach.
+            return 1.0
+
+        try:
             return self.risk_manager.assess_risk(numeric_positions)
-        except Exception as e:
-            logger.error(f"Error evaluating portfolio risk: {e}")
-            return 0.0
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.error("Risk engine error while assessing portfolio", exc_info=exc)
+            return 1.0
 
     def propose_rebalance(
         self,

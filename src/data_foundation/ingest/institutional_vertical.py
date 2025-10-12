@@ -188,6 +188,7 @@ def _build_kafka_metadata(
     dimensions: Sequence[str],
     kafka_topics: Sequence[str],
     provisioned: bool,
+    streaming_enabled: bool,
 ) -> dict[str, object]:
     """Summarise Kafka ingest configuration for manifests and telemetry."""
 
@@ -297,6 +298,8 @@ def _build_kafka_metadata(
         "consumer_topics_configured": bool(configured_topics),
         "configured_topics": tuple(configured_topics),
         "topic_count": len(configured_topics),
+        "streaming_enabled": bool(streaming_enabled),
+        "streaming_active": bool(streaming_enabled and provisioned),
     }
 
 
@@ -521,6 +524,9 @@ class InstitutionalIngestServices:
             "kafka": kafka_summary,
             "kafka_topics": kafka_topics,
             "kafka_metadata": dict(self.kafka_metadata) if self.kafka_metadata else {},
+            "kafka_streaming_enabled": self.kafka_metadata.get(
+                "streaming_enabled", self.config.enable_streaming
+            ),
             "failover": self.failover_metadata(),
             "managed_manifest": [snapshot.as_dict() for snapshot in self.managed_manifest()],
         }
@@ -805,22 +811,25 @@ class InstitutionalIngestProvisioner:
         kafka_settings = self.ingest_config.kafka_settings
         kafka_topics: tuple[str, ...] = tuple()
         kafka_mapping: Mapping[str, str] | None = None
+        streaming_enabled = self.ingest_config.enable_streaming
         if kafka_settings and kafka_settings.configured:
             kafka_mapping = self._resolved_kafka_mapping()
             kafka_topics = _extract_kafka_topics(kafka_mapping)
-            kafka_consumer = create_ingest_event_consumer(
-                kafka_settings,
-                kafka_mapping or None,
-                event_bus=event_bus,
-                consumer_factory=kafka_consumer_factory,
-                deserializer=kafka_deserializer,
-            )
+            if streaming_enabled:
+                kafka_consumer = create_ingest_event_consumer(
+                    kafka_settings,
+                    kafka_mapping or None,
+                    event_bus=event_bus,
+                    consumer_factory=kafka_consumer_factory,
+                    deserializer=kafka_deserializer,
+                )
 
         kafka_metadata = _build_kafka_metadata(
             kafka_mapping or {},
             dimensions=_plan_dimensions(self.ingest_config),
             kafka_topics=kafka_topics,
             provisioned=kafka_consumer is not None,
+            streaming_enabled=streaming_enabled,
         )
         if kafka_consumer is None:
             # Ensure provisioned flag reflects the runtime reality even when
@@ -982,6 +991,7 @@ def plan_managed_manifest(
             dimensions=_plan_dimensions(config),
             kafka_topics=kafka_topics,
             provisioned=False,
+            streaming_enabled=config.enable_streaming,
         ),
     }
 

@@ -273,6 +273,7 @@ async def test_services_start_stop_and_summary(monkeypatch: pytest.MonkeyPatch) 
         kafka_settings=KafkaConnectionSettings(bootstrap_servers="broker:9092"),
         redis_settings=RedisConnectionSettings(url="redis://cache:6379/1"),
         failover_drill=TimescaleFailoverDrillSettings(enabled=True, dimensions=("daily",)),
+        metadata={"kafka_streaming_enabled": True},
     )
 
     services = InstitutionalIngestServices(
@@ -284,7 +285,11 @@ async def test_services_start_stop_and_summary(monkeypatch: pytest.MonkeyPatch) 
         redis_policy=config.redis_policy,
         kafka_settings=config.kafka_settings,
         kafka_consumer=kafka_consumer,
-        kafka_metadata={"bridge": "enabled"},
+        kafka_metadata={
+            "bridge": "enabled",
+            "streaming_enabled": True,
+            "streaming_active": True,
+        },
     )
 
     services.start()
@@ -296,6 +301,10 @@ async def test_services_start_stop_and_summary(monkeypatch: pytest.MonkeyPatch) 
     assert summary["redis_backing"] == "InMemoryRedis"
     assert summary["kafka_topics"] == list(kafka_consumer.topics)
     assert summary["redis_policy"]["ttl_seconds"] == config.redis_policy.ttl_seconds
+    assert summary["kafka_streaming_enabled"] is True
+    kafka_meta = summary["kafka_metadata"]
+    assert kafka_meta["streaming_enabled"] is True
+    assert kafka_meta["streaming_active"] is True
 
     manifest = services.managed_manifest()
     assert len(manifest) == 3
@@ -349,6 +358,8 @@ def test_services_summary_uses_configured_topics_when_consumer_missing(
         "telemetry.ingest",
     )
     assert summary["kafka_topics"] == ["telemetry.drills", "telemetry.ingest"]
+    assert kafka_metadata["streaming_enabled"] is True
+    assert kafka_metadata["streaming_active"] is False
 
 
 @pytest.mark.asyncio
@@ -543,6 +554,8 @@ def test_plan_managed_manifest_resolves_kafka_mapping() -> None:
         "timescale.intraday",
     )
     assert kafka_snapshot.metadata["topic_count"] == 2
+    assert kafka_snapshot.metadata["streaming_enabled"] is True
+    assert kafka_snapshot.metadata["streaming_active"] is False
 
 
 def test_provisioner_builds_services(monkeypatch: pytest.MonkeyPatch) -> None:

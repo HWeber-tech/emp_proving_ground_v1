@@ -91,7 +91,7 @@ def _ingest_config(*, schedule: IngestSchedule | None = None) -> InstitutionalIn
         redis_settings=RedisConnectionSettings.from_mapping(
             {"REDIS_URL": "redis://localhost:6379/0"}
         ),
-        metadata={},
+        metadata={"kafka_streaming_enabled": True},
         schedule=schedule,
         recovery=TimescaleIngestRecoverySettings(),
         operational_alert_routes={},
@@ -163,6 +163,7 @@ async def test_provisioned_services_supervise_components() -> None:
     assert summary["redis"] is not None
     assert summary["redis_policy"] == _EXPECTED_POLICY_METADATA
     assert summary["kafka_topics"] == ["telemetry.ingest"]
+    assert summary["kafka_streaming_enabled"] is True
     kafka_metadata = summary["kafka_metadata"]
     assert kafka_metadata["timescale_dimensions"] == []
     assert kafka_metadata["consumer_group"] == "emp-ingest-bridge"
@@ -171,6 +172,8 @@ async def test_provisioned_services_supervise_components() -> None:
     assert kafka_metadata["configured_topics"] == ("telemetry.ingest",)
     assert kafka_metadata["poll_timeout_seconds"] == pytest.approx(1.0)
     assert kafka_metadata["idle_sleep_seconds"] == pytest.approx(0.01)
+    assert kafka_metadata["streaming_enabled"] is True
+    assert kafka_metadata["streaming_active"] is True
     redis_metrics = summary["redis_metrics"]
     assert redis_metrics is not None
     assert redis_metrics["namespace"] == "emp:cache"
@@ -539,6 +542,8 @@ def test_plan_managed_manifest_uses_configuration() -> None:
     assert kafka_metadata["provisioned"] is False
     assert kafka_metadata["configured_topics"] == ("telemetry.drills", "telemetry.ingest")
     assert kafka_metadata["topic_count"] == 2
+    assert kafka_metadata["streaming_enabled"] is True
+    assert kafka_metadata["streaming_active"] is False
     assert snapshots["redis"].metadata["policy"] == _EXPECTED_POLICY_METADATA
     assert "metrics" in snapshots["redis"].metadata
 
@@ -552,6 +557,38 @@ def test_plan_managed_manifest_adds_default_topic_when_missing() -> None:
     assert kafka_metadata["consumer_topics_configured"] is True
     assert kafka_metadata["configured_topics"] == ("telemetry.ingest",)
     assert kafka_metadata["topic_count"] == 1
+    assert kafka_metadata["streaming_enabled"] is True
+    assert kafka_metadata["streaming_active"] is False
     redis_metadata = next(snapshot for snapshot in manifest if snapshot.name == "redis").metadata
     assert redis_metadata["policy"] == _EXPECTED_POLICY_METADATA
     assert "metrics" in redis_metadata
+
+
+def test_provision_skips_kafka_consumer_when_streaming_disabled() -> None:
+    config = _ingest_config()
+    config = dataclasses.replace(
+        config,
+        enable_streaming=False,
+        metadata={"kafka_streaming_enabled": False},
+    )
+    provisioner = InstitutionalIngestProvisioner(
+        config,
+        redis_settings=config.redis_settings,
+        redis_policy=config.redis_policy,
+        kafka_mapping={"KAFKA_BROKERS": "broker:9092"},
+    )
+
+    services = provisioner.provision(
+        run_ingest=lambda: True,
+        event_bus=_DummyEventBus(),
+        task_supervisor=TaskSupervisor(namespace="streaming-disabled"),
+        redis_client_factory=lambda *_: InMemoryRedis(),
+        kafka_consumer_factory=lambda *_: _DummyKafkaConsumer(),
+    )
+
+    assert services.kafka_consumer is None
+    summary = services.summary()
+    assert summary["kafka_streaming_enabled"] is False
+    kafka_metadata = summary["kafka_metadata"]
+    assert kafka_metadata["streaming_enabled"] is False
+    assert kafka_metadata["streaming_active"] is False

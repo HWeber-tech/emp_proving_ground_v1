@@ -1758,6 +1758,7 @@ async def _execute_timescale_ingest(
         telemetry_metadata["ingest_error"] = ingest_error
     if kafka_events:
         telemetry_metadata["kafka_event_count"] = len(kafka_events)
+    telemetry_metadata["kafka_streaming_enabled"] = ingest_config.enable_streaming
     if task_snapshots:
         telemetry_metadata["task_supervisor"] = {
             "count": len(tuple(task_snapshots)),
@@ -3303,6 +3304,7 @@ def build_professional_runtime_application(
                         kafka_topics = tuple(str(topic) for topic in raw_topics)
                     else:
                         kafka_topics = tuple()
+                    streaming_enabled = ingest_config.enable_streaming
 
                     services = services_holder.get("services")
                     scheduler_state = None
@@ -3336,7 +3338,11 @@ def build_professional_runtime_application(
                         redis_namespace=redis_namespace,
                         redis_backing=redis_backing,
                         kafka_expected=bool(
-                            ingest_config.metadata.get("kafka_configured") or kafka_topics
+                            streaming_enabled
+                            and (
+                                ingest_config.metadata.get("kafka_configured")
+                                or kafka_topics
+                            )
                         ),
                         kafka_configured=kafka_settings.configured,
                         kafka_topics=kafka_topics,
@@ -3364,6 +3370,7 @@ def build_professional_runtime_application(
                         "ingest.kafka_publishers": len(kafka_publishers),
                         "ingest.kafka_topics": len(kafka_topic_names),
                         "ingest.redis_configured": redis_configured,
+                        "ingest.kafka_streaming_enabled": streaming_enabled,
                     }
                     if kafka_provisioning_summary is not None:
                         created_topics = getattr(kafka_provisioning_summary, "created", ()) or ()
@@ -3371,7 +3378,15 @@ def build_professional_runtime_application(
                     if managed_manifest:
                         execution_metadata["ingest.managed_connectors"] = len(managed_manifest)
 
-                    task_snapshots = app.task_snapshots()
+                    snapshot_fn = getattr(app, "task_snapshots", None)
+                    if callable(snapshot_fn):
+                        try:
+                            task_snapshots = snapshot_fn()
+                        except Exception:  # pragma: no cover - diagnostics only
+                            logger.debug("Failed to collect task snapshots", exc_info=True)
+                            task_snapshots = ()
+                    else:
+                        task_snapshots = ()
 
                     with runtime_tracer.operation_span(
                         name="ingest.timescale_execute",
@@ -4105,19 +4120,7 @@ def build_professional_runtime_application(
 
                 services.start()
                 logger.info("⏱️ Timescale ingest scheduler active under supervisor")
-
-                try:
-                    await services.scheduler.wait_until_stopped()
-                finally:
-                    try:
-                        await asyncio.shield(services.stop())
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:  # pragma: no cover - diagnostics only
-                        logger.debug(
-                            "Failed to stop institutional ingest services during cleanup",
-                            exc_info=True,
-                        )
+                return
 
             ingestion = RuntimeWorkload(
                 name="timescale-ingest",

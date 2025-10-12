@@ -744,6 +744,7 @@ class InstitutionalIngestConfig:
     redis_policy: RedisCachePolicy = field(
         default_factory=RedisCachePolicy.institutional_defaults
     )
+    enable_streaming: bool = True
     metadata: dict[str, object] = field(default_factory=dict)
     schedule: IngestSchedule | None = None
     recovery: TimescaleIngestRecoverySettings = field(
@@ -769,6 +770,11 @@ def build_institutional_ingest_config(
     extras = _normalise_extras(config.extras)
     fallback = fallback_symbols or ()
     redis_settings = RedisConnectionSettings.from_mapping(extras)
+    streaming_enabled = _parse_bool(
+        extras,
+        "KAFKA_INGEST_ENABLE_STREAMING",
+        True,
+    )
 
     reason: str | None = None
     if config.data_backbone_mode is not DataBackboneMode.institutional:
@@ -778,6 +784,7 @@ def build_institutional_ingest_config(
             reason=reason,
             redis_settings=redis_settings,
             metadata={"mode": config.data_backbone_mode.value},
+            enable_streaming=streaming_enabled,
         )
 
     if config.tier is not EmpTier.tier_1:
@@ -787,6 +794,7 @@ def build_institutional_ingest_config(
             reason=reason,
             redis_settings=redis_settings,
             metadata={"tier": config.tier.value},
+            enable_streaming=streaming_enabled,
         )
 
     symbols = _parse_csv(extras.get("TIMESCALE_SYMBOLS"), fallback)
@@ -868,6 +876,7 @@ def build_institutional_ingest_config(
     metadata["kafka_configured"] = kafka_settings.configured
     metadata["kafka_topics"] = kafka_topic_names
     metadata["kafka_auto_create_topics"] = should_auto_create_topics(extras)
+    metadata["kafka_streaming_enabled"] = streaming_enabled
 
     default_readiness_enabled = bool(kafka_settings.configured or kafka_topic_names)
     warn_lag = max(0, _parse_int(extras, "KAFKA_READINESS_WARN_LAG_MESSAGES", 1_000))
@@ -953,6 +962,7 @@ def build_institutional_ingest_config(
         kafka_settings=kafka_settings,
         redis_settings=redis_settings,
         redis_policy=redis_policy,
+        enable_streaming=streaming_enabled,
         metadata=metadata,
         schedule=schedule,
         recovery=recovery_settings,

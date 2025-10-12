@@ -193,6 +193,10 @@ dimensions, synthesises telemetry events for ingest results that lack a broker
 echo, reorders the final event list, and threads cache metrics plus ingest
 errors into the validation snapshot so evidence stays complete even if
 streaming pauses.【F:src/data_foundation/pipelines/operational_backbone.py†L305-L499】【F:src/runtime/runtime_builder.py†L1671-L1770】
+Set `KAFKA_INGEST_ENABLE_STREAMING=false` when rehearsing without a Kafka
+broker; the institutional provisioner will still publish ingest telemetry and
+surface topic metadata, but the supervised bridge remains idle so local runs
+do not stall waiting for a consumer.【F:src/data_foundation/ingest/configuration.py†L872-L948】【F:src/data_foundation/ingest/institutional_vertical.py†L790-L860】【F:tests/runtime/test_institutional_ingest_vertical.py†L570-L596】
 
 Need a smaller rehearsal? `python tools/data_ingest/run_real_data_slice.py`
 now accepts either a CSV fixture or a `--provider` flag (for example,

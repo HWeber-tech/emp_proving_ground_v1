@@ -333,6 +333,9 @@ def evaluate_data_backbone_validation(
         "config_flags": {
             "extras_configured": bool(ingest_config.metadata.get("kafka_configured")),
         },
+        "streaming_enabled": bool(
+            ingest_config.metadata.get("kafka_streaming_enabled", True)
+        ),
     }
     if context.kafka_expected:
         configured = context.kafka_configured and bool(context.kafka_topics)

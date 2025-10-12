@@ -1772,6 +1772,76 @@ async def test_runtime_application_summary_surfaces_supervisor_state() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_runtime_application_recovers_from_ingest_failure(caplog: pytest.LogCaptureFixture) -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-recovery", cancel_timeout=0.1)
+    stop_event = asyncio.Event()
+    ingest_first_attempt = asyncio.Event()
+    ingest_restarted = asyncio.Event()
+    trading_started = asyncio.Event()
+
+    ingest_attempts = 0
+
+    async def _ingest() -> None:
+        nonlocal ingest_attempts
+        ingest_attempts += 1
+        if ingest_attempts == 1:
+            ingest_first_attempt.set()
+            raise RuntimeError("ingest failure")
+        ingest_restarted.set()
+        await stop_event.wait()
+
+    async def _trade() -> None:
+        trading_started.set()
+        await stop_event.wait()
+
+    ingestion = RuntimeWorkload(
+        name="ingest",
+        factory=_ingest,
+        description="resilient ingest",
+        restart_policy=WorkloadRestartPolicy(max_restarts=1, backoff_seconds=0.0),
+    )
+    trading = RuntimeWorkload(
+        name="trade",
+        factory=_trade,
+        description="steady trading",
+        restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=0.0),
+    )
+
+    app = RuntimeApplication(
+        ingestion=ingestion,
+        trading=trading,
+        task_supervisor=supervisor,
+    )
+
+    caplog.set_level(
+        logging.ERROR,
+        logger="src.runtime.task_supervisor.test-runtime-recovery",
+    )
+
+    run_task = asyncio.create_task(app.run())
+
+    await asyncio.wait_for(ingest_first_attempt.wait(), timeout=1.0)
+    await asyncio.wait_for(ingest_restarted.wait(), timeout=1.0)
+    await asyncio.wait_for(trading_started.wait(), timeout=1.0)
+
+    stop_event.set()
+
+    await asyncio.wait_for(run_task, timeout=1.0)
+
+    assert ingest_attempts == 2
+    assert any(
+        "Background task ingest-workload failed" in message
+        for _logger, _level, message in caplog.record_tuples
+    )
+
+    summary = app.summary()
+    assert summary.get("ingestion", {}).get("state") == "finished"
+    assert summary.get("trading", {}).get("state") == "finished"
+
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
 async def test_bootstrap_runtime_uses_app_task_supervisor() -> None:
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,

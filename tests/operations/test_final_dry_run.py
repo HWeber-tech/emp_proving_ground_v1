@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import sys
+import asyncio
 from datetime import timedelta
 
 import pytest
 
 from src.operations.dry_run_audit import DryRunStatus
-from src.operations.final_dry_run import FinalDryRunConfig, run_final_dry_run
+from src.operations.final_dry_run import (
+    FinalDryRunConfig,
+    perform_final_dry_run,
+    run_final_dry_run,
+)
 from src.operations.final_dry_run_workflow import run_final_dry_run_workflow
+from src.runtime.task_supervisor import TaskSupervisor
 
 
 _HEARTBEAT_SCRIPT = r"""
@@ -127,3 +133,41 @@ def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):
     assert review.run_label == "Test Run"
     assert set(review.attendees) == {"Alice", "Bob"}
     assert review.evidence_packet == packet
+
+
+@pytest.mark.asyncio()
+async def test_perform_final_dry_run_supervises_background_tasks(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.6),
+        required_duration=timedelta(seconds=0.5),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.5,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+    )
+
+    supervisor = TaskSupervisor(namespace="test-final-dry-run")
+
+    run_task = asyncio.create_task(
+        perform_final_dry_run(config, task_supervisor=supervisor)
+    )
+
+    # Allow the harness to start its background tasks under supervision.
+    await asyncio.sleep(0.1)
+    snapshots = supervisor.describe()
+    task_names = {snapshot.get("name") for snapshot in snapshots}
+    expected_names = {
+        "dry-run-stdout",
+        "dry-run-stderr",
+        "dry-run-duration-timeout",
+        "dry-run-process-wait",
+    }
+    assert expected_names.issubset(task_names)
+
+    result = await run_task
+
+    assert result.status is DryRunStatus.pass_
+    assert supervisor.active_count == 0
+
+    await supervisor.cancel_all()

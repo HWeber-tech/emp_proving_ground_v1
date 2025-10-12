@@ -18,6 +18,7 @@ from src.operations.dry_run_audit import (
     assess_sign_off_readiness,
     evaluate_dry_run,
 )
+from src.runtime.task_supervisor import TaskSupervisor
 
 __all__ = [
     "FinalDryRunConfig",
@@ -145,7 +146,11 @@ class FinalDryRunResult:
         return DryRunStatus.pass_
 
 
-async def perform_final_dry_run(config: FinalDryRunConfig) -> FinalDryRunResult:
+async def perform_final_dry_run(
+    config: FinalDryRunConfig,
+    *,
+    task_supervisor: TaskSupervisor | None = None,
+) -> FinalDryRunResult:
     """Execute the final dry run harness according to ``config``."""
 
     config.log_directory.mkdir(parents=True, exist_ok=True)
@@ -195,17 +200,45 @@ async def perform_final_dry_run(config: FinalDryRunConfig) -> FinalDryRunResult:
                 log_file.flush()
                 raw_file.flush()
 
+    owns_supervisor = False
+    supervisor = task_supervisor
+    if supervisor is None:
+        supervisor = TaskSupervisor(namespace="operations.final_dry_run")
+        owns_supervisor = True
+
     pump_tasks = [
-        asyncio.create_task(_pump_stream(process.stdout, "stdout"), name="dry-run-stdout"),
-        asyncio.create_task(_pump_stream(process.stderr, "stderr"), name="dry-run-stderr"),
+        supervisor.create(
+            _pump_stream(process.stdout, "stdout"),
+            name="dry-run-stdout",
+            metadata={
+                "component": "operations.final_dry_run.pump",
+                "stream": "stdout",
+            },
+        ),
+        supervisor.create(
+            _pump_stream(process.stderr, "stderr"),
+            name="dry-run-stderr",
+            metadata={
+                "component": "operations.final_dry_run.pump",
+                "stream": "stderr",
+            },
+        ),
     ]
 
     duration_seconds = config.duration.total_seconds()
-    timeout_task = asyncio.create_task(
+    timeout_task = supervisor.create(
         asyncio.sleep(duration_seconds),
         name="dry-run-duration-timeout",
+        metadata={
+            "component": "operations.final_dry_run.timeout",
+            "duration_seconds": duration_seconds,
+        },
     )
-    wait_task = asyncio.create_task(process.wait(), name="dry-run-process-wait")
+    wait_task = supervisor.create(
+        process.wait(),
+        name="dry-run-process-wait",
+        metadata={"component": "operations.final_dry_run.process"},
+    )
 
     timed_out = False
     exit_code: int | None = None
@@ -229,6 +262,9 @@ async def perform_final_dry_run(config: FinalDryRunConfig) -> FinalDryRunResult:
         await timeout_task
 
     await asyncio.gather(*pump_tasks, return_exceptions=True)
+
+    if owns_supervisor:
+        await supervisor.cancel_all()
 
     ended_at = datetime.now(tz=UTC)
     actual_duration = ended_at - started_at

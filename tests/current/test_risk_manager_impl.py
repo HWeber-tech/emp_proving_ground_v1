@@ -231,6 +231,16 @@ def test_calculate_portfolio_risk_uses_real_risk_manager_defaults() -> None:
     assert snapshot["risk_amount"] == pytest.approx(22.0)
 
 
+def test_calculate_portfolio_risk_counts_short_exposure() -> None:
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=RiskConfig())
+    manager.add_position("EURUSD", -10_000, 1.1, stop_loss_pct=0.02)
+
+    snapshot = manager.calculate_portfolio_risk()
+
+    assert snapshot["risk_amount"] == pytest.approx(220.0)
+    assert snapshot["assessed_risk"] > 0.0
+
+
 def test_assess_market_risk_exposes_var_and_es_metrics() -> None:
     manager = RiskManagerImpl(initial_balance=50_000, risk_config=RiskConfig())
     returns = [

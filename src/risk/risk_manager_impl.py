@@ -227,8 +227,13 @@ class RiskManagerImpl(RiskManagerProtocol):
 
         price = self._resolve_position_price(entry)
         stop_loss = self._resolve_position_stop_loss(entry)
-        size = entry.get("size", 0.0)
-        return max(0.0, _to_float(size)) * price * stop_loss
+        raw_size = _to_float(entry.get("size"))
+        size = abs(raw_size)
+
+        if size <= 0 or price <= 0 or stop_loss <= 0:
+            return 0.0
+
+        return size * price * stop_loss
 
     # -- sector exposure helpers --------------------------------------------
     def _resolve_sector(self, symbol: str) -> str | None:

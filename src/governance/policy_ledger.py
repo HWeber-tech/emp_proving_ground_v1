@@ -211,10 +211,21 @@ class PolicyLedgerRecord:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "PolicyLedgerRecord":
-        policy_id = str(data.get("policy_id"))
-        tactic_id = str(data.get("tactic_id"))
+        policy_id_raw = data.get("policy_id")
+        if policy_id_raw is None or not str(policy_id_raw).strip():
+            raise ValueError("policy_id is required for policy ledger records")
+        policy_id = str(policy_id_raw).strip()
+
+        tactic_id_raw = data.get("tactic_id")
+        if tactic_id_raw is None or not str(tactic_id_raw).strip():
+            raise ValueError("tactic_id is required for policy ledger records")
+        tactic_id = str(tactic_id_raw).strip()
         stage = PolicyLedgerStage.from_value(data.get("stage"))
-        approvals = tuple(str(value) for value in data.get("approvals", ()))
+        raw_approvals = data.get("approvals", ())
+        if isinstance(raw_approvals, Iterable) and not isinstance(raw_approvals, (str, bytes)):
+            approvals = _normalise_approvals(raw_approvals)
+        else:
+            approvals = ()
         evidence_id = _normalise_evidence_id(data.get("evidence_id"))
         threshold_overrides = dict(data.get("threshold_overrides") or {})
         policy_delta_payload = data.get("policy_delta")

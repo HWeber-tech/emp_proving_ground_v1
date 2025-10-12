@@ -13,6 +13,7 @@ from src.governance.policy_ledger import (
     LedgerReleaseManager,
     PolicyDelta,
     PolicyLedgerFeatureFlags,
+    PolicyLedgerRecord,
     PolicyLedgerStage,
     PolicyLedgerStore,
     _parse_bool,
@@ -196,6 +197,35 @@ def test_policy_governance_workflow_builds_tasks(tmp_path: Path) -> None:
     task = checklist.tasks[0]
     assert task.status.value in {"completed", "in_progress"}
     assert task.metadata["policy_id"] == "alpha.policy"
+
+
+def test_policy_ledger_from_dict_rejects_missing_identifiers() -> None:
+    payload = {
+        "policy_id": None,
+        "tactic_id": "",
+        "stage": "paper",
+        "approvals": ["risk"],
+    }
+
+    with pytest.raises(ValueError):
+        PolicyLedgerRecord.from_dict(payload)
+
+
+def test_policy_ledger_from_dict_normalises_approvals() -> None:
+    payload = {
+        "policy_id": " alpha.policy ",
+        "tactic_id": " tactic.alpha ",
+        "stage": "pilot",
+        "approvals": ["risk", "OPS", "", "risk"],
+        "created_at": "2024-01-01T00:00:00+00:00",
+        "updated_at": "2024-01-02T00:00:00+00:00",
+    }
+
+    record = PolicyLedgerRecord.from_dict(payload)
+
+    assert record.policy_id == "alpha.policy"
+    assert record.tactic_id == "tactic.alpha"
+    assert record.approvals == ("OPS", "risk")
 
 
 def test_policy_ledger_trims_evidence_identifiers(tmp_path: Path) -> None:

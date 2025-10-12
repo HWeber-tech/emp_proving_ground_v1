@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime, timezone
 from collections.abc import Mapping, Sequence
 from typing import Any, List
@@ -113,17 +114,7 @@ class WhatSensor:
         # Attempt pattern synthesis (async engine) to compute strength/confidence
         patterns: dict[str, object] = {}
         try:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                # In an async context, skip orchestration to avoid nested loops.
-                patterns = {}
-            else:
-                orchestrator_output = asyncio.run(self._orch.analyze(df))
-                patterns = _coerce_mapping(orchestrator_output)
+            patterns = self._run_pattern_orchestrator(df)
         except Exception:
             patterns = {}
 
@@ -195,6 +186,42 @@ class WhatSensor:
                 lineage=lineage,
             )
         ]
+
+    def _run_pattern_orchestrator(self, df: pd.DataFrame) -> dict[str, object]:
+        if df.empty:
+            return {}
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            result = asyncio.run(self._orch.analyze(df))
+            return _coerce_mapping(result)
+
+        return self._run_coroutine_in_worker_thread(df)
+
+    def _run_coroutine_in_worker_thread(self, df: pd.DataFrame) -> dict[str, object]:
+        result_holder: dict[str, object] = {}
+        error_holder: dict[str, BaseException] = {}
+
+        def _runner() -> None:
+            try:
+                outcome = asyncio.run(self._orch.analyze(df))
+            except BaseException as exc:  # pragma: no cover - defensive
+                error_holder["error"] = exc
+                return
+            result_holder.update(_coerce_mapping(outcome))
+
+        thread = threading.Thread(
+            target=_runner,
+            name="what-sensor-pattern",
+            daemon=True,
+        )
+        thread.start()
+        thread.join()
+
+        if error_holder:
+            raise error_holder["error"]
+        return result_holder
 
     def _resolve_timestamp(self, df: pd.DataFrame) -> datetime:
         if not df.empty and "timestamp" in df:

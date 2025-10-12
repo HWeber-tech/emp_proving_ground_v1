@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+import pytest
 
 from src.sensory.lineage import SensorLineageRecord
 from src.sensory.what.what_sensor import WhatSensor
@@ -96,3 +97,20 @@ def test_when_sensor_lineage_captures_temporal_components() -> None:
     assert isinstance(lineage, dict)
     assert lineage.get("dimension") == "WHEN"
     assert isinstance(lineage.get("metadata", {}).get("active_sessions"), list)
+
+
+@pytest.mark.asyncio()
+async def test_what_sensor_async_context_executes_pattern_engine() -> None:
+    sensor = WhatSensor()
+    start = datetime(2024, 1, 4, 9, tzinfo=timezone.utc)
+    closes = [1.05 + idx * 0.003 for idx in range(64)]
+    frame = _build_trending_frame(start, closes)
+
+    signal = sensor.process(frame)[0]
+
+    details = signal.value.get("pattern_details")
+    assert isinstance(details, dict)
+    assert details, "expected pattern details when running inside async loop"
+    payload = (signal.metadata or {}).get("pattern_payload")
+    assert isinstance(payload, dict)
+    assert payload, "expected pattern payload metadata to be populated"

@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from typing import Mapping, NoReturn
 
-from src.sensory.organs.dimensions.pattern_engine import WhatDimension
-
 __all__ = ["WhatDimension"]
 
 _LEGACY_DIMENSION_HINTS: Mapping[str, str] = {
@@ -37,4 +35,9 @@ def __getattr__(name: str) -> NoReturn:
         else:
             message += f"Import the enhanced implementation from '{hint}'."
         raise ModuleNotFoundError(message)
+    if name == "WhatDimension":
+        from src.sensory.organs.dimensions.pattern_engine import WhatDimension as _WhatDimension
+
+        globals()[name] = _WhatDimension
+        return _WhatDimension
     raise AttributeError(f"module 'src.sensory.dimensions' has no attribute '{name}'")

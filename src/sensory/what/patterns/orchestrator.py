@@ -9,18 +9,21 @@ pattern engine and supports future decomposition of detectors.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 
-from src.sensory.organs.dimensions.pattern_engine import PatternSynthesisEngine
+if TYPE_CHECKING:  # pragma: no cover - typing only for tooling
+    from src.sensory.organs.dimensions.pattern_engine import PatternSynthesisEngine
 
 
 class PatternOrchestrator:
     """Coordinates pattern synthesis for the WHAT dimension."""
 
     def __init__(self) -> None:
-        self.engine = PatternSynthesisEngine()
+        from src.sensory.organs.dimensions.pattern_engine import PatternSynthesisEngine
+
+        self.engine: PatternSynthesisEngine = PatternSynthesisEngine()
 
     async def analyze(self, market_data: pd.DataFrame) -> dict[str, Any]:
         """

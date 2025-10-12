@@ -52,8 +52,11 @@ from src.governance.policy_ledger import (
 )
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 from src.runtime.task_supervisor import TaskSupervisor
+from src.trading.execution.backlog_tracker import EventBacklogTracker
 from src.trading.execution.liquidity_prober import LiquidityProber
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
+from src.trading.execution.performance_monitor import ThroughputMonitor
+from src.trading.execution.resource_monitor import ResourceUsageMonitor
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryGate
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
@@ -89,6 +92,20 @@ class RecordingBus(DummyBus):
 
     async def publish(self, event: Any) -> None:
         self.events.append(event)
+
+
+def _silence_trading_manager_publishers(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_roi_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_snapshot", _noop)
+    monkeypatch.setattr("src.trading.trading_manager.publish_policy_violation", _noop)
+    monkeypatch.setattr(
+        "src.trading.trading_manager.publish_risk_interface_snapshot", _noop
+    )
+    monkeypatch.setattr("src.trading.trading_manager.publish_risk_interface_error", _noop)
 
 
 @dataclass
@@ -180,6 +197,77 @@ def test_trading_manager_requires_risk_config() -> None:
             execution_engine=None,
         )
 
+
+def test_trading_manager_accepts_custom_monitor_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    throughput = ThroughputMonitor(window=32)
+    backlog = EventBacklogTracker(threshold_ms=125.0, window=64)
+    resource = ResourceUsageMonitor(process=None)
+
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        throughput_monitor=throughput,
+        backlog_tracker=backlog,
+        resource_monitor=resource,
+    )
+
+    assert manager._throughput_monitor is throughput
+    assert manager._backlog_tracker is backlog
+    assert manager._resource_monitor is resource
+    assert manager._throughput_monitor.window == 32
+    assert manager._backlog_tracker.threshold_ms == pytest.approx(125.0)
+    assert manager._backlog_tracker.window == 64
+
+    stats = manager.get_execution_stats()
+    assert stats["throughput"]["samples"] == 0
+    assert stats["backlog"]["threshold_ms"] == pytest.approx(125.0)
+
+
+def test_trading_manager_rejects_conflicting_monitor_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    with pytest.raises(ValueError):
+        TradingManager(
+            event_bus=bus,
+            strategy_registry=AlwaysActiveRegistry(),
+            execution_engine=None,
+            risk_config=RiskConfig(
+                min_position_size=1,
+                mandatory_stop_loss=False,
+                research_mode=True,
+            ),
+            throughput_monitor=ThroughputMonitor(window=8),
+            throughput_window=16,
+        )
+
+    with pytest.raises(ValueError):
+        TradingManager(
+            event_bus=bus,
+            strategy_registry=AlwaysActiveRegistry(),
+            execution_engine=None,
+            risk_config=RiskConfig(
+                min_position_size=1,
+                mandatory_stop_loss=False,
+                research_mode=True,
+            ),
+            backlog_tracker=EventBacklogTracker(threshold_ms=80.0),
+            backlog_threshold_ms=100.0,
+        )
 
 @pytest.mark.asyncio()
 async def test_trading_manager_records_execution_stats(monkeypatch: pytest.MonkeyPatch) -> None:

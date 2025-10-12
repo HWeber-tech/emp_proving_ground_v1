@@ -30,6 +30,12 @@ class ThroughputMonitor:
         self._window = window
         self._samples: Deque[ThroughputSample] = deque(maxlen=window)
 
+    @property
+    def window(self) -> int:
+        """Return the configured rolling window length."""
+
+        return self._window
+
     def record(
         self,
         *,
@@ -140,4 +146,3 @@ class ThroughputMonitor:
         upper = min(lower + 1, len(values_list) - 1)
         weight = rank - lower
         return values_list[lower] * (1.0 - weight) + values_list[upper] * weight
-

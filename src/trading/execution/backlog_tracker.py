@@ -36,6 +36,12 @@ class EventBacklogTracker:
 
         return self._threshold_ms
 
+    @property
+    def window(self) -> int:
+        """Return the maximum number of lag samples retained."""
+
+        return self._window
+
     def record(self, *, lag_ms: float | None, timestamp: datetime | None = None) -> None:
         """Record an observed lag measurement."""
 

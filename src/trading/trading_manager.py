@@ -6,6 +6,7 @@ from collections import deque
 from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
 from datetime import datetime, timezone
 from decimal import Decimal
+from numbers import Integral
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, cast
 from uuid import uuid4
 
@@ -152,6 +153,12 @@ class TradingManager:
         pilot_execution_engine: Any | None = None,
         live_execution_engine: Any | None = None,
         trade_throttle: TradeThrottleConfig | Mapping[str, object] | None = None,
+        throughput_monitor: ThroughputMonitor | None = None,
+        throughput_window: int | None = None,
+        backlog_tracker: EventBacklogTracker | None = None,
+        backlog_threshold_ms: float | None = None,
+        backlog_window: int | None = None,
+        resource_monitor: ResourceUsageMonitor | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -166,7 +173,28 @@ class TradingManager:
             max_daily_drawdown: Maximum daily drawdown percentage
             task_supervisor: Optional supervisor for execution helpers (e.g. probes)
             trade_throttle: Optional configuration limiting trade frequency
+            throughput_monitor: Optional shared throughput monitor instance
+            throughput_window: Rolling window size for throughput metrics (if monitor not provided)
+            backlog_tracker: Optional shared backlog tracker instance
+            backlog_threshold_ms: Override for backlog lag threshold in milliseconds
+            backlog_window: Rolling window size for backlog tracking (if tracker not provided)
+            resource_monitor: Optional resource monitor instance to reuse across managers
         """
+        if throughput_monitor is not None and throughput_window is not None:
+            raise ValueError(
+                "Provide either throughput_monitor or throughput_window, not both"
+            )
+        if backlog_tracker is not None and (
+            backlog_threshold_ms is not None or backlog_window is not None
+        ):
+            raise ValueError(
+                "Provide backlog_tracker or backlog threshold/window overrides, not both"
+            )
+        if throughput_window is not None and not isinstance(throughput_window, Integral):
+            raise TypeError("throughput_window must be an integer when provided")
+        if backlog_window is not None and not isinstance(backlog_window, Integral):
+            raise TypeError("backlog_window must be an integer when provided")
+
         self.event_bus = event_bus
         self.strategy_registry = strategy_registry
         self._installing_release_router = False
@@ -249,9 +277,25 @@ class TradingManager:
 
         self._maybe_auto_install_release_router()
 
-        self._throughput_monitor = ThroughputMonitor()
-        self._resource_monitor = ResourceUsageMonitor()
-        self._backlog_tracker = EventBacklogTracker()
+        throughput_instance = throughput_monitor
+        if throughput_instance is None:
+            if throughput_window is not None:
+                throughput_instance = ThroughputMonitor(window=int(throughput_window))
+            else:
+                throughput_instance = ThroughputMonitor()
+        self._throughput_monitor = throughput_instance
+
+        backlog_instance = backlog_tracker
+        if backlog_instance is None:
+            backlog_kwargs: dict[str, float | int] = {}
+            if backlog_threshold_ms is not None:
+                backlog_kwargs["threshold_ms"] = float(backlog_threshold_ms)
+            if backlog_window is not None:
+                backlog_kwargs["window"] = int(backlog_window)
+            backlog_instance = EventBacklogTracker(**backlog_kwargs)
+        self._backlog_tracker = backlog_instance
+
+        self._resource_monitor = resource_monitor or ResourceUsageMonitor()
 
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,

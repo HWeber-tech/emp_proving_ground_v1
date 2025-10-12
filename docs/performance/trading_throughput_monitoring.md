@@ -87,6 +87,16 @@ consistent schema so baseline scripts can still emit records.
 The health helper doubles as an ops checklist: automate it in smoke tests so
 regressions surface before operators notice backlog on dashboards.
 
+## Configuration Knobs
+
+`TradingManager` lets operators tune monitoring without patching internal
+helpers. Supply a custom `throughput_monitor` or `throughput_window` to adjust
+the rolling window used by the `ThroughputMonitor`. Similarly, pass either a
+pre-built `backlog_tracker` or the `backlog_threshold_ms`/`backlog_window`
+overrides to calibrate the lag posture. Reusing a shared
+`ResourceUsageMonitor` instance is also supported via the `resource_monitor`
+parameter when several managers run inside the same process.
+
 ### Scoped throttles for hot strategies
 
 `TradeThrottle` now supports *scoped* rate limits via the `scope_fields`

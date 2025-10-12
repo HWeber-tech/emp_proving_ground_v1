@@ -146,6 +146,10 @@
   reports no longer split decision-loop coverage across divergent labels, with
   CLI regressions asserting the normalised file list includes the re-mapped
   paths.【F:tools/telemetry/coverage_matrix.py†L12-L60】【F:tests/tools/test_coverage_matrix.py†L120-L168】
+- Progress: Coverage matrix reports now emit a `deprecated_files` list when
+  Cobertura payloads reference retired namespaces (e.g. `src/market_intelligence`),
+  ensuring drift surfaces in guardrail Markdown/JSON outputs instead of being
+  silently aliased, with regression coverage locking the behaviour.【F:tools/telemetry/coverage_matrix.py†L52-L219】【F:tests/tools/test_coverage_matrix.py†L120-L172】
 - Progress: CI workflow now runs the coverage matrix and minimum coverage
   guardrail steps after the guarded pytest job, enforcing ingest/risk targets,
   writing Markdown/summary outputs, and failing builds when thresholds slip,

@@ -25,6 +25,11 @@
   z-score windows with deterministic sampling constraints and guardrail
   coverage, though inputs remain synthetic until the ingest backbone is
   live.【F:src/sensory/how/how_sensor.py†L21-L210】【F:src/sensory/anomaly/anomaly_sensor.py†L21-L302】【F:src/sensory/anomaly/basic_detector.py†L1-L140】【F:tests/sensory/test_how_anomaly_sensors.py†L170-L294】【F:tests/sensory/test_basic_anomaly_detector.py†L1-L39】
+- Institutional understanding engine now injects a bounded random source for
+  jitter, normalises NaN/∞ samples, and reads bid/ask spreads so HOW signals
+  respond to order-book shifts; regression fixtures assert bullish versus
+  bearish frames produce divergent strengths with deterministic jitter for
+  governance evidence.【F:src/sensory/enhanced/how_dimension.py†L19-L109】【F:src/sensory/how/how_sensor.py†L182-L200】【F:tests/sensory/test_primary_dimension_sensors.py†L146-L197】
 - WHAT/WHEN/WHY sensors now attach structured `quality` metadata (source,
   timestamp, confidence) alongside lineage dictionaries, and regression tests
   assert the enriched payloads to keep downstream consumers aligned while real

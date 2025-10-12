@@ -149,7 +149,7 @@
   PostgreSQL upserts via `pg_insert`, binds SQLite fallbacks, and chunks writes
   so ingest runs avoid manual SQL while retaining deterministic freshness
   metrics under regression coverage.【F:src/data_foundation/persist/timescale.py†L2337-L2489】【F:tests/data_foundation/test_timescale_ingest.py†L165-L220】
-- Progress: Operational backbone pipeline now streams Timescale ingest plans through Kafka into the real sensory organ, validates cache metrics, and records sensory snapshots for EURUSD slices ahead of live data onboarding with asynchronous regression coverage.【F:src/data_foundation/pipelines/operational_backbone.py†L1-L208】【F:tests/integration/test_operational_backbone_pipeline.py†L120-L190】【F:src/sensory/real_sensory_organ.py†L201-L233】
+- Progress: Operational backbone pipeline now ships a config-driven factory that hydrates `RealDataManager` from `SystemConfig` extras, resolves Kafka ingest topics, and streams Timescale ingest plans into the real sensory organ; async regressions cover the factory wiring, cache metrics, and EURUSD rehearsal ahead of live onboarding.【F:src/data_foundation/pipelines/operational_backbone.py†L236-L405】【F:tests/data_foundation/test_operational_backbone_factory.py†L1-L126】【F:tests/integration/test_operational_backbone_pipeline.py†L120-L198】【F:src/sensory/real_sensory_organ.py†L201-L233】
 - Wire all runtime entrypoints through `RuntimeApplication` and a task supervisor
   so ingest, cache, and stream jobs are supervised.【F:docs/technical_debt_assessment.md†L33-L56】
 - Document current gaps and expected telemetry in updated runbooks and status

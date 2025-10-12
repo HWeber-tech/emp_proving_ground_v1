@@ -77,7 +77,7 @@ class VisionAlignmentReport:
         layers = [
             self._assess_data_foundation(),
             self._assess_sensory_cortex(),
-            self._assess_intelligence_engine(),
+            self._assess_understanding_loop(),
             self._assess_evolutionary_layer(),
             self._assess_trading_layer(),
         ]
@@ -237,7 +237,7 @@ class VisionAlignmentReport:
             evidence=evidence,
         )
 
-    def _assess_intelligence_engine(self) -> LayerAssessment:
+    def _assess_understanding_loop(self) -> LayerAssessment:
         fusion_engine = getattr(self.pipeline, "fusion_engine", None)
         diagnostics: Mapping[str, Any] = {}
         adaptive_weights: Mapping[str, Any] = {}
@@ -262,14 +262,14 @@ class VisionAlignmentReport:
 
         if weight_count >= 5 and pattern_count > 0:
             coverage = 0.88
-            strengths.append("fusion engine adapting weights and spotting patterns")
+            strengths.append("understanding loop adapting weights and spotting patterns")
         elif weight_count >= 3:
             coverage = 0.58
-            strengths.append("contextual fusion recalibrating weights")
+            strengths.append("understanding loop recalibrating fusion weights")
             gaps.append("Expand diagnostics to surface cross-dimensional patterns")
         else:
             coverage = 0.28
-            gaps.append("Enable adaptive fusion diagnostics")
+            gaps.append("Enable adaptive understanding diagnostics")
 
         evidence = {
             "adaptive_weights": dict(adaptive_weights)
@@ -281,12 +281,16 @@ class VisionAlignmentReport:
             evidence["diagnostics"] = diagnostics
 
         return LayerAssessment(
-            layer="Layer 3 – Intelligence Engine",
+            layer="Layer 3 – Understanding Loop",
             coverage=coverage,
             strengths=strengths,
             gaps=gaps,
             evidence=evidence,
         )
+
+    # Backwards-compatible alias to avoid breaking older callers during the rename.
+    def _assess_intelligence_engine(self) -> LayerAssessment:  # pragma: no cover - legacy path
+        return self._assess_understanding_loop()
 
     def _assess_evolutionary_layer(self) -> LayerAssessment:
         orchestrator = self.evolution_orchestrator

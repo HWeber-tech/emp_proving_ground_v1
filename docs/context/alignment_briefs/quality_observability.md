@@ -74,7 +74,7 @@
     `_to_mapping` helpers with defensive attribute access, structured warnings on
     dict failures, and regression tests that exercise Phase-0 security scenarios so
     adversarial outputs keep flowing to telemetry without silent drops.【F:src/thinking/adversarial/red_team_ai.py†L22-L91】【F:src/thinking/competitive/competitive_intelligence_system.py†L33-L117】【F:tests/thinking/test_security_hardening_phase0.py†L30-L48】
-  - Progress: Competitive understanding storage now writes to `emp:competitive_understanding:*`, keeps legacy aliases, and emits `UnderstandingReportTD` payloads so telemetry dashboards and downstream consumers inherit the understanding vocabulary without breaking historical evidence packs.【F:src/thinking/competitive/competitive_intelligence_system.py†L804-L1059】【F:src/thinking/models/types.py†L61-L89】
+  - Progress: Competitive understanding storage now writes to `emp:competitive_understanding:*` and emits `UnderstandingReportTD` payloads with only the canonical `understanding_id`, removing the legacy alias so telemetry dashboards and downstream consumers adopt the updated schema with guardrail coverage for straggling imports.【F:src/thinking/competitive/competitive_intelligence_system.py†L868-L885】【F:src/thinking/models/types.py†L61-L69】【F:tests/current/test_understanding_validator.py†L8-L16】
   - Progress: Incident response readiness now evaluates policy/state mappings,
     emits Markdown snapshots, derives roster/backlog alerts, and publishes via
     the failover helper under pytest coverage so operators inherit actionable

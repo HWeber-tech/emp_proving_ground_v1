@@ -397,6 +397,7 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         "WRITE_EVERY_STEPS": 500,
         "AUG_FEATURES": True,
         "AUG_NOTES": True,
+        "SYMBOL_AWARE_RETRIEVAL": True,
         "REGIME_K": 6,
         "REGIME_FEATURES": ["vol_14", "atr_14", "ret_5", "ret_20", "skew_20", "kurt_20"],
         "STATE_SNAPSHOT_FEATURES": [
@@ -417,6 +418,11 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         "OUTCOME_METRIC": "excess_ret",
         "BACKTEST_SPLIT": "val",
         "WINDOWS_FOR_EVAL": 1000,
+        "MEMORY_MAX_ENTRIES": 50000,
+        "MEMORY_TTL_DAYS": 365,
+        "REGIME_MODEL_PATH": "artifacts/memory/emp_regime_model.bin",
+        "RNG_SEED": 4242,
+        "LATENCY_INCREASE_MAX_PCT": 10.0,
     }
 
     emp.set_seed(4242)
@@ -446,12 +452,64 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         selected = emp.select_features(batch_features, state_features)
         return emp.embed(cfg["EMBED_MODEL"], selected)
 
-    regime_model = emp.regime.kmeans(
-        k=cfg["REGIME_K"],
-        feature_names=regime_features,
-        split="train",
-        dataset="market_window_4h_lookahead",
-    )
+    regime_model_path = Path(cfg["REGIME_MODEL_PATH"])
+    regime_model: Any | None = None
+    loader = getattr(emp.regime, "load_model", None)
+    if callable(loader) and regime_model_path.exists():
+        try:
+            regime_model = loader(path=str(regime_model_path))
+            emp.log(
+                f"Loaded persisted regime model from {regime_model_path}.",
+                level="info",
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime guard
+            emp.log(
+                f"Failed to load regime model ({exc}); refitting fresh model.",
+                level="warn",
+            )
+            regime_model = None
+
+    if regime_model is None:
+        try:
+            regime_model = emp.regime.kmeans(
+                k=cfg["REGIME_K"],
+                feature_names=regime_features,
+                split="train",
+                dataset="market_window_4h_lookahead",
+                random_state=int(cfg["RNG_SEED"]),
+            )
+        except TypeError:
+            regime_model = emp.regime.kmeans(
+                k=cfg["REGIME_K"],
+                feature_names=regime_features,
+                split="train",
+                dataset="market_window_4h_lookahead",
+            )
+
+        saver = getattr(emp.regime, "save_model", None)
+        if callable(saver):
+            try:
+                saver(regime_model, path=str(regime_model_path))
+                emp.log(
+                    f"Persisted regime model to {regime_model_path}.",
+                    level="info",
+                )
+            except TypeError:
+                saver(regime_model, str(regime_model_path))
+                emp.log(
+                    f"Persisted regime model to {regime_model_path}.",
+                    level="info",
+                )
+        else:
+            _ensure_dir(regime_model_path.parent)
+            with regime_model_path.open("w", encoding="utf-8") as handle:
+                json.dump({"regime_k": cfg["REGIME_K"], "features": regime_features}, handle)
+            emp.log(
+                f"Saved regime model metadata to {regime_model_path} (fallback).",
+                level="info",
+            )
+
+    hook_latency_stats = {"count": 0, "total_ms": 0.0}
 
     def _aggregate_neighbors(neighbors: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         records = list(neighbors)
@@ -478,6 +536,34 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         vol = float(context.get("vol_14", 0.0))
         ret20 = float(context.get("ret_20", 0.0))
         return f"regime={regime_tag} vol14={vol:.3f} ret20={ret20:.3f}"
+
+    def _apply_memory_retention() -> None:
+        if memory_store is None:
+            return
+        max_entries = int(cfg.get("MEMORY_MAX_ENTRIES", 0) or 0)
+        ttl_days = float(cfg.get("MEMORY_TTL_DAYS", 0.0) or 0.0)
+        if max_entries > 0:
+            prune = getattr(memory_store, "prune", None)
+            if callable(prune):
+                try:
+                    prune(max_entries=max_entries)
+                except TypeError:
+                    prune({"max_entries": max_entries})
+                emp.log(
+                    f"Applied memory prune to enforce max {max_entries} entries.",
+                    level="info",
+                )
+        if ttl_days > 0:
+            prune_ttl = getattr(memory_store, "prune_older_than", None)
+            if callable(prune_ttl):
+                try:
+                    prune_ttl(days=ttl_days)
+                except TypeError:
+                    prune_ttl(ttl_days)
+                emp.log(
+                    f"Applied memory TTL prune at {ttl_days} days.",
+                    level="info",
+                )
 
     def write_memory_from_backtest(run_id: str) -> Dict[str, Any]:
         if not cfg.get("MEMORY_ENABLED") or memory_store is None:
@@ -520,6 +606,7 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         if batch:
             memory_store.add(batch)
             total_written += len(batch)
+        _apply_memory_retention()
         emp.log(
             f"Memory write complete for {run_id}; stored {total_written} entries.",
             level="info",
@@ -531,10 +618,13 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
             return {}
         if memory_store is None:
             return {}
+        import time
+
+        started = time.perf_counter()
         embedding = _state_embedding(context)
         regime_tag = regime_model.tag(context)
         filters = {"regime_tag": regime_tag}
-        if "symbol" in context:
+        if cfg.get("SYMBOL_AWARE_RETRIEVAL", True) and "symbol" in context:
             filters["symbol"] = context["symbol"]
         neighbors = memory_store.search(
             embedding=embedding,
@@ -542,6 +632,9 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
             where=filters,
             recency_half_life_days=cfg["DECAY_HALF_LIFE_DAYS"],
         )
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        hook_latency_stats["count"] += 1
+        hook_latency_stats["total_ms"] += elapsed_ms
         if not neighbors:
             return {}
         return _aggregate_neighbors(neighbors)
@@ -554,7 +647,7 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         embedding = _state_embedding(context)
         regime_tag = regime_model.tag(context)
         filters = {"regime_tag": regime_tag}
-        if "symbol" in context:
+        if cfg.get("SYMBOL_AWARE_RETRIEVAL", True) and "symbol" in context:
             filters["symbol"] = context["symbol"]
         neighbors = memory_store.search(embedding, int(cfg["TOPK"]), where=filters)
         if not neighbors:
@@ -652,22 +745,69 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
     sortino_off = float(res_off.get("sortino", 0.0) or 0.0)
     sortino_on = float(res_on.get("sortino", 0.0) or 0.0)
 
+    def _lookup_metric(run_id: str, key: str) -> float:
+        getters = [
+            getattr(emp, "get_metric", None),
+            getattr(emp, "metrics", None),
+            getattr(emp, "get_run_metric", None),
+        ]
+        for getter in getters:
+            if callable(getter):
+                try:
+                    value = getter(run_id, key)  # type: ignore[arg-type]
+                except TypeError:
+                    try:
+                        payload = getter(run_id)  # type: ignore[misc]
+                    except Exception:
+                        continue
+                    else:
+                        if isinstance(payload, Mapping) and key in payload:
+                            return float(payload[key] or 0.0)
+                        continue
+                except Exception:
+                    continue
+                else:
+                    if isinstance(value, Mapping):
+                        value = value.get(key, 0.0)
+                    return float(value or 0.0)
+        return 0.0
+
+    latency_off = _lookup_metric(run_off, "latency_ms")
+    latency_on = _lookup_metric(run_on, "latency_ms")
+    latency_increase_pct = 0.0
+    if latency_off > 0:
+        latency_increase_pct = ((latency_on - latency_off) / latency_off) * 100.0
+
     delta = {
         "sharpe_delta": sharpe_on - sharpe_off,
         "maxdd_delta": maxdd_on - maxdd_off,
         "sortino_delta": sortino_on - sortino_off,
+        "latency_increase_pct": latency_increase_pct,
     }
 
     success = delta["sharpe_delta"] > 0.05 and delta["maxdd_delta"] < 0.0
     abort = (delta["sharpe_delta"] < -0.05) or (
         delta["maxdd_delta"] > 0.0 and abs(delta["maxdd_delta"]) > 0.02
     )
+    latency_guard = (
+        latency_off > 0
+        and latency_increase_pct > float(cfg.get("LATENCY_INCREASE_MAX_PCT", 0.0))
+    )
+
+    decision_ok = success and not abort and not latency_guard
+    if latency_guard:
+        reason = (
+            "Latency overhead exceeded guard: "
+            f"{latency_increase_pct:.2f}% > {cfg['LATENCY_INCREASE_MAX_PCT']}%"
+        )
+    elif success and not abort:
+        reason = "Improved Sharpe and reduced MaxDD on regime repeats"
+    else:
+        reason = "Did not meet Sharpe/DD thresholds on regime repeats"
 
     decision = {
-        "ok": success and not abort,
-        "reason": "Improved Sharpe and reduced MaxDD on regime repeats"
-        if success and not abort
-        else "Did not meet Sharpe/DD thresholds on regime repeats",
+        "ok": decision_ok,
+        "reason": reason,
     }
 
     if decision["ok"]:
@@ -689,6 +829,20 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
             "subset_metrics_on": res_on,
             "deltas": delta,
             "config": dict(cfg),
+            "hook_latency_ms": {
+                "count": hook_latency_stats["count"],
+                "avg_ms": (
+                    hook_latency_stats["total_ms"] / hook_latency_stats["count"]
+                    if hook_latency_stats["count"]
+                    else 0.0
+                ),
+            },
+            "latency_guard": {
+                "baseline_ms": latency_off,
+                "treatment_ms": latency_on,
+                "increase_pct": latency_increase_pct,
+                "threshold_pct": cfg["LATENCY_INCREASE_MAX_PCT"],
+            },
         },
         out=f"{cfg['ART_DIR']}/day3_4_report.html",
     )
@@ -730,4 +884,18 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
         "metrics_off": res_off,
         "metrics_on": res_on,
         "config": dict(cfg),
+        "hook_latency_ms": {
+            "count": hook_latency_stats["count"],
+            "avg_ms": (
+                hook_latency_stats["total_ms"] / hook_latency_stats["count"]
+                if hook_latency_stats["count"]
+                else 0.0
+            ),
+        },
+        "latency_guard": {
+            "baseline_ms": latency_off,
+            "treatment_ms": latency_on,
+            "increase_pct": latency_increase_pct,
+            "threshold_pct": cfg["LATENCY_INCREASE_MAX_PCT"],
+        },
     }

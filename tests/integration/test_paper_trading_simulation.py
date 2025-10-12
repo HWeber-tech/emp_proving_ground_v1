@@ -111,6 +111,8 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         assert metrics_snapshot.get("total_orders", 0) >= 1
         assert metrics_snapshot.get("successful_orders", 0) >= 1
         assert metrics_snapshot.get("failed_orders", 0) == 0
+        assert metrics_snapshot.get("success_ratio") == pytest.approx(1.0)
+        assert metrics_snapshot.get("failure_ratio") == pytest.approx(0.0)
         state = runtime.trading_manager.portfolio_monitor.get_state()
         assert isinstance(state, dict)
         assert "equity" in state and "total_pnl" in state
@@ -201,6 +203,8 @@ async def test_paper_trading_simulation_respects_audit_enforcement(tmp_path) -> 
         metrics_snapshot = execution_outcome.get("paper_metrics")
         assert isinstance(metrics_snapshot, dict)
         assert metrics_snapshot.get("total_orders", 0) == 0
+        assert metrics_snapshot.get("success_ratio") == 0.0
+        assert metrics_snapshot.get("failure_ratio") == 0.0
 
         strategy_summary = runtime.trading_manager.get_strategy_execution_summary()
         summary_entry = strategy_summary.get("bootstrap-strategy", {})
@@ -299,6 +303,20 @@ async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> 
             execution_outcome = latest_entry.get("outcomes", {}).get("execution", {})
             assert execution_outcome.get("last_order")
             assert execution_outcome.get("last_error") in (None, {})
+        metrics_snapshot = (
+            entries[-1]
+            .get("outcomes", {})
+            .get("execution", {})
+            .get("paper_metrics", {})
+        )
+        assert isinstance(metrics_snapshot, dict)
+        if metrics_snapshot.get("total_orders", 0):
+            assert metrics_snapshot.get("success_ratio") is not None
+            assert metrics_snapshot.get("failure_ratio") is not None
+            assert pytest.approx(
+                metrics_snapshot.get("success_ratio", 0.0)
+                + metrics_snapshot.get("failure_ratio", 0.0)
+            ) == 1.0
         state = runtime.trading_manager.portfolio_monitor.get_state()
         assert isinstance(state, dict)
         summary = runtime.trading_manager.get_strategy_execution_summary()

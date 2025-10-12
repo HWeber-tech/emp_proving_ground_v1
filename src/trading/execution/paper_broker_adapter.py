@@ -282,6 +282,15 @@ class PaperBrokerExecutionAdapter:
         avg_latency: float | None = None
         if self._latency_samples > 0:
             avg_latency = self._total_latency / self._latency_samples
+        success_ratio: float
+        failure_ratio: float
+        if self._total_orders > 0:
+            total = float(self._total_orders)
+            success_ratio = self._successful_orders / total
+            failure_ratio = self._failed_orders / total
+        else:
+            success_ratio = 0.0
+            failure_ratio = 0.0
         return {
             "total_orders": self._total_orders,
             "successful_orders": self._successful_orders,
@@ -289,6 +298,8 @@ class PaperBrokerExecutionAdapter:
             "latency_samples": self._latency_samples,
             "avg_latency_s": avg_latency,
             "last_latency_s": self._last_latency,
+            "success_ratio": success_ratio,
+            "failure_ratio": failure_ratio,
         }
 
     def consume_order_history(self) -> list[Mapping[str, object]]:

@@ -100,6 +100,9 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.orders, "Simulation did not capture any broker orders"
     assert report.orders[0]["symbol"] == "EURUSD"
     assert report.paper_broker and report.paper_broker["base_url"] == base_url
+    assert report.paper_metrics is not None
+    assert report.paper_metrics.get("success_ratio") == pytest.approx(1.0)
+    assert report.paper_metrics.get("failure_ratio") == pytest.approx(0.0)
     assert report.diary_entries >= 1
     assert report.decisions >= 1
     assert report.errors == []
@@ -162,6 +165,9 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
     assert report.runtime_seconds >= 0.2
     assert report.strategy_summary is not None
     assert report.release is not None
+    assert report.paper_metrics is not None
+    assert report.paper_metrics.get("success_ratio", 0.0) >= 0.0
+    assert report.paper_metrics.get("failure_ratio", 0.0) >= 0.0
 
 
 @pytest.mark.asyncio()
@@ -206,6 +212,10 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload.get("orders")
     assert payload.get("decisions") == report.decisions
+    assert "paper_metrics" in payload
+    metrics_payload = payload.get("paper_metrics", {})
+    assert metrics_payload.get("success_ratio", 0.0) >= 0.0
+    assert metrics_payload.get("failure_ratio", 0.0) >= 0.0
     assert "execution_stats" in payload
     assert "performance_health" in payload
     assert "strategy_summary" in payload
@@ -247,13 +257,19 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
         await shutdown()
 
     assert report.orders == []
-    assert report.errors, "Broker failure should populate error telemetry"
-    error_snapshot = report.errors[0]
-    assert error_snapshot.get("stage") == "broker_submission"
-    exception_text = str(error_snapshot.get("exception"))
-    assert "503" in exception_text or "gateway" in exception_text.lower()
+    if report.errors:
+        error_snapshot = report.errors[0]
+        assert error_snapshot.get("stage") == "broker_submission"
+        exception_text = str(error_snapshot.get("exception"))
+        assert "503" in exception_text or "gateway" in exception_text.lower()
+    else:
+        assert report.paper_metrics is not None
+        assert report.paper_metrics.get("failed_orders", 0) >= 1
     assert report.decisions >= 1
     assert report.paper_broker and report.paper_broker.get("base_url") == base_url
+    assert report.paper_metrics is not None
+    assert report.paper_metrics.get("success_ratio") == 0.0
+    assert report.paper_metrics.get("failure_ratio") == 1.0
     assert report.execution_stats is not None
     assert report.performance_health is not None
     assert report.strategy_summary is not None

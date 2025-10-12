@@ -104,6 +104,8 @@ async def test_paper_broker_adapter_submits_order_and_records_metadata() -> None
     assert metrics["latency_samples"] == 1
     assert metrics["avg_latency_s"] is not None
     assert metrics["avg_latency_s"] >= 0.0
+    assert metrics["success_ratio"] == pytest.approx(1.0)
+    assert metrics["failure_ratio"] == pytest.approx(0.0)
 
 
 @pytest.mark.asyncio
@@ -137,6 +139,8 @@ async def test_paper_broker_adapter_rejects_unsupported_order_type() -> None:
     assert metrics["failed_orders"] == 1
     assert metrics["latency_samples"] == 0
     assert metrics["avg_latency_s"] is None
+    assert metrics["success_ratio"] == 0.0
+    assert metrics["failure_ratio"] == 1.0
 
 
 @pytest.mark.asyncio
@@ -209,6 +213,8 @@ async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
     assert metrics["failed_orders"] == 1
     assert metrics["latency_samples"] == 0
     assert metrics["avg_latency_s"] is None
+    assert metrics["success_ratio"] == 0.0
+    assert metrics["failure_ratio"] == 1.0
 
 
 @pytest.mark.asyncio

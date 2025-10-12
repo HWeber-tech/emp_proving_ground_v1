@@ -248,10 +248,12 @@ def _capture_error_history(
 ) -> None:
     supported, records = _consume_adapter_history(paper_engine, "consume_error_history")
     if supported:
-        if not records:
+        if records:
+            for payload in records:
+                _append_error_metadata(payload, errors, seen_errors)
             return
-        for payload in records:
-            _append_error_metadata(payload, errors, seen_errors)
+        payload = paper_engine.describe_last_error()
+        _append_error_metadata(payload, errors, seen_errors)
         return
 
     payload = paper_engine.describe_last_error()

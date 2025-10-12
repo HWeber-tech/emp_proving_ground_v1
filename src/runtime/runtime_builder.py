@@ -3940,6 +3940,13 @@ def build_professional_runtime_application(
         task_supervisor=app.task_supervisor,
     )
 
+    attach_runtime = getattr(app, "attach_runtime_application", None)
+    if callable(attach_runtime):
+        try:
+            attach_runtime(runtime_app)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to attach runtime application to app", exc_info=True)
+
     if risk_startup_callback is not None:
         runtime_app.add_startup_callback(risk_startup_callback)
 

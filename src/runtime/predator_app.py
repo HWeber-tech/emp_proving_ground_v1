@@ -184,6 +184,9 @@ from src.orchestration.evolution_cycle import EvolutionCycleOrchestrator
 from src.runtime.fix_dropcopy import FixDropcopyReconciler
 from src.runtime.fix_pilot import FixIntegrationPilot
 from src.runtime.task_supervisor import TaskSupervisor
+
+if TYPE_CHECKING:  # pragma: no cover - typing helpers only
+    from src.runtime.runtime_builder import RuntimeApplication
 from src.risk.telemetry import format_risk_markdown
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -322,6 +325,7 @@ class ProfessionalPredatorApp:
         self._last_configuration_snapshot: ConfigurationAuditSnapshot | None = None
         self._last_risk_configuration: dict[str, Any] | None = None
         self._kafka_bridge_metadata: dict[str, object] | None = None
+        self._runtime_application: "RuntimeApplication | None" = None
 
     async def __aenter__(self) -> "ProfessionalPredatorApp":
         await self.start()
@@ -377,6 +381,13 @@ class ProfessionalPredatorApp:
         if self._kafka_bridge_metadata is None:
             return None
         return dict(self._kafka_bridge_metadata)
+
+    def attach_runtime_application(self, runtime_app: "RuntimeApplication") -> None:
+        """Bind a runtime application so summaries surface workload metadata."""
+
+        if runtime_app is None:
+            raise ValueError("runtime_app must not be None")
+        self._runtime_application = runtime_app
 
     def record_backup_snapshot(self, snapshot: BackupReadinessSnapshot) -> None:
         """Store the most recent backup readiness snapshot for summaries."""
@@ -947,6 +958,7 @@ class ProfessionalPredatorApp:
         self._shutdown_time = datetime.now()
         self._closed = True
         self._started = False
+        self._runtime_application = None
         self._logger.info("✅ Professional Predator shutdown complete")
 
     def summary(self) -> Dict[str, Any]:
@@ -1484,6 +1496,17 @@ class ProfessionalPredatorApp:
             if markdown:
                 strategy_payload["markdown"] = markdown
             summary_payload["strategy_performance"] = strategy_payload
+
+        runtime_app = self._runtime_application
+        if runtime_app is not None:
+            try:
+                runtime_snapshot = runtime_app.summary()
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.debug(
+                    "Failed to summarise runtime application", exc_info=True
+                )
+            else:
+                summary_payload["runtime_application"] = runtime_snapshot
 
         if self._last_spark_export_snapshot is not None:
             spark_snapshot = self._last_spark_export_snapshot

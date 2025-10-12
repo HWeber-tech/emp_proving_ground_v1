@@ -184,9 +184,10 @@ same store→cache→stream drill without writing glue code. The CLI loads
 `SystemConfig` from environment variables, optional dotenv files, or
 `--extra` overrides, promotes the config to institutional backbone mode, and
 emits JSON/Markdown summaries covering ingest rows, cache metrics, Kafka
-events, and sensory snapshots. Tests patch the pipeline to assert symbols,
-connection metadata, and Markdown rendering so the runbook’s workflow stays
-reproducible.【F:tools/data_ingest/run_operational_backbone.py†L1-L210】【F:tests/tools/test_run_operational_backbone.py†L17-L105】
+events, sensory snapshots, belief/regime telemetry, understanding decisions,
+and any ingest failures encountered during fallback. Tests patch the pipeline
+to assert symbols, connection metadata, and Markdown rendering so the
+runbook’s workflow stays reproducible.【F:tools/data_ingest/run_operational_backbone.py†L1-L378】【F:tests/tools/test_run_operational_backbone.py†L17-L105】
 
 ```python
 from datetime import datetime, timezone

@@ -43,6 +43,10 @@
     floors, and calm/storm thresholds from historical EURUSD slices, then rebuild
     belief/regime components that survive calm-versus-erratic replay suites under
     guardrail coverage so tickets land with production-ready defaults.【F:src/understanding/belief_regime_calibrator.py†L1-L175】【F:tests/operations/test_belief_regime_calibrator.py†L34-L136】
+  - *Progress*: Live belief manager now clamps regime threshold scaling with a
+    hysteresis window, emits cached-ingest belief/regime telemetry, and carries
+    guardrail coverage that replays volatility spikes to prove monotonic scaling
+    and healthy regime classification for the sprint’s acceptance artifacts.【F:src/understanding/live_belief_manager.py†L18-L168】【F:tests/understanding/test_live_belief_manager.py†L210-L296】【F:tests/integration/test_operational_backbone_pipeline.py†L198-L295】
 - **Validation artifacts**
   - Pytest suite around `hebbian_step` updater verifying low-rank covariance (`sigma`) remains PSD after updates across calm/normal/storm fixtures.
   - Golden JSON beliefs/regime snapshots used by doctest-like regression to guard schema drift.
@@ -72,6 +76,11 @@
     both reflection digests and reviewer-ready reports so reviewers inherit
     emerging-strategy telemetry without spelunking raw summaries under expanded pytest
     coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+  - Operational backbone pipeline now boots attached `LiveBeliefManager` and
+    `UnderstandingRouter` components during ingest rehearsals, returning
+    belief/regime snapshots, understanding decisions, and ingest-failure
+    telemetry so the router workstream can exercise end-to-end evidence under
+    guardrail coverage even when Timescale falls back to cached frames.【F:src/data_foundation/pipelines/operational_backbone.py†L82-L366】【F:tests/integration/test_operational_backbone_pipeline.py†L198-L295】【F:tools/data_ingest/run_operational_backbone.py†L327-L378】
   - Reflection builder now surfaces emerging tactics and experiments with first/last
     seen timestamps, decision counts, share, and gating metadata, rendering reviewer
     insights that call out regime filters and minimum confidence so governance sees

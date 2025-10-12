@@ -294,16 +294,10 @@ class TestContextualFusion:
         assert -1.0 <= synthesis.unified_score <= 1.0
         assert 0.0 <= synthesis.confidence <= 1.0
 
-    @pytest.mark.asyncio
-    async def test_intelligence_alias_remains_supported(
-        self, fusion_engine, data_generator
-    ) -> None:
-        market_data = data_generator.generate_market_data("normal")
-
-        alias_result = await fusion_engine.analyze_market_intelligence(market_data)
-
-        assert alias_result is not None
-        assert hasattr(alias_result, "unified_score")
+    def test_intelligence_alias_removed(self, fusion_engine) -> None:
+        assert not hasattr(fusion_engine, "analyze_market_intelligence")
+        with pytest.raises(AttributeError):
+            getattr(fusion_engine, "analyze_market_intelligence")
 
     @pytest.mark.asyncio
     async def test_fusion_with_multiple_data_points(self, fusion_engine, data_generator):

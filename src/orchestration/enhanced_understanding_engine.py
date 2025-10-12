@@ -326,11 +326,6 @@ class ContextualFusionEngine:
             opportunity_factors=opportunity_factors,
         )
 
-    async def analyze_market_intelligence(self, market_data: MarketData) -> Synthesis:
-        """Backward compatible alias for legacy callers."""
-
-        return await self.analyze_market_understanding(market_data)
-
     def get_diagnostic_information(self) -> Dict[str, Any]:
         return {
             "current_readings": self.current_readings,

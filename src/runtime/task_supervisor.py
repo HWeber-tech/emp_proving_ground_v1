@@ -18,6 +18,7 @@ class TaskSnapshot:
     name: str | None
     state: str
     created_at: datetime
+    age_seconds: float
     metadata: Mapping[str, Any] | None
 
     def as_dict(self) -> dict[str, Any]:
@@ -25,6 +26,7 @@ class TaskSnapshot:
             "name": self.name,
             "state": self.state,
             "created_at": self.created_at.isoformat(),
+            "age_seconds": self.age_seconds,
         }
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
@@ -201,12 +203,14 @@ class TaskSupervisor:
     def describe(self) -> list[dict[str, Any]]:
         """Return lightweight metadata for active tasks."""
 
+        now = datetime.now(UTC)
         snapshots: list[dict[str, Any]] = []
         for task, record in self._tasks.items():
             snapshot = TaskSnapshot(
                 name=record.name,
                 state=self._task_state(task),
                 created_at=record.created_at,
+                age_seconds=max(0.0, (now - record.created_at).total_seconds()),
                 metadata=record.metadata,
             )
             payload = snapshot.as_dict()

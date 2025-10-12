@@ -23,6 +23,31 @@ async def test_supervisor_tracks_created_tasks_and_cancels() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_supervisor_snapshot_reports_age_in_seconds() -> None:
+    supervisor = TaskSupervisor(namespace="age-test")
+    release = asyncio.Event()
+
+    async def _await_release() -> None:
+        await release.wait()
+
+    supervisor.create(_await_release(), name="age-task")
+    await asyncio.sleep(0.02)
+
+    first_snapshot = supervisor.describe()[0]
+    assert "age_seconds" in first_snapshot
+    initial_age = first_snapshot["age_seconds"]
+    assert isinstance(initial_age, float)
+    assert initial_age >= 0.0
+
+    await asyncio.sleep(0.02)
+    second_snapshot = supervisor.describe()[0]
+    assert second_snapshot["age_seconds"] >= initial_age
+
+    release.set()
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
 async def test_supervisor_logs_failures(caplog: pytest.LogCaptureFixture) -> None:
     supervisor = TaskSupervisor(namespace="test", cancel_timeout=0.1)
 

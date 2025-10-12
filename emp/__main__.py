@@ -10,11 +10,21 @@ def cli() -> None:
 
 
 @cli.command("mini-cycle")
-def mini_cycle() -> None:
-    """Run EMP mini-cycle Days 1–2 orchestrator."""
-    from emp.experiments import run_day1_day2
+@click.option(
+    "--days",
+    type=click.Choice(["d1d2", "d3d4"]),
+    default="d1d2",
+    show_default=True,
+    help="Select which mini-cycle orchestration to execute.",
+)
+def mini_cycle(days: str) -> None:
+    """Run EMP mini-cycle orchestrations."""
+    from emp.experiments import run_day1_day2, run_day3_day4
 
-    run_day1_day2()
+    if days == "d3d4":
+        run_day3_day4()
+    else:
+        run_day1_day2()
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI manual execution

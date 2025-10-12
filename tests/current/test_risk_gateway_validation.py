@@ -54,6 +54,20 @@ class DummyLiquidityProber:
         }
 
 
+class TrackingSizer:
+    """Test helper that records position sizing invocations."""
+
+    def __init__(self, recommended: Decimal = Decimal("5")) -> None:
+        self.recommended = Decimal(recommended)
+        self.calls: list[tuple[Decimal, Decimal, Decimal]] = []
+
+    def __call__(
+        self, balance: Decimal, risk_per_trade: Decimal, stop_loss_pct: Decimal
+    ) -> Decimal:
+        self.calls.append((balance, risk_per_trade, stop_loss_pct))
+        return self.recommended
+
+
 @dataclass
 class Intent:
     symbol: str
@@ -192,6 +206,74 @@ async def test_risk_gateway_liquidity_probe_uses_portfolio_price(
     assert any(level != 0.0 for level in price_levels)
     assert price_levels[2] == pytest.approx(1.2345, rel=1e-6)
 
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_converts_stop_loss_pips_for_position_sizer(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    sizer = TrackingSizer(recommended=Decimal("5"))
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=sizer,
+        portfolio_monitor=portfolio_monitor,
+        risk_per_trade=Decimal("0.01"),
+        stop_loss_floor=0.001,
+        risk_policy=None,
+    )
+
+    portfolio_monitor.portfolio["equity"] = 50_000.0
+    state = portfolio_monitor.get_state()
+    state["current_daily_drawdown"] = 0.0
+    state["pip_value"] = 0.0001
+
+    intent = Intent("EURUSD", Decimal("5"))
+    intent.price = Decimal("1.2000")
+    intent.metadata["stop_loss_pips"] = 25
+
+    validated = await gateway.validate_trade_intent(intent, state)
+
+    assert validated is intent
+    assert sizer.calls, "Expected position sizer to be invoked"
+    _, _, stop_loss_arg = sizer.calls[0]
+    expected_stop_loss = (25 * state["pip_value"]) / float(intent.price)
+    assert float(stop_loss_arg) == pytest.approx(expected_stop_loss, rel=1e-6)
+
+    assessment = intent.metadata.get("risk_assessment", {})
+    checks = assessment.get("checks", [])
+    assert any(check.get("name") == "position_sizer" for check in checks)
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_stop_loss_pips_respects_floor(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    sizer = TrackingSizer(recommended=Decimal("5"))
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=sizer,
+        portfolio_monitor=portfolio_monitor,
+        risk_per_trade=Decimal("0.01"),
+        stop_loss_floor=0.003,
+        risk_policy=None,
+    )
+
+    portfolio_monitor.portfolio["equity"] = 25_000.0
+    state = portfolio_monitor.get_state()
+    state["current_daily_drawdown"] = 0.0
+    state["pip_value"] = 0.00001
+
+    intent = Intent("EURUSD", Decimal("5"))
+    intent.price = Decimal("1.5000")
+    intent.metadata["stop_loss_pips"] = 1
+
+    validated = await gateway.validate_trade_intent(intent, state)
+
+    assert validated is intent
+    assert sizer.calls, "Expected position sizer to be invoked"
+    _, _, stop_loss_arg = sizer.calls[0]
+    assert float(stop_loss_arg) == pytest.approx(0.003, rel=1e-6)
 
 @pytest.mark.asyncio()
 async def test_risk_gateway_apply_risk_config_refreshes_limits(

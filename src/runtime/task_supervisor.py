@@ -178,8 +178,25 @@ class TaskSupervisor:
         if self._closing:
             raise RuntimeError("TaskSupervisor is shutting down; cannot track new tasks")
 
+        if task in self._tasks:
+            record = self._tasks[task]
+            if metadata and record.metadata is None:
+                record.metadata = dict(metadata)
+            elif metadata and isinstance(record.metadata, Mapping):
+                merged = dict(record.metadata)
+                merged.update(metadata)
+                record.metadata = merged
+            return task
+
         self._register(task, metadata)
         return task
+
+    def is_tracked(self, task: asyncio.Task[Any]) -> bool:
+        """Return ``True`` when ``task`` is already tracked by the supervisor."""
+
+        if not isinstance(task, asyncio.Task):
+            raise TypeError("TaskSupervisor.is_tracked expects an asyncio.Task instance")
+        return task in self._tasks
 
     def describe(self) -> list[dict[str, Any]]:
         """Return lightweight metadata for active tasks."""

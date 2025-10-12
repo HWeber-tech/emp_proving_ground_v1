@@ -2,6 +2,7 @@ import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
@@ -93,6 +94,38 @@ class _StubBroker:
             with suppress(asyncio.CancelledError):
                 await task
         self._trade_task = None
+
+
+class _SupervisorAwareComponent:
+    def __init__(self) -> None:
+        self.received_supervisor: TaskSupervisor | None = None
+        self.start_calls = 0
+        self.stop_calls = 0
+        self._task: asyncio.Task[Any] | None = None
+        self._price_task: asyncio.Task[Any] | None = None
+
+    def set_task_supervisor(self, supervisor: TaskSupervisor) -> None:
+        self.received_supervisor = supervisor
+
+    async def start(self, *, task_supervisor: TaskSupervisor) -> None:
+        self.start_calls += 1
+        self.received_supervisor = task_supervisor
+
+        async def _sleep() -> None:
+            await asyncio.sleep(0.05)
+
+        self._task = task_supervisor.create(_sleep(), name="supervised-component-task")
+        self._price_task = self._task
+
+    async def stop(self) -> None:
+        self.stop_calls += 1
+        task = self._task
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+        self._task = None
+        self._price_task = None
 
 
 class _StubTradingManager:
@@ -268,6 +301,37 @@ async def test_fix_broker_interface_start_stop_awaits_worker():
     await broker.stop()
     assert getattr(broker, "_trade_task") is None
     assert broker.running is False
+    assert supervisor.active_count == 0
+
+
+@pytest.mark.asyncio
+async def test_professional_predator_app_passes_task_supervisor_to_components():
+    config = SystemConfig()
+    event_bus = EventBus()
+    component = _SupervisorAwareComponent()
+    supervisor = TaskSupervisor(namespace="test-supervised-component")
+
+    app = ProfessionalPredatorApp(
+        config=config,
+        event_bus=event_bus,
+        sensory_organ=component,
+        broker_interface=None,
+        fix_connection_manager=None,
+        sensors={"stub": _StubSensor()},
+        task_supervisor=supervisor,
+    )
+
+    await app.start()
+    await asyncio.sleep(0)
+
+    assert component.start_calls == 1
+    assert component.received_supervisor is supervisor
+
+    snapshots = supervisor.describe()
+    assert any(entry.get("name") == "supervised-component-task" for entry in snapshots)
+
+    await app.shutdown()
+    assert component.stop_calls == 1
     assert supervisor.active_count == 0
 
 

@@ -369,6 +369,27 @@ class ProfessionalPredatorApp:
             raise TypeError("register_background_task expects an asyncio.Task")
         self._task_supervisor.track(task, metadata=metadata)
 
+    def _component_accepts_task_supervisor(self, candidate: Any) -> bool:
+        """Return True when ``candidate`` exposes a ``task_supervisor`` parameter."""
+
+        if not callable(candidate):
+            return False
+        try:
+            signature = inspect.signature(candidate)
+        except (TypeError, ValueError):  # pragma: no cover - opaque/builtin callables
+            return False
+
+        for parameter in signature.parameters.values():
+            if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+                return True
+            if (
+                parameter.name == "task_supervisor"
+                and parameter.kind
+                in {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}
+            ):
+                return True
+        return False
+
     @property
     def runtime_tracer(self) -> RuntimeTracer:
         """Tracer used for runtime workload instrumentation."""
@@ -863,8 +884,40 @@ class ProfessionalPredatorApp:
         if start_method is None:
             return
 
+        supervisor = self._task_supervisor
+        if supervisor is not None:
+            setter = getattr(component, "set_task_supervisor", None)
+            if callable(setter):
+                try:
+                    setter(supervisor)
+                except Exception:  # pragma: no cover - defensive guardrail
+                    self._logger.debug(
+                        "Component %s failed to accept task supervisor via setter",
+                        component.__class__.__name__,
+                        exc_info=True,
+                    )
+            elif hasattr(component, "_task_supervisor"):
+                try:
+                    setattr(component, "_task_supervisor", supervisor)
+                except Exception:  # pragma: no cover - defensive guardrail
+                    self._logger.debug(
+                        "Component %s rejected task supervisor attribute",
+                        component.__class__.__name__,
+                        exc_info=True,
+                    )
+
+        kwargs: dict[str, Any] = {}
+        if supervisor is not None and self._component_accepts_task_supervisor(start_method):
+            kwargs["task_supervisor"] = supervisor
+
         try:
-            result = start_method()
+            try:
+                result = start_method(**kwargs)
+            except TypeError as exc:
+                if kwargs and "task_supervisor" in str(exc):
+                    result = start_method()
+                else:
+                    raise
             if inspect.isawaitable(result):
                 await result
         except Exception:

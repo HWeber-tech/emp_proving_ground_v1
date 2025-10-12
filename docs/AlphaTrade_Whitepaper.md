@@ -96,19 +96,22 @@ so researchers can run tightly-scoped optimisation sprints without polluting the
 By co-locating the experimentation state with the broader governance evidence pack, the DeepScientist-lite loop ensures AlphaTrade
 can incubate new tactics quickly while maintaining the auditable trail required for policy promotion.
 
-## 6. Optimizer, Kernel, and Quantization Upgrades
+## 6. Tiny retrieval memory for episodic market recall
+AlphaTrade’s Day 3–4 mini-cycle introduces a lightweight retrieval-augmented generator (RAG) that captures market windows into a FAISS+SQLite store and retrieves similar regimes at inference time. The orchestrator provisions the store with MiniLM embeddings, symbol-aware filters, retention limits, and persisted k-means regime models so the memory can be restored without refitting on every run.【F:emp/experiments/mini_cycle_orchestration.py†L400-L507】 The backtest writer streams validation windows into the store, enforces entry/TTL caps, and logs deterministic notes that describe the stored regime context for later planner consumption.【F:emp/experiments/mini_cycle_orchestration.py†L540-L610】 During inference, feature hooks aggregate neighbor outcomes into numeric augmentations while companion planner hooks surface the top precedents; both respect flag guards for notes-only or feature-only deployments and record latency so the report can track overhead.【F:emp/experiments/mini_cycle_orchestration.py†L616-L669】 Approval depends on improved Sharpe plus reduced drawdown on regime-repeat subsets, and the telemetry bundle now adds a latency guard that fails the rollout if retrieval costs rise beyond the configured envelope.【F:emp/experiments/mini_cycle_orchestration.py†L781-L901】 The expanded test harness covers the happy path, rollback logic, neighbor-free lookups, notes toggles, latency guard, and persisted regime reloads to ensure the memory remains reversible and well-instrumented.【F:tests/test_mini_cycle_orchestration.py†L545-L813】
+
+## 7. Optimizer, Kernel, and Quantization Upgrades
 AlphaTrade’s paper-mode stack now integrates the mini-cycle optimiser and kernel pilots to ensure performance gains remain auditable before promotion. The EMP orchestrator runs the two-day experiment suite end-to-end, wiring the Lions vs Adam comparison, FlashAttention toggle, and 4–8 bit inference validations into a single artefact pipeline so governance reviewers can trace the impact of each upgrade.【F:emp/experiments/mini_cycle_orchestration.py†L1-L187】
 
-### 6.1 Lion optimizer pilot
+### 7.1 Lion optimizer pilot
 Day 1 replays the Adam baseline and a Lion candidate against identical schedules, then feeds the resulting ratios through `evaluate_lion_success`. When Lion meets the stricter loss, step-count, and memory thresholds, the orchestrator tags the run as approved and records the decision package alongside CSV/JSON artefacts; otherwise it reverts the default optimiser to Adam and captures the failure notes for governance review.【F:emp/experiments/mini_cycle_orchestration.py†L54-L134】【F:emp/experiments/mini_cycle.py†L118-L214】
 
-### 6.2 FlashAttention kernel toggle
+### 7.2 FlashAttention kernel toggle
 Day 2A temporarily enables FlashAttention2, exports the same diagnostics suite, and calls `evaluate_flash_success` against the winning Day 1 reference. The routine auto-tags successful runs, keeps the kernel flag live for downstream phases, and performs an explicit rollback if throughput or validation loss slip outside the agreed bounds, maintaining the reversible deployment guarantee.【F:emp/experiments/mini_cycle_orchestration.py†L136-L206】【F:emp/experiments/mini_cycle.py†L296-L362】
 
-### 6.3 4–8 bit inference pilots
+### 7.3 4–8 bit inference pilots
 Day 2B exports the best checkpoint from the preceding stages and benchmarks FP16, INT8, and INT4 inference using the shared evaluation harness. The orchestrator relies on `evaluate_quant_success` to select the most aggressive precision that clears loss-degradation and latency gates, automatically setting INT4 or INT8 as defaults when they pass and restoring FP16 when neither qualifies. These outcomes ship with matching summaries and visualisations in the whitepaper artefact directory, giving reviewers reproducible evidence for every quantisation decision.【F:emp/experiments/mini_cycle_orchestration.py†L208-L308】【F:emp/experiments/mini_cycle.py†L364-L451】【F:tests/test_mini_cycle_orchestration.py†L13-L190】
 
-## 7. Preliminary Evidence & Reproducibility
+## 8. Preliminary Evidence & Reproducibility
 While live data ingest is still being hardened, the current toolchain produces auditable evidence for paper-mode trials:
 
 | Evidence surface | How to reproduce | Highlights |
@@ -121,7 +124,7 @@ While live data ingest is still being hardened, the current toolchain produces a
 
 These artefacts cover the roadmap requirement for preliminary paper-trading evidence: we can run the harness end-to-end, observe governance-safe behaviour in regression scenarios, and hand reviewers reproducible logs, even before live feeds are attached.
 
-## 8. Roadmap Alignment & Open Work
+## 9. Roadmap Alignment & Open Work
 - **Real data integration.** TimescaleDB/Kafka wiring is staged but disabled by default; completing “Operational Data Backbone Online” will swap the remaining synthetic fixtures for live feeds.
 - **Performance profiling.** Throughput monitors surface processing latency, yet sustained live trials are pending. The “Performance Tuning & Throttle” task will benchmark CPU/memory usage and extend throttle coverage.
 - **Paper-to-live transition.** Governance integration ensures experiments stay in paper mode until a policy ledger grants `limited_live`. Completing runtime builder supervision and the final dry-run will enable multi-day rehearsals.

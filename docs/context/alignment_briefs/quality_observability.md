@@ -132,6 +132,10 @@
     publishes the hardened summary/metrics telemetry, and stores the latest
     snapshots on the professional app so the summary surface emits Markdown and
     JSON blocks for responders under regression coverage.【F:src/runtime/runtime_builder.py†L322-L368】【F:src/runtime/predator_app.py†L600-L1139】【F:tests/runtime/test_runtime_builder.py†L121-L207】【F:tests/runtime/test_professional_app_timescale.py†L1328-L1404】
+  - Progress: ProfessionalPredatorApp now binds the constructed `RuntimeApplication`
+    into its summary payload so observability exports include ingestion and
+    trading workload metadata by default, with runtime builder and test coverage
+    guaranteeing the workloads surface verbatim for operators.【F:src/runtime/predator_app.py†L328-L391】【F:src/runtime/predator_app.py†L1498-L1509】【F:src/runtime/runtime_builder.py†L3940-L3949】【F:tests/runtime/test_runtime_builder.py†L309-L348】
 - Progress: Coverage matrix CLI now exposes lagging domains via the
   `identify_laggards` helper, exports the list of covered source files, and
   enforces required regression suites through `--require-file`, failing the

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 import math
 import os
@@ -1719,6 +1720,228 @@ def _extra_decimal(extras: Mapping[str, str], key: str, default: Decimal) -> Dec
         return default
 
 
+def _parse_scope_fields(raw: str | Sequence[str] | None) -> tuple[str, ...]:
+    if raw is None:
+        return ()
+    if isinstance(raw, Sequence) and not isinstance(raw, str):
+        candidates = raw
+    else:
+        text = str(raw).strip()
+        if not text:
+            return ()
+        candidates = text.replace(";", ",").split(",")
+
+    fields: list[str] = []
+    seen_lower: set[str] = set()
+    for candidate in candidates:
+        field = str(candidate).strip()
+        if not field:
+            continue
+        lowered = field.lower()
+        if lowered in seen_lower:
+            continue
+        seen_lower.add(lowered)
+        fields.append(field)
+    return tuple(fields)
+
+
+def _normalise_trade_throttle_config(config: Mapping[str, object]) -> dict[str, object]:
+    normalised = dict(config)
+
+    raw_name = normalised.get("name")
+    if raw_name is not None:
+        normalised["name"] = str(raw_name).strip() or "trade_rate_limit"
+
+    for field in ("max_trades",):
+        value = normalised.get(field)
+        if value is None:
+            continue
+        try:
+            normalised[field] = int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid trade throttle %s value; ignoring", field, extra={"value": value}
+            )
+            normalised.pop(field, None)
+
+    float_fields = (
+        "window_seconds",
+        "min_spacing_seconds",
+        "cooldown_seconds",
+        "multiplier",
+    )
+    for field in float_fields:
+        value = normalised.get(field)
+        if value is None:
+            continue
+        try:
+            normalised[field] = float(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid trade throttle %s value; ignoring", field, extra={"value": value}
+            )
+            normalised.pop(field, None)
+
+    scope = normalised.get("scope_fields")
+    if scope is not None:
+        parsed_scope = _parse_scope_fields(scope if isinstance(scope, Sequence) else str(scope))
+        if parsed_scope:
+            normalised["scope_fields"] = parsed_scope
+        else:
+            normalised.pop("scope_fields", None)
+
+    return normalised
+
+
+def _resolve_trade_throttle_config(extras: Mapping[str, str]) -> Mapping[str, object] | None:
+    enabled_flag = _parse_optional_bool_flag(extras.get("TRADE_THROTTLE_ENABLED"))
+    if enabled_flag is False:
+        return None
+
+    config_payload: dict[str, object] | None = None
+
+    raw_config = extras.get("TRADE_THROTTLE_CONFIG")
+    if raw_config:
+        try:
+            decoded = json.loads(str(raw_config))
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to decode TRADE_THROTTLE_CONFIG: %s",
+                exc,
+                extra={"config_length": len(str(raw_config))},
+            )
+        else:
+            if isinstance(decoded, Mapping):
+                config_payload = dict(decoded)
+            else:
+                logger.warning(
+                    "TRADE_THROTTLE_CONFIG must decode to a mapping",
+                    extra={"decoded_type": type(decoded).__name__},
+                )
+
+    if config_payload is None:
+        path_hint = extras.get("TRADE_THROTTLE_CONFIG_PATH")
+        if path_hint:
+            path = Path(str(path_hint)).expanduser()
+            try:
+                raw_text = path.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                logger.warning(
+                    "Trade throttle config file not found",
+                    extra={"path": str(path)},
+                )
+            except OSError as exc:
+                logger.warning(
+                    "Failed to read trade throttle config file: %s",
+                    exc,
+                    extra={"path": str(path)},
+                )
+            else:
+                try:
+                    decoded = json.loads(raw_text)
+                except ValueError as exc:
+                    logger.warning(
+                        "Trade throttle config file is not valid JSON: %s",
+                        exc,
+                        extra={"path": str(path)},
+                    )
+                else:
+                    if isinstance(decoded, Mapping):
+                        config_payload = dict(decoded)
+                    else:
+                        logger.warning(
+                            "Trade throttle config file must decode to a mapping",
+                            extra={
+                                "path": str(path),
+                                "decoded_type": type(decoded).__name__,
+                            },
+                        )
+
+    manual_keys = (
+        "TRADE_THROTTLE_MAX_TRADES",
+        "TRADE_THROTTLE_WINDOW_SECONDS",
+        "TRADE_THROTTLE_MIN_SPACING_SECONDS",
+        "TRADE_THROTTLE_COOLDOWN_SECONDS",
+        "TRADE_THROTTLE_MULTIPLIER",
+        "TRADE_THROTTLE_SCOPE_FIELDS",
+        "TRADE_THROTTLE_NAME",
+    )
+    has_manual_overrides = any(key in extras for key in manual_keys)
+
+    if config_payload is None and (enabled_flag or has_manual_overrides):
+        config_payload = {}
+        name = extras.get("TRADE_THROTTLE_NAME")
+        if name:
+            config_payload["name"] = str(name)
+
+        max_trades_raw = extras.get("TRADE_THROTTLE_MAX_TRADES")
+        if max_trades_raw is not None:
+            try:
+                config_payload["max_trades"] = int(str(max_trades_raw))
+            except ValueError:
+                logger.warning(
+                    "Invalid TRADE_THROTTLE_MAX_TRADES value",
+                    extra={"value": max_trades_raw},
+                )
+
+        window_raw = extras.get("TRADE_THROTTLE_WINDOW_SECONDS")
+        if window_raw is not None:
+            try:
+                config_payload["window_seconds"] = float(str(window_raw))
+            except ValueError:
+                logger.warning(
+                    "Invalid TRADE_THROTTLE_WINDOW_SECONDS value",
+                    extra={"value": window_raw},
+                )
+
+        min_spacing_raw = extras.get("TRADE_THROTTLE_MIN_SPACING_SECONDS")
+        if min_spacing_raw is not None:
+            try:
+                config_payload["min_spacing_seconds"] = float(str(min_spacing_raw))
+            except ValueError:
+                logger.warning(
+                    "Invalid TRADE_THROTTLE_MIN_SPACING_SECONDS value",
+                    extra={"value": min_spacing_raw},
+                )
+
+        cooldown_raw = extras.get("TRADE_THROTTLE_COOLDOWN_SECONDS")
+        if cooldown_raw is not None:
+            try:
+                config_payload["cooldown_seconds"] = float(str(cooldown_raw))
+            except ValueError:
+                logger.warning(
+                    "Invalid TRADE_THROTTLE_COOLDOWN_SECONDS value",
+                    extra={"value": cooldown_raw},
+                )
+
+        multiplier_raw = extras.get("TRADE_THROTTLE_MULTIPLIER")
+        if multiplier_raw is not None:
+            try:
+                config_payload["multiplier"] = float(str(multiplier_raw))
+            except ValueError:
+                logger.warning(
+                    "Invalid TRADE_THROTTLE_MULTIPLIER value",
+                    extra={"value": multiplier_raw},
+                )
+
+        scope_raw = extras.get("TRADE_THROTTLE_SCOPE_FIELDS")
+        if scope_raw is not None:
+            parsed_scope = _parse_scope_fields(scope_raw)
+            if parsed_scope:
+                config_payload["scope_fields"] = parsed_scope
+
+    if config_payload is None:
+        return None
+
+    normalised = _normalise_trade_throttle_config(config_payload)
+    if not normalised and enabled_flag is not True:
+        return None
+
+    normalised.setdefault("max_trades", 1)
+    normalised.setdefault("window_seconds", 60.0)
+    return normalised
+
+
 def _parse_optional_bool_flag(value: str | None) -> bool | None:
     if value is None:
         return None
@@ -2207,6 +2430,7 @@ def _build_bootstrap_runtime(
     risk_config = _resolve_risk_config(
         extras, risk_per_trade=risk_per_trade, max_drawdown=max_drawdown
     )
+    trade_throttle_config = _resolve_trade_throttle_config(extras)
 
     release_manager: LedgerReleaseManager | None = None
     diary_store: DecisionDiaryStore | None = None
@@ -2318,6 +2542,7 @@ def _build_bootstrap_runtime(
         evolution_cycle_interval=evolution_interval,
         diary_store=diary_store,
         task_supervisor=task_supervisor,
+        trade_throttle=trade_throttle_config,
     )
     cleanup_callbacks: list[CleanupCallback] = []
 

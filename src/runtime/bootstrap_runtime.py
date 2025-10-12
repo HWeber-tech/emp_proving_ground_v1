@@ -30,6 +30,7 @@ from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from src.trading.execution.trade_throttle import TradeThrottleConfig
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import PortfolioMonitor, RedisLike
 from src.trading.gating import DriftSentryGate
@@ -123,6 +124,7 @@ class BootstrapRuntime:
         task_supervisor: TaskSupervisor | None = None,
         release_manager: LedgerReleaseManager | None = None,
         diary_store: DecisionDiaryStore | None = None,
+        trade_throttle: TradeThrottleConfig | Mapping[str, object] | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.symbols = [s.strip() for s in (symbols or ["EURUSD"]) if s and s.strip()]
@@ -195,6 +197,7 @@ class BootstrapRuntime:
             risk_config=resolved_risk_config,
             drift_gate=self._drift_gate,
             release_manager=release_manager,
+            trade_throttle=trade_throttle,
         )
         self.portfolio_monitor: PortfolioMonitor = self.trading_manager.portfolio_monitor
         self.execution_engine = ImmediateFillExecutionAdapter(self.portfolio_monitor)

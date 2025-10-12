@@ -111,6 +111,13 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     summary = report.strategy_summary.get("bootstrap-strategy")
     assert summary is not None
     assert summary["executed"] >= 1
+    assert report.release is not None
+    posture = report.release.get("posture") if report.release else None
+    assert posture is not None
+    assert posture.get("stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    execution = report.release.get("execution") if report.release else None
+    assert execution is not None
+    assert execution.get("default_stage") == PolicyLedgerStage.LIMITED_LIVE.value
 
 
 @pytest.mark.asyncio()
@@ -150,6 +157,7 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
     assert report.orders, "Simulation did not capture any broker orders"
     assert report.runtime_seconds >= 0.2
     assert report.strategy_summary is not None
+    assert report.release is not None
 
 
 @pytest.mark.asyncio()
@@ -195,6 +203,7 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     assert payload.get("orders")
     assert payload.get("decisions") == report.decisions
     assert "strategy_summary" in payload
+    assert "release" in payload
 
 
 @pytest.mark.asyncio()
@@ -240,3 +249,4 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
     assert report.decisions >= 1
     assert report.paper_broker and report.paper_broker.get("base_url") == base_url
     assert report.strategy_summary is not None
+    assert report.release is not None

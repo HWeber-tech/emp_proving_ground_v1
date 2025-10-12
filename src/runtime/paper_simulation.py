@@ -47,6 +47,7 @@ class PaperTradingSimulationReport:
     portfolio_state: Mapping[str, Any] | None = None
     performance: Mapping[str, Any] | None = None
     strategy_summary: Mapping[str, Any] | None = None
+    release: Mapping[str, Any] | None = None
 
     def to_dict(self) -> Mapping[str, Any]:
         """Return a JSON-serialisable representation of the report."""
@@ -68,6 +69,8 @@ class PaperTradingSimulationReport:
             payload["performance"] = dict(self.performance)
         if self.strategy_summary is not None:
             payload["strategy_summary"] = dict(self.strategy_summary)
+        if self.release is not None:
+            payload["release"] = dict(self.release)
         return payload
 
 
@@ -165,6 +168,7 @@ async def run_paper_trading_simulation(
 
     runtime_seconds = monotonic() - start_time
     portfolio_snapshot = _resolve_portfolio_snapshot(paper_engine)
+    release_summary = _resolve_release_summary(runtime)
 
     report = PaperTradingSimulationReport(
         orders=list(orders),
@@ -177,6 +181,7 @@ async def run_paper_trading_simulation(
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
         strategy_summary=_resolve_strategy_summary(runtime),
+        release=release_summary,
     )
     if report_path is not None:
         path = Path(report_path)
@@ -259,6 +264,50 @@ def _resolve_strategy_summary(runtime: Any) -> Mapping[str, Any] | None:
             for strategy_id, payload in summary.items()
         }
     return None
+
+
+def _resolve_release_summary(runtime: Any) -> Mapping[str, Any] | None:
+    manager = getattr(runtime, "trading_manager", None)
+    if manager is None:
+        return None
+
+    summary: MutableMapping[str, Any] = {}
+    stack = getattr(runtime, "trading_stack", None)
+    strategy_id = getattr(stack, "strategy_id", None) if stack is not None else None
+
+    describe_posture = getattr(manager, "describe_release_posture", None)
+    if callable(describe_posture):
+        try:
+            posture = describe_posture(strategy_id)
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to resolve release posture", exc_info=True)
+        else:
+            if isinstance(posture, Mapping):
+                summary["posture"] = _serialise_runtime_value(posture)
+
+    describe_execution = getattr(manager, "describe_release_execution", None)
+    if callable(describe_execution):
+        try:
+            execution = describe_execution()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to resolve release execution summary", exc_info=True)
+        else:
+            if isinstance(execution, Mapping):
+                summary["execution"] = _serialise_runtime_value(execution)
+
+    get_last_route = getattr(manager, "get_last_release_route", None)
+    if callable(get_last_route):
+        try:
+            last_route = get_last_route()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to resolve last release route", exc_info=True)
+        else:
+            if isinstance(last_route, Mapping) and last_route:
+                summary.setdefault("last_route", _serialise_runtime_value(last_route))
+
+    if not summary:
+        return None
+    return dict(summary)
 
 
 def _resolve_portfolio_snapshot(
@@ -345,6 +394,16 @@ def _resolve_diary_count(config: SystemConfig, runtime: Any) -> int:
     if isinstance(entries, Sequence):
         return len(entries)
     return 0
+
+
+def _serialise_runtime_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _serialise_runtime_value(item) for key, item in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_serialise_runtime_value(item) for item in value]
+    if isinstance(value, (datetime, Decimal, Path, set, frozenset, bytes)):
+        return _json_default(value)
+    return value
 
 
 def _json_default(value: Any) -> Any:

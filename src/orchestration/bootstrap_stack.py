@@ -426,6 +426,19 @@ class BootstrapTradingStack:
                 outcome["last_order"] = self._serialise(snapshot)
 
         if engine is not None:
+            describe_metrics = getattr(engine, "describe_metrics", None)
+            if callable(describe_metrics):
+                try:
+                    metrics_snapshot = describe_metrics()
+                except Exception:  # pragma: no cover - diagnostics only
+                    logger.debug(
+                        "Failed to capture paper execution metrics for diary entry",
+                        exc_info=True,
+                    )
+                else:
+                    if isinstance(metrics_snapshot, Mapping):
+                        outcome["paper_metrics"] = self._serialise(metrics_snapshot)
+
             describe_last_error = getattr(engine, "describe_last_error", None)
             if callable(describe_last_error):
                 try:

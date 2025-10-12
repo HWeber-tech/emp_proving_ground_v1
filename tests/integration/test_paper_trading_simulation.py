@@ -106,6 +106,11 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         assert "last_order" in execution_outcome
         assert execution_outcome["last_order"]["symbol"] == "EURUSD"
         assert execution_outcome.get("last_error") in (None, {})
+        metrics_snapshot = execution_outcome.get("paper_metrics")
+        assert isinstance(metrics_snapshot, dict)
+        assert metrics_snapshot.get("total_orders", 0) >= 1
+        assert metrics_snapshot.get("successful_orders", 0) >= 1
+        assert metrics_snapshot.get("failed_orders", 0) == 0
         state = runtime.trading_manager.portfolio_monitor.get_state()
         assert isinstance(state, dict)
         assert "equity" in state and "total_pnl" in state
@@ -192,6 +197,10 @@ async def test_paper_trading_simulation_respects_audit_enforcement(tmp_path) -> 
         assert last_route is not None
         assert last_route.get("stage") == PolicyLedgerStage.PILOT.value
         assert last_route.get("route") in {"pilot", "paper"}
+        execution_outcome = latest_entry.get("outcomes", {}).get("execution", {})
+        metrics_snapshot = execution_outcome.get("paper_metrics")
+        assert isinstance(metrics_snapshot, dict)
+        assert metrics_snapshot.get("total_orders", 0) == 0
 
         strategy_summary = runtime.trading_manager.get_strategy_execution_summary()
         summary_entry = strategy_summary.get("bootstrap-strategy", {})

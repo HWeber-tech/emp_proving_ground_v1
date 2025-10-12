@@ -7,6 +7,7 @@ from typing import Iterable, Sequence
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.core.event_bus import Event
 from src.understanding.belief_regime_calibrator import (
@@ -87,6 +88,7 @@ def _build_snapshots(
     return snapshots
 
 
+@pytest.mark.guardrail
 def test_calibration_computes_reasonable_parameters() -> None:
     prices = _load_prices(120)
     calibration = calibrate_belief_and_regime(prices)
@@ -102,6 +104,7 @@ def test_calibration_computes_reasonable_parameters() -> None:
     assert calibration.diagnostics["returns_std"] >= 0.0
 
 
+@pytest.mark.guardrail
 def test_calibration_drives_calm_and_storm_transitions() -> None:
     prices = _load_prices(200)
     calibration = calibrate_belief_and_regime(prices)
@@ -123,6 +126,10 @@ def test_calibration_drives_calm_and_storm_transitions() -> None:
         eigenvalues = np.linalg.eigvalsh(np.array(state.posterior.covariance))
         assert np.all(eigenvalues >= -1e-9)
         assert np.all(eigenvalues <= calibration.max_variance + 1e-6)
+        assert state.metadata["covariance_condition"] >= 1.0
+        assert state.metadata["covariance_max_eigenvalue"] <= calibration.max_variance + 1e-6
+        assert state.metadata["covariance_min_eigenvalue"] >= 0.0
+        assert state.metadata["covariance_trace"] >= 0.0
         regime_signal = fsm.publish(state)
         assert regime_signal.regime_state.volatility_state in {"calm", "normal"}
 
@@ -134,4 +141,3 @@ def test_calibration_drives_calm_and_storm_transitions() -> None:
     signals = [fsm.publish(emitter.emit(snapshot)) for snapshot in erratic_snapshots]
     assert any(signal.regime_state.volatility_state == "storm" for signal in signals)
     assert bus.events, "calibrated components should emit telemetry"
-

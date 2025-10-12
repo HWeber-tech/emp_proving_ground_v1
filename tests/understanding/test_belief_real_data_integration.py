@@ -7,6 +7,7 @@ from typing import Iterable, Mapping
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.core.event_bus import Event
 from src.sensory.lineage import build_lineage_record
@@ -106,6 +107,7 @@ def _build_snapshots(
     return snapshots
 
 
+@pytest.mark.guardrail
 def test_belief_buffer_covenant_with_real_market_returns() -> None:
     prices = _load_market_series(60)
     snapshots = _build_snapshots(prices, start=datetime(2025, 1, 1, tzinfo=UTC), volatility_boost=1.0)
@@ -125,11 +127,16 @@ def test_belief_buffer_covenant_with_real_market_returns() -> None:
         eigenvalues = np.linalg.eigvalsh(np.array(state.posterior.covariance))
         assert np.all(eigenvalues >= 0.0)
         assert np.all(eigenvalues <= 0.25 + 1e-9)
+        assert state.metadata["covariance_condition"] >= 1.0
+        assert state.metadata["covariance_max_eigenvalue"] <= 0.25 + 1e-9
+        assert state.metadata["covariance_min_eigenvalue"] >= 0.0
+        assert state.metadata["covariance_trace"] >= 0.0
 
     assert buffer.latest() is not None
     assert bus.events, "real-data emission should publish telemetry"
 
 
+@pytest.mark.guardrail
 def test_regime_fsm_detects_calm_and_storm_volatility() -> None:
     series = _load_market_series(40)
     calm_snapshots = _build_snapshots(series.iloc[:20], start=datetime(2025, 2, 1, tzinfo=UTC), volatility_boost=1.0)

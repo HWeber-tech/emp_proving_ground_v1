@@ -48,6 +48,7 @@ def _frame_from_prices(prices: Sequence[float]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+@pytest.mark.guardrail
 def test_build_belief_from_market_data_calibrates_parameters() -> None:
     calm_prices = [1.10 for _ in range(32)]
     frame = _frame_from_prices(calm_prices)
@@ -70,9 +71,14 @@ def test_build_belief_from_market_data_calibrates_parameters() -> None:
     eigenvalues = np.linalg.eigvalsh(covariance)
     assert np.all(eigenvalues >= -1e-9)
     assert np.all(eigenvalues <= calibration.max_variance + 1e-6)
+    assert belief_state.metadata["covariance_condition"] >= 1.0
+    assert belief_state.metadata["covariance_max_eigenvalue"] <= calibration.max_variance + 1e-6
+    assert belief_state.metadata["covariance_min_eigenvalue"] >= 0.0
+    assert belief_state.metadata["covariance_trace"] >= 0.0
     assert snapshot["symbol"] == "EURUSD"
 
 
+@pytest.mark.guardrail
 def test_build_belief_from_market_data_erratic_triggers_storm() -> None:
     erratic = [1.1 + ((-1) ** idx) * 0.02 * (idx % 4 + 1) for idx in range(48)]
     frame = _frame_from_prices(erratic)

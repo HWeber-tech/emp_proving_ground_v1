@@ -264,6 +264,10 @@ class BeliefBuffer:
         features = tuple(str(name) for name in (volatility_features or ("HOW_signal", "WHAT_signal")))
         self._volatility_features: tuple[str, ...] = features or ("HOW_signal",)
         self._volatility_history: deque[float] = deque(maxlen=volatility_window)
+        self._latest_covariance_trace: float | None = None
+        self._latest_covariance_condition: float | None = None
+        self._latest_covariance_max: float | None = None
+        self._latest_covariance_min: float | None = None
 
     def __len__(self) -> int:
         return len(self._states)
@@ -316,6 +320,18 @@ class BeliefBuffer:
             max_variance=self._max_variance,
         )
 
+        posterior_eigenvalues = np.linalg.eigvalsh(posterior_covariance)
+        posterior_max = float(np.max(posterior_eigenvalues)) if posterior_eigenvalues.size else 0.0
+        posterior_min = float(np.min(posterior_eigenvalues)) if posterior_eigenvalues.size else 0.0
+        posterior_trace = float(np.trace(posterior_covariance))
+        condition_denominator = max(posterior_min, self._min_variance, 1e-12)
+        posterior_condition = float(posterior_max / condition_denominator) if posterior_max > 0.0 else 1.0
+
+        self._latest_covariance_trace = posterior_trace
+        self._latest_covariance_condition = posterior_condition
+        self._latest_covariance_max = posterior_max
+        self._latest_covariance_min = posterior_min
+
         integrated_strength = features.get("integrated_strength", prior_strength)
         integrated_confidence = features.get("integrated_confidence", prior_confidence)
 
@@ -355,6 +371,8 @@ class BeliefBuffer:
             lineage_outputs["volatility_sample"] = float(volatility_sample)
         if volatility is not None:
             lineage_outputs["volatility"] = float(volatility)
+        lineage_outputs["covariance_condition"] = posterior_condition
+        lineage_outputs["covariance_trace"] = posterior_trace
 
         belief_lineage = build_lineage_record(
             "UNDERSTANDING_BELIEF",
@@ -378,6 +396,10 @@ class BeliefBuffer:
             metadata["volatility_sample"] = float(volatility_sample)
         if volatility is not None:
             metadata["volatility"] = float(volatility)
+        metadata["covariance_trace"] = posterior_trace
+        metadata["covariance_max_eigenvalue"] = posterior_max
+        metadata["covariance_min_eigenvalue"] = posterior_min
+        metadata["covariance_condition"] = posterior_condition
 
         state = BeliefState(
             belief_id=self._belief_id,
@@ -542,6 +564,10 @@ class BeliefEmitter:
             "volatility_features": list(self._buffer._volatility_features),
             "volatility_window": self._buffer._volatility_history.maxlen,
             "volatility_samples": len(self._buffer._volatility_history),
+            "covariance_trace": self._buffer._latest_covariance_trace,
+            "covariance_condition": self._buffer._latest_covariance_condition,
+            "covariance_max": self._buffer._latest_covariance_max,
+            "covariance_min": self._buffer._latest_covariance_min,
         }
 
 
@@ -828,4 +854,3 @@ def _publish_event(
         global_unexpected_message=global_unexpected_message,
         global_bus_factory=global_bus_factory,  # type: ignore[arg-type]
     )
-

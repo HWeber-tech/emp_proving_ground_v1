@@ -13,11 +13,11 @@ from src.sensory.enhanced._shared import (
     safe_timestamp,
 )
 
-__all__ = ["InstitutionalIntelligenceEngine"]
+__all__ = ["InstitutionalUnderstandingEngine", "InstitutionalIntelligenceEngine"]
 
 
-class InstitutionalIntelligenceEngine:
-    def analyze_institutional_intelligence(
+class InstitutionalUnderstandingEngine:
+    def analyze_institutional_understanding(
         self, data: Mapping[str, Any] | Any | None = None
     ) -> ReadingAdapter:
         """Estimate institutional participation and liquidity dynamics."""
@@ -90,3 +90,13 @@ class InstitutionalIntelligenceEngine:
             "volatility_drag": float(volatility_drag),
         }
         return build_legacy_payload(reading, source="sensory.how", extras=extras)
+
+    def analyze_institutional_intelligence(
+        self, data: Mapping[str, Any] | Any | None = None
+    ) -> ReadingAdapter:
+        """Legacy alias maintained for backwards compatibility."""
+
+        return self.analyze_institutional_understanding(data)
+
+
+InstitutionalIntelligenceEngine = InstitutionalUnderstandingEngine

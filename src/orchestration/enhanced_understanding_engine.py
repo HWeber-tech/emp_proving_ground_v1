@@ -13,14 +13,16 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Protocol, Tuple, cast
+from typing import Any, Awaitable, Dict, List, Protocol, Tuple, cast
 
 from src.core.base import DimensionalReading, MarketData
-from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
-from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
+from src.sensory.enhanced.anomaly_dimension import AnomalyUnderstandingEngine
+from src.sensory.enhanced.how_dimension import InstitutionalUnderstandingEngine
 from src.sensory.enhanced.what_dimension import TechnicalRealityEngine
-from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
-from src.sensory.enhanced.why_dimension import EnhancedFundamentalIntelligenceEngine
+from src.sensory.enhanced.when_dimension import ChronalUnderstandingEngine
+from src.sensory.enhanced.why_dimension import (
+    EnhancedFundamentalUnderstandingEngine,
+)
 
 
 class UnderstandingLevel(Enum):
@@ -182,36 +184,52 @@ class CorrelationAnalyzer:
 
 # Typing-only protocol describing the minimal API we call on enhanced engines
 class EnhancedEngineProto(Protocol):
-    async def analyze_fundamental_intelligence(
+    def analyze_fundamental_understanding(
         self, market_data: MarketData
-    ) -> DimensionalReading: ...
-    async def analyze_institutional_intelligence(
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_fundamental_intelligence(
         self, market_data: MarketData
-    ) -> DimensionalReading: ...
-    async def analyze_technical_reality(self, market_data: MarketData) -> DimensionalReading: ...
-    async def analyze_temporal_intelligence(
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_institutional_understanding(
         self, market_data: MarketData
-    ) -> DimensionalReading: ...
-    async def analyze_anomaly_intelligence(self, market_data: MarketData) -> DimensionalReading: ...
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_institutional_intelligence(
+        self, market_data: MarketData
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_technical_reality(
+        self, market_data: MarketData
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_temporal_understanding(
+        self, market_data: MarketData
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_temporal_intelligence(
+        self, market_data: MarketData
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_anomaly_understanding(
+        self, market_data: MarketData
+    ) -> Awaitable[DimensionalReading]: ...
+    def analyze_anomaly_intelligence(
+        self, market_data: MarketData
+    ) -> Awaitable[DimensionalReading]: ...
 
 
 class ContextualFusionEngine:
     def __init__(self) -> None:
         # Engines
         self._why: EnhancedEngineProto = cast(
-            EnhancedEngineProto, cast(Any, EnhancedFundamentalIntelligenceEngine)()
+            EnhancedEngineProto, cast(Any, EnhancedFundamentalUnderstandingEngine)()
         )
         self._how: EnhancedEngineProto = cast(
-            EnhancedEngineProto, cast(Any, InstitutionalIntelligenceEngine)()
+            EnhancedEngineProto, cast(Any, InstitutionalUnderstandingEngine)()
         )
         self._what: EnhancedEngineProto = cast(
             EnhancedEngineProto, cast(Any, TechnicalRealityEngine)()
         )
         self._when: EnhancedEngineProto = cast(
-            EnhancedEngineProto, cast(Any, ChronalIntelligenceEngine)()
+            EnhancedEngineProto, cast(Any, ChronalUnderstandingEngine)()
         )
         self._anomaly: EnhancedEngineProto = cast(
-            EnhancedEngineProto, cast(Any, AnomalyIntelligenceEngine)()
+            EnhancedEngineProto, cast(Any, AnomalyUnderstandingEngine)()
         )
 
         # Public state used in tests
@@ -221,11 +239,11 @@ class ContextualFusionEngine:
 
     async def analyze_market_understanding(self, market_data: MarketData) -> Synthesis:
         # Run all engines concurrently
-        why_t = self._why.analyze_fundamental_intelligence(market_data)
-        how_t = self._how.analyze_institutional_intelligence(market_data)
+        why_t = self._why.analyze_fundamental_understanding(market_data)
+        how_t = self._how.analyze_institutional_understanding(market_data)
         what_t = self._what.analyze_technical_reality(market_data)
-        when_t = self._when.analyze_temporal_intelligence(market_data)
-        anom_t = self._anomaly.analyze_anomaly_intelligence(market_data)
+        when_t = self._when.analyze_temporal_understanding(market_data)
+        anom_t = self._anomaly.analyze_anomaly_understanding(market_data)
 
         why, how, what, when, anomaly = await asyncio.gather(why_t, how_t, what_t, when_t, anom_t)
 

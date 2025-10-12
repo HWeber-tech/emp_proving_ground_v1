@@ -11,6 +11,7 @@ from src.core.base import MarketData
 from src.sensory.enhanced.what_dimension import TechnicalRealityEngine
 from src.sensory.enhanced.why_dimension import (
     EnhancedFundamentalIntelligenceEngine,
+    EnhancedFundamentalUnderstandingEngine,
 )
 from src.sensory.organs.dimensions.base_organ import MarketRegime
 
@@ -18,8 +19,12 @@ from src.sensory.organs.dimensions.base_organ import MarketRegime
 def test_sensory_dimension_exports_are_canonical() -> None:
     assert TechnicalRealityEngine.__module__ == "src.sensory.enhanced.what_dimension"
     assert (
-        EnhancedFundamentalIntelligenceEngine.__module__
+        EnhancedFundamentalUnderstandingEngine.__module__
         == "src.sensory.enhanced.why_dimension"
+    )
+    assert (
+        EnhancedFundamentalIntelligenceEngine
+        is EnhancedFundamentalUnderstandingEngine
     )
 
 
@@ -36,8 +41,8 @@ async def test_what_engine_behavior_and_source_tag() -> None:
 
 
 def test_why_engine_behavior_and_source_tag() -> None:
-    engine = EnhancedFundamentalIntelligenceEngine()
-    out: Dict[str, Any] = engine.analyze_fundamental_intelligence({})
+    engine = EnhancedFundamentalUnderstandingEngine()
+    out: Dict[str, Any] = engine.analyze_fundamental_understanding({})
 
     assert isinstance(out, dict)
     assert "meta" in out and isinstance(out["meta"], dict)

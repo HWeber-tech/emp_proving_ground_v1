@@ -8,7 +8,7 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 
 from src.sensory.anomaly.basic_detector import AnomalyEvaluation, BasicAnomalyDetector
-from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
+from src.sensory.enhanced.anomaly_dimension import AnomalyUnderstandingEngine
 from src.sensory.lineage import (
     SensorLineageRecord,
     SensorLineageRecorder,
@@ -42,11 +42,11 @@ class AnomalySensor:
         self,
         config: AnomalySensorConfig | None = None,
         *,
-        engine: AnomalyIntelligenceEngine | None = None,
+        engine: AnomalyUnderstandingEngine | None = None,
         lineage_recorder: SensorLineageRecorder | None = None,
         basic_detector: BasicAnomalyDetector | None = None,
     ) -> None:
-        self._engine = engine or AnomalyIntelligenceEngine()
+        self._engine = engine or AnomalyUnderstandingEngine()
         self._config = config or AnomalySensorConfig()
         self._lineage_recorder = lineage_recorder
         detector = basic_detector or BasicAnomalyDetector(
@@ -83,7 +83,7 @@ class AnomalySensor:
             inputs["mean"] = evaluation.mean
             inputs["std_dev"] = evaluation.std_dev
             inputs["z_score"] = evaluation.z_score
-            reading = self._engine.analyze_anomaly_intelligence(values)
+            reading = self._engine.analyze_anomaly_understanding(values)
             return [
                 self._build_signal(
                     reading,
@@ -96,7 +96,7 @@ class AnomalySensor:
         else:
             inputs = {"payload_type": type(data).__name__}
 
-        reading = self._engine.analyze_anomaly_intelligence(data)
+        reading = self._engine.analyze_anomaly_understanding(data)
         return [self._build_signal(reading, mode_override=None, inputs=inputs)]
 
     # ------------------------------------------------------------------
@@ -113,7 +113,7 @@ class AnomalySensor:
         if sequence:
             evaluation = self._basic_detector.evaluate(sequence)
         if len(sequence) >= self._config.sequence_min_length:
-            reading = self._engine.analyze_anomaly_intelligence(sequence)
+            reading = self._engine.analyze_anomaly_understanding(sequence)
             inputs = {"sequence_length": len(sequence), "latest": sequence[-1]}
             if evaluation is not None:
                 inputs["sample_size"] = evaluation.sample_size
@@ -130,7 +130,7 @@ class AnomalySensor:
             ]
 
         payload = self._build_market_payload(df)
-        reading = self._engine.analyze_anomaly_intelligence(payload)
+        reading = self._engine.analyze_anomaly_understanding(payload)
         return [
             self._build_signal(
                 reading,

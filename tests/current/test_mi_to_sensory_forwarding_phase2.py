@@ -14,26 +14,26 @@ from src.orchestration.enhanced_understanding_engine import (
 from src.orchestration.enhanced_understanding_engine import (
     Synthesis as CanonicalSynthesis,
 )
-from src.sensory.enhanced.anomaly_dimension import AnomalyIntelligenceEngine
-from src.sensory.enhanced.how_dimension import InstitutionalIntelligenceEngine
-from src.sensory.enhanced.when_dimension import ChronalIntelligenceEngine
+from src.sensory.enhanced.anomaly_dimension import AnomalyUnderstandingEngine
+from src.sensory.enhanced.how_dimension import InstitutionalUnderstandingEngine
+from src.sensory.enhanced.when_dimension import ChronalUnderstandingEngine
 from src.sensory.organs.dimensions.base_organ import MarketRegime
 
 
 def test_phase2_sensory_dimension_exports_are_canonical() -> None:
-    assert ChronalIntelligenceEngine.__module__ == "src.sensory.enhanced.when_dimension"
+    assert ChronalUnderstandingEngine.__module__ == "src.sensory.enhanced.when_dimension"
     assert (
-        InstitutionalIntelligenceEngine.__module__
+        InstitutionalUnderstandingEngine.__module__
         == "src.sensory.enhanced.how_dimension"
     )
-    assert AnomalyIntelligenceEngine.__module__ == "src.sensory.enhanced.anomaly_dimension"
+    assert AnomalyUnderstandingEngine.__module__ == "src.sensory.enhanced.anomaly_dimension"
 
 
 def test_when_engine_behavior_and_meta_tag() -> None:
     md = MarketData(timestamp=None, bid=1.0, ask=1.0002, volume=100.0)
 
-    engine = ChronalIntelligenceEngine()
-    reading = engine.analyze_temporal_intelligence(md)
+    engine = ChronalUnderstandingEngine()
+    reading = engine.analyze_temporal_understanding(md)
 
     assert isinstance(reading.regime, MarketRegime)
     assert isinstance(getattr(reading, "context", {}), dict)
@@ -45,16 +45,16 @@ def test_when_engine_behavior_and_meta_tag() -> None:
 
 
 def test_how_engine_behavior_and_meta_tag() -> None:
-    engine = InstitutionalIntelligenceEngine()
-    out: Dict[str, Any] = engine.analyze_institutional_intelligence({})
+    engine = InstitutionalUnderstandingEngine()
+    out: Dict[str, Any] = engine.analyze_institutional_understanding({})
     assert isinstance(out, dict)
     assert "meta" in out and isinstance(out["meta"], dict)
     assert out["meta"].get("source") == "sensory.how"
 
 
 def test_anomaly_engine_behavior_and_meta_tag() -> None:
-    engine = AnomalyIntelligenceEngine()
-    out: Dict[str, Any] = engine.analyze_anomaly_intelligence([0.0, 0.1, -0.2])
+    engine = AnomalyUnderstandingEngine()
+    out: Dict[str, Any] = engine.analyze_anomaly_understanding([0.0, 0.1, -0.2])
     assert isinstance(out, dict)
     assert "meta" in out and isinstance(out["meta"], dict)
     assert out["meta"].get("source") == "sensory.anomaly"

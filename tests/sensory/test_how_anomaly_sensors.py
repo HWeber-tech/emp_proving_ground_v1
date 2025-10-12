@@ -31,7 +31,7 @@ class _StubHowEngine:
         self._confidence = confidence
         self._extras = extras
 
-    def analyze_institutional_intelligence(self, payload):  # type: ignore[override]
+    def analyze_institutional_understanding(self, payload):  # type: ignore[override]
         return _StubAdapter(
             _StubReading(
                 signal_strength=self._strength,
@@ -48,7 +48,7 @@ class _StubAnomalyEngine:
         self._confidence = confidence
         self._extras = extras
 
-    def analyze_anomaly_intelligence(self, payload):  # type: ignore[override]
+    def analyze_anomaly_understanding(self, payload):  # type: ignore[override]
         return _StubAdapter(
             _StubReading(
                 signal_strength=self._strength,
@@ -63,7 +63,7 @@ class _RecordingAnomalyEngine:
     def __init__(self) -> None:
         self.seen_payload: object | None = None
 
-    def analyze_anomaly_intelligence(self, payload):  # type: ignore[override]
+    def analyze_anomaly_understanding(self, payload):  # type: ignore[override]
         self.seen_payload = payload
         latest = payload[-1] if isinstance(payload, list) and payload else 0.0
         return _StubAdapter(

@@ -18,11 +18,11 @@ from src.sensory.organs.dimensions.pattern_engine import WhatDimension
 __all__ = ["WhatDimension"]
 
 _LEGACY_DIMENSION_HINTS: Mapping[str, str] = {
-    "AnomalyDimension": "src.sensory.enhanced.anomaly_dimension.AnomalyIntelligenceEngine",
+    "AnomalyDimension": "src.sensory.enhanced.anomaly_dimension.AnomalyUnderstandingEngine",
     "ChaosDimension": "retired; chaos telemetry ships via src.sensory.real_sensory_organ",
-    "HowDimension": "src.sensory.enhanced.how_dimension.InstitutionalIntelligenceEngine",
-    "WhenDimension": "src.sensory.enhanced.when_dimension.ChronalIntelligenceEngine",
-    "WhyDimension": "src.sensory.enhanced.why_dimension.EnhancedFundamentalIntelligenceEngine",
+    "HowDimension": "src.sensory.enhanced.how_dimension.InstitutionalUnderstandingEngine",
+    "WhenDimension": "src.sensory.enhanced.when_dimension.ChronalUnderstandingEngine",
+    "WhyDimension": "src.sensory.enhanced.why_dimension.EnhancedFundamentalUnderstandingEngine",
 }
 
 

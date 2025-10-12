@@ -12,11 +12,14 @@ from src.sensory.enhanced._shared import (
     safe_timestamp,
 )
 
-__all__ = ["EnhancedFundamentalIntelligenceEngine"]
+__all__ = [
+    "EnhancedFundamentalUnderstandingEngine",
+    "EnhancedFundamentalIntelligenceEngine",
+]
 
 
-class EnhancedFundamentalIntelligenceEngine:
-    def analyze_fundamental_intelligence(
+class EnhancedFundamentalUnderstandingEngine:
+    def analyze_fundamental_understanding(
         self, data: Mapping[str, Any] | Any | None = None
     ) -> ReadingAdapter:
         """Generate a fundamentals-oriented reading for the WHY dimension.
@@ -93,3 +96,18 @@ class EnhancedFundamentalIntelligenceEngine:
             "macro_bias": float(macro_bias),
         }
         return build_legacy_payload(reading, source="sensory.why", extras=extras)
+
+    # ------------------------------------------------------------------
+    # Backwards compatible legacy surface
+    # ------------------------------------------------------------------
+    def analyze_fundamental_intelligence(
+        self, data: Mapping[str, Any] | Any | None = None
+    ) -> ReadingAdapter:
+        """Legacy alias maintained for callers using the intelligence surface."""
+
+        return self.analyze_fundamental_understanding(data)
+
+
+# Preserve the legacy class name for import stability while the
+# understanding-first nomenclature becomes the canonical surface.
+EnhancedFundamentalIntelligenceEngine = EnhancedFundamentalUnderstandingEngine

@@ -436,7 +436,7 @@ how_engine = InstitutionalIntelligenceEngine()
 
 # Perform dimensional analysis
 what_reading = await what_engine.analyze_technical_reality(market_data)
-how_reading = await how_engine.analyze_institutional_intelligence(market_data)
+how_reading = await how_engine.analyze_institutional_understanding(market_data)
 ```
 
 ## System Output

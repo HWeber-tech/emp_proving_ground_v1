@@ -16,6 +16,9 @@ policy router when tactics underperform.
   parameter mutations (e.g., scale a lookback window or adjust a threshold) defined via
   `ParameterMutation`. These on-the-fly variants inherit the base tactic metadata while
   clearly labelling the mutated parameter in their tactic identifier.【F:src/thinking/adaptation/evolution_manager.py†L207-L269】
+- When an adaptation fires the manager emits an `EvolutionAdaptationResult` capturing the
+  base tactic, observed win-rate, total observations, and the sequence of actions so
+  downstream orchestration can persist a structured audit trail.【src/thinking/adaptation/evolution_manager.py:104】
 - Actions are feature-gated by `EVOLUTION_ENABLE_ADAPTIVE_RUNS` and only execute while the
   tactic remains in the `paper` ledger stage.
 
@@ -38,8 +41,9 @@ policy router when tactics underperform.
 ## Integration
 
 `AlphaTradeLoopOrchestrator` now accepts an optional `EvolutionManager`. When supplied, the
-manager is invoked after each iteration with the diary outcomes and can mutate the
-`PolicyRouter` directly. Tests cover the following guarantees:
+manager is invoked after each iteration with the diary outcomes, can mutate the
+`PolicyRouter` directly, and returns an adaptation summary that is merged into the loop
+metadata and stored on the decision diary entry for governance review.【src/orchestration/alpha_trade_loop.py:299】【tests/orchestration/test_alpha_trade_loop.py:485】 Tests cover the following guarantees:
 
 - Variants register after sustained losses and the base tactic weight is degraded.
 - Feature flags gate all behaviour, ensuring a no-op when the override is disabled.

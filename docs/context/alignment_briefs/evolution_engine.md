@@ -130,6 +130,11 @@
   seed tags, and totals for the population manager while lineage telemetry emits
   the enriched payload under pytest coverage so orchestrator dashboards expose
   deterministic seed metadata instead of opaque populations.【F:src/core/evolution/engine.py†L65-L336】【F:src/core/population_manager.py†L115-L183】【F:src/evolution/lineage_telemetry.py†L1-L200】【F:tests/current/test_evolution_orchestrator.py†L83-L120】【F:tests/evolution/test_lineage_snapshot.py†L8-L66】
+- Progress: Paper-stage adaptive runs now emit an `EvolutionAdaptationResult`
+  describing the base tactic, win-rate, observations, and actions, and the
+  AlphaTrade loop persists that payload into iteration metadata and diaries so
+  governance reviewers see catalogue registrations and degradations inline with
+  each trade.【src/thinking/adaptation/evolution_manager.py:104】【src/orchestration/alpha_trade_loop.py:299】【tests/orchestration/test_alpha_trade_loop.py:485】
 - Progress: Adaptive runs remain gated behind the `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
   flag, with orchestrator wiring skipping champion registration and telemetry
   when the flag is disabled and pytest coverage documenting the contract so

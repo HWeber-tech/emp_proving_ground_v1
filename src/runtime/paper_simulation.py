@@ -46,6 +46,8 @@ class PaperTradingSimulationReport:
     paper_metrics: Mapping[str, Any] | None = None
     portfolio_state: Mapping[str, Any] | None = None
     performance: Mapping[str, Any] | None = None
+    execution_stats: Mapping[str, Any] | None = None
+    performance_health: Mapping[str, Any] | None = None
     strategy_summary: Mapping[str, Any] | None = None
     release: Mapping[str, Any] | None = None
 
@@ -67,6 +69,10 @@ class PaperTradingSimulationReport:
             payload["portfolio_state"] = dict(self.portfolio_state)
         if self.performance is not None:
             payload["performance"] = dict(self.performance)
+        if self.execution_stats is not None:
+            payload["execution_stats"] = dict(self.execution_stats)
+        if self.performance_health is not None:
+            payload["performance_health"] = dict(self.performance_health)
         if self.strategy_summary is not None:
             payload["strategy_summary"] = dict(self.strategy_summary)
         if self.release is not None:
@@ -170,6 +176,24 @@ async def run_paper_trading_simulation(
     portfolio_snapshot = _resolve_portfolio_snapshot(paper_engine)
     release_summary = _resolve_release_summary(runtime)
 
+    execution_stats: Mapping[str, Any] | None = None
+    try:
+        stats_payload = runtime.trading_manager.get_execution_stats()
+    except Exception:  # pragma: no cover - diagnostic guardrail
+        logger.debug("Failed to capture execution stats from trading manager", exc_info=True)
+    else:
+        if isinstance(stats_payload, Mapping):
+            execution_stats = _serialise_runtime_value(stats_payload)
+
+    performance_health: Mapping[str, Any] | None = None
+    try:
+        health_payload = runtime.trading_manager.assess_performance_health()
+    except Exception:  # pragma: no cover - diagnostic guardrail
+        logger.debug("Failed to assess performance health from trading manager", exc_info=True)
+    else:
+        if isinstance(health_payload, Mapping):
+            performance_health = _serialise_runtime_value(health_payload)
+
     report = PaperTradingSimulationReport(
         orders=list(orders),
         errors=list(errors),
@@ -180,6 +204,8 @@ async def run_paper_trading_simulation(
         paper_metrics=paper_engine.describe_metrics(),
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
+        execution_stats=execution_stats,
+        performance_health=performance_health,
         strategy_summary=_resolve_strategy_summary(runtime),
         release=release_summary,
     )

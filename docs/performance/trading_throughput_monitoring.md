@@ -119,6 +119,10 @@ consistent schema so baseline scripts can still emit records.
    record both the raw metrics and the derived health verdict alongside `backlog`
    and `resource_usage` snapshots when establishing CPU/memory baselines for the
    paper trading environment.
+4. For end-to-end paper drills, the simulation helper now persists
+   `execution_stats` and `performance_health` in its JSON report, so the CLI
+   baseline artifact automatically carries the latest throughput, backlog, and
+   resource posture without extra scripting.
 
 The health helper doubles as an ops checklist: automate it in smoke tests so
 regressions surface before operators notice backlog on dashboards.

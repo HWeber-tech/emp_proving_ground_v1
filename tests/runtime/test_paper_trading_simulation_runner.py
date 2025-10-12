@@ -107,6 +107,10 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.performance is not None
     assert report.performance.get("equity") is not None
     assert "roi" in report.performance
+    assert report.execution_stats is not None
+    assert report.execution_stats.get("resource_usage") is not None
+    assert report.performance_health is not None
+    assert report.performance_health.get("throughput") is not None
     assert report.strategy_summary is not None
     summary = report.strategy_summary.get("bootstrap-strategy")
     assert summary is not None
@@ -202,6 +206,8 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload.get("orders")
     assert payload.get("decisions") == report.decisions
+    assert "execution_stats" in payload
+    assert "performance_health" in payload
     assert "strategy_summary" in payload
     assert "release" in payload
 
@@ -248,5 +254,7 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
     assert "503" in exception_text or "gateway" in exception_text.lower()
     assert report.decisions >= 1
     assert report.paper_broker and report.paper_broker.get("base_url") == base_url
+    assert report.execution_stats is not None
+    assert report.performance_health is not None
     assert report.strategy_summary is not None
     assert report.release is not None

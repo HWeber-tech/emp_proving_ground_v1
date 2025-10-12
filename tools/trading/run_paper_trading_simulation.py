@@ -14,7 +14,10 @@ from src.governance.system_config import (
     SystemConfig,
     SystemConfigLoadError,
 )
-from src.runtime.paper_simulation import run_paper_trading_simulation
+from src.runtime.paper_simulation import (
+    _json_default as _simulation_json_default,
+    run_paper_trading_simulation,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -111,11 +114,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Polling cadence (seconds) for broker telemetry",
     )
     parser.add_argument(
+        "--keep-running",
+        action="store_true",
+        help=(
+            "Continue running until the runtime limit even after the minimum "
+            "order count is met."
+        ),
+    )
+    parser.add_argument(
         "--extra",
         action="append",
         default=[],
         metavar="KEY=VALUE",
         help="Additional extras to inject into the SystemConfig",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Persist the simulation report to the specified JSON file",
     )
     parser.add_argument(
         "--pretty",
@@ -174,6 +190,8 @@ async def _run_async(args: argparse.Namespace) -> Mapping[str, object]:
         min_orders=max(0, args.min_orders or 0),
         max_runtime=args.runtime_seconds,
         poll_interval=max(args.poll_interval, 0.05),
+        stop_when_complete=not args.keep_running,
+        report_path=args.output,
     )
     payload = report.to_dict()
     payload.setdefault("orders_observed", len(report.orders))
@@ -192,7 +210,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error(str(exc))
         return 1
 
-    text = json.dumps(payload, indent=2 if args.pretty else None)
+    text = json.dumps(
+        payload,
+        indent=2 if args.pretty else None,
+        default=_simulation_json_default,
+    )
     print(text)
 
     if payload.get("orders_observed", 0) < payload.get("min_orders", 0):
@@ -202,4 +224,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry point
     raise SystemExit(main())
-

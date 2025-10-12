@@ -1,21 +1,25 @@
 """Executable organs that bridge canonical sensors into the cortex."""
 
+from __future__ import annotations
+
 import math
 from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pandas as pd
 
 from .base_organ import MarketData, SensoryOrgan, SensoryReading
-from src.sensory.anomaly import AnomalySensor
-from src.sensory.how import HowSensor
 from src.sensory.signals import SensorSignal
-from src.sensory.what.what_sensor import WhatSensor
-from src.sensory.when.when_sensor import WhenSensor
-from src.sensory.why.why_sensor import WhySensor
 from src.sensory.why.narrative_hooks import NarrativeEvent
+
+if TYPE_CHECKING:  # pragma: no cover - type checking only
+    from src.sensory.anomaly import AnomalySensor
+    from src.sensory.how import HowSensor
+    from src.sensory.what.what_sensor import WhatSensor
+    from src.sensory.when.when_sensor import WhenSensor
+    from src.sensory.why.why_sensor import WhySensor
 
 __all__ = [
     "HowSensoryOrgan",
@@ -283,7 +287,11 @@ class HowSensoryOrgan(SensoryOrgan):
         sensor: HowSensor | None = None,
     ) -> None:
         super().__init__(name, dict(config or {}))
-        self._sensor = sensor or HowSensor()
+        if sensor is None:
+            from src.sensory.how import HowSensor as _HowSensor
+
+            sensor = _HowSensor()
+        self._sensor = sensor
 
     async def process(
         self,
@@ -311,7 +319,11 @@ class AnomalySensoryOrgan(SensoryOrgan):
         sensor: AnomalySensor | None = None,
     ) -> None:
         super().__init__(name, dict(config or {}))
-        self._sensor = sensor or AnomalySensor()
+        if sensor is None:
+            from src.sensory.anomaly import AnomalySensor as _AnomalySensor
+
+            sensor = _AnomalySensor()
+        self._sensor = sensor
         sensor_config = cast(Any, getattr(self._sensor, "_config", None))
         window = int(getattr(sensor_config, "window", 32))
         self._sequence_min_length = int(getattr(sensor_config, "sequence_min_length", 8))
@@ -367,7 +379,11 @@ class WhatSensoryOrgan(SensoryOrgan):
         sensor: WhatSensor | None = None,
     ) -> None:
         super().__init__(name, dict(config or {}))
-        self._sensor = sensor or WhatSensor()
+        if sensor is None:
+            from src.sensory.what.what_sensor import WhatSensor as _WhatSensor
+
+            sensor = _WhatSensor()
+        self._sensor = sensor
 
     async def process(
         self,
@@ -396,7 +412,11 @@ class WhenSensoryOrgan(SensoryOrgan):
     ) -> None:
         base_config = dict(config or {})
         super().__init__(name, base_config)
-        self._sensor = sensor or WhenSensor()
+        if sensor is None:
+            from src.sensory.when.when_sensor import WhenSensor as _WhenSensor
+
+            sensor = _WhenSensor()
+        self._sensor = sensor
         self._config_macro_events = _parse_datetime_sequence(base_config.get("macro_events"))
         self._config_option_positions = _normalise_option_positions(
             base_config.get("option_positions")
@@ -447,7 +467,11 @@ class WhySensoryOrgan(SensoryOrgan):
     ) -> None:
         base_config = dict(config or {})
         super().__init__(name, base_config)
-        self._sensor = sensor or WhySensor()
+        if sensor is None:
+            from src.sensory.why.why_sensor import WhySensor as _WhySensor
+
+            sensor = _WhySensor()
+        self._sensor = sensor
         self._config_narrative_events = _parse_narrative_events(base_config.get("narrative_events"))
         self._config_macro_flags = _parse_macro_flags(base_config.get("macro_regime_flags"))
 

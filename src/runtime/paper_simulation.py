@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from datetime import datetime
+from decimal import Decimal
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
@@ -70,6 +72,7 @@ async def run_paper_trading_simulation(
     max_runtime: float | None = 60.0,
     poll_interval: float = 0.5,
     stop_when_complete: bool = True,
+    report_path: str | Path | None = None,
 ) -> PaperTradingSimulationReport:
     """Execute the bootstrap runtime until paper orders are observed.
 
@@ -91,6 +94,9 @@ async def run_paper_trading_simulation(
     stop_when_complete:
         When ``True`` (default) the runtime is shut down immediately after the
         order quota is satisfied.
+    report_path:
+        Optional filesystem path where a JSON serialisation of the simulation
+        report should be written.  Parent directories are created automatically.
 
     Returns
     -------
@@ -164,6 +170,18 @@ async def run_paper_trading_simulation(
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
     )
+    if report_path is not None:
+        path = Path(report_path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to create report directory %s", path.parent, exc_info=True)
+        try:
+            payload = json.dumps(report.to_dict(), indent=2, default=_json_default)
+            path.write_text(payload, encoding="utf-8")
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to persist paper trading simulation report", exc_info=True)
+
     return report
 
 
@@ -298,3 +316,18 @@ def _resolve_diary_count(config: SystemConfig, runtime: Any) -> int:
         return len(entries)
     return 0
 
+
+def _json_default(value: Any) -> Any:
+    """Best-effort conversion of runtime objects into JSON-safe primitives."""
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (set, frozenset)):
+        return sorted(value)
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)

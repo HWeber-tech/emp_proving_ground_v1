@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 import pytest
@@ -36,6 +38,31 @@ async def _start_paper_server(
     return base_url, shutdown, captured
 
 
+def _build_extras(
+    base_url: str,
+    ledger_path: Path,
+    diary_path: Path,
+    *,
+    max_ticks: int = 3,
+) -> dict[str, str]:
+    return {
+        "PAPER_TRADING_API_URL": base_url,
+        "PAPER_TRADING_ORDER_ENDPOINT": "/orders",
+        "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
+        "PAPER_TRADING_DEFAULT_STAGE": PolicyLedgerStage.LIMITED_LIVE.value,
+        "PAPER_TRADING_ORDER_TIMEOUT": "5",
+        "POLICY_LEDGER_PATH": str(ledger_path),
+        "DECISION_DIARY_PATH": str(diary_path),
+        "BOOTSTRAP_TICK_INTERVAL": "0.0",
+        "BOOTSTRAP_MAX_TICKS": str(max_ticks),
+        "BOOTSTRAP_BUY_THRESHOLD": "0.0",
+        "BOOTSTRAP_SELL_THRESHOLD": "1.0",
+        "BOOTSTRAP_MIN_CONFIDENCE": "0.0",
+        "BOOTSTRAP_MIN_LIQ_CONF": "0.0",
+        "BOOTSTRAP_ORDER_SIZE": "1",
+    }
+
+
 @pytest.mark.asyncio()
 async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     async def handler(_request: web.Request) -> web.Response:
@@ -55,22 +82,7 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
 
     diary_path = tmp_path / "diary.json"
 
-    extras = {
-        "PAPER_TRADING_API_URL": base_url,
-        "PAPER_TRADING_ORDER_ENDPOINT": "/orders",
-        "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
-        "PAPER_TRADING_DEFAULT_STAGE": PolicyLedgerStage.LIMITED_LIVE.value,
-        "PAPER_TRADING_ORDER_TIMEOUT": "5",
-        "POLICY_LEDGER_PATH": str(ledger_path),
-        "DECISION_DIARY_PATH": str(diary_path),
-        "BOOTSTRAP_TICK_INTERVAL": "0.0",
-        "BOOTSTRAP_MAX_TICKS": "5",
-        "BOOTSTRAP_BUY_THRESHOLD": "0.0",
-        "BOOTSTRAP_SELL_THRESHOLD": "1.0",
-        "BOOTSTRAP_MIN_CONFIDENCE": "0.0",
-        "BOOTSTRAP_MIN_LIQ_CONF": "0.0",
-        "BOOTSTRAP_ORDER_SIZE": "1",
-    }
+    extras = _build_extras(base_url, ledger_path, diary_path, max_ticks=5)
 
     config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
 
@@ -96,3 +108,84 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.performance.get("equity") is not None
     assert "roi" in report.performance
 
+
+@pytest.mark.asyncio()
+async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path) -> None:
+    async def handler(_request: web.Request) -> web.Response:
+        return web.json_response({"order_id": "stub-keep-running"})
+
+    base_url, shutdown, _captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "qa"),
+        evidence_id="paper-sim-evidence",
+    )
+
+    diary_path = tmp_path / "diary.json"
+
+    extras = _build_extras(base_url, ledger_path, diary_path, max_ticks=50)
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+
+    try:
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=1,
+            max_runtime=0.3,
+            poll_interval=0.05,
+            stop_when_complete=False,
+        )
+    finally:
+        await shutdown()
+
+    assert report.orders, "Simulation did not capture any broker orders"
+    assert report.runtime_seconds >= 0.2
+
+
+@pytest.mark.asyncio()
+async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
+    async def handler(_request: web.Request) -> web.Response:
+        return web.json_response({"order_id": "stub-persist"})
+
+    base_url, shutdown, captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "qa"),
+        evidence_id="paper-sim-evidence",
+    )
+
+    diary_path = tmp_path / "diary.json"
+
+    extras = _build_extras(base_url, ledger_path, diary_path, max_ticks=4)
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+    report_path = tmp_path / "reports" / "paper" / "summary.json"
+
+    try:
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=1,
+            max_runtime=2.0,
+            poll_interval=0.05,
+            report_path=report_path,
+        )
+    finally:
+        await shutdown()
+
+    assert captured, "Paper trading API did not receive any orders"
+    assert report.orders, "Simulation did not capture any broker orders"
+    assert report_path.exists()
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload.get("orders")
+    assert payload.get("decisions") == report.decisions

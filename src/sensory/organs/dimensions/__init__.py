@@ -1,4 +1,11 @@
-"""Sensory dimensions - Multi-dimensional analysis organs."""
+"""Sensory dimensions - Multi-dimensional analysis organs.
+
+The concrete organ implementations live in :mod:`.executable_organs`, but we
+delay importing that module until an attribute is requested to avoid cyclical
+imports during bootstrap.  This keeps the public surface stable for callers
+while ensuring module initialisation works in isolation (e.g. unit tests that
+import :mod:`src.runtime.paper_simulation` without pre-loading sensory organs).
+"""
 
 from __future__ import annotations
 

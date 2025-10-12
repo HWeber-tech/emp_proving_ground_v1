@@ -139,6 +139,8 @@ def install_phase3_orchestrator(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     _install_package(monkeypatch, "src.thinking.competitive")
     _install_package(monkeypatch, "src.thinking.ecosystem")
     _install_package(monkeypatch, "src.thinking.prediction")
+    _install_package(monkeypatch, "src.ecosystem")
+    _install_package(monkeypatch, "src.ecosystem.evolution")
 
     _install_module(
         monkeypatch,
@@ -155,10 +157,15 @@ def install_phase3_orchestrator(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
         "src.thinking.competitive.competitive_intelligence_system",
         {"CompetitiveIntelligenceSystem": StubCompetitiveIntelligence},
     )
-    _install_module(
+    specialized_module = _install_module(
         monkeypatch,
-        "src.thinking.ecosystem.specialized_predator_evolution",
+        "src.ecosystem.evolution.specialized_predator_evolution",
         {"SpecializedPredatorEvolution": StubSpecializedEvolution},
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.thinking.ecosystem.specialized_predator_evolution",
+        specialized_module,
     )
     _install_module(
         monkeypatch,

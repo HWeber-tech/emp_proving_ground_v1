@@ -28,11 +28,11 @@ import numpy as np
 from src.core.adaptation import AdaptationService, NoOpAdaptationService
 from src.core.event_bus import EventBus
 from src.core.state_store import StateStore
+from src.ecosystem.evolution.specialized_predator_evolution import SpecializedPredatorEvolution
 from src.runtime.task_supervisor import TaskSupervisor
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI
 from src.thinking.competitive.competitive_intelligence_system import CompetitiveIntelligenceSystem
-from src.thinking.ecosystem.specialized_predator_evolution import SpecializedPredatorEvolution
 from src.thinking.prediction.predictive_market_modeler import PredictiveMarketModeler
 
 

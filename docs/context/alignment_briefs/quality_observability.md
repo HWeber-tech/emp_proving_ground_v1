@@ -222,14 +222,18 @@
   latency, and backlog metrics via the shared `ThroughputMonitor`, exposes the
   snapshot through `TradingManager.get_execution_stats()`, and pairs it with
   `TradingManager.assess_throughput_health()` plus refreshed docs so operations
-  teams can assert latency budgets from a single verdict under guardrail
-  coverage.【F:src/trading/execution/performance_monitor.py†L1-L127】【F:src/trading/trading_manager.py†L1201-L1353】【F:docs/performance/trading_throughput_monitoring.md†L1-L84】【F:tests/trading/execution/test_performance_monitor.py†L17-L156】【F:tests/trading/test_trading_manager_execution.py†L1756-L1905】
-  - Progress: Performance health reporting now renders the same assessment as a
+  teams can assert latency budgets from a single verdict; the throttle summary
+  now surfaces `max_trades`, remaining credits, utilisation, retry/reset timers,
+  and the resolved scope/context dictionaries (with `scope_key`) under guardrail
+  coverage.【F:src/trading/execution/performance_monitor.py†L1-L127】【F:src/trading/trading_manager.py†L1991-L2031】【F:docs/performance/trading_throughput_monitoring.md†L60-L74】【F:tests/trading/execution/test_performance_monitor.py†L17-L156】【F:tests/trading/test_trading_manager_execution.py†L524-L550】
+- Progress: Performance health reporting now renders the same assessment as a
   Markdown evidence pack via `build_performance_health_report`, with
   `TradingManager.generate_performance_health_report()` exposing the helper for
-  runbooks; docs and regression suites capture the healthy/degraded render paths
-  so operators can export supervisory snapshots without bespoke scripts.【F:src/trading/execution/performance_report.py†L129-L225】【F:src/trading/trading_manager.py†L1696-L1757】【F:docs/performance/trading_throughput_monitoring.md†L69-L73】【F:tests/trading/execution/test_performance_report.py†L78-L128】【F:tests/trading/test_trading_manager_execution.py†L359-L458】
-  - Progress: `collect_performance_baseline()` now aggregates execution stats, throughput verdicts, backlog/resource posture, and Markdown evidence while the companion CLI scripts sample throttled bursts, letting observability packs archive reproducible performance baselines under regression coverage.【F:src/trading/execution/performance_baseline.py†L21-L72】【F:tools/performance_baseline.py†L1-L108】【F:docs/performance/performance_baseline.md†L1-L76】【F:tests/trading/test_trading_manager_execution.py†L2504-L2549】
+  runbooks; the renderer calls out the new backlog analytics (`latest_lag_ms`,
+  `p95_lag_ms`, `breach_rate`, `max_breach_streak`), and docs/tests capture
+  healthy vs degraded paths so operators can export supervisory snapshots
+  without bespoke scripts.【F:src/trading/execution/performance_report.py†L104-L193】【F:src/trading/trading_manager.py†L1696-L1757】【F:docs/performance/trading_throughput_monitoring.md†L86-L133】【F:tests/trading/execution/test_performance_report.py†L39-L131】
+- Progress: `collect_performance_baseline()` now aggregates execution stats, throughput verdicts, backlog/resource posture, and Markdown evidence while the companion CLI scripts sample throttled bursts; the baseline payload and docs emphasise the new backlog analytics (`latest_lag_ms`, `p95_lag_ms`, `breach_rate`, `max_breach_streak`) so observability packs archive reproducible performance baselines under regression coverage.【F:src/trading/execution/performance_baseline.py†L21-L72】【F:tools/performance_baseline.py†L1-L108】【F:docs/performance/performance_baseline.md†L20-L83】【F:tests/trading/execution/test_performance_report.py†L39-L131】
   - Progress: Bootstrap stack now logs sensory listener, liquidity prober, and
   control-centre callback failures with structured metadata so optional hooks
   surface errors without disrupting bootstrap decisions, under pytest coverage

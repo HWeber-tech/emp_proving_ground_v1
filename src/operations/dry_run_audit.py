@@ -740,6 +740,8 @@ def summarise_diary_entries(
     *,
     expected_window: tuple[datetime, datetime] | None = None,
     coverage_tolerance: timedelta = DEFAULT_DIARY_COVERAGE_TOLERANCE,
+    minimum_entries_per_day: int | None = None,
+    daily_coverage_severity: DryRunStatus = DryRunStatus.warn,
 ) -> DryRunDiarySummary:
     """Summarise the supplied diary entries for dry run review."""
 
@@ -763,6 +765,8 @@ def summarise_diary_entries(
     if expected_window is not None:
         start_expected, end_expected = expected_window
         tolerance = max(coverage_tolerance, timedelta(0))
+        if minimum_entries_per_day is not None and minimum_entries_per_day < 0:
+            raise ValueError("minimum_entries_per_day must be non-negative")
         if not ordered:
             issues.append(
                 DryRunDiaryIssue(
@@ -816,6 +820,46 @@ def summarise_diary_entries(
                     )
                 )
 
+        min_entries = minimum_entries_per_day or 0
+        if min_entries > 0:
+            # Normalise dates in UTC to avoid timezone drift when comparing coverage.
+            start_day = start_expected.astimezone(UTC).date()
+            end_day = end_expected.astimezone(UTC).date()
+            per_day_counts = Counter(
+                entry.recorded_at.astimezone(UTC).date() for entry in ordered
+            )
+            day = start_day
+            while day <= end_day:
+                count = per_day_counts.get(day, 0)
+                if count < min_entries:
+                    recorded_at = datetime.combine(
+                        day,
+                        datetime.min.time(),
+                        tzinfo=UTC,
+                    )
+                    issues.append(
+                        DryRunDiaryIssue(
+                            entry_id=f"coverage/daily/{day.isoformat()}",
+                            policy_id="*",
+                            recorded_at=recorded_at,
+                            severity=(
+                                DryRunStatus.fail
+                                if daily_coverage_severity is DryRunStatus.fail
+                                else DryRunStatus.warn
+                            ),
+                            reason=(
+                                "Decision diary missing minimum entries for day"
+                                f" {day.isoformat()}."
+                            ),
+                            metadata={
+                                "day": day.isoformat(),
+                                "required_entries": min_entries,
+                                "actual_entries": count,
+                            },
+                        )
+                    )
+                day = day + timedelta(days=1)
+
     return DryRunDiarySummary(
         entries=ordered,
         issues=tuple(sorted(issues, key=lambda issue: issue.recorded_at)),
@@ -853,6 +897,8 @@ def evaluate_dry_run(
     log_gap_fail: timedelta | None = None,
     minimum_run_duration: timedelta | None = None,
     minimum_uptime_ratio: float | None = None,
+    diary_min_entries_per_day: int | None = None,
+    diary_daily_issue_severity: DryRunStatus = DryRunStatus.warn,
 ) -> DryRunSummary:
     """Evaluate dry run evidence from logs, diaries, and performance telemetry."""
 
@@ -877,6 +923,8 @@ def evaluate_dry_run(
         diary_summary = summarise_diary_entries(
             diary_entries,
             expected_window=expected_window,
+            minimum_entries_per_day=diary_min_entries_per_day,
+            daily_coverage_severity=diary_daily_issue_severity,
         )
 
     performance_summary: DryRunPerformanceSummary | None = None

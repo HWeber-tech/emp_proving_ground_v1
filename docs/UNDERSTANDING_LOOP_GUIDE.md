@@ -6,7 +6,7 @@ The companion notebook `docs/examples/understanding_loop_demo.ipynb` walks throu
 
 ## End-to-end Data Flow
 
-1. **Ingest → Timescale/Kafka** – The operational backbone pipeline (`src/data_foundation/pipelines/operational_backbone.py`) backed by `RealDataManager` (`src/data_integration/real_data_integration.py`) orchestrates TimescaleDB reads, Redis caching, and Kafka fan-out so sensory organs receive fresh market frames.
+1. **Ingest → Timescale/Kafka** – The operational backbone pipeline (`src/data_foundation/pipelines/operational_backbone.py`) backed by `RealDataManager` (`src/data_integration/real_data_integration.py`) orchestrates TimescaleDB reads, Redis caching, and Kafka fan-out so sensory organs receive fresh market frames. Operators can rehearse the full drill via `python -m tools.data_ingest.run_operational_backbone`, which loads credentials from `SystemConfig`, hydrates Timescale/Redis/Kafka, and prints JSON/Markdown summaries of the ingest pass under regression coverage.【F:tools/data_ingest/run_operational_backbone.py†L1-L210】【F:tests/tools/test_run_operational_backbone.py†L17-L105】
 2. **Sensory Fusion** – `RealSensoryOrgan` combines the WHAT/WHEN/HOW/WHY/ANOMALY organs into a single snapshot with lineage and audit trails (`src/sensory/real_sensory_organ.py`).
 3. **Belief Formation** – `BeliefBuffer` applies the Hebbian covariance update to generate posterior beliefs, while `BeliefEmitter` publishes the state to the event bus (`src/understanding/belief.py`).
 4. **Regime Classification** – `RegimeFSM` maps posterior strength/confidence into qualitative regimes (calm/balanced/bullish/bearish) and keeps the lineage metadata attached.

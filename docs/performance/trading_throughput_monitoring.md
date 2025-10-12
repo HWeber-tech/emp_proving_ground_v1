@@ -162,6 +162,17 @@ strategy may resume. Snapshots surface the configured spacing in
 cooldowns with observed behaviour. This guardrail satisfies the roadmap’s need
 to damp oscillatory bursts while keeping throttle explanations transparent.
 
+### Window reset telemetry
+
+Throttle snapshots now report how saturated the rolling window is and when it
+will reset. Every evaluation emits a bounded `metadata.window_utilisation`
+ratio alongside `metadata.window_reset_at` and
+`metadata.window_reset_in_seconds`, giving dashboards a deterministic count-down
+to the next trade credit. The instrumentation clamps negative deltas to zero so
+reporting remains stable near the boundary, and regression coverage asserts both
+UTC scheduling and utilisation maths across rate-limit, cooldown, and minimum
+spacing scenarios.【F:src/trading/execution/trade_throttle.py†L204-L312】【F:tests/trading/test_trade_throttle.py†L15-L205】
+
 ### Runtime configuration extras
 
 `build_professional_predator_app()` now resolves trade throttle settings straight

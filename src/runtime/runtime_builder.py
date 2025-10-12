@@ -98,6 +98,10 @@ from src.data_foundation.persist.timescale import (
     TimescaleMigrator,
 )
 from src.data_foundation.persist.timescale_reader import TimescaleReader
+from src.data_foundation.pipelines.operational_backbone import (
+    OperationalBackbonePipeline,
+    OperationalIngestRequest,
+)
 from src.data_foundation.streaming.kafka_stream import (
     KafkaConnectionSettings,
     KafkaConsumerLagSnapshot,
@@ -110,6 +114,7 @@ from src.data_foundation.streaming.kafka_stream import (
     resolve_ingest_topic_specs,
     should_auto_create_topics,
 )
+from src.data_integration.real_data_integration import RealDataManager
 from src.governance.system_config import DataBackboneMode, EmpTier, SystemConfig
 from src.operations.backup import (
     BackupPolicy,
@@ -337,6 +342,61 @@ def _plan_dimensions(plan: TimescaleBackbonePlan) -> list[str]:
     if plan.macro is not None:
         dimensions.append("macro_events")
     return dimensions
+
+
+def _build_operational_request_from_plan(
+    plan: TimescaleBackbonePlan,
+) -> OperationalIngestRequest | None:
+    """Translate a Timescale ingest plan into an operational ingest request."""
+
+    daily_plan = plan.daily
+    intraday_plan = plan.intraday
+    macro_plan = plan.macro
+
+    symbols: list[str] = []
+    if daily_plan is not None:
+        symbols.extend(daily_plan.normalised_symbols())
+    if intraday_plan is not None:
+        for symbol in intraday_plan.normalised_symbols():
+            if symbol not in symbols:
+                symbols.append(symbol)
+
+    macro_events: tuple[Mapping[str, object] | object, ...] | None = None
+    if macro_plan is not None and macro_plan.events:
+        macro_events = tuple(macro_plan.events)
+
+    macro_start = macro_plan.start if macro_plan is not None else None
+    macro_end = macro_plan.end if macro_plan is not None else None
+
+    if not symbols and macro_events is None and not (macro_start and macro_end):
+        return None
+
+    if not symbols:
+        symbols = ["MACRO_ONLY"]
+
+    source = "yahoo"
+    if daily_plan is not None and daily_plan.source:
+        source = daily_plan.source
+    elif intraday_plan is not None and intraday_plan.source:
+        source = intraday_plan.source
+
+    macro_source = "fred"
+    if macro_plan is not None and macro_plan.source:
+        macro_source = macro_plan.source
+
+    return OperationalIngestRequest(
+        symbols=tuple(symbols),
+        daily_lookback_days=daily_plan.lookback_days if daily_plan is not None else None,
+        intraday_lookback_days=(
+            intraday_plan.lookback_days if intraday_plan is not None else None
+        ),
+        intraday_interval=intraday_plan.interval if intraday_plan is not None else "1m",
+        macro_start=macro_start,
+        macro_end=macro_end,
+        macro_events=macro_events,
+        source=source,
+        macro_source=macro_source,
+    )
 
 
 def _build_retention_policies(
@@ -1582,6 +1642,7 @@ async def _execute_timescale_ingest(
     kafka_quality_publisher,
     fallback: Callable[[], Awaitable[None]] | None,
     orchestrator_cls: type[TimescaleBackboneOrchestrator] = TimescaleBackboneOrchestrator,
+    data_manager: RealDataManager | None = None,
     backbone_context: BackboneRuntimeContext | None = None,
     scheduler_snapshot: IngestSchedulerSnapshot | None = None,
     record_backbone_validation_snapshot: (
@@ -1605,15 +1666,65 @@ async def _execute_timescale_ingest(
     record_kafka_readiness_snapshot: Callable[[KafkaReadinessSnapshot], None] | None = None,
     managed_manifest: Sequence[Mapping[str, object]] | None = None,
 ) -> tuple[bool, BackupReadinessSnapshot | None]:
-    try:
-        orchestrator = orchestrator_cls(
-            ingest_config.timescale_settings,
-            event_publisher=publisher,
-        )
-        initial_results = orchestrator.run(plan=ingest_config.plan)
-    except Exception:
-        logger.exception("Timescale ingest failed")
-        return False, None
+    initial_results: dict[str, TimescaleIngestResult] = {}
+    pipeline_result = None
+    cache_metrics_before: Mapping[str, object] = {}
+    cache_metrics_after_ingest: Mapping[str, object] = {}
+    cache_metrics_after_fetch: Mapping[str, object] = {}
+    kafka_events: tuple[Event, ...] = ()
+    ingest_error: str | None = None
+    manager_failed = False
+
+    manager = data_manager
+    if manager is not None:
+        request = _build_operational_request_from_plan(ingest_config.plan)
+        try:
+            if request is not None:
+                topics_for_pipeline = tuple(dict.fromkeys(kafka_topics)) or ("telemetry.ingest",)
+                pipeline = OperationalBackbonePipeline(
+                    manager=manager,
+                    event_bus=event_bus,
+                    event_topics=topics_for_pipeline,
+                    auto_close_consumer=False,
+                )
+                pipeline_result = await pipeline.execute(request, poll_consumer=False)
+                initial_results = dict(pipeline_result.ingest_results)
+                cache_metrics_before = dict(pipeline_result.cache_metrics_before)
+                cache_metrics_after_ingest = dict(pipeline_result.cache_metrics_after_ingest)
+                cache_metrics_after_fetch = dict(pipeline_result.cache_metrics_after_fetch)
+                kafka_events = pipeline_result.kafka_events
+                ingest_error = pipeline_result.ingest_error
+            else:
+                cache_metrics_before = manager.cache_metrics(reset=True)
+                initial_results = await asyncio.to_thread(
+                    manager.run_ingest_plan,
+                    ingest_config.plan,
+                )
+                cache_metrics_after_ingest = manager.cache_metrics(reset=False)
+                cache_metrics_after_fetch = dict(cache_metrics_after_ingest)
+        except Exception as exc:
+            logger.exception(
+                "Operational backbone ingest failed; falling back to Timescale orchestrator"
+            )
+            manager_failed = True
+            pipeline_result = None
+            cache_metrics_before = {}
+            cache_metrics_after_ingest = {}
+            cache_metrics_after_fetch = {}
+            kafka_events = ()
+            ingest_error = str(exc)
+            initial_results = {}
+
+    if manager is None or manager_failed:
+        try:
+            orchestrator = orchestrator_cls(
+                ingest_config.timescale_settings,
+                event_publisher=publisher,
+            )
+            initial_results = orchestrator.run(plan=ingest_config.plan)
+        except Exception:
+            logger.exception("Timescale ingest failed")
+            return False, None
 
     if not initial_results:
         logger.info("Timescale ingest skipped: nothing requested")
@@ -1632,7 +1743,20 @@ async def _execute_timescale_ingest(
     for dimension, outcome in initial_results.items():
         logger.info("🗄️ Timescale ingest %s: %s", dimension, outcome.as_dict())
 
+    if kafka_events:
+        logger.info("📨 Kafka ingest events emitted: %s", len(kafka_events))
+
     telemetry_metadata: dict[str, object] = dict(ingest_config.metadata)
+    if cache_metrics_before:
+        telemetry_metadata["cache_metrics_before"] = dict(cache_metrics_before)
+    if cache_metrics_after_ingest:
+        telemetry_metadata["cache_metrics_after_ingest"] = dict(cache_metrics_after_ingest)
+    if cache_metrics_after_fetch:
+        telemetry_metadata["cache_metrics_after_fetch"] = dict(cache_metrics_after_fetch)
+    if ingest_error:
+        telemetry_metadata["ingest_error"] = ingest_error
+    if kafka_events:
+        telemetry_metadata["kafka_event_count"] = len(kafka_events)
     validation_snapshot = evaluate_data_backbone_validation(
         ingest_config=ingest_config,
         context=backbone_context,
@@ -3051,6 +3175,37 @@ def build_professional_runtime_application(
                     kafka_publisher,
                 )
 
+                redis_cache_candidate = getattr(app, "redis_client", None)
+                managed_cache = (
+                    redis_cache_candidate
+                    if isinstance(redis_cache_candidate, ManagedRedisCache)
+                    else None
+                )
+
+                data_manager: RealDataManager | None = None
+                try:
+                    data_manager = RealDataManager(
+                        system_config=app.config,
+                        extras=extras_mapping,
+                        timescale_settings=ingest_config.timescale_settings,
+                        redis_settings=ingest_config.redis_settings,
+                        cache_policy=ingest_config.redis_policy,
+                        kafka_settings=ingest_config.kafka_settings,
+                        ingest_publisher=publisher,
+                        managed_cache=managed_cache,
+                        task_supervisor=app.task_supervisor,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to initialise RealDataManager for operational ingest",
+                    )
+                    data_manager = None
+                else:
+                    async def _shutdown_real_data_manager() -> None:
+                        await data_manager.shutdown()
+
+                    app.add_cleanup_callback(_shutdown_real_data_manager)
+
                 redis_settings = ingest_config.redis_settings
                 services_holder: dict[str, InstitutionalIngestServices] = {}
                 skip_next_scheduler_run = False
@@ -3221,6 +3376,7 @@ def build_professional_runtime_application(
                             kafka_metrics_publisher=kafka_metrics_publisher,
                             kafka_quality_publisher=kafka_quality_publisher,
                             fallback=_fallback,
+                            data_manager=data_manager,
                             backbone_context=backbone_context,
                             scheduler_snapshot=scheduler_snapshot,
                             record_backbone_validation_snapshot=validation_recorder,
@@ -3260,6 +3416,12 @@ def build_professional_runtime_application(
                                 state=scheduler_state,
                             )
                             scheduler_metadata = scheduler_snapshot.as_dict()
+
+                    if data_manager is not None:
+                        try:
+                            cache_metrics = dict(data_manager.cache_metrics(reset=False))
+                        except Exception:  # pragma: no cover - diagnostics only
+                            logger.debug("Failed to refresh cache metrics after ingest", exc_info=True)
 
                     if backup_snapshot is not None:
                         record_backup = getattr(app, "record_backup_snapshot", None)

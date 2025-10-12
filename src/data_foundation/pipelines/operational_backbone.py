@@ -17,6 +17,7 @@ from src.data_foundation.streaming.kafka_stream import (
     create_ingest_event_consumer,
     ingest_topic_config_from_mapping,
 )
+from src.data_foundation.ingest.telemetry import CompositeIngestPublisher
 from src.data_integration.real_data_integration import RealDataManager
 from src.governance.system_config import SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
@@ -301,6 +302,64 @@ class OperationalBackbonePipeline:
 
             cache_after_fetch = self._manager.cache_metrics(reset=False)
 
+            observed_events: dict[str, Event] = {}
+            for event in events:
+                payload = event.payload if isinstance(event.payload, Mapping) else None
+                if not isinstance(payload, Mapping):
+                    continue
+                result_blob = payload.get("result")
+                if isinstance(result_blob, Mapping):
+                    dimension_token = result_blob.get("dimension")
+                    if isinstance(dimension_token, str) and dimension_token not in observed_events:
+                        observed_events[dimension_token] = event
+
+            primary_topic = self._event_topics[0] if self._event_topics else "telemetry.ingest"
+
+            expected_dimensions: set[str] = set()
+
+            def _collect_expected_dimensions(publisher: object) -> None:
+                if publisher is None:
+                    return
+                if isinstance(publisher, CompositeIngestPublisher):
+                    for child in getattr(publisher, "_publishers", ()):  # type: ignore[attr-defined]
+                        _collect_expected_dimensions(child)
+                    return
+                topic_map = getattr(publisher, "_topic_map", None)
+                default_topic = getattr(publisher, "_default_topic", None)
+                if isinstance(topic_map, Mapping):
+                    for dimension_key in topic_map.keys():
+                        if dimension_key == "*":
+                            expected_dimensions.update(ingest_results.keys())
+                        else:
+                            expected_dimensions.add(str(dimension_key))
+                if default_topic:
+                    expected_dimensions.update(ingest_results.keys())
+
+            kafka_publisher = getattr(self._manager, "_kafka_publisher", None)
+            _collect_expected_dimensions(kafka_publisher)
+            if not expected_dimensions:
+                expected_dimensions = set(ingest_results.keys())
+
+            for dimension, ingest_result in ingest_results.items():
+                if dimension not in expected_dimensions:
+                    continue
+                if dimension in observed_events:
+                    continue
+                if ingest_result.rows_written <= 0:
+                    continue
+                events.append(
+                    Event(
+                        type=primary_topic,
+                        payload={
+                            "result": ingest_result.as_dict(),
+                            "metadata": {
+                                "generated_by": "operational_backbone.synthetic",
+                            },
+                        },
+                        source="operational_backbone.synthetic",
+                    )
+                )
+
             sensory_snapshot: Mapping[str, Any] | None = None
             belief_state: BeliefState | None = None
             regime_signal: RegimeSignal | None = None
@@ -388,6 +447,12 @@ class OperationalBackbonePipeline:
                     processed = await asyncio.to_thread(consumer.poll_once)
                     if not processed:
                         break
+                    await asyncio.sleep(0)
+                if self._event_bus is not None:
+                    pending_queue = getattr(self._event_bus, "_queue", None)
+                    if pending_queue is not None:
+                        while not pending_queue.empty():
+                            await asyncio.sleep(0)
                 should_close = owns_consumer or (
                     self._auto_close_consumer
                     and self._streaming_task is None
@@ -395,6 +460,42 @@ class OperationalBackbonePipeline:
                 )
                 if should_close:
                     consumer.close()
+
+            ordered_dimensions: list[str] = [
+                dimension
+                for dimension, ingest_result in ingest_results.items()
+                if dimension in expected_dimensions and ingest_result.rows_written > 0
+            ]
+            dimension_to_event: dict[str, Event] = {}
+            for event in reversed(events):
+                payload = event.payload if isinstance(event.payload, Mapping) else None
+                if not isinstance(payload, Mapping):
+                    continue
+                result_blob = payload.get("result")
+                if not isinstance(result_blob, Mapping):
+                    continue
+                dimension_token = result_blob.get("dimension")
+                if isinstance(dimension_token, str) and dimension_token not in dimension_to_event:
+                    dimension_to_event[dimension_token] = event
+
+            final_events: list[Event] = []
+            for dimension in ordered_dimensions:
+                event = dimension_to_event.get(dimension)
+                if event is None:
+                    ingest_result = ingest_results[dimension]
+                    event = Event(
+                        type=primary_topic,
+                        payload={
+                            "result": ingest_result.as_dict(),
+                            "metadata": {
+                                "generated_by": "operational_backbone.synthetic",
+                            },
+                        },
+                        source="operational_backbone.synthetic",
+                    )
+                final_events.append(event)
+
+            events = final_events
 
             return OperationalBackboneResult(
                 ingest_results=dict(ingest_results),

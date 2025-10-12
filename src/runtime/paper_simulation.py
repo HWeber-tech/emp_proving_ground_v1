@@ -45,6 +45,7 @@ class PaperTradingSimulationReport:
     paper_broker: Mapping[str, Any] | None = None
     portfolio_state: Mapping[str, Any] | None = None
     performance: Mapping[str, Any] | None = None
+    strategy_summary: Mapping[str, Any] | None = None
 
     def to_dict(self) -> Mapping[str, Any]:
         """Return a JSON-serialisable representation of the report."""
@@ -62,6 +63,8 @@ class PaperTradingSimulationReport:
             payload["portfolio_state"] = dict(self.portfolio_state)
         if self.performance is not None:
             payload["performance"] = dict(self.performance)
+        if self.strategy_summary is not None:
+            payload["strategy_summary"] = dict(self.strategy_summary)
         return payload
 
 
@@ -169,6 +172,7 @@ async def run_paper_trading_simulation(
         paper_broker=_resolve_paper_broker_snapshot(runtime),
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
+        strategy_summary=_resolve_strategy_summary(runtime),
     )
     if report_path is not None:
         path = Path(report_path)
@@ -229,6 +233,28 @@ def _resolve_paper_broker_snapshot(runtime: Any) -> Mapping[str, Any] | None:
     if not summary:
         return None
     return dict(summary)
+
+
+def _resolve_strategy_summary(runtime: Any) -> Mapping[str, Any] | None:
+    manager = getattr(runtime, "trading_manager", None)
+    if manager is None:
+        return None
+    summary_fn = getattr(manager, "get_strategy_execution_summary", None)
+    if not callable(summary_fn):
+        return None
+    try:
+        summary = summary_fn()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.debug("Failed to summarise strategy execution", exc_info=True)
+        return None
+    if isinstance(summary, Mapping):
+        return {
+            str(strategy_id): dict(payload)
+            if isinstance(payload, Mapping)
+            else payload
+            for strategy_id, payload in summary.items()
+        }
+    return None
 
 
 def _resolve_portfolio_snapshot(

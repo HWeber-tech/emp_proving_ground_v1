@@ -129,6 +129,201 @@ class TradeIntentOutcome:
         return payload
 
 
+@dataclass(slots=True)
+class _PositionState:
+    quantity: float = 0.0
+    avg_price: float = 0.0
+
+
+@dataclass(slots=True)
+class StrategyExecutionStats:
+    """Aggregated execution telemetry for a single strategy."""
+
+    strategy_id: str
+    executed: int = 0
+    failed: int = 0
+    throttled: int = 0
+    rejected: int = 0
+    total_notional: float = 0.0
+    realized_pnl: float = 0.0
+    volume: float = 0.0
+    wins: int = 0
+    losses: int = 0
+    completed_trades: int = 0
+    positions: dict[str, _PositionState] = field(default_factory=dict)
+    latency_samples: int = 0
+    total_latency_ms: float = 0.0
+    last_error: str | None = None
+    last_order_id: str | None = None
+    last_updated: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+
+    def record_success(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+        notional: float,
+        latency_ms: float | None,
+        order_id: Any,
+    ) -> None:
+        self.executed += 1
+        self.total_notional += abs(float(notional))
+        self.volume += abs(float(quantity))
+        if order_id not in (None, ""):
+            self.last_order_id = str(order_id)
+        self.last_error = None
+        if latency_ms is not None:
+            self.latency_samples += 1
+            self.total_latency_ms += float(latency_ms)
+
+        realised_delta, closed_trade = self._apply_trade(
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            price=price,
+        )
+        self.realized_pnl += realised_delta
+        if realised_delta > 1e-9:
+            self.wins += 1
+        elif realised_delta < -1e-9:
+            self.losses += 1
+        if closed_trade:
+            self.completed_trades += 1
+        self.last_updated = datetime.now(tz=timezone.utc)
+
+    def record_failure(self, reason: str | None = None) -> None:
+        self.failed += 1
+        self.last_error = reason or "execution_failure"
+        self.last_updated = datetime.now(tz=timezone.utc)
+
+    def record_throttled(self) -> None:
+        self.throttled += 1
+        self.last_updated = datetime.now(tz=timezone.utc)
+
+    def record_rejection(self, reason: str | None = None) -> None:
+        self.rejected += 1
+        if reason:
+            self.last_error = reason
+        self.last_updated = datetime.now(tz=timezone.utc)
+
+    def avg_latency_ms(self) -> float | None:
+        if self.latency_samples == 0:
+            return None
+        return self.total_latency_ms / self.latency_samples
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: dict[str, Any] = {
+            "executed": self.executed,
+            "failed": self.failed,
+            "throttled": self.throttled,
+            "rejected": self.rejected,
+            "total_notional": self.total_notional,
+            "realized_pnl": self.realized_pnl,
+            "volume": self.volume,
+            "wins": self.wins,
+            "losses": self.losses,
+            "completed_trades": self.completed_trades,
+            "win_rate": self._win_rate(),
+            "roi": self._roi(),
+            "last_updated": self.last_updated.isoformat(),
+        }
+        latency = self.avg_latency_ms()
+        if latency is not None:
+            payload["avg_latency_ms"] = latency
+        if self.last_order_id:
+            payload["last_order_id"] = self.last_order_id
+        if self.last_error:
+            payload["last_error"] = self.last_error
+
+        open_positions = {
+            symbol: {
+                "quantity": state.quantity,
+                "avg_price": state.avg_price,
+            }
+            for symbol, state in self.positions.items()
+            if abs(state.quantity) > 1e-9
+        }
+        if open_positions:
+            payload["open_positions"] = open_positions
+        return payload
+
+    def _win_rate(self) -> float | None:
+        total = self.wins + self.losses
+        if total == 0:
+            return None
+        return self.wins / total
+
+    def _roi(self) -> float | None:
+        if self.total_notional <= 0.0:
+            return None
+        return self.realized_pnl / self.total_notional
+
+    def _apply_trade(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+    ) -> tuple[float, bool]:
+        qty = float(quantity)
+        if qty <= 0:
+            return 0.0, False
+
+        state = self.positions.get(symbol)
+        if state is None:
+            state = _PositionState()
+            self.positions[symbol] = state
+
+        position_qty = state.quantity
+        avg_price = state.avg_price
+        trade_direction = 1.0 if str(side).upper().startswith("B") else -1.0
+        trade_qty = trade_direction * qty
+
+        realised = 0.0
+        closed_trade = False
+
+        if position_qty == 0.0 or position_qty * trade_qty >= 0.0:
+            new_qty = position_qty + trade_qty
+            if new_qty != 0.0:
+                if position_qty == 0.0:
+                    new_avg = float(price)
+                else:
+                    new_avg = (
+                        position_qty * avg_price + trade_qty * float(price)
+                    ) / new_qty
+            else:
+                new_avg = float(price)
+        else:
+            closing_qty = min(abs(trade_qty), abs(position_qty))
+            if closing_qty > 0.0:
+                closed_trade = True
+                if position_qty > 0.0:
+                    realised += (float(price) - avg_price) * closing_qty
+                else:
+                    realised += (avg_price - float(price)) * closing_qty
+            trade_remainder = position_qty + trade_qty
+            new_qty = trade_remainder
+            if abs(new_qty) < 1e-9:
+                new_qty = 0.0
+            if position_qty * trade_remainder > 0.0:
+                new_avg = avg_price
+            elif new_qty == 0.0:
+                new_avg = float(price)
+            else:
+                new_avg = float(price)
+
+        state.quantity = new_qty
+        state.avg_price = new_avg
+        if abs(state.quantity) < 1e-9:
+            # Remove flat positions to keep summaries tidy.
+            self.positions.pop(symbol, None)
+        else:
+            self.positions[symbol] = state
+        return realised, closed_trade
+
 def _coerce_risk_config(
     config: TradingRiskConfig | Mapping[str, object] | None,
 ) -> TradingRiskConfig:
@@ -337,6 +532,7 @@ class TradingManager:
             "throttle_blocks": 0,
             "throttle_retry_at": None,
         }
+        self._strategy_stats: dict[str, StrategyExecutionStats] = {}
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
 
         self._trade_throttle: TradeThrottle | None = None
@@ -529,8 +725,10 @@ class TradingManager:
             logger.info(f"Received trade intent: {event_id}")
 
             strategy_id = self._extract_strategy_id(event)
+            strategy_stats = self._strategy_stats_for(strategy_id)
             base_symbol = self._extract_symbol(event)
             base_confidence = self._extract_confidence(event)
+            side_hint = self._extract_side(event)
 
             portfolio_state = cast(Any, self.portfolio_monitor).get_state()
 
@@ -678,6 +876,7 @@ class TradingManager:
                     drift_event_status = "throttled"
                     drift_confidence_value = confidence
                     throttle_blocked = True
+                    strategy_stats.record_throttled()
                     trade_outcome = TradeIntentOutcome(
                         status="throttled",
                         executed=False,
@@ -712,6 +911,7 @@ class TradingManager:
                             validated_intent
                         )
                     except Exception as exc:
+                        strategy_stats.record_failure(str(exc))
                         try:
                             release_quantity = float(quantity)
                         except Exception:
@@ -782,6 +982,16 @@ class TradingManager:
                         self._record_execution_success(latency_ms, result)
                         decision = self._get_last_risk_decision()
                         if self._execution_stats.get("last_successful_order"):
+                            side_value = self._extract_side(validated_intent) or side_hint or "BUY"
+                            strategy_stats.record_success(
+                                symbol=symbol,
+                                side=side_value,
+                                quantity=float(quantity),
+                                price=float(price),
+                                notional=float(notional),
+                                latency_ms=latency_ms,
+                                order_id=result,
+                            )
                             if notional > 0:
                                 self._roi_executed_trades += 1
                                 self._roi_total_notional += notional
@@ -841,6 +1051,7 @@ class TradingManager:
                                 self._execution_stats.get("last_error")
                                 or "execution_failed"
                             )
+                            strategy_stats.record_failure(error_reason)
                             fallback_metadata: dict[str, object] = {
                                 "reason": error_reason
                             }
@@ -900,6 +1111,7 @@ class TradingManager:
                 reason = None
                 if isinstance(decision, Mapping):
                     reason = decision.get("reason")
+                strategy_stats.record_rejection(str(reason) if reason else None)
                 rejection_metadata: dict[str, object] = {}
                 if reason:
                     rejection_metadata["reason"] = reason
@@ -1467,6 +1679,10 @@ class TradingManager:
 
         stats.setdefault("throughput", self._throughput_monitor.snapshot())
 
+        strategy_summary = self.get_strategy_execution_summary()
+        if strategy_summary:
+            stats["strategies"] = strategy_summary
+
         return stats
 
     def generate_execution_report(self) -> str:
@@ -1973,6 +2189,22 @@ class TradingManager:
                 exc_info=True,
             )
 
+    def _strategy_stats_for(self, strategy_id: str | None) -> StrategyExecutionStats:
+        key = strategy_id or "unknown"
+        stats = self._strategy_stats.get(key)
+        if stats is None:
+            stats = StrategyExecutionStats(strategy_id=key)
+            self._strategy_stats[key] = stats
+        return stats
+
+    def get_strategy_execution_summary(self) -> Mapping[str, Any]:
+        """Expose aggregated execution telemetry per strategy."""
+
+        return {
+            strategy_id: stats.as_dict()
+            for strategy_id, stats in sorted(self._strategy_stats.items())
+        }
+
     def describe_release_execution(self) -> Mapping[str, Any] | None:
         """Expose the configured release-aware execution routing summary."""
 
@@ -2302,6 +2534,24 @@ class TradingManager:
             for key in ("strategy_id", "strategy"):
                 if key in intent and intent[key]:
                     return str(intent[key])
+        return None
+
+    @staticmethod
+    def _extract_side(intent: Any) -> str | None:
+        for attr in ("side", "direction", "order_side"):
+            value = getattr(intent, attr, None)
+            if value:
+                return str(value).upper()
+        if isinstance(intent, dict):
+            for key in ("side", "direction", "order_side"):
+                value = intent.get(key)
+                if value:
+                    return str(value).upper()
+        metadata = getattr(intent, "metadata", None)
+        if isinstance(metadata, Mapping):
+            value = metadata.get("side")
+            if value:
+                return str(value).upper()
         return None
 
     @staticmethod

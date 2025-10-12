@@ -111,6 +111,8 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         assert "equity" in state and "total_pnl" in state
         initial_equity = state["equity"] - state["total_pnl"]
         assert initial_equity >= 0.0
+        summary = runtime.trading_manager.get_strategy_execution_summary()
+        assert summary.get("bootstrap-strategy", {}).get("executed", 0) >= 1
     finally:
         await runtime.stop()
         for cleanup in cleanups:
@@ -200,6 +202,8 @@ async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> 
         assert "gateway failure" in error_payload.get("exception", "")
         state = runtime.trading_manager.portfolio_monitor.get_state()
         assert isinstance(state, dict)
+        summary = runtime.trading_manager.get_strategy_execution_summary()
+        assert summary.get("bootstrap-strategy", {}).get("failed", 0) >= 1
     finally:
         await runtime.stop()
         for cleanup in cleanups:

@@ -107,6 +107,10 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.performance is not None
     assert report.performance.get("equity") is not None
     assert "roi" in report.performance
+    assert report.strategy_summary is not None
+    summary = report.strategy_summary.get("bootstrap-strategy")
+    assert summary is not None
+    assert summary["executed"] >= 1
 
 
 @pytest.mark.asyncio()
@@ -145,6 +149,7 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
 
     assert report.orders, "Simulation did not capture any broker orders"
     assert report.runtime_seconds >= 0.2
+    assert report.strategy_summary is not None
 
 
 @pytest.mark.asyncio()
@@ -189,6 +194,7 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload.get("orders")
     assert payload.get("decisions") == report.decisions
+    assert "strategy_summary" in payload
 
 
 @pytest.mark.asyncio()
@@ -233,3 +239,4 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
     assert "503" in exception_text or "gateway" in exception_text.lower()
     assert report.decisions >= 1
     assert report.paper_broker and report.paper_broker.get("base_url") == base_url
+    assert report.strategy_summary is not None

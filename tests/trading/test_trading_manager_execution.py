@@ -470,6 +470,9 @@ async def test_trading_manager_records_execution_stats(monkeypatch: pytest.Monke
     assert isinstance(backlog, dict)
     assert "healthy" in backlog
 
+    summary = manager.get_strategy_execution_summary()
+    assert summary.get("unknown", {}).get("executed") == 1
+
 
 @pytest.mark.asyncio()
 async def test_trading_manager_records_experiment_events_and_rejections(
@@ -514,6 +517,12 @@ async def test_trading_manager_records_experiment_events_and_rejections(
     statuses = {event["status"] for event in events}
     assert "executed" in statuses
     assert "rejected" in statuses
+
+    summary = manager.get_strategy_execution_summary()
+    alpha_stats = summary.get("alpha")
+    assert alpha_stats is not None
+    assert alpha_stats["executed"] >= 1
+    assert alpha_stats["rejected"] >= 1
 
 
 @pytest.mark.asyncio()

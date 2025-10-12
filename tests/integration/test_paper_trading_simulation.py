@@ -123,6 +123,89 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
 
 
 @pytest.mark.asyncio()
+async def test_paper_trading_simulation_respects_audit_enforcement(tmp_path) -> None:
+    call_counter = {"count": 0}
+
+    async def handler(_request: web.Request) -> web.Response:
+        call_counter["count"] += 1
+        return web.json_response({"order_id": "unexpected"})
+
+    base_url, shutdown, captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk",),
+        evidence_id="paper-sim-evidence",
+    )
+
+    diary_path = tmp_path / "diary.json"
+
+    extras = {
+        "PAPER_TRADING_API_URL": base_url,
+        "PAPER_TRADING_ORDER_ENDPOINT": "/orders",
+        "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
+        "PAPER_TRADING_DEFAULT_STAGE": PolicyLedgerStage.LIMITED_LIVE.value,
+        "PAPER_TRADING_ORDER_TIMEOUT": "5",
+        "POLICY_LEDGER_PATH": str(ledger_path),
+        "DECISION_DIARY_PATH": str(diary_path),
+        "BOOTSTRAP_TICK_INTERVAL": "0.0",
+        "BOOTSTRAP_MAX_TICKS": "6",
+        "BOOTSTRAP_BUY_THRESHOLD": "0.0",
+        "BOOTSTRAP_SELL_THRESHOLD": "1.0",
+        "BOOTSTRAP_MIN_CONFIDENCE": "0.0",
+        "BOOTSTRAP_MIN_LIQ_CONF": "0.0",
+        "BOOTSTRAP_ORDER_SIZE": "1",
+    }
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+    bus = EventBus()
+    runtime, cleanups = _build_bootstrap_runtime(config, bus)
+
+    try:
+        await runtime.start()
+
+        for _ in range(120):
+            if not runtime.running:
+                break
+            await asyncio.sleep(0.05)
+
+        await runtime.stop()
+
+        assert call_counter["count"] == 0
+        assert captured == []
+
+        assert diary_path.exists(), "Decision diary was not written"
+        diary_data = json.loads(diary_path.read_text())
+        entries = diary_data.get("entries", [])
+        assert entries, "Decision diary did not capture any entries"
+        latest_entry = entries[-1]
+        release_outcome = latest_entry.get("outcomes", {}).get("release", {})
+        assert release_outcome.get("stage") == PolicyLedgerStage.PILOT.value
+
+        execution_summary = runtime.trading_manager.describe_release_execution()
+        assert execution_summary is not None
+        last_route = execution_summary.get("last_route") if execution_summary else None
+        assert last_route is not None
+        assert last_route.get("stage") == PolicyLedgerStage.PILOT.value
+        assert last_route.get("route") in {"pilot", "paper"}
+
+        strategy_summary = runtime.trading_manager.get_strategy_execution_summary()
+        summary_entry = strategy_summary.get("bootstrap-strategy", {})
+        assert summary_entry.get("executed", 0) >= 1
+    finally:
+        await runtime.stop()
+        for cleanup in cleanups:
+            result = cleanup()
+            if asyncio.iscoroutine(result):
+                await result
+        await shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> None:
     call_counter = {"count": 0}
 

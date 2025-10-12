@@ -198,6 +198,23 @@ broker; the institutional provisioner will still publish ingest telemetry and
 surface topic metadata, but the supervised bridge remains idle so local runs
 do not stall waiting for a consumer.【F:src/data_foundation/ingest/configuration.py†L872-L948】【F:src/data_foundation/ingest/institutional_vertical.py†L790-L860】【F:tests/runtime/test_institutional_ingest_vertical.py†L570-L596】
 
+`TimescaleConnectionSettings.from_mapping()` now honours optional pooling
+overrides exposed via `SystemConfig.extras` (`TIMESCALEDB_POOL_SIZE`,
+`TIMESCALEDB_MAX_OVERFLOW`, `TIMESCALEDB_POOL_TIMEOUT`, `TIMESCALEDB_POOL_RECYCLE`,
+`TIMESCALEDB_POOL_PRE_PING`). The overrides only apply when the URL targets a
+PostgreSQL/Timescale backend, leaving SQLite fallbacks unchanged, and are
+propagated directly to SQLAlchemy so production rehearsals can tune pool sizing
+without editing code; regression coverage exercises the Postgres vs SQLite
+paths.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L90】
+
+When `SystemConfig.data_backbone_mode` is `institutional`, the operational
+backbone factory automatically requires Timescale and Redis extras and, when
+`KAFKA_INGEST_ENABLE_STREAMING` resolves truthy (accepting `1/true/yes/on` or
+`0/false/no/off` forms), also requires Kafka connection settings. Missing
+prerequisites raise targeted `RuntimeError`s so misconfigured drills fail fast
+with actionable messages; tests cover fakeredis-managed caches, missing
+Timescale URLs, and streaming-on Kafka requirements.【F:src/data_foundation/pipelines/operational_backbone.py†L49-L910】【F:tests/data_foundation/test_operational_backbone_factory.py†L87-L239】
+
 Need a smaller rehearsal? `python tools/data_ingest/run_real_data_slice.py`
 now accepts either a CSV fixture or a `--provider` flag (for example,
 `--provider yahoo --symbol EURUSD`) so operators with market-data API access

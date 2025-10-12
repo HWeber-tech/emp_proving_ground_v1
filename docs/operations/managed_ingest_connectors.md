@@ -37,6 +37,14 @@ reuse the Kafka bridge checkup so the JSON report returns `status`,
   dry-run the provisioning step) using the same provisioner that runtime
   deployments rely on, returning the broker responses alongside the manifest.【F:tools/operations/managed_ingest_connectors.py†L92-L104】【F:tools/operations/managed_ingest_connectors.py†L293-L393】
 
+Timescale pooling extras (`TIMESCALEDB_POOL_SIZE`, `TIMESCALEDB_MAX_OVERFLOW`,
+`TIMESCALEDB_POOL_TIMEOUT`, `TIMESCALEDB_POOL_RECYCLE`,
+`TIMESCALEDB_POOL_PRE_PING`) flow through `TimescaleConnectionSettings` and are
+reflected in the manifest whenever the Timescale URL targets PostgreSQL, letting
+operators tune pool sizing from `SystemConfig` without editing code. Regression
+coverage locks the Postgres vs SQLite behaviour so local SQLite rehearsals stay
+lightweight while institutional runs pick up the overrides.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L90】
+
 The CLI leans on `plan_managed_manifest()` so the manifest and the runtime
 provisioner share the same metadata contract.  When connectivity checks are
 requested the tool instantiates the provisioner with a `TaskSupervisor`, uses

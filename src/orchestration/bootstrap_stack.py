@@ -448,6 +448,19 @@ class BootstrapTradingStack:
                 if isinstance(error_snapshot, Mapping) and error_snapshot:
                     outcome["last_error"] = self._serialise(error_snapshot)
 
+            describe_broker = getattr(engine, "describe_broker", None)
+            if callable(describe_broker):
+                try:
+                    broker_snapshot = describe_broker()
+                except Exception:  # pragma: no cover - diagnostics only
+                    logger.debug(
+                        "Failed to capture paper broker summary for diary entry",
+                        exc_info=True,
+                    )
+                else:
+                    if isinstance(broker_snapshot, Mapping) and broker_snapshot:
+                        outcome["paper_broker"] = self._serialise(broker_snapshot)
+
         return outcome
 
     def _resolve_release_router(self) -> ReleaseAwareExecutionRouter | None:

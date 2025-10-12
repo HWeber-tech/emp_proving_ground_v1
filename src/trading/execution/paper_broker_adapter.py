@@ -320,6 +320,56 @@ class PaperBrokerExecutionAdapter:
 
         return dict(payload)
 
+    def describe_broker(self) -> Mapping[str, Any] | None:
+        """Expose broker interface metadata when available."""
+
+        summary: dict[str, Any] = {}
+
+        describe = getattr(self.broker_interface, "describe", None)
+        if callable(describe):
+            try:
+                snapshot = describe()
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to describe broker interface via adapter",
+                    exc_info=True,
+                )
+            else:
+                if isinstance(snapshot, Mapping):
+                    summary.update({str(key): value for key, value in snapshot.items()})
+
+        settings = getattr(self.broker_interface, "settings", None)
+
+        attrs = (
+            "base_url",
+            "order_endpoint",
+            "order_id_field",
+            "time_in_force",
+            "verify_ssl",
+            "request_timeout",
+            "retry_attempts",
+            "retry_backoff_seconds",
+            "account_id",
+        )
+
+        for attr in attrs:
+            if attr in summary:
+                continue
+            value: Any | None = None
+            if settings is not None:
+                if isinstance(settings, Mapping):
+                    value = settings.get(attr)
+                else:
+                    value = getattr(settings, attr, None)
+            if value is None:
+                value = getattr(self.broker_interface, attr, None)
+            if value is not None:
+                summary[attr] = value
+
+        if not summary:
+            return None
+        return dict(summary)
+
     def consume_order_history(self) -> list[Mapping[str, object]]:
         """Return and clear the buffered successfully submitted orders."""
 

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 
@@ -43,6 +43,20 @@ class _StubBroker:
         self.calls.append((symbol, side, quantity))
         await asyncio.sleep(0)
         return self._order_id
+
+
+class _DescribingBroker(_StubBroker):
+    def __init__(
+        self,
+        *,
+        order_id: str = "BROKER-001",
+        description: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(order_id=order_id)
+        self._description = description or {}
+
+    def describe(self) -> Mapping[str, Any]:
+        return dict(self._description)
 
 
 class _FailingBroker:
@@ -229,6 +243,29 @@ async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
     assert metrics["avg_latency_s"] is None
     assert metrics["success_ratio"] == 0.0
     assert metrics["failure_ratio"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_paper_broker_adapter_describes_broker_interface() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _DescribingBroker(
+        description={
+            "base_url": "http://paper.example",
+            "order_endpoint": "/orders",
+            "order_id_field": "order_id",
+        }
+    )
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+    )
+
+    summary = adapter.describe_broker()
+    assert summary is not None
+    assert summary.get("base_url") == "http://paper.example"
+    assert summary.get("order_endpoint") == "/orders"
+    assert summary.get("order_id_field") == "order_id"
 
 
 @pytest.mark.asyncio

@@ -461,9 +461,11 @@ class BootstrapRuntime:
     def describe_paper_broker(self) -> Mapping[str, Any] | None:
         """Expose the configured paper trading adapter summary, if any."""
 
-        if not self._paper_broker_summary:
-            return None
-        summary = dict(self._paper_broker_summary)
+        summary: dict[str, Any] = {}
+        if isinstance(self._paper_broker_summary, Mapping):
+            summary.update(
+                {str(key): value for key, value in self._paper_broker_summary.items()}
+            )
         paper_engine = getattr(self.trading_manager, "_live_engine", None)
         if isinstance(paper_engine, PaperBrokerExecutionAdapter):
             summary.setdefault("metrics", paper_engine.describe_metrics())
@@ -473,6 +475,12 @@ class BootstrapRuntime:
             last_error = paper_engine.describe_last_error()
             if isinstance(last_error, Mapping) and last_error:
                 summary.setdefault("last_error", dict(last_error))
+            broker_snapshot = paper_engine.describe_broker()
+            if isinstance(broker_snapshot, Mapping) and broker_snapshot:
+                for key, value in broker_snapshot.items():
+                    summary.setdefault(str(key), value)
+        if not summary:
+            return None
         return summary
 
     def _publish_sensory_outputs(self, snapshot: Mapping[str, Any] | None) -> None:

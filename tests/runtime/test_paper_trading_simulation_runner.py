@@ -101,6 +101,7 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.orders[0]["symbol"] == "EURUSD"
     assert "placed_at" in report.orders[0]
     assert report.paper_broker and report.paper_broker["base_url"] == base_url
+    assert report.paper_broker.get("order_endpoint") == "/orders"
     assert report.paper_metrics is not None
     assert report.paper_metrics.get("success_ratio") == pytest.approx(1.0)
     assert report.paper_metrics.get("failure_ratio") == pytest.approx(0.0)
@@ -221,6 +222,15 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     assert "performance_health" in payload
     assert "strategy_summary" in payload
     assert "release" in payload
+
+    diary_payload = json.loads(diary_path.read_text(encoding="utf-8"))
+    entries = diary_payload.get("entries", [])
+    assert entries, "Decision diary missing entries"
+    execution_outcome = entries[-1].get("outcomes", {}).get("execution")
+    assert execution_outcome, "Execution outcome missing from diary entry"
+    broker_snapshot = execution_outcome.get("paper_broker")
+    assert broker_snapshot, "Paper broker summary missing from diary outcome"
+    assert broker_snapshot.get("base_url") == base_url
 
 
 @pytest.mark.asyncio()

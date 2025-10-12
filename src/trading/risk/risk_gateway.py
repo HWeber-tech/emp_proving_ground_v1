@@ -21,6 +21,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Iterable,
     Mapping,
     MutableMapping,
     Optional,
@@ -61,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 _EPSILON = 1e-9
+_SECTOR_KEYS = ("sector", "instrument_sector", "asset_sector", "industry")
 
 
 class SupportsLiquidityProbing(Protocol):
@@ -361,6 +363,7 @@ class RiskGateway:
                 trade_price=trade_price,
                 equity=equity,
                 side=side_value,
+                intent=intent,
             ):
                 decision.update(status="rejected", reason="sector_exposure_limit")
                 await self._reject_and_maybe_publish(decision)
@@ -572,6 +575,112 @@ class RiskGateway:
         self._max_leverage_limit = leverage_limit
         self._instrument_sector_map = instrument_map
         self._sector_limits = sector_limits
+
+    @staticmethod
+    def _normalise_sector(value: Any) -> str | None:
+        """Return an upper-cased sector string when ``value`` is meaningful."""
+
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        return text.upper()
+
+    def _resolve_sector_hint(
+        self,
+        symbol: str | None = None,
+        *,
+        payload: Mapping[str, Any] | None = None,
+        intent: Any | None = None,
+    ) -> str | None:
+        """Resolve the sector for ``symbol`` using config, payload, or intent hints."""
+
+        if symbol:
+            mapped = self._instrument_sector_map.get(str(symbol).upper())
+            if mapped:
+                return mapped
+
+        if intent is not None:
+            direct = _extract_attr(
+                intent,
+                "sector",
+                "instrument_sector",
+                "asset_sector",
+                "industry",
+                default=None,
+            )
+            resolved = self._normalise_sector(direct)
+            if resolved:
+                return resolved
+
+            intent_meta: Mapping[str, Any] | None = None
+            if isinstance(intent, Mapping):
+                raw_meta = intent.get("metadata")
+                if isinstance(raw_meta, Mapping):
+                    intent_meta = raw_meta
+            else:
+                raw_meta = getattr(intent, "metadata", None)
+                if isinstance(raw_meta, Mapping):
+                    intent_meta = raw_meta
+
+            for meta in self._iter_sector_metadata(intent_meta):
+                candidate = self._extract_sector_from_mapping(meta)
+                if candidate:
+                    return candidate
+
+        for meta in self._iter_sector_metadata(payload):
+            candidate = self._extract_sector_from_mapping(meta)
+            if candidate:
+                return candidate
+
+        return None
+
+    def _extract_sector_from_mapping(self, mapping: Mapping[str, Any]) -> str | None:
+        for key in _SECTOR_KEYS:
+            value = mapping.get(key)
+            resolved = self._normalise_sector(value)
+            if resolved:
+                return resolved
+
+        instrument_meta = mapping.get("instrument")
+        if isinstance(instrument_meta, Mapping):
+            for key in _SECTOR_KEYS:
+                value = instrument_meta.get(key)
+                resolved = self._normalise_sector(value)
+                if resolved:
+                    return resolved
+        return None
+
+    @staticmethod
+    def _iter_sector_metadata(
+        mapping: Mapping[str, Any] | None,
+    ) -> Iterable[Mapping[str, Any]]:
+        if not isinstance(mapping, Mapping):
+            return ()
+
+        stack: list[Mapping[str, Any]] = [mapping]
+        visited: set[int] = set()
+
+        while stack:
+            current = stack.pop()
+            ident = id(current)
+            if ident in visited:
+                continue
+            visited.add(ident)
+            yield current
+
+            nested = current.get("metadata")
+            if isinstance(nested, Mapping):
+                stack.append(nested)
+
+            risk_section = current.get("risk_assessment")
+            if isinstance(risk_section, Mapping):
+                stack.append(risk_section)
+
+            instrument_meta = current.get("instrument")
+            if isinstance(instrument_meta, Mapping):
+                stack.append(instrument_meta)
 
     def _resolve_risk_reference(self) -> dict[str, Any] | None:
         """Build a deterministic risk reference payload for telemetry surfaces."""
@@ -1200,19 +1309,32 @@ class RiskGateway:
         trade_price: float,
         equity: float,
         side: str | None,
+        intent: Any | None,
     ) -> bool:
+        checks = decision.setdefault("checks", [])
+
         if not self._sector_limits or not symbol:
             return True
 
-        sector = self._instrument_sector_map.get(symbol.upper())
+        sector = self._resolve_sector_hint(symbol, intent=intent)
         if sector is None:
+            checks.append(
+                {
+                    "name": "risk.sector_limit.unmapped",
+                    "value": None,
+                    "threshold": None,
+                    "status": "info",
+                    "metadata": {
+                        "symbol": symbol,
+                        "reason": "no_sector_hint",
+                    },
+                }
+            )
             return True
 
         limit_pct = self._sector_limits.get(sector)
         if limit_pct is None or limit_pct <= 0:
             return True
-
-        checks = decision.setdefault("checks", [])
 
         if equity <= 0 or trade_price <= 0:
             checks.append(
@@ -1323,7 +1445,7 @@ class RiskGateway:
         for symbol, payload in positions.items():
             if not isinstance(payload, Mapping):
                 continue
-            sector = self._instrument_sector_map.get(str(symbol).upper())
+            sector = self._resolve_sector_hint(str(symbol), payload=payload)
             if sector is None:
                 continue
             exposures[sector] = exposures.get(sector, 0.0) + self._compute_position_notional(payload)

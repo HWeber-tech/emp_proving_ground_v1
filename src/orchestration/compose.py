@@ -32,18 +32,22 @@ from src.config.risk.risk_config import RiskConfig
 from src.risk import RiskManager, create_risk_manager
 from src.data_foundation.ingest.yahoo_gateway import YahooMarketDataGateway
 
-_SentientAdaptationEngine: Optional[type[AdaptationService]]
+def _import_optional_class(module: str, name: str) -> Optional[type[Any]]:
+    """Resolve ``name`` from ``module`` returning ``None`` when unavailable."""
 
-try:
-    _intelligence_module = importlib.import_module("src.intelligence")
-except Exception:  # pragma: no cover - optional dependency surface
-    _SentientAdaptationEngine = None
-else:  # pragma: no cover - lazy resolution for optional dependency
-    candidate = getattr(_intelligence_module, "SentientAdaptationEngine", None)
-    _SentientAdaptationEngine = cast(
-        Optional[type[AdaptationService]],
-        candidate if isinstance(candidate, type) else None,
-    )
+    try:  # pragma: no cover - optional dependency surface
+        mod = importlib.import_module(module)
+    except Exception:
+        return None
+
+    attr = getattr(mod, name, None)
+    return attr if isinstance(attr, type) else None
+
+
+_SentientAdaptationEngine = cast(
+    Optional[type[AdaptationService]],
+    _import_optional_class("src.intelligence", "SentientAdaptationEngine"),
+)
 
 
 class ComposeAdaptersTD(TypedDict, total=False):

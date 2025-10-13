@@ -401,6 +401,8 @@ def _result_payload(
         "sensory_snapshot": result.sensory_snapshot,
         "connections": dict(_connection_metadata(config)),
     }
+    if result.connectivity_report is not None:
+        payload["connectivity_report"] = result.connectivity_report.as_dict()
     if result.task_snapshots:
         payload["task_supervision"] = [dict(snapshot) for snapshot in result.task_snapshots]
     if result.streaming_snapshots:
@@ -472,6 +474,17 @@ def _format_markdown(payload: Mapping[str, Any]) -> str:
         header.append(
             f"* Streaming snapshots captured: {len(streaming_snapshots)} symbol(s)"
         )
+    connectivity = payload.get("connectivity_report")
+    if isinstance(connectivity, Mapping):
+        status = connectivity.get("status", "unknown")
+        header.append(f"* Connectivity status: {status}")
+        probes = connectivity.get("probes")
+        if isinstance(probes, Sequence):
+            for probe in probes:
+                if isinstance(probe, Mapping):
+                    name = probe.get("name", "unknown")
+                    probe_status = probe.get("status", "unknown")
+                    header.append(f"  * {name}: {probe_status}")
     connections = payload.get("connections")
     if isinstance(connections, Mapping):
         header.append("* Connections:")

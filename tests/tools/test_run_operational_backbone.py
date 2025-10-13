@@ -10,6 +10,10 @@ import pytest
 from src.core.event_bus import Event
 from src.data_foundation.persist.timescale import TimescaleIngestResult
 from src.governance.system_config import DataBackboneMode, SystemConfig
+from src.data_integration.real_data_integration import (
+    BackboneConnectivityReport,
+    ConnectivityProbeSnapshot,
+)
 
 from tools.data_ingest import run_operational_backbone as cli
 
@@ -84,6 +88,31 @@ def _patched_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
                 "confidence": 0.9,
             }
         },
+        connectivity_report=BackboneConnectivityReport(
+            timescale=True,
+            redis=False,
+            kafka=True,
+            probes=(
+                ConnectivityProbeSnapshot(
+                    name="timescale",
+                    healthy=True,
+                    status="ok",
+                    latency_ms=12.5,
+                    details={"backend": "sqlite"},
+                ),
+                ConnectivityProbeSnapshot(
+                    name="redis",
+                    healthy=False,
+                    status="degraded",
+                    error="in-memory",
+                ),
+                ConnectivityProbeSnapshot(
+                    name="kafka",
+                    healthy=True,
+                    status="ok",
+                ),
+            ),
+        ),
     )
 
     async def _fake_execute_pipeline(
@@ -110,6 +139,7 @@ def test_operational_backbone_cli_json(
     assert payload["events"][0]["type"] == "telemetry.ingest"
     assert payload["task_supervision"][0]["name"] == "ingest-loop"
     assert "EURUSD" in payload["streaming_snapshots"]
+    assert payload["connectivity_report"]["status"] == "degraded"
 
 
 def test_operational_backbone_cli_markdown(

@@ -243,6 +243,11 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
     assert ingest_snapshots[-1].get("state") in {"finished", "failed"}
 
     assert result.ingest_error is None
+    connectivity = result.connectivity_report
+    assert connectivity is not None
+    assert connectivity.timescale is True
+    assert connectivity.kafka is True
+    assert connectivity.redis is False
     assert not event_bus.is_running()
 
 
@@ -335,6 +340,7 @@ async def test_operational_backbone_pipeline_understanding_failover(
             entry.get("name") == "operational.backbone.ingest"
             for entry in result_failover.task_snapshots
         )
+        assert result_failover.connectivity_report is not None
     finally:
         await pipeline.shutdown()
         cache.metrics(reset=True)

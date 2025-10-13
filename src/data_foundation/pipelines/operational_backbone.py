@@ -19,7 +19,10 @@ from src.data_foundation.streaming.kafka_stream import (
     ingest_topic_config_from_mapping,
 )
 from src.data_foundation.ingest.telemetry import CompositeIngestPublisher
-from src.data_integration.real_data_integration import RealDataManager
+from src.data_integration.real_data_integration import (
+    BackboneConnectivityReport,
+    RealDataManager,
+)
 from src.governance.system_config import DataBackboneMode, SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.understanding.belief import BeliefState, RegimeSignal
@@ -134,6 +137,7 @@ class OperationalBackboneResult:
     ingest_error: str | None = None
     task_snapshots: tuple[Mapping[str, object], ...] = field(default_factory=tuple)
     streaming_snapshots: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    connectivity_report: BackboneConnectivityReport | None = None
 
 
 class OperationalBackbonePipeline:
@@ -509,6 +513,13 @@ class OperationalBackbonePipeline:
 
             cache_after_fetch = self._manager.cache_metrics(reset=False)
 
+            connectivity_report: BackboneConnectivityReport | None
+            try:
+                connectivity_report = self._manager.connectivity_report()
+            except Exception:  # pragma: no cover - defensive diagnostics
+                logger.exception("Operational backbone connectivity probe failed")
+                connectivity_report = None
+
             observed_events: dict[str, Event] = {}
             for event in events:
                 payload = event.payload if isinstance(event.payload, Mapping) else None
@@ -738,6 +749,7 @@ class OperationalBackbonePipeline:
                 ingest_error=ingest_error,
                 task_snapshots=combined_snapshots,
                 streaming_snapshots=streaming_snapshot_payload,
+                connectivity_report=connectivity_report,
             )
         finally:
             if self._event_bus is not None:

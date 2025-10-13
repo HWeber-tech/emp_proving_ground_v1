@@ -12,6 +12,10 @@ from src.core.event_bus import Event
 from src.data_foundation.ingest.scheduler import IngestSchedulerState
 from src.data_foundation.persist.timescale import TimescaleIngestResult
 from src.data_foundation.pipelines.operational_backbone import OperationalBackboneResult
+from src.data_integration.real_data_integration import (
+    BackboneConnectivityReport,
+    ConnectivityProbeSnapshot,
+)
 from src.governance.system_config import DataBackboneMode, SystemConfig
 
 from tools.data_ingest import run_live_shadow as cli
@@ -200,6 +204,29 @@ def _live_shadow_context(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         cache_metrics_after_ingest={"hits": 1, "misses": 1},
         cache_metrics_after_fetch={"hits": 2, "misses": 1},
         sensory_snapshot={"symbol": "EURUSD", "generated_at": "2024-01-01T00:00:00Z"},
+        connectivity_report=BackboneConnectivityReport(
+            timescale=True,
+            redis=False,
+            kafka=True,
+            probes=(
+                ConnectivityProbeSnapshot(
+                    name="timescale",
+                    healthy=True,
+                    status="ok",
+                ),
+                ConnectivityProbeSnapshot(
+                    name="redis",
+                    healthy=False,
+                    status="degraded",
+                    error="in-memory",
+                ),
+                ConnectivityProbeSnapshot(
+                    name="kafka",
+                    healthy=True,
+                    status="ok",
+                ),
+            ),
+        ),
     )
 
     manager = _DummyManager()

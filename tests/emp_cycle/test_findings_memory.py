@@ -30,10 +30,18 @@ def test_findings_memory_flow(tmp_path):
     findings_memory.update_quick(conn, fid1, {"score": 0.8}, 0.8)
     findings_memory.update_quick(conn, fid2, {"score": 0.6}, 0.6)
 
+    cursor = conn.execute("SELECT screened_at FROM findings WHERE id = ?", (fid1,))
+    assert cursor.fetchone()["screened_at"] is not None
+
     candidates = findings_memory.fetch_candidates(conn)
     assert [cid for cid, *_ in candidates] == [fid1, fid2]
 
     findings_memory.promote_tested(conn, fid1, {"sharpe": 1.2}, True)
+
+    cursor = conn.execute("SELECT tested_at, progress_at FROM findings WHERE id = ?", (fid1,))
+    row = cursor.fetchone()
+    assert row["tested_at"] is not None
+    assert row["progress_at"] is not None
 
     # Reconnect to ensure schema creation is idempotent.
     conn2 = findings_memory.connect(db_path)

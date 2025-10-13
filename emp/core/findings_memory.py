@@ -22,7 +22,10 @@ _DB_SCHEMA = (
       full_metrics_json TEXT,
       notes TEXT,
       params_hash TEXT,
-      params_vec TEXT
+      params_vec TEXT,
+      screened_at TEXT,
+      tested_at TEXT,
+      progress_at TEXT
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_stage ON findings(stage);",
@@ -76,6 +79,12 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute("ALTER TABLE findings ADD COLUMN params_hash TEXT")
         if "params_vec" not in columns:
             conn.execute("ALTER TABLE findings ADD COLUMN params_vec TEXT")
+        if "screened_at" not in columns:
+            conn.execute("ALTER TABLE findings ADD COLUMN screened_at TEXT")
+        if "tested_at" not in columns:
+            conn.execute("ALTER TABLE findings ADD COLUMN tested_at TEXT")
+        if "progress_at" not in columns:
+            conn.execute("ALTER TABLE findings ADD COLUMN progress_at TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_params_hash ON findings(params_hash)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON findings(created_at)")
 
@@ -223,7 +232,10 @@ def update_quick(
         conn.execute(
             """
             UPDATE findings
-               SET quick_metrics_json = ?, quick_score = ?, stage = 'screened'
+               SET quick_metrics_json = ?,
+                   quick_score = ?,
+                   stage = 'screened',
+                   screened_at = COALESCE(screened_at, CURRENT_TIMESTAMP)
              WHERE id = ?
             """,
             (metrics_json, float(quick_score), int(fid)),
@@ -241,10 +253,16 @@ def promote_tested(
         conn.execute(
             """
             UPDATE findings
-               SET full_metrics_json = ?, stage = ?
+               SET full_metrics_json = ?,
+                   stage = ?,
+                   tested_at = COALESCE(tested_at, CURRENT_TIMESTAMP),
+                   progress_at = CASE
+                                     WHEN ? = 'progress' THEN COALESCE(progress_at, CURRENT_TIMESTAMP)
+                                     ELSE progress_at
+                                 END
              WHERE id = ?
             """,
-            (metrics_json, stage, int(fid)),
+            (metrics_json, stage, stage, int(fid)),
         )
 
 
@@ -321,6 +339,118 @@ def append_note(conn: sqlite3.Connection, fid: int, note: str) -> None:
         )
 
 
+class TimeToCandidateBreach(NamedTuple):
+    """Details for a finding that breached the time-to-candidate SLA."""
+
+    id: int
+    stage: str
+    created_at: str
+    tested_at: str
+    hours: float
+
+
+class TimeToCandidateStats(NamedTuple):
+    """Summary statistics for idea-to-candidate turnaround times."""
+
+    count: int
+    average_hours: Optional[float]
+    median_hours: Optional[float]
+    p90_hours: Optional[float]
+    max_hours: Optional[float]
+    threshold_hours: float
+    sla_met: bool
+    breaches: Tuple[TimeToCandidateBreach, ...]
+
+
+def _quantile(sorted_values: Sequence[float], quantile: float) -> Optional[float]:
+    """Return the linear-interpolated quantile for *sorted_values*."""
+
+    if not sorted_values:
+        return None
+    if quantile <= 0.0:
+        return float(sorted_values[0])
+    if quantile >= 1.0:
+        return float(sorted_values[-1])
+    position = (len(sorted_values) - 1) * quantile
+    lower_idx = int(math.floor(position))
+    upper_idx = int(math.ceil(position))
+    lower_val = float(sorted_values[lower_idx])
+    upper_val = float(sorted_values[upper_idx])
+    if lower_idx == upper_idx:
+        return lower_val
+    fraction = position - lower_idx
+    return lower_val + (upper_val - lower_val) * fraction
+
+
+def time_to_candidate_stats(
+    conn: sqlite3.Connection,
+    *,
+    threshold_hours: float = 24.0,
+    window_hours: Optional[float] = None,
+) -> TimeToCandidateStats:
+    """Compute turnaround statistics between idea ingestion and replay scoring."""
+
+    sql = (
+        "SELECT id, stage, created_at, tested_at, "
+        "((julianday(tested_at) - julianday(created_at)) * 24.0) AS hours "
+        "FROM findings "
+        "WHERE tested_at IS NOT NULL "
+    )
+    params: List[object] = []
+    if window_hours is not None:
+        sql += "AND julianday(tested_at) >= julianday('now') - (? / 24.0) "
+        params.append(float(window_hours))
+    sql += "ORDER BY tested_at ASC"
+
+    cursor = conn.execute(sql, params)
+    durations: List[float] = []
+    breaches: List[TimeToCandidateBreach] = []
+    sla_threshold = float(threshold_hours)
+
+    for row in cursor.fetchall():
+        hours_value = row["hours"]
+        if hours_value is None:
+            continue
+        hours = float(hours_value)
+        if hours < 0.0:
+            continue
+        durations.append(hours)
+        if hours > sla_threshold:
+            breaches.append(
+                TimeToCandidateBreach(
+                    id=int(row["id"]),
+                    stage=str(row["stage"]),
+                    created_at=str(row["created_at"]),
+                    tested_at=str(row["tested_at"]),
+                    hours=hours,
+                )
+            )
+
+    durations.sort()
+    count = len(durations)
+    average_hours: Optional[float]
+    if count:
+        average_hours = float(sum(durations) / count)
+    else:
+        average_hours = None
+
+    median_hours = _quantile(durations, 0.5)
+    p90_hours = _quantile(durations, 0.9)
+    max_hours = float(durations[-1]) if durations else None
+    sla_met = max_hours is None or max_hours <= sla_threshold
+
+    return TimeToCandidateStats(
+        count=count,
+        average_hours=average_hours,
+        median_hours=median_hours,
+        p90_hours=p90_hours,
+        max_hours=max_hours,
+        threshold_hours=sla_threshold,
+        sla_met=sla_met,
+        breaches=tuple(breaches),
+    )
+
+
 __all__ = [
     "connect",
     "DEFAULT_DB_PATH",
@@ -333,4 +463,7 @@ __all__ = [
     "IdeaInsertResult",
     "ParamsArtifacts",
     "compute_params_artifacts",
+    "time_to_candidate_stats",
+    "TimeToCandidateStats",
+    "TimeToCandidateBreach",
 ]

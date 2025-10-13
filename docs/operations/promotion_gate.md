@@ -35,6 +35,27 @@ The evaluator also reports global metrics (total decisions, forced ratio,
 latest stage) so governance reviewers can spot deteriorating quality before a
 promotion attempt.【F:tools/governance/alpha_trade_graduation.py†L119-L163】
 
+## Guard configuration and enforcement
+
+`StrategyRegistry` bootstraps a `PromotionGuard` so runtime status changes
+cannot outrun the governance posture.【F:src/governance/strategy_registry.py†L45-L224】【F:src/governance/promotion_integrity.py†L47-L165】
+
+* **Default config** – `config/governance/promotion_guard.yaml` declares the
+  canonical ledger (`artifacts/governance/policy_ledger.json`) and diary
+  (`artifacts/governance/decision_diary.json`) locations, maps strategy status
+  `approved` → ledger stage `paper` and `active` → `limited_live`, and requires
+  regime coverage for (`balanced`, `bullish`, `bearish`, `dislocated`) with at
+  least three decisions per regime before the status change succeeds.
+* **Environment overrides** – Operators may point the guard at alternative
+  artefacts or adjust coverage by setting `POLICY_LEDGER_PATH`,
+  `DECISION_DIARY_PATH`, `PROMOTION_REQUIRED_REGIMES`,
+  `PROMOTION_MIN_REGIME_COUNT`, or a bespoke `PROMOTION_GUARD_CONFIG`; the
+  guard normalises casing and rejects empty overrides.
+* **Status gating** – Any attempt to mark a strategy `approved`/`active` when
+  ledger stages lag, audit gaps exist, diary evidence is missing, or regime
+  coverage falls short raises `PromotionIntegrityError` with a descriptive
+  blocker so automation and operators can remedy the gap before retrying.
+
 ## Required artifacts & deliverables
 
 * Updated ledger record under `artifacts/governance/policy_ledger.json` with

@@ -328,6 +328,22 @@ def test_release_manager_enforces_audit_coverage(tmp_path: Path) -> None:
     assert summary["audit_enforced"] is False
 
 
+def test_release_manager_caps_default_stage_without_record(tmp_path: Path) -> None:
+    path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(
+        store,
+        default_stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
+
+    resolved = manager.resolve_stage("alpha")
+    assert resolved is PolicyLedgerStage.PILOT
+
+    summary = manager.describe("alpha")
+    assert summary["stage"] == PolicyLedgerStage.PILOT.value
+    assert summary["record_present"] is False
+    assert summary["limited_live_authorised"] is False
+
 def test_policy_ledger_feature_flags_env_parsing() -> None:
     enabled = PolicyLedgerFeatureFlags.from_env({"POLICY_LEDGER_REQUIRE_DIARY": "ON"})
     disabled = PolicyLedgerFeatureFlags.from_env({"POLICY_LEDGER_REQUIRE_DIARY": "off"})

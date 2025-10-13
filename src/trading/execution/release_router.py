@@ -83,8 +83,8 @@ class ReleaseAwareExecutionRouter:
         self._capture_risk_context()
         metadata = self._extract_metadata(intent)
         strategy_id = self._extract_policy_id(intent)
-        stage, posture = self._resolve_stage(strategy_id)
-        stage_force_reason = self._stage_force_reason(stage)
+        stage, posture, has_record = self._resolve_stage(strategy_id)
+        stage_force_reason = self._stage_force_reason(stage, has_ledger_record=has_record)
         audit_force, audit_reason, audit_details = self._audit_enforcement(stage, posture)
         gate_force, gate_reason, forced_severity = self._should_force_paper(metadata)
         combined_force = audit_force or gate_force or bool(stage_force_reason)
@@ -146,8 +146,8 @@ class ReleaseAwareExecutionRouter:
 
         metadata = self._extract_metadata(intent)
         strategy_id = self._extract_policy_id(intent)
-        stage, posture = self._resolve_stage(strategy_id)
-        stage_force_reason = self._stage_force_reason(stage)
+        stage, posture, has_record = self._resolve_stage(strategy_id)
+        stage_force_reason = self._stage_force_reason(stage, has_ledger_record=has_record)
 
         audit_force_paper, audit_reason, audit_details = self._audit_enforcement(stage, posture)
 
@@ -264,11 +264,23 @@ class ReleaseAwareExecutionRouter:
 
     def _resolve_stage(
         self, policy_id: str | None
-    ) -> tuple[PolicyLedgerStage, Mapping[str, Any] | None]:
+    ) -> tuple[PolicyLedgerStage, Mapping[str, Any] | None, bool]:
         if not policy_id:
-            return self.default_stage, None
+            return self.default_stage, None, False
 
         posture: Mapping[str, Any] | None = None
+        has_record = False
+
+        record_check = getattr(self.release_manager, "has_record", None)
+        if callable(record_check):
+            try:
+                has_record = bool(record_check(policy_id))
+            except Exception:  # pragma: no cover - defensive guard
+                logger.debug(
+                    "Failed to check ledger record presence for %s", policy_id, exc_info=True
+                )
+                has_record = False
+
         describe = getattr(self.release_manager, "describe", None)
         if callable(describe):
             try:
@@ -280,19 +292,23 @@ class ReleaseAwareExecutionRouter:
             else:
                 if isinstance(candidate, Mapping) and candidate.get("stage"):
                     posture = candidate
+                    if not has_record:
+                        has_record = bool(candidate.get("record_present"))
+                        if not has_record:
+                            has_record = self._posture_implies_record(candidate)
                     try:
                         stage_value = PolicyLedgerStage.from_value(candidate["stage"])
                     except Exception:
                         posture = None
                     else:
-                        return stage_value, posture
+                        return stage_value, posture, has_record
 
         try:
             stage = self.release_manager.resolve_stage(policy_id)
         except Exception as exc:  # pragma: no cover - defensive logging guard
             logger.warning("Failed to resolve release stage for %s: %s", policy_id, exc)
-            return self.default_stage, posture
-        return (stage or self.default_stage), posture
+            return self.default_stage, posture, has_record
+        return (stage or self.default_stage), posture, has_record
 
     @staticmethod
     def _audit_enforcement(
@@ -498,12 +514,35 @@ class ReleaseAwareExecutionRouter:
         return None
 
     @staticmethod
-    def _stage_force_reason(stage: PolicyLedgerStage) -> str | None:
+    def _stage_force_reason(
+        stage: PolicyLedgerStage,
+        *,
+        has_ledger_record: bool,
+    ) -> str | None:
         if stage is PolicyLedgerStage.EXPERIMENT:
             return "release_stage_experiment_requires_paper_or_better"
         if stage is PolicyLedgerStage.PAPER:
             return "release_stage_paper_requires_paper_execution"
+        if stage is PolicyLedgerStage.PILOT and not has_ledger_record:
+            return "release_stage_pilot_requires_policy_ledger_record"
+        if stage is PolicyLedgerStage.LIMITED_LIVE and not has_ledger_record:
+            return "release_stage_limited_live_requires_policy_ledger_record"
         return None
+
+    @staticmethod
+    def _posture_implies_record(posture: Mapping[str, Any]) -> bool:
+        indicator_keys = (
+            "approvals",
+            "declared_stage",
+            "evidence_id",
+            "audit_stage",
+            "metadata",
+            "policy_delta",
+        )
+        for key in indicator_keys:
+            if posture.get(key):
+                return True
+        return False
 
     @staticmethod
     def _attach_metadata(

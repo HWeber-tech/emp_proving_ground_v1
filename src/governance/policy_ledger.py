@@ -547,11 +547,20 @@ class LedgerReleaseManager:
     def _audit_gaps(record: PolicyLedgerRecord) -> tuple[str, ...]:
         return record.audit_gaps(expected_stage=record.stage)
 
+    def has_record(self, policy_id: str | None) -> bool:
+        """Return True when the ledger tracks an entry for the policy."""
+
+        if not policy_id:
+            return False
+        return self._store.get(policy_id) is not None
+
     def resolve_stage(self, policy_id: str | None) -> PolicyLedgerStage:
         if not policy_id:
             return self._default_stage
         record = self._store.get(policy_id)
         if record is None:
+            if _STAGE_ORDER[self._default_stage] > _STAGE_ORDER[PolicyLedgerStage.PILOT]:
+                return PolicyLedgerStage.PILOT
             return self._default_stage
         coverage_stage = self._coverage_stage(record)
         if _STAGE_ORDER[coverage_stage] < _STAGE_ORDER[record.stage]:
@@ -588,6 +597,7 @@ class LedgerReleaseManager:
         payload: MutableMapping[str, Any] = {
             "stage": stage.value,
             "thresholds": dict(thresholds),
+            "record_present": record is not None,
         }
         if record is not None:
             coverage_stage = self._coverage_stage(record)
@@ -601,10 +611,15 @@ class LedgerReleaseManager:
             if audit_gaps:
                 payload["audit_gaps"] = list(audit_gaps)
             payload["audit_enforced"] = record.stage != stage
+            payload["limited_live_authorised"] = (
+                coverage_stage is PolicyLedgerStage.LIMITED_LIVE
+            )
             if record.metadata:
                 payload["metadata"] = dict(record.metadata)
             if record.policy_delta is not None and not record.policy_delta.is_empty():
                 payload["policy_delta"] = dict(record.policy_delta.as_dict())
+        else:
+            payload["limited_live_authorised"] = False
         return payload
 
     def _apply_stage(

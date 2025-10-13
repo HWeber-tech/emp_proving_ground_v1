@@ -86,6 +86,88 @@ async def test_release_router_routes_live_stage(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio()
+async def test_release_router_requires_ledger_record_for_limited_live(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger_default.json")
+    release_manager = LedgerReleaseManager(
+        store,
+        default_stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
+
+    paper_engine = StubEngine("paper")
+    live_engine = StubEngine("live")
+
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+        live_engine=live_engine,
+        default_stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
+
+    intent: dict[str, Any] = {"strategy_id": "alpha", "metadata": {}}
+    result = await router.process_order(intent)
+
+    assert result == "paper-ok"
+    metadata = intent["metadata"]
+    assert metadata["release_stage"] == PolicyLedgerStage.PILOT.value
+    assert metadata["release_execution_route"] == "paper"
+    assert metadata["release_execution_route_overridden"] is True
+    assert (
+        metadata["release_execution_forced"]
+        == "release_stage_pilot_requires_policy_ledger_record"
+    )
+    assert metadata["release_execution_forced_reasons"] == [
+        "release_stage_pilot_requires_policy_ledger_record"
+    ]
+
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route["stage"] == PolicyLedgerStage.PILOT.value
+    assert last_route["route"] == "paper"
+    assert last_route["forced_route"] == "paper"
+    assert (
+        last_route["forced_reason"]
+        == "release_stage_pilot_requires_policy_ledger_record"
+    )
+
+
+@pytest.mark.asyncio()
+async def test_release_router_requires_ledger_when_policy_missing(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger_missing_policy.json")
+    release_manager = LedgerReleaseManager(store)
+
+    paper_engine = StubEngine("paper")
+    live_engine = StubEngine("live")
+
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+        live_engine=live_engine,
+        default_stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
+
+    intent: dict[str, Any] = {"metadata": {}}
+    result = await router.process_order(intent)
+
+    assert result == "paper-ok"
+    metadata = intent["metadata"]
+    assert metadata["release_stage"] == PolicyLedgerStage.LIMITED_LIVE.value
+    assert metadata["release_execution_route"] == "paper"
+    assert metadata["release_execution_route_overridden"] is True
+    assert (
+        metadata["release_execution_forced"]
+        == "release_stage_limited_live_requires_policy_ledger_record"
+    )
+    assert metadata["release_execution_forced_reasons"] == [
+        "release_stage_limited_live_requires_policy_ledger_record"
+    ]
+
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route["forced_reason"] == "release_stage_limited_live_requires_policy_ledger_record"
+    assert last_route["forced_route"] == "paper"
+
+
+@pytest.mark.asyncio()
 async def test_release_router_falls_back_to_paper(tmp_path: Path) -> None:
     store = PolicyLedgerStore(tmp_path / "ledger.json")
     release_manager = LedgerReleaseManager(store)

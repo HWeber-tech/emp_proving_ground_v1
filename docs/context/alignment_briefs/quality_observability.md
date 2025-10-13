@@ -133,6 +133,7 @@
     thresholds, emitting structured incidents when evidence windows are too
     short or availability slips, with regression coverage confirming the new
     guardrails surface through summaries and full evaluations.【F:src/operations/dry_run_audit.py†L542-L726】【F:tests/operations/test_dry_run_audit.py†L71-L253】
+  - Progress: RealDataManager now enforces Redis liveness checks, decorates connectivity probes with redacted Redis and Kafka endpoints, and ships degraded/full-stack regression coverage so operational dashboards surface real infrastructure targets instead of anonymous placeholders.【F:src/data_integration/real_data_integration.py†L295-L341】【F:src/data_integration/real_data_integration.py†L793-L858】【F:tests/data_integration/test_real_data_manager.py†L359-L468】
   - Progress: Runtime builder now consumes the sensory organ status feed,
     publishes the hardened summary/metrics telemetry, and stores the latest
     snapshots on the professional app so the summary surface emits Markdown and

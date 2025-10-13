@@ -9,8 +9,27 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
 
 ## Launching the harness
 1. Pick an empty evidence directory, e.g. `artifacts/final_dry_run/2025-10-12`.
-2. Run the harness CLI, providing the runtime command after `--`. The wrapper is
-   exposed both through the repo utility script and the consolidated EMP CLI:
+2. Use the turnkey orchestrator when you want the tool to provision timestamped
+   run directories, wire evidence paths into the runtime environment, and emit
+   review packets automatically:
+   ```sh
+   tools/operations/final_dry_run_orchestrator.py \
+     --run-label "Phase II UAT" \
+     --objective governance=pass:Controls-enforced \
+     --attendee "Ops Lead" \
+     --note "Verify throttles" \
+     -- python3 main.py --symbols EURUSD,GBPUSD
+   ```
+   The orchestrator creates `<output-root>/<timestamp>/` (default
+   `artifacts/final_dry_run/<slug>`), seeds `logs/`, `progress.json`,
+   `summary.json`, `summary.md`, and review artefacts, and injects
+   `FINAL_DRY_RUN_LOG_DIR`, `FINAL_DRY_RUN_DIARY_PATH`, and
+   `FINAL_DRY_RUN_PERFORMANCE_PATH` into the child process unless you override
+   them via `--env`. Metadata, objectives, attendees, notes (including
+   `--notes-file`) flow into the generated review brief.
+3. When you need to reuse an existing directory or integrate with external
+   wrappers you can still call the harness CLI directly—available both through
+   the repo utility script and the consolidated EMP CLI:
    ```sh
    tools/operations/final_dry_run.py \
      --log-dir artifacts/final_dry_run/2025-10-12 \
@@ -62,7 +81,7 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    `--log-rotate-hours 12` (or any positive interval), generating sequential
    `final_dry_run_<timestamp>_pNNN.jsonl[.gz]` segments so evidence remains
    reviewable without multi-gigabyte files.【F:src/operations/final_dry_run.py†L329-L414】【F:tests/operations/test_final_dry_run.py†L78-L115】
-3. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
+4. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
 
 ## Smoke testing
 Use the bundled simulated runtime to verify harness wiring before committing to

@@ -2922,6 +2922,29 @@ async def test_collect_performance_baseline_reports_metrics(
     assert throttle_scopes, "expected baseline to include per-scope snapshots"
     assert "execution" in reports and "performance" in reports
 
+    backlog_summary = baseline.get("backlog")
+    assert isinstance(backlog_summary, Mapping)
+    backlog_snapshot = backlog_summary.get("snapshot")
+    assert isinstance(backlog_snapshot, Mapping)
+    assert "threshold_ms" in backlog_snapshot
+    assert "samples" in backlog_snapshot
+
+    resource_summary = baseline.get("resource")
+    assert isinstance(resource_summary, Mapping)
+    resource_sample = resource_summary.get("sample")
+    assert isinstance(resource_sample, Mapping)
+    assert {"timestamp", "cpu_percent", "memory_mb", "memory_percent"} <= resource_sample.keys()
+
+    options = baseline.get("options")
+    assert isinstance(options, Mapping)
+    assert options["max_processing_ms"] == pytest.approx(1_000.0)
+    assert options["max_lag_ms"] == pytest.approx(1_000.0)
+    assert options.get("backlog_threshold_ms") is None
+    throttle_options = options.get("trade_throttle")
+    assert isinstance(throttle_options, Mapping)
+    assert throttle_options.get("max_trades") == 1
+    assert throttle_options.get("window_seconds") == pytest.approx(60.0)
+
 
 def test_describe_risk_interface_returns_runbook_on_error() -> None:
     class BrokenTradingManager(TradingManager):

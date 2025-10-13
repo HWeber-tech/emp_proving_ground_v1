@@ -804,7 +804,7 @@ class CompetitiveIntelligenceSystem:
         self._understanding_history_key = "emp:competitive_understanding"
         self._legacy_history_keys: tuple[str, ...] = ("emp:competitive_intelligence",)
         # Backwards-compatible alias for external callers still referencing the
-        # legacy attribute name.
+        # legacy attribute name; keep the attribute for runtime compatibility.
         self._intelligence_history_key = self._understanding_history_key
 
     async def initialize(self) -> bool:
@@ -861,7 +861,7 @@ class CompetitiveIntelligenceSystem:
             )
 
             # Step 5: Store understanding snapshot
-            await self._store_intelligence(
+            await self._store_understanding_snapshot(
                 signatures, competitor_behaviors, counter_strategies, market_share_analysis
             )
 
@@ -934,7 +934,7 @@ class CompetitiveIntelligenceSystem:
             logger.error(f"Error getting our performance: {e}")
             return {}
 
-    async def _store_intelligence(
+    async def _store_understanding_snapshot(
         self,
         signatures: Sequence[AlgorithmSignatureLike],
         behaviors: Sequence[CompetitorBehaviorLike],
@@ -962,7 +962,7 @@ class CompetitiveIntelligenceSystem:
         except Exception as e:
             logger.error(f"Error storing understanding snapshot: {e}")
 
-    async def get_intelligence_stats(self) -> dict[str, object]:
+    async def get_understanding_stats(self) -> dict[str, object]:
         """Get competitive understanding statistics (with legacy aliases)."""
         try:
             key_set: set[str] = set()
@@ -1057,3 +1057,9 @@ class CompetitiveIntelligenceSystem:
                 "average_signatures_per_cycle": 0,
                 "last_intelligence": None,
             }
+
+    async def get_intelligence_stats(self) -> dict[str, object]:
+        """Legacy alias for :meth:`get_understanding_stats`."""
+
+        logger.debug("get_intelligence_stats() is deprecated; use get_understanding_stats()")
+        return await self.get_understanding_stats()

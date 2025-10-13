@@ -270,7 +270,7 @@ class Phase3IntelligenceOrchestrator:
         assert self.specialized_evolution is not None
         assert self.competitive_intelligence is not None
 
-        competitive_stats = await self.competitive_intelligence.get_intelligence_stats()
+        competitive_stats = await self.competitive_intelligence.get_understanding_stats()
 
         return {
             "sentient_engine": self.sentient_engine.get_status(),

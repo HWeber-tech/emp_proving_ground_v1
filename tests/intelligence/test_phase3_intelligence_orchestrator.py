@@ -56,9 +56,12 @@ class _StubCompetitiveIntelligence:
         self.called_with.append(market_data)
         return {"understanding_id": "comp-123", "signals": 2}
 
-    async def get_intelligence_stats(self):
+    async def get_understanding_stats(self):
         self.stats_calls += 1
         return {"total_understanding_cycles": 42}
+
+    async def get_intelligence_stats(self):
+        return await self.get_understanding_stats()
 
 
 @pytest.mark.asyncio

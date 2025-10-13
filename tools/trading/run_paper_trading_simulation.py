@@ -22,6 +22,7 @@ from src.runtime.paper_simulation import (
     _json_default as _simulation_json_default,
     run_paper_trading_simulation,
 )
+from src.runtime.simulation_invariants import ensure_zero_invariants
 
 
 @contextmanager
@@ -158,6 +159,33 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="tick_interval",
         type=float,
         help="Override the bootstrap tick interval (seconds)",
+    )
+    parser.add_argument(
+        "--assert-zero-invariants",
+        action="store_true",
+        help=(
+            "Fail the run when guardrail violations are observed. Useful for "
+            "roadmap acceptance gates such as the 4-hour rehearsal."
+        ),
+    )
+    parser.add_argument(
+        "--require-runtime-hours",
+        dest="require_runtime_hours",
+        type=float,
+        help=(
+            "Minimum simulated runtime (in hours) enforced when "
+            "--assert-zero-invariants is supplied. Defaults to 4 hours."
+        ),
+    )
+    parser.add_argument(
+        "--simulated-tick-seconds",
+        dest="simulated_tick_seconds",
+        type=float,
+        default=0.5,
+        help=(
+            "Assumed wall-clock coverage represented by each simulation tick "
+            "when evaluating invariant posture (default: 0.5)."
+        ),
     )
     parser.add_argument(
         "--min-orders",
@@ -313,10 +341,27 @@ async def _run_async(args: argparse.Namespace) -> Mapping[str, object]:
             progress_callback=progress_callback,
             progress_interval=effective_progress_interval,
         )
+
+    invariant_payload: dict[str, object] | None = None
+    if args.assert_zero_invariants:
+        required_hours = (
+            args.require_runtime_hours
+            if args.require_runtime_hours is not None
+            else 4.0
+        )
+        assessment = ensure_zero_invariants(
+            report,
+            required_runtime_seconds=float(required_hours) * 3600.0,
+            simulated_tick_seconds=float(args.simulated_tick_seconds),
+        )
+        invariant_payload = assessment.as_dict()
+
     payload = report.to_dict()
     payload.setdefault("orders_observed", len(report.orders))
     payload.setdefault("errors_observed", len(report.errors))
     payload.setdefault("min_orders", max(0, args.min_orders or 0))
+    if invariant_payload is not None:
+        payload.setdefault("invariant_assessment", invariant_payload)
     return payload
 
 

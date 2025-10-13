@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol, TypedDict, cast
@@ -20,6 +21,9 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from src.core.types import JSONArray, JSONObject
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -65,18 +69,94 @@ class ClustererLike(Protocol):
     def fit_predict(self, X: NDArray[np.float64]) -> NDArray[np.int64]: ...
 
 
+class _FallbackScaler:
+    """Fallback normaliser when scikit-learn is unavailable."""
+
+    def fit_transform(self, X: NDArray[np.float64]) -> NDArray[np.float64]:
+        array = np.asarray(X, dtype=np.float64)
+        if array.ndim != 2:
+            raise ValueError("Expected 2D array for scaling")
+        mean = np.mean(array, axis=0)
+        std = np.std(array, axis=0)
+        std = np.where(std == 0.0, 1.0, std)
+        return cast(NDArray[np.float64], (array - mean) / std)
+
+
+class _FallbackKMeans:
+    """Simple KMeans-style clusterer used as a compatibility shim."""
+
+    def __init__(
+        self,
+        n_clusters: int,
+        random_state: int | None = None,
+        max_iter: int = 20,
+    ) -> None:
+        if n_clusters <= 0:
+            raise ValueError("n_clusters must be positive")
+        self.n_clusters = n_clusters
+        self.random_state = random_state
+        self.max_iter = max_iter
+        self.cluster_centers_: NDArray[np.float64] | None = None
+
+    def fit_predict(self, X: NDArray[np.float64]) -> NDArray[np.int64]:
+        data = np.asarray(X, dtype=np.float64)
+        if data.ndim != 2:
+            raise ValueError("Expected 2D array for clustering")
+        n_samples = data.shape[0]
+        if n_samples == 0:
+            return np.zeros(0, dtype=np.int64)
+
+        rng = np.random.default_rng(self.random_state)
+        seeds = min(self.n_clusters, n_samples)
+        indices = rng.choice(n_samples, size=seeds, replace=False)
+        centers = np.copy(data[indices])
+        extra_count = self.n_clusters - seeds
+        if extra_count > 0:
+            extra_vectors = np.vstack(
+                [data[rng.integers(0, n_samples)] for _ in range(extra_count)]
+            )
+            centers = np.concatenate([centers, extra_vectors], axis=0)
+
+        labels = np.zeros(n_samples, dtype=np.int64)
+        for _ in range(self.max_iter):
+            distances = np.linalg.norm(data[:, None, :] - centers[None, :, :], axis=2)
+            new_labels = distances.argmin(axis=1)
+            if np.array_equal(new_labels, labels):
+                break
+            labels = new_labels
+            for idx in range(self.n_clusters):
+                members = data[labels == idx]
+                if len(members) == 0:
+                    centers[idx] = data[rng.integers(0, n_samples)]
+                else:
+                    centers[idx] = members.mean(axis=0)
+
+        self.cluster_centers_ = centers
+        return labels
+
+
 class NicheDetector:
     """Advanced market niche detection system."""
 
     def __init__(self) -> None:
-        cluster_mod = importlib.import_module("sklearn.cluster")
-        preprocessing_mod = importlib.import_module("sklearn.preprocessing")
+        self.scaler: ScalerLike
+        self.clusterer: ClustererLike
 
-        KMeans = getattr(cluster_mod, "KMeans")
-        StandardScaler = getattr(preprocessing_mod, "StandardScaler")
+        try:
+            cluster_mod = importlib.import_module("sklearn.cluster")
+            preprocessing_mod = importlib.import_module("sklearn.preprocessing")
+        except ImportError:
+            logger.warning(
+                "scikit-learn unavailable; using fallback niche clustering stack"
+            )
+            self.scaler = _FallbackScaler()
+            self.clusterer = _FallbackKMeans(n_clusters=5, random_state=42)
+        else:
+            KMeans = getattr(cluster_mod, "KMeans")
+            StandardScaler = getattr(preprocessing_mod, "StandardScaler")
 
-        self.scaler = cast(ScalerLike, StandardScaler())
-        self.clusterer = cast(ClustererLike, KMeans(n_clusters=5, random_state=42))
+            self.scaler = cast(ScalerLike, StandardScaler())
+            self.clusterer = cast(ClustererLike, KMeans(n_clusters=5, random_state=42))
         self.niche_history: list[MarketNiche] = []
 
     async def detect_niches(self, market_data: JSONObject) -> dict[str, MarketNiche]:
@@ -140,7 +220,7 @@ class NicheDetector:
             if len(window) < 10:
                 return 0.0
             arr = np.asarray(window, dtype=float)
-            x: np.ndarray = np.arange(len(arr), dtype=float)
+            x: NDArray[np.float64] = np.arange(len(arr), dtype=float)
             coef = np.polyfit(x, arr, 1)
             slope = float(coef[0])
             std_val = float(np.std(arr))

@@ -70,6 +70,57 @@ def test_route_selects_highest_weight_with_regime_bias() -> None:
     assert metrics["total"] == 2
 
 
+def test_regime_flip_forces_topology_switch_and_records_transition() -> None:
+    router = PolicyRouter(regime_switch_deadline_ms=50)
+    base = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="trend_hunter",
+                base_weight=1.5,
+                regime_bias={"bull": 1.4, "bear": 0.9},
+                topology="topo-trend",
+                description="Momentum breakout topology",
+            ),
+            PolicyTactic(
+                tactic_id="defensive_wall",
+                base_weight=0.6,
+                regime_bias={"bear": 1.5},
+                topology="topo-defensive",
+                description="Defensive hedging topology",
+            ),
+        )
+    )
+
+    bull_regime = _regime(regime="bull", timestamp=base)
+    bull_decision = router.route(bull_regime, decision_timestamp=base)
+
+    assert bull_decision.tactic_id == "trend_hunter"
+    assert bull_decision.parameters["execution_topology"] == "topo-trend"
+    assert bull_decision.decision_timestamp is not None
+    assert bull_decision.decision_timestamp.tzinfo is timezone.utc
+
+    bear_regime = _regime(regime="bear", timestamp=base + timedelta(milliseconds=5))
+    decision_time = bear_regime.timestamp + timedelta(milliseconds=30)
+    bear_decision = router.route(bear_regime, decision_timestamp=decision_time)
+
+    assert bear_decision.tactic_id == "defensive_wall"
+    assert bear_decision.parameters["execution_topology"] == "topo-defensive"
+
+    transition = bear_decision.reflection_summary["regime_transition"]
+    assert transition["regime_changed"] is True
+    assert transition["previous_tactic"] == "trend_hunter"
+    assert transition["current_tactic"] == "defensive_wall"
+    assert transition["topology_changed"] is True
+    assert transition["switch_forced"] is True
+    assert transition["met_deadline"] is True
+    assert transition["latency_ms"] == pytest.approx(30.0, rel=1e-6, abs=1e-3)
+    assert transition["current_topology"] == "topo-defensive"
+    assert transition["previous_topology"] == "topo-trend"
+    candidates = transition["topology_candidates"]
+    assert isinstance(candidates, list) and candidates[0]["tactic_id"] == "defensive_wall"
+
+
 def test_fast_weight_experiment_overrides_base_score() -> None:
     router = PolicyRouter()
     router.register_tactic(

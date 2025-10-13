@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
@@ -30,6 +32,7 @@ def _decision(tactic_id: str) -> PolicyDecision:
         experiments_applied=(),
         reflection_summary={},
         weight_breakdown={},
+        decision_timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
     )
 
 

@@ -46,6 +46,7 @@ def test_policy_ledger_requires_diary_evidence(tmp_path, fixed_uuid) -> None:
         rationale="Shadow cadence",
         experiments_applied=(),
         reflection_summary={},
+        decision_timestamp=_now(),
     )
     regime = RegimeState(regime="balanced", confidence=0.75, features={}, timestamp=_now())
 

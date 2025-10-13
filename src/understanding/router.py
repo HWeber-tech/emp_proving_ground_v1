@@ -301,6 +301,7 @@ class UnderstandingRouter:
         decision = self._router.route(
             snapshot.regime_state,
             fast_weights=dict(weights) if weights else None,
+            decision_timestamp=as_of,
         )
 
         return UnderstandingDecision(

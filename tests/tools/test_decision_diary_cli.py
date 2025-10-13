@@ -60,6 +60,7 @@ def _build_store(tmp_path: Path) -> tuple[DecisionDiaryStore, ProbeRegistry, Pat
         rationale="Shadow cadence",
         experiments_applied=(),
         reflection_summary={},
+        decision_timestamp=_now(),
     )
     regime = RegimeState(regime="balanced", confidence=0.7, features={}, timestamp=_now())
     store.record(

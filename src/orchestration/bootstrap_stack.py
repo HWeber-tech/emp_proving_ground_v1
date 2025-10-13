@@ -365,6 +365,7 @@ class BootstrapTradingStack:
                 rationale="Bootstrap runtime threshold trigger",
                 experiments_applied=(),
                 reflection_summary=reflection_summary,
+                decision_timestamp=snapshot.generated_at,
             )
 
             regime_state = {

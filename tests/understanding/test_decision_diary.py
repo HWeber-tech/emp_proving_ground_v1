@@ -58,6 +58,7 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
         rationale="Shadow review",
         experiments_applied=("volatility-boost",),
         reflection_summary={"score": 0.82},
+        decision_timestamp=_fixed_now(),
     )
     regime = RegimeState(
         regime="calm",
@@ -112,6 +113,7 @@ def test_decision_diary_merge_metadata(tmp_path, fixed_uuid) -> None:
         rationale="",
         experiments_applied=(),
         reflection_summary={},
+        decision_timestamp=_fixed_now(),
     )
     regime = RegimeState(
         regime="calm",
@@ -221,6 +223,7 @@ def test_decision_diary_publish_event_failure(tmp_path, fixed_uuid, monkeypatch,
         rationale="",
         experiments_applied=(),
         reflection_summary={},
+        decision_timestamp=_fixed_now(),
     )
     regime = RegimeState(
         regime="calm",

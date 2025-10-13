@@ -58,6 +58,16 @@ def _serialise_policy_decision(decision: PolicyDecision | Mapping[str, Any]) -> 
     if isinstance(decision, Mapping):
         payload = dict(decision)
         payload.setdefault("rationale", payload.get("rationale", ""))
+        timestamp_value = payload.get("decision_timestamp")
+        if isinstance(timestamp_value, datetime):
+            payload["decision_timestamp"] = timestamp_value.astimezone(UTC).isoformat()
+        elif isinstance(timestamp_value, str):
+            payload["decision_timestamp"] = _normalise_timestamp(
+                timestamp_value,
+                default=lambda: datetime.now(tz=UTC),
+            ).isoformat()
+        else:
+            payload["decision_timestamp"] = None
         return payload
     return {
         "tactic_id": decision.tactic_id,
@@ -68,6 +78,11 @@ def _serialise_policy_decision(decision: PolicyDecision | Mapping[str, Any]) -> 
         "experiments_applied": list(decision.experiments_applied),
         "reflection_summary": dict(decision.reflection_summary),
         "weight_breakdown": dict(decision.weight_breakdown),
+        "decision_timestamp": (
+            decision.decision_timestamp.astimezone(UTC).isoformat()
+            if decision.decision_timestamp
+            else None
+        ),
     }
 
 

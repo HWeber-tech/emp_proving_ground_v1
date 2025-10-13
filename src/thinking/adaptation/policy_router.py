@@ -72,10 +72,16 @@ class PolicyTactic:
     parameters: Mapping[str, object] = field(default_factory=dict)
     guardrails: Mapping[str, object] = field(default_factory=dict)
     regime_bias: Mapping[str, float] = field(default_factory=dict)
+    topology: str | None = None
     confidence_sensitivity: float = 0.5
     description: str | None = None
     objectives: Sequence[str] = field(default_factory=tuple)
     tags: Sequence[str] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.topology is not None:
+            topology_text = str(self.topology).strip()
+            object.__setattr__(self, "topology", topology_text or None)
 
     def score(self, regime_state: RegimeState) -> tuple[float, MutableMapping[str, float]]:
         """Return a regime-conditioned score and a breakdown for reflection summaries."""
@@ -97,6 +103,8 @@ class PolicyTactic:
         payload: dict[str, object] = dict(self.parameters)
         payload.setdefault("regime_hint", regime_state.regime)
         payload.setdefault("regime_confidence", regime_state.confidence)
+        if self.topology:
+            payload.setdefault("execution_topology", self.topology)
         return payload
 
 
@@ -183,6 +191,7 @@ class PolicyDecision:
     reflection_summary: Mapping[str, object]
     weight_breakdown: Mapping[str, object] = field(default_factory=dict)
     fast_weight_metrics: Mapping[str, object] = field(default_factory=dict)
+    decision_timestamp: datetime | None = None
 
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checking
@@ -199,6 +208,8 @@ class PolicyRouter:
         reflection_history: int = 50,
         summary_top_k: int = 3,
         fast_weight_controller: "FastWeightController" | None = None,
+        regime_switch_deadline_ms: int = 75,
+        enforce_regime_topology: bool = True,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -206,6 +217,11 @@ class PolicyRouter:
         self._history: Deque[Mapping[str, object]] = deque(maxlen=reflection_history)
         self._summary_top_k = summary_top_k
         self._fast_weight_controller = fast_weight_controller or FastWeightController()
+        self._regime_switch_deadline_ms = max(0, int(regime_switch_deadline_ms))
+        self._enforce_regime_topology = bool(enforce_regime_topology)
+        self._last_regime: str | None = None
+        self._last_tactic_id: str | None = None
+        self._last_topology: str | None = None
 
     def register_tactic(self, tactic: PolicyTactic) -> None:
         if tactic.tactic_id in self._tactics:
@@ -316,6 +332,8 @@ class PolicyRouter:
         self,
         regime_state: RegimeState,
         fast_weights: Mapping[str, float] | None = None,
+        *,
+        decision_timestamp: datetime | None = None,
     ) -> PolicyDecision:
         if not self._tactics:
             raise RuntimeError("no tactics registered")
@@ -372,43 +390,91 @@ class PolicyRouter:
                 }
             )
 
-        ranked = sorted(scoreboard, key=lambda item: item["score"], reverse=True)
-        winner = ranked[0]
-        tactic: PolicyTactic = winner["tactic"]  # type: ignore[assignment]
-        experiments: Sequence[FastWeightExperiment] = winner["experiments"]  # type: ignore[assignment]
+        ranked_entries = sorted(scoreboard, key=lambda item: item["score"], reverse=True)
+        if not ranked_entries:
+            raise RuntimeError("no tactics available after scoring")
+
+        regime_changed = (
+            self._last_regime is not None and regime_state.regime != self._last_regime
+        )
+        previous_topology = self._last_topology
+
+        winner_entry = ranked_entries[0]
+        switch_forced = False
+        if regime_changed and self._enforce_regime_topology:
+            candidate_entry, forced = self._select_regime_transition_winner(
+                ranked=ranked_entries,
+                regime_state=regime_state,
+                previous_topology=previous_topology,
+                default_entry=winner_entry,
+            )
+            winner_entry = candidate_entry
+            switch_forced = forced
+
+        if winner_entry is ranked_entries[0]:
+            ordered_ranked: list[Mapping[str, object]] = list(ranked_entries)
+        else:
+            ordered_ranked = [winner_entry] + [
+                entry for entry in ranked_entries if entry is not winner_entry
+            ]
+
+        decision_time = decision_timestamp or datetime.now(tz=timezone.utc)
+        if decision_time.tzinfo is None:
+            decision_time = decision_time.replace(tzinfo=timezone.utc)
+        else:
+            decision_time = decision_time.astimezone(timezone.utc)
+
+        tactic: PolicyTactic = winner_entry["tactic"]  # type: ignore[assignment]
+        experiments: Sequence[FastWeightExperiment] = winner_entry["experiments"]  # type: ignore[assignment]
 
         guardrails = dict(self._default_guardrails)
         guardrails.update(tactic.guardrails)
 
-        rationale = self._build_rationale(tactic, regime_state, experiments, winner)
+        rationale = self._build_rationale(tactic, regime_state, experiments, winner_entry)
         weight_breakdown = self._build_weight_breakdown(
             tactic=tactic,
-            summary=winner,
+            summary=winner_entry,
             experiments=experiments,
         )
-        reflection_summary = self._build_reflection_summary(
+        regime_transition = self._build_regime_transition_summary(
             regime_state=regime_state,
-            ranked=ranked,
-            winner=winner,
-            rationale=rationale,
-            weight_breakdown=weight_breakdown,
+            decision_timestamp=decision_time,
+            selected_tactic=tactic,
+            ranked=ordered_ranked,
+            switch_forced=switch_forced,
         )
+        reflection_summary = dict(
+            self._build_reflection_summary(
+                regime_state=regime_state,
+                ranked=ordered_ranked,
+                winner=winner_entry,
+                rationale=rationale,
+                weight_breakdown=weight_breakdown,
+            )
+        )
+        reflection_summary["decision_timestamp"] = decision_time.isoformat()
+        reflection_summary["regime_transition"] = regime_transition
         self._history.append(reflection_summary)
+
+        self._last_regime = regime_state.regime
+        self._last_tactic_id = tactic.tactic_id
+        self._last_topology = self._topology_identifier(tactic)
 
         return PolicyDecision(
             tactic_id=tactic.tactic_id,
             parameters=tactic.resolve_parameters(regime_state),
-            selected_weight=float(winner["score"]),
+            selected_weight=float(winner_entry["score"]),
             guardrails=guardrails,
             rationale=rationale,
             experiments_applied=tuple(exp.experiment_id for exp in experiments),
             reflection_summary=reflection_summary,
             weight_breakdown=weight_breakdown,
             fast_weight_metrics=(
-                dict(winner.get("fast_weight_metrics", {}))
-                if isinstance(winner.get("fast_weight_metrics"), Mapping)
+                dict(winner_entry.get("fast_weight_metrics", {}))
+                if isinstance(winner_entry.get("fast_weight_metrics"), Mapping)
                 else {}
             ),
+            decision_timestamp=decision_time,
         )
 
     def history(self) -> Sequence[Mapping[str, object]]:
@@ -1273,6 +1339,117 @@ class PolicyRouter:
         else:
             payload["fast_weight_active_percentage"] = None
         return payload
+
+    @staticmethod
+    def _topology_identifier(tactic: PolicyTactic) -> str:
+        return tactic.topology or tactic.tactic_id
+
+    def _select_regime_transition_winner(
+        self,
+        *,
+        ranked: Sequence[Mapping[str, object]],
+        regime_state: RegimeState,
+        previous_topology: str | None,
+        default_entry: Mapping[str, object],
+    ) -> tuple[Mapping[str, object], bool]:
+        if not ranked:
+            raise RuntimeError("no tactics available after scoring")
+
+        best_bias = float("-inf")
+        preferred_entry: Mapping[str, object] | None = None
+        fallback_entry: Mapping[str, object] | None = None
+
+        for entry in ranked:
+            tactic: PolicyTactic = entry["tactic"]  # type: ignore[assignment]
+            topology = self._topology_identifier(tactic)
+            if previous_topology is not None and topology == previous_topology:
+                continue
+            if fallback_entry is None:
+                fallback_entry = entry
+            bias = float(tactic.regime_bias.get(regime_state.regime, 0.0))
+            if bias > 0.0 and bias >= best_bias:
+                preferred_entry = entry
+                best_bias = bias
+
+        candidate = preferred_entry or fallback_entry
+        if candidate is None:
+            return default_entry, False
+        if candidate is default_entry:
+            return default_entry, False
+        return candidate, True
+
+    def _build_regime_transition_summary(
+        self,
+        *,
+        regime_state: RegimeState,
+        decision_timestamp: datetime,
+        selected_tactic: PolicyTactic,
+        ranked: Sequence[Mapping[str, object]],
+        switch_forced: bool,
+    ) -> Mapping[str, object]:
+        previous_regime = self._last_regime
+        previous_topology = self._last_topology
+        previous_tactic = self._last_tactic_id
+        selected_topology = self._topology_identifier(selected_tactic)
+
+        regime_changed = (
+            previous_regime is not None and regime_state.regime != previous_regime
+        )
+
+        if regime_state.timestamp.tzinfo is None:
+            regime_timestamp = regime_state.timestamp.replace(tzinfo=timezone.utc)
+        else:
+            regime_timestamp = regime_state.timestamp.astimezone(timezone.utc)
+
+        decision_time = (
+            decision_timestamp.replace(tzinfo=timezone.utc)
+            if decision_timestamp.tzinfo is None
+            else decision_timestamp.astimezone(timezone.utc)
+        )
+
+        latency_ms = max(
+            0.0,
+            (decision_time - regime_timestamp).total_seconds() * 1000.0,
+        )
+
+        if previous_topology is None:
+            topology_changed: bool | None = None
+        else:
+            topology_changed = selected_topology != previous_topology
+
+        transition: dict[str, object] = {
+            "decision_timestamp": decision_time.isoformat(),
+            "regime_timestamp": regime_timestamp.isoformat(),
+            "current_regime": regime_state.regime,
+            "previous_regime": previous_regime,
+            "latency_ms": latency_ms,
+            "deadline_ms": float(self._regime_switch_deadline_ms),
+            "met_deadline": (
+                latency_ms <= self._regime_switch_deadline_ms if regime_changed else None
+            ),
+            "previous_tactic": previous_tactic,
+            "current_tactic": selected_tactic.tactic_id,
+            "previous_topology": previous_topology,
+            "current_topology": selected_topology,
+            "topology_changed": topology_changed,
+            "switch_forced": bool(switch_forced and regime_changed),
+            "regime_changed": regime_changed,
+        }
+
+        if regime_changed:
+            candidates: list[Mapping[str, object]] = []
+            for entry in ranked[: self._summary_top_k]:
+                tactic: PolicyTactic = entry["tactic"]  # type: ignore[assignment]
+                candidates.append(
+                    {
+                        "tactic_id": tactic.tactic_id,
+                        "topology": self._topology_identifier(tactic),
+                        "score": float(entry.get("score", 0.0)),
+                    }
+                )
+            transition["topology_candidates"] = candidates
+
+        return transition
 
     @staticmethod
     def _parse_timestamp(value: object) -> datetime | None:

@@ -77,6 +77,7 @@ from src.operations.ingest_trends import (
 from src.governance.audit_logger import AuditLogger
 from src.governance.safety_manager import SafetyManager
 from src.governance.strategy_registry import StrategyRegistry
+from src.reflection.trm.application import apply_auto_applied_suggestions_to_ledger
 from src.evolution.feature_flags import ADAPTIVE_RUNS_FLAG, EvolutionFeatureFlags
 from src.governance.policy_ledger import (
     LedgerReleaseManager,
@@ -2552,6 +2553,36 @@ def _build_bootstrap_runtime(
                     "decision_diary_path": str(diary_path_resolved) if diary_path_resolved else None,
                 },
             )
+
+            auto_apply_flag = _parse_optional_bool_flag(extras.get("RIM_AUTO_APPLY_ENABLED"))
+            auto_apply_enabled = True if auto_apply_flag is None else bool(auto_apply_flag)
+            queue_hint = extras.get("RIM_AUTO_APPLY_QUEUE")
+            if auto_apply_enabled and queue_hint:
+                queue_path = Path(str(queue_hint)).expanduser()
+                try:
+                    applied_ids = apply_auto_applied_suggestions_to_ledger(
+                        queue_path,
+                        store,
+                        release_manager=release_manager,
+                    )
+                except Exception:  # pragma: no cover - defensive guard
+                    logger.warning(
+                        "Failed to apply RIM auto-approved suggestions",
+                        exc_info=True,
+                        extra={
+                            "rim.auto.queue_path": str(queue_path),
+                            "rim.auto.enabled": auto_apply_enabled,
+                        },
+                    )
+                else:
+                    if applied_ids:
+                        logger.info(
+                            "RIM auto-approved suggestions recorded",
+                            extra={
+                                "rim.auto.queue_path": str(queue_path),
+                                "rim.auto.applied_ids": list(applied_ids),
+                            },
+                        )
 
     orchestrator = _build_evolution_orchestrator(
         config,

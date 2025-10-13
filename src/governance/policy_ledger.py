@@ -589,6 +589,10 @@ class LedgerReleaseManager:
             if audit_gaps:
                 payload["audit_gaps"] = list(audit_gaps)
             payload["audit_enforced"] = record.stage != stage
+            if record.metadata:
+                payload["metadata"] = dict(record.metadata)
+            if record.policy_delta is not None and not record.policy_delta.is_empty():
+                payload["policy_delta"] = dict(record.policy_delta.as_dict())
         return payload
 
     def _apply_stage(

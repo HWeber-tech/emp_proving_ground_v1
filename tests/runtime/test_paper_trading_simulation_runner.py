@@ -15,6 +15,7 @@ from src.runtime.paper_simulation import (
     PaperTradingSimulationProgress,
     run_paper_trading_simulation,
 )
+from src.understanding.decision_diary import DecisionDiaryStore
 
 
 async def _start_paper_server(
@@ -185,6 +186,95 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     incident_snapshot = report.incident_response.get("snapshot")
     assert incident_snapshot is not None
     assert incident_snapshot.get("status") == IncidentResponseStatus.ok.value
+
+
+@pytest.mark.asyncio()
+async def test_run_paper_trading_simulation_records_rim_auto_apply(tmp_path) -> None:
+    async def handler(_request: web.Request) -> web.Response:
+        return web.json_response({"order_id": "rim-auto-001"})
+
+    base_url, shutdown, _captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    queue_path = tmp_path / "governance" / "reflection_queue.jsonl"
+
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="diary-001",
+    )
+
+    queue_path.parent.mkdir(parents=True, exist_ok=True)
+    applied_line = {
+        "suggestion_id": "rim-applied",
+        "type": "WEIGHT_ADJUST",
+        "payload": {
+            "strategy_id": "bootstrap-strategy",
+            "proposed_weight_delta": -0.05,
+            "window_minutes": 720,
+        },
+        "confidence": 0.9,
+        "audit_ids": ["diary-001"],
+        "governance": {
+            "queue": "reflection.trm",
+            "status": "auto_applied",
+            "run_id": "rim-run-auto",
+            "applied_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            "auto_apply": {
+                "applied": True,
+                "reasons": [],
+                "evaluation": {
+                    "suggestion_id": "rim-applied",
+                    "oos_uplift": 0.1,
+                    "risk_hits": 0,
+                },
+            },
+        },
+    }
+    queue_path.write_text(json.dumps(applied_line) + "\n", encoding="utf-8")
+
+    diary_path = tmp_path / "diary.json"
+    diary_store = DecisionDiaryStore(diary_path, event_bus=None, publish_on_record=False)
+    diary_store.record(
+        policy_id="bootstrap-strategy",
+        decision={
+            "tactic_id": "bootstrap-strategy",
+            "parameters": {},
+            "selected_weight": 1.0,
+            "guardrails": {},
+        },
+        regime_state={"regime": "balanced", "confidence": 0.5},
+        entry_id="diary-001",
+    )
+
+    extras = _build_extras(base_url, ledger_path, diary_path, max_ticks=2)
+    extras["RIM_AUTO_APPLY_QUEUE"] = str(queue_path)
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+
+    try:
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=0,
+            max_runtime=0.25,
+            poll_interval=0.05,
+        )
+    finally:
+        await shutdown()
+
+    release = report.release or {}
+    posture = release.get("posture", {})
+    metadata = posture.get("metadata")
+    assert metadata is not None
+    rim_changes = metadata.get("rim_auto_apply")
+    assert isinstance(rim_changes, dict)
+    payload = rim_changes.get("rim-applied")
+    assert payload is not None
+    assert payload["type"] == "WEIGHT_ADJUST"
+    assert payload["payload"]["proposed_weight_delta"] == -0.05
 
 
 @pytest.mark.asyncio()

@@ -64,23 +64,44 @@ async def test_competitive_understanding_stats_alias_matches_legacy() -> None:
     stats = await system.get_understanding_stats()
     legacy = await system.get_intelligence_stats()
 
-    expected_counts = {
+    expected_understanding_counts = {
         "total_understanding_cycles": 1,
         "total_understanding_signatures_detected": 1,
         "total_understanding_competitors_analyzed": 1,
         "total_understanding_counter_strategies_developed": 1,
-        "total_intelligence_cycles": 1,
-        "total_signatures_detected": 1,
-        "total_competitors_analyzed": 1,
-        "total_counter_strategies_developed": 1,
+        "average_understanding_signatures_per_cycle": 1.0,
     }
 
-    for key, value in expected_counts.items():
-        assert stats[key] == value
-        assert legacy[key] == value
+    for key, value in expected_understanding_counts.items():
+        assert key in stats
+        if isinstance(value, float):
+            assert stats[key] == pytest.approx(value)
+            assert legacy[key] == pytest.approx(value)
+        else:
+            assert stats[key] == value
+            assert legacy[key] == value
 
-    for key in ("last_understanding", "last_intelligence"):
-        assert isinstance(stats[key], str)
-        assert isinstance(legacy[key], str)
-        assert stats[key]
-        assert legacy[key]
+    alias_map = {
+        "total_intelligence_cycles": "total_understanding_cycles",
+        "total_signatures_detected": "total_understanding_signatures_detected",
+        "total_competitors_analyzed": "total_understanding_competitors_analyzed",
+        "total_counter_strategies_developed": "total_understanding_counter_strategies_developed",
+        "average_signatures_per_cycle": "average_understanding_signatures_per_cycle",
+    }
+
+    for alias, canonical in alias_map.items():
+        assert alias not in stats
+        expected = legacy[canonical]
+        if isinstance(expected, float):
+            assert legacy[alias] == pytest.approx(expected)
+        else:
+            assert legacy[alias] == expected
+
+    assert isinstance(stats["last_understanding"], str)
+    assert stats["last_understanding"]
+    assert "last_intelligence" not in stats
+
+    assert isinstance(legacy["last_understanding"], str)
+    assert isinstance(legacy["last_intelligence"], str)
+    assert legacy["last_understanding"]
+    assert legacy["last_intelligence"]

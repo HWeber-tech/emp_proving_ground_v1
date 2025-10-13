@@ -1053,23 +1053,6 @@ class CompetitiveIntelligenceSystem:
                 ),
                 "last_understanding": now_iso,
             }
-            legacy_aliases = {
-                "total_intelligence_cycles": base_stats["total_understanding_cycles"],
-                "total_signatures_detected": base_stats[
-                    "total_understanding_signatures_detected"
-                ],
-                "total_competitors_analyzed": base_stats[
-                    "total_understanding_competitors_analyzed"
-                ],
-                "total_counter_strategies_developed": base_stats[
-                    "total_understanding_counter_strategies_developed"
-                ],
-                "average_intelligence_signatures_per_cycle": base_stats[
-                    "average_understanding_signatures_per_cycle"
-                ],
-                "last_intelligence": base_stats["last_understanding"],
-            }
-            base_stats.update(legacy_aliases)
             return base_stats
 
         except Exception as e:
@@ -1082,28 +1065,13 @@ class CompetitiveIntelligenceSystem:
                 "average_understanding_signatures_per_cycle": 0,
                 "last_understanding": None,
             }
-            fallback.update(
-                {
-                    "total_intelligence_cycles": fallback["total_understanding_cycles"],
-                    "total_signatures_detected": fallback[
-                        "total_understanding_signatures_detected"
-                    ],
-                    "total_competitors_analyzed": fallback[
-                        "total_understanding_competitors_analyzed"
-                    ],
-                    "total_counter_strategies_developed": fallback[
-                        "total_understanding_counter_strategies_developed"
-                    ],
-                    "average_intelligence_signatures_per_cycle": fallback[
-                        "average_understanding_signatures_per_cycle"
-                    ],
-                    "last_intelligence": fallback["last_understanding"],
-                }
-            )
             return fallback
 
     async def get_intelligence_stats(self) -> dict[str, object]:
         """Legacy alias for :meth:`get_understanding_stats`."""
 
-        logger.debug("get_intelligence_stats() is deprecated; use get_understanding_stats()")
-        return await self.get_understanding_stats()
+        logger.warning(
+            "get_intelligence_stats() is deprecated; use get_understanding_stats()",
+        )
+        stats = await self.get_understanding_stats()
+        return self._with_legacy_aliases(stats)

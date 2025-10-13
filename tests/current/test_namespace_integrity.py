@@ -9,7 +9,7 @@ from typing import Iterable, Iterator, Tuple
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SOURCE_DIRS = ("src", "tools", "scripts")
+SOURCE_DIRS = ("src", "tools", "scripts", "examples", "emp")
 BANNED_PREFIXES = (
     "src.intelligence",
     "src.market_intelligence",
@@ -18,6 +18,8 @@ BANNED_PREFIXES = (
     "src.thinking.memory.faiss_memory",
     "src.thinking.learning.real_time_learner",
     "src.sensory.organs.yahoo_finance_organ",
+    "src.sensory.organs.dimensions.macro_intelligence",
+    "src.validation.accuracy.intelligence_validator",
 )
 
 

@@ -34,16 +34,37 @@ single payload.
 
 A lightweight driver lives in `tools/performance_baseline.py`. Run it with the
 project on the Python path to simulate a short burst of intents, trigger the
-shared trade throttle, and emit a JSON baseline:
+shared trade throttle, and emit a JSON baseline. The CLI accepts knobs for both
+the throttle limits and the health budgets:
 
 ```bash
-PYTHONPATH=. python3 tools/performance_baseline.py
+PYTHONPATH=. python3 tools/performance_baseline.py \
+  --trades 6 \
+  --throttle-max-trades 1 \
+  --throttle-window-seconds 60 \
+  --max-lag-ms 150 \
+  --max-processing-ms 150 \
+  --max-cpu-percent 75 \
+  --output artifacts/perf_baseline.json
 ```
 
 Sample (truncated) output:
 
 ```json
 {
+  "options": {
+    "backlog_threshold_ms": null,
+    "max_cpu_percent": 75.0,
+    "max_lag_ms": 150.0,
+    "max_memory_mb": null,
+    "max_memory_percent": null,
+    "max_processing_ms": 150.0,
+    "trade_throttle": {
+      "max_trades": 1,
+      "window_seconds": 60.0
+    },
+    "trades": 6
+  },
   "execution": {
     "orders_submitted": 1,
     "trade_throttle": {
@@ -95,8 +116,10 @@ Sample (truncated) output:
 ```
 
 Operators can archive the Markdown reports alongside the JSON payload to show
-baseline CPU/lag budgets remain within guardrails and that the trade throttle
-activates deterministically under burst conditions. The dedicated
-`get_trade_throttle_scope_snapshots()` helper on the trading manager returns the
-same per-scope payloads used in the baseline so observability tooling can reuse
-the snapshots without rerunning the collection routine.【F:src/trading/trading_manager.py†L621-L725】【F:src/trading/execution/performance_baseline.py†L52-L74】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】
+which throttle and resource budgets were used (`options.*` in the payload),
+prove CPU/lag thresholds remain within guardrails, and demonstrate that the
+trade throttle activates deterministically under burst conditions. The
+dedicated `get_trade_throttle_scope_snapshots()` helper on the trading manager
+returns the same per-scope payloads used in the baseline so observability
+tooling can reuse the snapshots without rerunning the collection
+routine.【F:src/trading/trading_manager.py†L621-L725】【F:src/trading/execution/performance_baseline.py†L52-L74】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】

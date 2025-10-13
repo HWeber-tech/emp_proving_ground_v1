@@ -30,15 +30,15 @@
 - [ ] `[core]` **BeliefEmitter** with **ReLU + topâ€‘k sparsity**; persisted `belief_snapshots` (DuckDB/Parquet).
 - [ ] `[core]` **RegimeFSM v1** (ruleâ€‘based thresholds + confidence + transitions logged).
 - [ ] `[adapt]` **LinearAttentionRouter** (flagâ€‘guarded) for policy arbitration.
-- [ ] `[adapt]` **Fastâ€‘weights (Ïƒ) kernel** (Hebbian decay + potentiation); **lowâ€‘rank** implementation; clamps/decay.
-- [ ] `[reflect]` **Decision Diary** table + writer (belief, policy_hash, exec_topo, risk_template, features, decision, ex_post).
+- [x] `[adapt]` **Fastâ€‘weights (Ïƒ) kernel** (Hebbian decay + potentiation); **lowâ€‘rank** implementation; clamps/decay. _Progress: UnderstandingRouter now applies feature-gated Hebbian adapters with deterministic decay, persists multiplier history, and exposes fast-weight metrics so governance can audit adaptive runs under regression coverage.【F:src/understanding/router.py†L70-L240】【F:tests/understanding/test_understanding_router.py†L1-L185】_
+- [x] `[reflect]` **Decision Diary** table + writer (belief, policy_hash, exec_topo, risk_template, features, decision, ex_post). _Progress: DecisionDiaryStore normalises policy decisions, attaches probe ownership, records reflection summaries, and the CLI exports Markdown/JSON transcripts with guardrail tests for governance evidence.【F:src/understanding/decision_diary.py†L1-L240】【F:tests/tools/test_decision_diary_cli.py†L1-L188】_
 - [ ] `[reflect]` 3â€“5 **synapse probes** (e.g., opening auction, sweep risk, imbalance surge). _Progress: WHAT sensor now emits trend-strength telemetry, metadata, and lineage parity so probes discriminate bullish versus bearish sequences under regression coverage.【F:src/sensory/what/what_sensor.py†L83-L200】【F:tests/sensory/test_primary_dimension_sensors.py†L35-L83】_
 - [ ] `[reflect]` **Drift Sentry** (Pageâ€“Hinkley/CUSUM) + actions (freeze exploration, halve size) + â€œtheory packetâ€.
 - [ ] `[obs]` Graph diagnostics nightly job: degree hist, modularity, coreâ€“periphery (thresholds set).
 
 **Acceptance (DoD)**
 - [ ] `[sim]` **Determinism**: Replay same tape + seeds â‡’ identical diary & PnL.
-- [ ] `[adapt]` **Regimeâ€‘aware routing**: regime flip â‡’ topology switch within N ms; proven in diary.
+- [x] `[adapt]` **Regimeâ€‘aware routing**: regime flip â‡’ topology switch within N ms; proven in diary. _Progress: PolicyRouter enforces topology switches on regime changes, tracks switch latency, and reflection summaries capture the transition under dedicated pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L520】【F:tests/thinking/test_policy_router.py†L60-L152】_
 - [ ] `[reflect]` **Drift throttle**: injected alpha decay â‡’ sentry fires within 1 decision step; theory packet written.
 - [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms).
 - [ ] `[risk]` **0** invariant violations in a 4â€‘hour sim run.
@@ -100,7 +100,7 @@
 - [ ] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports).
 
 **Acceptance (DoD)**
-- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks.
+- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, and persists summaries for governance review via the runtime CLI with pytest coverage for breach detection and exports.【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】【F:src/runtime/cli.py†L1-L220】_
 - [ ] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics.
 - [ ] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback).
 
@@ -142,7 +142,7 @@
 
 ## Success Metrics (Northâ€‘Star KPIs)
 
-- [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay).
+- [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a CLI reports average/median/p90 turnaround and breach details so the experimentation loop can track adherence in real time under regression coverage.【F:emp/core/findings_memory.py†L1-L460】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L86】_
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates.
 - [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned.
 - [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation).
@@ -153,7 +153,7 @@
 ## Commands & Artifacts (to standardize)
 
 - [ ] `make run-sim` â€” deterministic sim/replay run (acceptance tests).
-- [ ] `make run-paper` â€” paper 24/7 profile with dashboards.
+- [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, streams progress, and persists structured summaries for dashboards under pytest coverage.【F:Makefile†L90-L98】【F:src/runtime/cli.py†L1-L220】【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】_
 - [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger.
 - [ ] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report.
 - [ ] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders).

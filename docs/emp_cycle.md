@@ -51,6 +51,21 @@ The promotion decision is configurable:
 
 The baseline (`data/baseline.json`) is updated only when the configured KPI signals progress and all constraints succeed.
 
+## Time-to-candidate SLA monitoring
+
+Track the idea-to-candidate turnaround with:
+
+```bash
+python -m emp.cli.emp_cycle_metrics --threshold-hours 24
+```
+
+The CLI reads the findings memory (default: `data/experiments.sqlite`) and reports
+average/median/p90 turnaround, the maximum observed hours, and whether the SLA
+threshold was met. Use `--window-hours` to limit the analysis to recent history
+or `--db-path` to point at an alternate experimentation database. Breaching IDs
+are listed with their stage and timestamps so you can dive back into the
+corresponding findings or diary notes.
+
 ## Timeouts, metadata, and failure notes
 
 * `--full-timeout-secs` (default: 1200s) bounds the full backtest duration. Timeouts and exceptions mark the idea as `tested` with a `full_eval_error:<reason>` note instead of aborting the cycle.

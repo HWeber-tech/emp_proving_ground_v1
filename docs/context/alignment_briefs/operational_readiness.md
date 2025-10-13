@@ -126,6 +126,7 @@
   fixture and metadata assertions so alert payloads reproduce the detector catalog,
   runbook link, and severity stats that readiness dashboards expect, under pytest
   coverage.【F:tests/operations/fixtures/page_hinkley_replay.json†L1-L128】【F:tests/operations/test_sensory_drift.py†L157-L218】
+- Progress: Paper run guardian keeps 24/7 paper sessions under watch, sampling latency p99, invariant breaches, memory growth, and failover snapshots while persisting exportable summaries; the runtime CLI exposes a `paper-run` entrypoint so operators can launch the guardian from standard tooling, with pytest drills asserting breach detection, stop conditions, and summary writes.【F:src/runtime/paper_run_guardian.py†L1-L360】【F:src/runtime/cli.py†L180-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】
 - Wire the observability dashboard to consume the readiness snapshot directly,
   rendering a dedicated panel with component summaries and remediation roll-ups
   under pytest coverage so operators see readiness posture alongside risk,

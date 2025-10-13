@@ -76,11 +76,10 @@
   - Register router contract tests under `pytest -m guardrail` that assert only approved strategy IDs receive high-confidence intents.
   - Static analysis hook verifying router configs declare policy references found in the policy ledger.
 - **Progress**
-  - PolicyRouter now tracks tactic objectives/tags, bulk registers and updates tactics,
-    exposes experiment registries, prunes expired fast-weight experiments, and ships
-    both reflection digests and reviewer-ready reports so reviewers inherit
-    emerging-strategy telemetry without spelunking raw summaries under expanded pytest
-    coverage.【F:src/thinking/adaptation/policy_router.py†L175-L525】【F:tests/thinking/test_policy_router.py†L248-L308】
+  - PolicyRouter now enforces regime-aware topology switches with latency deadlines,
+    tracks tactic objectives/tags, aggregates fast-weight metrics, and emits
+    reviewer-ready reflection summaries/digests so emerging strategies surface without
+    spelunking raw telemetry under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L720】【F:tests/thinking/test_policy_router.py†L1-L210】
   - Operational backbone pipeline now boots attached `LiveBeliefManager` and
     `UnderstandingRouter` components during ingest rehearsals, returning
     belief/regime snapshots, understanding decisions, and ingest-failure
@@ -118,7 +117,7 @@
   - Observability dashboard row automatically failing if diary export lag exceeds SLA (hooked via coverage matrix helper).【F:docs/context/alignment_briefs/quality_observability.md†L10-L188】
 - **Progress**
   - Decision narration capsule builder/publisher now normalises ledger diffs, sigma stability, and throttle states, then publishes Markdown/JSON payloads via the shared failover helper so diary deliverables can plug directly into governance and observability dashboards.【F:src/operations/observability_diary.py†L3-L392】【F:tests/operations/test_observability_diary.py†L1-L190】
-  - Policy router can ingest recorded reflection summaries and the decision diary CLI renders reflection digests with window, tactic, and experiment limits so reviewers rebuild adaptive insights from stored diaries without rerunning the loop, under regression coverage for ingestion and CLI flows.【F:src/thinking/adaptation/policy_router.py†L269】【F:tests/thinking/test_policy_router.py†L311】【F:tools/understanding/decision_diary_cli.py†L172】【F:tests/tools/test_decision_diary_cli.py†L173】
+  - Policy router can ingest recorded reflection summaries and the decision diary CLI renders reflection digests with window, tactic, and experiment limits so reviewers rebuild adaptive insights from stored diaries without rerunning the loop, under regression coverage for ingestion and CLI flows.【F:src/thinking/adaptation/policy_router.py†L480-L640】【F:tests/thinking/test_policy_router.py†L200-L256】【F:tools/understanding/decision_diary_cli.py†L150-L260】【F:tests/tools/test_decision_diary_cli.py†L1-L200】
   - Observability dashboard now exposes a policy reflection panel summarising analysed decisions, leading tactics/experiments/tags/objectives, reviewer insights, and exported Markdown/JSON payloads so compliance reviewers see diary posture alongside readiness snapshots under guardrail coverage.【F:src/operations/observability_dashboard.py†L285-L390】【F:tests/operations/test_observability_dashboard.py†L627-L706】
   - WHAT sensor exports trend-strength telemetry into diary lineage so probes capture directional market context, with pytest fixtures asserting bullish vs. bearish discrimination and metadata parity across value, lineage, and default signals.【F:src/sensory/what/what_sensor.py†L83-L200】【F:tests/sensory/test_primary_dimension_sensors.py†L35-L174】
 

@@ -1,0 +1,51 @@
+{
+  "status": "pass",
+  "generated_at": "2025-10-13T04:14:50.275226+00:00",
+  "components": [
+    {
+      "name": "Decision diary intake",
+      "status": "pass",
+      "summary": "Loaded decision diary window",
+      "details": [
+        "Entries loaded: 5"
+      ]
+    },
+    {
+      "name": "Suggestion generation",
+      "status": "pass",
+      "summary": "Generated 3 suggestions",
+      "details": [
+        "Aggregated strategies: carry_hedge, mean_reversion_alpha, momentum_v1"
+      ]
+    },
+    {
+      "name": "Schema validation",
+      "status": "pass",
+      "summary": "All suggestions conform to rim.v1 schema",
+      "details": []
+    },
+    {
+      "name": "Telemetry capture",
+      "status": "pass",
+      "summary": "Telemetry written",
+      "details": [
+        "Runtime seconds: 0.0005"
+      ]
+    }
+  ],
+  "metrics": {
+    "suggestion_count": 3,
+    "types": {
+      "EXPERIMENT_PROPOSAL": 2,
+      "WEIGHT_ADJUST": 1
+    },
+    "confidence_min": 0.65,
+    "confidence_avg": 0.65,
+    "confidence_max": 0.65
+  },
+  "diaries_path": "docs/examples/trm_exit_drill_diaries.jsonl",
+  "suggestion_artifact": "docs/examples/trm_exit_drill_run/rim-suggestions-UTC-20251013T041450.jsonl",
+  "telemetry_log": "docs/examples/trm_exit_drill_run/rim-20251013.log",
+  "config_path": "config/reflection/rim.config.example.yml",
+  "schema_path": "interfaces/rim_types.json"
+}

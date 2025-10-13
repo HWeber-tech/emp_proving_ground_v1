@@ -20,6 +20,7 @@ help:
 	@echo "  type-explicit-any-dry - Dry-run explicit Any rewriter (prints diffs)"
 	@echo "  type-explicit-any-apply - Apply explicit Any fixes in-place (types only)"
 	@echo "  run-sim               - Run deterministic bootstrap simulation (summary + diary)"
+	@echo "  nightly-replay        - Run nightly replay harness orchestrator"
 
 .PHONY: mypy
 mypy:
@@ -115,3 +116,7 @@ run-sim:
 		--summary-path "$(SIM_SUMMARY)" \
 		--diary-path "$(SIM_DIARY)" \
 		--duckdb-path "$(SIM_DUCKDB)" $(SIM_EXTRA_ARGS)
+
+.PHONY: nightly-replay
+nightly-replay:
+	python3 tools/operations/nightly_replay_job.py

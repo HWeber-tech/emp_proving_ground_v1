@@ -16,12 +16,23 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import monotonic
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    MutableMapping,
+    Sequence,
+)
+
+import inspect
+import math
 
 from src.core.event_bus import EventBus
 from src.governance.system_config import SystemConfig
@@ -35,7 +46,11 @@ from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapt
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["PaperTradingSimulationReport", "run_paper_trading_simulation"]
+__all__ = [
+    "PaperTradingSimulationReport",
+    "PaperTradingSimulationProgress",
+    "run_paper_trading_simulation",
+]
 
 
 @dataclass(slots=True)
@@ -101,6 +116,21 @@ class PaperTradingSimulationReport:
         return payload
 
 
+@dataclass(slots=True)
+class PaperTradingSimulationProgress:
+    """Incremental snapshot emitted while running a paper trading simulation."""
+
+    timestamp: datetime
+    runtime_seconds: float
+    orders_observed: int
+    errors_observed: int
+    decisions_observed: int
+    paper_metrics: Mapping[str, Any] | None = None
+    failover: Mapping[str, Any] | None = None
+    last_order: Mapping[str, Any] | None = None
+    last_error: Mapping[str, Any] | None = None
+
+
 async def run_paper_trading_simulation(
     config: SystemConfig,
     *,
@@ -110,6 +140,8 @@ async def run_paper_trading_simulation(
     stop_when_complete: bool = True,
     report_path: str | Path | None = None,
     stop_event: asyncio.Event | None = None,
+    progress_callback: Callable[[PaperTradingSimulationProgress], Awaitable[None] | None] | None = None,
+    progress_interval: float | None = None,
 ) -> PaperTradingSimulationReport:
     """Execute the bootstrap runtime until paper orders are observed.
 
@@ -138,6 +170,14 @@ async def run_paper_trading_simulation(
         Optional asyncio event that, when set, triggers a graceful shutdown of
         the simulation loop before ``max_runtime`` elapses.  Useful for
         long-running simulations that must respond to OS signals.
+    progress_callback:
+        Optional callable invoked periodically with a
+        :class:`PaperTradingSimulationProgress` snapshot while the simulation
+        runs.  The callback may be synchronous or async; any errors are logged
+        and ignored so execution continues.
+    progress_interval:
+        Minimum number of seconds between progress callback invocations.  When
+        omitted or non-positive a default interval of five seconds is used.
 
     Returns
     -------
@@ -163,6 +203,19 @@ async def run_paper_trading_simulation(
 
     start_time = monotonic()
     stop_requested = False
+
+    progress_interval_seconds: float | None = None
+    next_progress_at: float | None = None
+    if progress_callback is not None:
+        interval_value = 5.0 if progress_interval is None else progress_interval
+        try:
+            interval_value = float(interval_value)
+        except (TypeError, ValueError):
+            interval_value = 5.0
+        if not math.isfinite(interval_value) or interval_value <= 0.0:
+            interval_value = 5.0
+        progress_interval_seconds = max(0.05, interval_value)
+        next_progress_at = start_time + progress_interval_seconds
 
     try:
         await runtime.start()
@@ -195,10 +248,34 @@ async def run_paper_trading_simulation(
             _capture_order_history(paper_engine, orders, seen_orders)
             _capture_error_history(paper_engine, errors, seen_errors)
 
+            if next_progress_at is not None and progress_interval_seconds is not None:
+                now = monotonic()
+                if now >= next_progress_at:
+                    await _emit_progress_update(
+                        progress_callback,
+                        runtime,
+                        paper_engine,
+                        orders,
+                        errors,
+                        start_time,
+                        now,
+                    )
+                    next_progress_at = now + progress_interval_seconds
+
         # Capture one final snapshot after the loop exits in case the broker
         # updated its telemetry between the final poll and the runtime stop.
         _capture_order_history(paper_engine, orders, seen_orders)
         _capture_error_history(paper_engine, errors, seen_errors)
+        if progress_callback is not None:
+            await _emit_progress_update(
+                progress_callback,
+                runtime,
+                paper_engine,
+                orders,
+                errors,
+                start_time,
+                monotonic(),
+            )
     finally:
         if stop_requested or runtime.running:
             await runtime.stop()
@@ -293,6 +370,41 @@ async def run_paper_trading_simulation(
             logger.debug("Failed to persist paper trading simulation report", exc_info=True)
 
     return report
+
+
+async def _emit_progress_update(
+    callback: Callable[[PaperTradingSimulationProgress], Awaitable[None] | None] | None,
+    runtime: Any,
+    paper_engine: PaperBrokerExecutionAdapter,
+    orders: Sequence[Mapping[str, Any]],
+    errors: Sequence[Mapping[str, Any]],
+    start_monotonic: float,
+    now_monotonic: float,
+) -> None:
+    if callback is None:
+        return
+
+    decisions = getattr(runtime, "decisions", [])
+    decisions_observed = len(decisions) if isinstance(decisions, Sequence) else 0
+
+    snapshot = PaperTradingSimulationProgress(
+        timestamp=datetime.now(timezone.utc),
+        runtime_seconds=max(0.0, now_monotonic - start_monotonic),
+        orders_observed=len(orders),
+        errors_observed=len(errors),
+        decisions_observed=decisions_observed,
+        paper_metrics=_maybe_describe_mapping(paper_engine, "describe_metrics"),
+        failover=_maybe_describe_mapping(paper_engine, "describe_failover"),
+        last_order=_maybe_describe_mapping(paper_engine, "describe_last_order"),
+        last_error=_maybe_describe_mapping(paper_engine, "describe_last_error"),
+    )
+
+    try:
+        outcome = callback(snapshot)
+        if inspect.isawaitable(outcome):
+            await outcome
+    except Exception:  # pragma: no cover - diagnostics only
+        logger.debug("Paper trading simulation progress callback failed", exc_info=True)
 
 
 def _capture_order_history(
@@ -689,6 +801,20 @@ def _serialise_runtime_value(value: Any) -> Any:
     if isinstance(value, (datetime, Decimal, Path, set, frozenset, bytes)):
         return _json_default(value)
     return value
+
+
+def _maybe_describe_mapping(obj: Any, attr: str) -> Mapping[str, Any] | None:
+    candidate = getattr(obj, attr, None)
+    if candidate is None:
+        return None
+    try:
+        result = candidate() if callable(candidate) else candidate
+    except Exception:  # pragma: no cover - diagnostics only
+        logger.debug("Progress snapshot descriptor '%s' failed", attr, exc_info=True)
+        return None
+    if isinstance(result, Mapping):
+        return _serialise_runtime_value(result)
+    return None
 
 
 def _json_default(value: Any) -> Any:

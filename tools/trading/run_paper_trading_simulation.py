@@ -6,9 +6,10 @@ import argparse
 import asyncio
 import json
 import signal
+import sys
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Awaitable, Callable, Mapping, Sequence
 
 from src.governance.system_config import (
     ConnectionProtocol,
@@ -17,6 +18,7 @@ from src.governance.system_config import (
     SystemConfigLoadError,
 )
 from src.runtime.paper_simulation import (
+    PaperTradingSimulationProgress,
     _json_default as _simulation_json_default,
     run_paper_trading_simulation,
 )
@@ -186,6 +188,16 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--progress-interval",
+        dest="progress_interval",
+        type=float,
+        default=0.0,
+        help=(
+            "Emit JSON progress updates to stderr every N seconds. "
+            "Set to 0 to disable progress output."
+        ),
+    )
+    parser.add_argument(
         "--extra",
         action="append",
         default=[],
@@ -255,6 +267,39 @@ async def _run_async(args: argparse.Namespace) -> Mapping[str, object]:
     config = _apply_overrides(_load_config(args.config), args)
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
+    progress_callback: Callable[[PaperTradingSimulationProgress], Awaitable[None] | None] | None = None
+    effective_progress_interval: float | None = None
+
+    if args.progress_interval and args.progress_interval > 0.0:
+        effective_progress_interval = float(args.progress_interval)
+
+        async def _progress_emit(progress: PaperTradingSimulationProgress) -> None:
+            snapshot: dict[str, object] = {
+                "timestamp": progress.timestamp.isoformat(),
+                "runtime_seconds": progress.runtime_seconds,
+                "orders_observed": progress.orders_observed,
+                "errors_observed": progress.errors_observed,
+                "decisions_observed": progress.decisions_observed,
+            }
+            metrics = progress.paper_metrics or {}
+            if metrics:
+                snapshot["total_orders"] = metrics.get("total_orders")
+                snapshot["successful_orders"] = metrics.get("successful_orders")
+                snapshot["failed_orders"] = metrics.get("failed_orders")
+                snapshot["success_ratio"] = metrics.get("success_ratio")
+                snapshot["failure_ratio"] = metrics.get("failure_ratio")
+            failover = progress.failover or {}
+            if failover:
+                snapshot["failover_active"] = bool(failover.get("active"))
+                snapshot["consecutive_failures"] = failover.get("consecutive_failures")
+                snapshot["retry_in_seconds"] = failover.get("retry_in_seconds")
+            print(
+                json.dumps(snapshot, default=_simulation_json_default),
+                file=sys.stderr,
+                flush=True,
+            )
+
+        progress_callback = _progress_emit
 
     with _temporary_signal_handlers(loop, stop_event):
         report = await run_paper_trading_simulation(
@@ -265,6 +310,8 @@ async def _run_async(args: argparse.Namespace) -> Mapping[str, object]:
             stop_when_complete=not args.keep_running,
             report_path=args.output,
             stop_event=stop_event,
+            progress_callback=progress_callback,
+            progress_interval=effective_progress_interval,
         )
     payload = report.to_dict()
     payload.setdefault("orders_observed", len(report.orders))

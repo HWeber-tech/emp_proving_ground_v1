@@ -1,6 +1,7 @@
 import asyncio
 import json
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Sequence
 
@@ -10,7 +11,10 @@ from aiohttp import web
 from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.system_config import ConnectionProtocol, SystemConfig
 from src.operations.incident_response import IncidentResponseStatus
-from src.runtime.paper_simulation import run_paper_trading_simulation
+from src.runtime.paper_simulation import (
+    PaperTradingSimulationProgress,
+    run_paper_trading_simulation,
+)
 
 
 async def _start_paper_server(
@@ -208,6 +212,77 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
     assert report.paper_metrics is not None
     assert report.paper_metrics.get("success_ratio", 0.0) >= 0.0
     assert report.paper_metrics.get("failure_ratio", 0.0) >= 0.0
+
+
+@pytest.mark.asyncio()
+async def test_run_paper_trading_simulation_emits_progress(tmp_path) -> None:
+    async def handler(_request: web.Request) -> web.Response:
+        return web.json_response({"order_id": "progress-001"})
+
+    base_url, shutdown, _captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "qa"),
+        evidence_id="paper-sim-progress",
+    )
+
+    diary_async = tmp_path / "diary-progress-async.json"
+    extras_async = _build_extras(base_url, ledger_path, diary_async, max_ticks=20)
+    config_async = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras_async)
+
+    progress_events: list[PaperTradingSimulationProgress] = []
+
+    async def progress_callback(progress: PaperTradingSimulationProgress) -> None:
+        progress_events.append(progress)
+
+    diary_sync = tmp_path / "diary-progress-sync.json"
+    extras_sync = _build_extras(base_url, ledger_path, diary_sync, max_ticks=12)
+    config_sync = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras_sync)
+
+    sync_events: list[PaperTradingSimulationProgress] = []
+
+    def sync_progress(progress: PaperTradingSimulationProgress) -> None:
+        sync_events.append(progress)
+
+    try:
+        report = await run_paper_trading_simulation(
+            config_async,
+            min_orders=1,
+            max_runtime=0.4,
+            poll_interval=0.05,
+            stop_when_complete=False,
+            progress_callback=progress_callback,
+            progress_interval=0.05,
+        )
+
+        await run_paper_trading_simulation(
+            config_sync,
+            min_orders=1,
+            max_runtime=0.25,
+            poll_interval=0.05,
+            stop_when_complete=False,
+            progress_callback=sync_progress,
+            progress_interval=0.05,
+        )
+    finally:
+        await shutdown()
+
+    assert progress_events, "Async progress callback was not invoked"
+    assert sync_events, "Sync progress callback was not invoked"
+    assert any(event.orders_observed >= 1 for event in progress_events)
+    assert progress_events[-1].orders_observed == len(report.orders)
+    assert all(isinstance(event.timestamp, datetime) for event in progress_events)
+    assert all(event.runtime_seconds >= 0.0 for event in progress_events)
+    assert all(event.decisions_observed >= 0 for event in progress_events)
+    assert all(event.paper_metrics is None or isinstance(event.paper_metrics, dict) for event in progress_events)
+    assert all(event.failover is None or isinstance(event.failover, dict) for event in progress_events)
+    assert any(event.paper_metrics for event in progress_events)
+    assert any(event.paper_metrics for event in sync_events)
 
 
 @pytest.mark.asyncio()

@@ -1219,6 +1219,15 @@ class RuntimeApplication:
     def summary(self) -> dict[str, object]:
         """Summarise the configured workloads for logging/tests."""
 
+        snapshots = list(self.task_snapshots())
+        snapshots_by_workload: dict[str, list[dict[str, object]]] = {}
+        for entry in snapshots:
+            metadata = entry.get("metadata")
+            if isinstance(metadata, Mapping):
+                workload_name = metadata.get("workload")
+                if isinstance(workload_name, str) and workload_name:
+                    snapshots_by_workload.setdefault(workload_name, []).append(entry)
+
         def _pack(workload: RuntimeWorkload | None) -> Mapping[str, object] | None:
             if workload is None:
                 return None
@@ -1238,6 +1247,9 @@ class RuntimeApplication:
                 }
             if workload.hang_timeout is not None:
                 payload["hang_timeout_seconds"] = workload.hang_timeout
+            workload_snapshots = snapshots_by_workload.get(workload.name)
+            if workload_snapshots:
+                payload["tasks"] = tuple(workload_snapshots)
             return payload
 
         summary: MutableMapping[str, object] = {
@@ -1254,9 +1266,8 @@ class RuntimeApplication:
             "namespace": supervisor_namespace,
             "active_tasks": self._task_supervisor.active_count,
         }
-        snapshots = list(self.task_snapshots())
         if snapshots:
-            supervisor_details["tasks"] = snapshots
+            supervisor_details["tasks"] = tuple(snapshots)
         summary["task_supervisor"] = supervisor_details
 
         return summary

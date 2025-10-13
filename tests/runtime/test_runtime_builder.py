@@ -2360,6 +2360,43 @@ async def test_runtime_application_auxiliary_workload_tracked() -> None:
     assert final_summary["workload_states"].get("aux-workload") == "finished"
     await supervisor.cancel_all()
 
+
+@pytest.mark.asyncio()
+async def test_runtime_application_summary_includes_workload_tasks() -> None:
+    supervisor = TaskSupervisor(namespace="test-runtime-workload-snapshots", cancel_timeout=0.1)
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _ingest_workload() -> None:
+        started.set()
+        await release.wait()
+
+    ingestion = RuntimeWorkload(
+        name="ingest-workload",
+        factory=_ingest_workload,
+        description="ingest workload",
+        metadata={"component": "test-ingest"},
+    )
+
+    app = RuntimeApplication(ingestion=ingestion, task_supervisor=supervisor)
+
+    run_task = asyncio.create_task(app.run())
+    try:
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+
+        summary = app.summary()
+        ingestion_block = summary.get("ingestion")
+        assert ingestion_block is not None
+        task_snapshots = ingestion_block.get("tasks")
+        assert task_snapshots, "expected task snapshots for active ingest workload"
+        task_metadata = task_snapshots[0].get("metadata") or {}
+        assert task_metadata.get("workload") == "ingest-workload"
+    finally:
+        release.set()
+        await asyncio.wait_for(run_task, timeout=1.0)
+        await supervisor.cancel_all()
+
+
 async def test_runtime_application_recovers_from_ingest_failure(caplog: pytest.LogCaptureFixture) -> None:
     supervisor = TaskSupervisor(namespace="test-runtime-recovery", cancel_timeout=0.1)
     stop_event = asyncio.Event()

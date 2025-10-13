@@ -67,6 +67,7 @@ from src.runtime.runtime_builder import (
     _process_sensory_status,
     _supervise_background_task,
     _configure_drift_monitor,
+    _merge_task_snapshots,
 )
 
 
@@ -339,6 +340,26 @@ async def test_runtime_application_ingest_torture_retries_without_crash(
     summary = app.summary()
     assert summary["workload_states"].get("ingest-torture") == "finished"
     assert summary["workload_states"].get("trade-torture") == "finished"
+
+
+def test_merge_task_snapshots_coerces_and_combines() -> None:
+    class Snapshot:
+        def __init__(self, name: str, state: str) -> None:
+            self._payload = {"name": name, "state": state}
+
+        def as_dict(self) -> Mapping[str, str]:
+            return dict(self._payload)
+
+    primary = ({"name": "ingest", "state": "running"},)
+    secondary = (Snapshot("drift", "pending"),)
+
+    merged = _merge_task_snapshots(primary, secondary)
+
+    assert isinstance(merged, tuple)
+    assert len(merged) == 2
+    assert merged[0] == {"name": "ingest", "state": "running"}
+    assert merged[1] == {"name": "drift", "state": "pending"}
+    assert merged[0] is not primary[0]
 
 
 @pytest.mark.asyncio()

@@ -326,6 +326,32 @@ def _supervise_background_task(
     return fallback.create(coro, name=name, metadata=metadata)
 
 
+def _merge_task_snapshots(
+    primary: Sequence[Mapping[str, Any]] | None,
+    secondary: Sequence[Mapping[str, Any]] | None,
+) -> tuple[dict[str, Any], ...]:
+    """Coalesce task snapshot payloads into a serialisable tuple of dicts."""
+
+    merged: list[dict[str, Any]] = []
+    for collection in (primary, secondary):
+        if not collection:
+            continue
+        for entry in collection:
+            if isinstance(entry, Mapping):
+                merged.append({str(key): entry[key] for key in entry})
+                continue
+            as_dict = getattr(entry, "as_dict", None)
+            if not callable(as_dict):
+                continue
+            try:
+                payload = as_dict()
+            except Exception:  # pragma: no cover - defensive best-effort path
+                continue
+            if isinstance(payload, Mapping):
+                merged.append({str(key): payload[key] for key in payload})
+    return tuple(merged)
+
+
 _RETENTION_TABLES: dict[str, tuple[str, str]] = {
     "daily_bars": ("market_data", "daily_bars"),
     "intraday_trades": ("market_data", "intraday_trades"),
@@ -1747,6 +1773,7 @@ async def _execute_timescale_ingest(
     fallback: Callable[[], Awaitable[None]] | None,
     orchestrator_cls: type[TimescaleBackboneOrchestrator] = TimescaleBackboneOrchestrator,
     data_manager: RealDataManager | None = None,
+    task_supervisor: TaskSupervisor | None = None,
     backbone_context: BackboneRuntimeContext | None = None,
     scheduler_snapshot: IngestSchedulerSnapshot | None = None,
     record_backbone_validation_snapshot: (
@@ -1773,6 +1800,8 @@ async def _execute_timescale_ingest(
 ) -> tuple[bool, BackupReadinessSnapshot | None]:
     initial_results: dict[str, TimescaleIngestResult] = {}
     pipeline_result = None
+    pipeline_task_snapshots: Sequence[Mapping[str, object]] | None = None
+    task_snapshots = _merge_task_snapshots(task_snapshots, None)
     cache_metrics_before: Mapping[str, object] = {}
     cache_metrics_after_ingest: Mapping[str, object] = {}
     cache_metrics_after_fetch: Mapping[str, object] = {}
@@ -1794,6 +1823,7 @@ async def _execute_timescale_ingest(
                         event_topics=topics_for_pipeline,
                         auto_close_consumer=False,
                         shutdown_manager_on_close=False,
+                        task_supervisor=task_supervisor,
                     )
                     pipeline_result = await pipeline.execute(request, poll_consumer=False)
                     initial_results = dict(pipeline_result.ingest_results)
@@ -1802,6 +1832,9 @@ async def _execute_timescale_ingest(
                     cache_metrics_after_fetch = dict(pipeline_result.cache_metrics_after_fetch)
                     kafka_events = pipeline_result.kafka_events
                     ingest_error = pipeline_result.ingest_error
+                    pipeline_task_snapshots = getattr(
+                        pipeline_result, "task_snapshots", None
+                    )
                 finally:
                     if pipeline is not None:
                         try:
@@ -1830,6 +1863,8 @@ async def _execute_timescale_ingest(
             kafka_events = ()
             ingest_error = str(exc)
             initial_results = {}
+
+        task_snapshots = _merge_task_snapshots(task_snapshots, pipeline_task_snapshots)
 
     if manager is None or manager_failed:
         try:
@@ -3784,12 +3819,12 @@ def build_professional_runtime_application(
                     snapshot_fn = getattr(app, "task_snapshots", None)
                     if callable(snapshot_fn):
                         try:
-                            task_snapshots = snapshot_fn()
+                            runtime_task_snapshots = snapshot_fn()
                         except Exception:  # pragma: no cover - diagnostics only
                             logger.debug("Failed to collect task snapshots", exc_info=True)
-                            task_snapshots = ()
+                            runtime_task_snapshots = ()
                     else:
-                        task_snapshots = ()
+                        runtime_task_snapshots = ()
 
                     with runtime_tracer.operation_span(
                         name="ingest.timescale_execute",
@@ -3804,6 +3839,7 @@ def build_professional_runtime_application(
                             kafka_quality_publisher=kafka_quality_publisher,
                             fallback=_fallback,
                             data_manager=data_manager,
+                            task_supervisor=app.task_supervisor,
                             backbone_context=backbone_context,
                             scheduler_snapshot=scheduler_snapshot,
                             record_backbone_validation_snapshot=validation_recorder,
@@ -3824,7 +3860,7 @@ def build_professional_runtime_application(
                             kafka_lag_snapshot=None,
                             record_kafka_readiness_snapshot=kafka_readiness_recorder,
                             managed_manifest=managed_manifest,
-                            task_snapshots=task_snapshots,
+                            task_snapshots=runtime_task_snapshots,
                         )
                     if execution_span is not None and hasattr(execution_span, "set_attribute"):
                         execution_span.set_attribute("runtime.ingest.success", bool(success))

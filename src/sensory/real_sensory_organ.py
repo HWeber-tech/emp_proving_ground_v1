@@ -138,15 +138,31 @@ class RealSensoryOrgan:
         dimension_lineage_records: dict[str, SensorLineageRecord] = {}
         for name, signal in signals.items():
             metadata = self._serialise_mapping(signal.metadata)
-            dimension_payloads[name] = {
+            payload: dict[str, Any] = {
                 "signal": self._extract_strength(signal),
                 "confidence": float(signal.confidence),
                 "value": self._serialise_value(signal.value),
                 "metadata": metadata,
             }
+
+            quality_metadata = metadata.get("quality")
+            if isinstance(quality_metadata, Mapping):
+                payload["quality"] = self._serialise_mapping(quality_metadata)
+
+            lineage_dict: dict[str, Any] | None = None
             lineage_record = getattr(signal, "lineage", None)
             if isinstance(lineage_record, SensorLineageRecord):
                 dimension_lineage_records[name] = lineage_record
+                lineage_dict = dict(lineage_record.as_dict())
+            else:
+                metadata_lineage = metadata.get("lineage")
+                if isinstance(metadata_lineage, Mapping):
+                    lineage_dict = self._serialise_mapping(metadata_lineage)
+
+            if lineage_dict is not None:
+                payload["lineage"] = lineage_dict
+
+            dimension_payloads[name] = payload
 
         integrated = self._build_integrated_signal(signals)
         lineage = build_lineage_record(
@@ -419,12 +435,13 @@ class RealSensoryOrgan:
             if lineage_records is not None:
                 lineage_record = lineage_records.get(dimension)
 
-            if lineage_record is not None:
-                lineage_payload: object = lineage_record
-            else:
+            lineage_payload: object | None = lineage_record
+            if lineage_payload is None:
+                lineage_payload = payload.get("lineage")
+            if lineage_payload is None and metadata is not None:
                 lineage_payload = metadata.get("lineage")
-                if lineage_payload is None:
-                    continue
+            if lineage_payload is None:
+                continue
 
             state_value = metadata.get("state")
             state = state_value if isinstance(state_value, str) else None
@@ -473,6 +490,8 @@ class RealSensoryOrgan:
                     "confidence": entry.get("confidence"),
                     "value": self._serialise_value(entry.get("value")),
                     "metadata": self._serialise_mapping(entry.get("metadata")),
+                    "quality": self._serialise_mapping(entry.get("quality")),
+                    "lineage": self._serialise_mapping(entry.get("lineage")),
                 }
                 for name, entry in dimensions.items()
                 if isinstance(entry, Mapping)

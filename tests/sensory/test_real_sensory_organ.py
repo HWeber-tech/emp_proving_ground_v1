@@ -116,10 +116,17 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
         assert "signal" in payload
         assert "confidence" in payload
         assert "metadata" in payload
+        assert "quality" in payload
+        assert isinstance(payload["quality"], Mapping)
+        assert "source" in payload["quality"]
+        assert "lineage" in payload
+        assert isinstance(payload["lineage"], Mapping)
 
     how_metadata = dimensions["HOW"]["metadata"]
     assert "lineage" in how_metadata
     assert how_metadata["lineage"]["dimension"] == "HOW"
+    how_quality = dimensions["HOW"]["quality"]
+    assert how_quality.get("source") == "sensory.how"
 
     anomaly_value = dimensions["ANOMALY"]["value"]
     assert isinstance(anomaly_value, Mapping)

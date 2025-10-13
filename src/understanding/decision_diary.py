@@ -20,6 +20,7 @@ from src.thinking.adaptation.policy_router import PolicyDecision, RegimeState
 from src.understanding.probe_registry import ProbeDefinition, ProbeRegistry
 from src.core.event_bus import Event, EventBus
 from src.operations.event_bus_failover import EventPublishError, publish_event_with_failover
+from src.artifacts import archive_artifact
 
 if TYPE_CHECKING:
     from src.understanding.belief import BeliefState
@@ -444,12 +445,24 @@ class DecisionDiaryStore:
             self._entries[entry.entry_id] = entry
 
     def _dump(self) -> None:
+        generated_at = self._now()
         payload = {
-            "generated_at": self._now().isoformat(),
+            "generated_at": generated_at.isoformat(),
             "entries": [entry.as_dict() for entry in sorted(self._entries.values(), key=lambda e: e.recorded_at)],
             "probe_registry": self._probe_registry.as_dict(),
         }
         self._path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        run_id = f"{self._path.stem}-{generated_at.strftime('%H%M%S')}"
+        if self._path.is_file():
+            try:
+                archive_artifact(
+                    "diaries",
+                    self._path,
+                    timestamp=generated_at,
+                    run_id=run_id,
+                )
+            except Exception:  # pragma: no cover - archival best-effort
+                logger.warning("Failed to archive decision diary", exc_info=True)
 
     def exists(self, entry_id: str) -> bool:
         return entry_id in self._entries

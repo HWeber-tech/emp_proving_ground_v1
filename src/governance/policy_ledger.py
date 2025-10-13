@@ -29,6 +29,8 @@ from typing import TYPE_CHECKING, Any, Callable, Iterable, Iterator, Mapping, Mu
 import json
 import logging
 
+from src.artifacts import archive_artifact
+
 logger = logging.getLogger(__name__)
 
 try:  # Python < 3.11 compatibility
@@ -373,9 +375,10 @@ class PolicyLedgerStore:
                 pass
 
     def _dump_locked(self) -> None:
+        timestamp = self._now()
         payload = {
             "records": {policy_id: record.as_dict() for policy_id, record in self._records.items()},
-            "updated_at": self._now().isoformat(),
+            "updated_at": timestamp.isoformat(),
         }
         data = json.dumps(payload, indent=2, sort_keys=True)
         with tempfile.NamedTemporaryFile(
@@ -391,6 +394,15 @@ class PolicyLedgerStore:
             os.fsync(handle.fileno())
             tmp_name = handle.name
         os.replace(tmp_name, self._path)
+        try:
+            archive_artifact(
+                "ledger_exports",
+                self._path,
+                timestamp=timestamp,
+                run_id=self._path.stem,
+            )
+        except Exception:  # pragma: no cover - archival best-effort
+            logger.warning("Failed to archive policy ledger", exc_info=True)
 
     def _dump(self) -> None:
         with self._exclusive_lock():

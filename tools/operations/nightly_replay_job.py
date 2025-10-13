@@ -35,6 +35,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
+from src.artifacts import archive_artifact
 from src.sensory.monitoring import evaluate_sensor_drift
 from src.thinking.adaptation.policy_router import PolicyDecision, PolicyTactic, RegimeState
 from src.thinking.adaptation.replay_harness import StageThresholds, TacticEvaluationResult, TacticReplayHarness
@@ -568,6 +569,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         }
         context.ledger_path.write_text(json.dumps(placeholder, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         logger.info("Ledger artefact initialised at %s", context.ledger_path)
+
+    archive_artifact(
+        "diaries",
+        context.diary_path,
+        timestamp=context.timestamp,
+        run_id=context.evaluation_id,
+    )
+    archive_artifact(
+        "drift_reports",
+        context.drift_report_path,
+        timestamp=context.timestamp,
+        run_id=context.evaluation_id,
+    )
+    archive_artifact(
+        "ledger_exports",
+        context.ledger_path,
+        timestamp=context.timestamp,
+        run_id=context.evaluation_id,
+    )
 
     logger.info(
         "Nightly replay job completed (run_id=%s, transitions=%d)",

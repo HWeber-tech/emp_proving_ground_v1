@@ -14,6 +14,7 @@ import pandas as pd
 
 from src.evolution.experiments.ma_crossover_ga import GARunConfig, run_ga_experiment
 from src.evolution.experiments.reporting import render_leaderboard_markdown
+from src.artifacts import archive_artifact
 
 DEFAULT_DATASET_NAME = "synthetic_trend_v1"
 DEFAULT_LENGTH = 512
@@ -145,7 +146,8 @@ def main() -> None:
     doc_path.parent.mkdir(parents=True, exist_ok=True)
 
     leaderboard_md = render_leaderboard_markdown([manifest])
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%SZ")
+    timestamp_dt = datetime.now(timezone.utc)
+    timestamp = timestamp_dt.strftime("%Y-%m-%d %H:%M:%SZ")
 
     doc_content = (
         "# Evolution Lab Leaderboard\n\n"
@@ -165,6 +167,22 @@ def main() -> None:
     )
 
     doc_path.write_text(doc_content)
+
+    run_id = f"{args.dataset_name}-{args.seed}"
+    archive_artifact(
+        "evolution_kpis",
+        manifest_path,
+        timestamp=timestamp_dt,
+        run_id=run_id,
+        target_name="manifest.json",
+    )
+    archive_artifact(
+        "evolution_kpis",
+        leaderboard_path,
+        timestamp=timestamp_dt,
+        run_id=run_id,
+        target_name="generation_history.csv",
+    )
 
     print(f"Wrote manifest to {manifest_path}")
     print(f"Updated leaderboard at {doc_path}")

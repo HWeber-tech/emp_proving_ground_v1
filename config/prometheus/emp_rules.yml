@@ -1,0 +1,65 @@
+groups:
+  - name: understanding-loop-slos
+    common_labels:
+      service: understanding-loop
+    rules:
+      - alert: UnderstandingLoopLatencySLOWarn
+        expr: max by (loop) (understanding_loop_latency_status) == 1
+        for: 5m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: Understanding loop latency SLO at risk
+          description: >-
+            p95 latency above target for loop {{ $labels.loop }} for 5 minutes.
+      - alert: UnderstandingLoopLatencySLOBreach
+        expr: max by (loop) (understanding_loop_latency_status) >= 2
+        for: 2m
+        labels:
+          severity: critical
+          slo: latency
+        annotations:
+          summary: Understanding loop latency SLO breached
+          description: >-
+            Latency probe {{ $labels.loop }} above breach threshold for 2 minutes.
+      - alert: DriftAlertFreshnessSLOWarn
+        expr: max by (alert) (drift_alert_freshness_status) == 1
+        for: 10m
+        labels:
+          severity: warning
+          slo: drift_freshness
+        annotations:
+          summary: Drift alert freshness approaching limits
+          description: >-
+            Drift alert {{ $labels.alert }} freshness trending stale for 10 minutes.
+      - alert: DriftAlertFreshnessSLOBreach
+        expr: max by (alert) (drift_alert_freshness_status) >= 2
+        for: 5m
+        labels:
+          severity: critical
+          slo: drift_freshness
+        annotations:
+          summary: Drift alert freshness SLO breached
+          description: >-
+            Drift alert {{ $labels.alert }} missed freshness target for 5 minutes.
+      - alert: ReplayDeterminismSLOWarn
+        expr: max by (probe) (replay_determinism_status) == 1
+        for: 10m
+        labels:
+          severity: warning
+          slo: replay_determinism
+        annotations:
+          summary: Replay determinism drift approaching limits
+          description: >-
+            Replay probe {{ $labels.probe }} drift near threshold for 10 minutes.
+      - alert: ReplayDeterminismSLOBreach
+        expr: max by (probe) (replay_determinism_status) >= 2
+        for: 2m
+        labels:
+          severity: critical
+          slo: replay_determinism
+        annotations:
+          summary: Replay determinism SLO breached
+          description: >-
+            Replay probe {{ $labels.probe }} drift breached threshold for 2 minutes.

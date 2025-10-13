@@ -8,6 +8,7 @@ from src.governance.promotion_integrity import PromotionGuard
 from src.governance.strategy_registry import (
     StrategyRegistry,
     StrategyRegistryError,
+    StrategyStatus,
 )
 from src.understanding.decision_diary import DecisionDiaryStore
 
@@ -139,6 +140,132 @@ def test_strategy_registry_records_catalogue_provenance(tmp_path, status: str) -
     assert summary["catalogue_entry_count"] == 1
     assert summary["catalogue_missing_provenance"] == 0
     assert summary["seed_source_counts"].get("catalogue") == 1
+
+
+def test_strategy_registry_config_guard_blocks_missing_regimes(tmp_path, monkeypatch) -> None:
+    ledger_path = tmp_path / "policy_guard.json"
+    diary_path = tmp_path / "decision_guard.json"
+    config_path = tmp_path / "promotion_guard.yaml"
+    config_path.write_text(
+        (
+            "promotion_guard:\n"
+            f"  ledger_path: \"{ledger_path}\"\n"
+            f"  diary_path: \"{diary_path}\"\n"
+            "  stage_requirements:\n"
+            "    approved: paper\n"
+            "    active: limited_live\n"
+            "  required_regimes:\n"
+            "    - balanced\n"
+            "    - bullish\n"
+            "  min_decisions_per_regime: 2\n"
+            "  regime_gate_statuses:\n"
+            "    - approved\n"
+            "    - active\n"
+        ),
+        encoding="utf-8",
+    )
+
+    store = PolicyLedgerStore(ledger_path)
+    policy_id = "alpha-policy"
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk", "compliance"),
+        evidence_id=f"dd-{policy_id}-001",
+    )
+
+    diary = DecisionDiaryStore(diary_path, publish_on_record=False)
+    recorded_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    for offset in range(2):
+        diary.record(
+            policy_id=policy_id,
+            decision={
+                "tactic_id": policy_id,
+                "parameters": {},
+                "selected_weight": 1.0,
+                "guardrails": {},
+                "rationale": "coverage-check",
+                "experiments_applied": (),
+                "reflection_summary": {},
+                "weight_breakdown": {},
+            },
+            regime_state={
+                "regime": "balanced",
+                "confidence": 0.75,
+                "features": {},
+                "timestamp": (recorded_at + timedelta(minutes=offset)).isoformat(),
+            },
+            outcomes={"paper_pnl": 0.0},
+            metadata={
+                "release_stage": PolicyLedgerStage.PAPER.value,
+                "release_execution": {
+                    "stage": PolicyLedgerStage.PAPER.value,
+                    "route": "paper",
+                },
+            },
+            recorded_at=recorded_at + timedelta(minutes=offset),
+        )
+
+    monkeypatch.setenv("PROMOTION_GUARD_CONFIG", str(config_path))
+
+    registry = StrategyRegistry(db_path=str(tmp_path / "registry-config.db"))
+    genome = SimpleNamespace(
+        id="alpha-policy",
+        decision_tree={"nodes": 4},
+        name="alpha-policy",
+        generation=2,
+    )
+    fitness_report = {
+        "fitness_score": 1.1,
+        "max_drawdown": 0.05,
+        "sharpe_ratio": 1.5,
+        "total_return": 0.12,
+        "volatility": 0.03,
+        "metadata": {},
+    }
+
+    assert registry.register_champion(genome, dict(fitness_report))
+
+    with pytest.raises(StrategyRegistryError) as excinfo:
+        registry.update_strategy_status(genome.id, StrategyStatus.APPROVED.value)
+    message = str(excinfo.value)
+    assert "missing regimes" in message
+    assert "bullish" in message
+
+    for offset in range(2):
+        diary.record(
+            policy_id=policy_id,
+            decision={
+                "tactic_id": policy_id,
+                "parameters": {},
+                "selected_weight": 1.0,
+                "guardrails": {},
+                "rationale": "coverage-check",
+                "experiments_applied": (),
+                "reflection_summary": {},
+                "weight_breakdown": {},
+            },
+            regime_state={
+                "regime": "bullish",
+                "confidence": 0.72,
+                "features": {},
+                "timestamp": (
+                    recorded_at + timedelta(minutes=10 + offset)
+                ).isoformat(),
+            },
+            outcomes={"paper_pnl": 0.01},
+            metadata={
+                "release_stage": PolicyLedgerStage.PAPER.value,
+                "release_execution": {
+                    "stage": PolicyLedgerStage.PAPER.value,
+                    "route": "paper",
+                },
+            },
+            recorded_at=recorded_at + timedelta(minutes=10 + offset),
+        )
+
+    assert registry.update_strategy_status(genome.id, StrategyStatus.APPROVED.value) is True
 
 
 def test_strategy_registry_surfaces_database_errors(tmp_path) -> None:

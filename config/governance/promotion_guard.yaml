@@ -1,0 +1,20 @@
+# Promotion guard configuration aligning AlphaTrade promotions with ledger artifacts
+# and regime coverage gates. The strategy registry consumes this config when a
+# PromotionGuard instance is not supplied explicitly, ensuring roadmap
+# requirements that 100% promoted strategies carry audited ledger entries and
+# DecisionDiary coverage across the regime grid.
+promotion_guard:
+  ledger_path: "artifacts/governance/policy_ledger.json"
+  diary_path: "artifacts/governance/decision_diary.json"
+  stage_requirements:
+    approved: "paper"
+    active: "limited_live"
+  required_regimes:
+    - balanced
+    - bullish
+    - bearish
+    - dislocated
+  min_decisions_per_regime: 3
+  regime_gate_statuses:
+    - approved
+    - active

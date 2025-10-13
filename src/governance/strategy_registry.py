@@ -15,9 +15,20 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterator, Mapping, cast
+from typing import Any, Iterable, Iterator, Mapping, MutableMapping, cast
 
+try:  # PyYAML is optional in some runtime profiles
+    import yaml
+except Exception:  # pragma: no cover - graceful fallback when PyYAML absent
+    yaml = None
+
+from src.governance.policy_ledger import PolicyLedgerStage
 from src.governance.promotion_integrity import PromotionGuard, PromotionIntegrityError
+
+
+_DEFAULT_PROMOTION_GUARD_CONFIG = Path("config/governance/promotion_guard.yaml")
+_DEFAULT_LEDGER_PATH = Path("artifacts/governance/policy_ledger.json")
+_DEFAULT_DIARY_PATH = Path("artifacts/governance/decision_diary.json")
 
 
 class StrategyStatus(Enum):
@@ -45,30 +56,7 @@ class StrategyRegistry:
         self._logger = logging.getLogger(f"{__name__}.StrategyRegistry")
         self._initialize_database()
         if promotion_guard is None:
-            ledger_path = os.getenv(
-                "POLICY_LEDGER_PATH",
-                "artifacts/governance/policy_ledger.json",
-            )
-            diary_path = os.getenv(
-                "DECISION_DIARY_PATH",
-                "artifacts/governance/decision_diary.json",
-            )
-            regimes_env = os.getenv("PROMOTION_REQUIRED_REGIMES")
-            required_regimes = (
-                [value.strip() for value in regimes_env.split(",") if value.strip()]
-                if regimes_env
-                else None
-            )
-            try:
-                min_regime = int(os.getenv("PROMOTION_MIN_REGIME_COUNT", "3"))
-            except ValueError:
-                min_regime = 3
-            promotion_guard = PromotionGuard(
-                ledger_path=ledger_path,
-                diary_path=diary_path,
-                required_regimes=required_regimes,
-                min_decisions_per_regime=min_regime,
-            )
+            promotion_guard = self._build_default_promotion_guard()
         self._promotion_guard = promotion_guard
 
     @contextmanager
@@ -166,6 +154,139 @@ class StrategyRegistry:
                     )
 
         self._logger.info("Strategy Registry initialised with database: %s", self.db_path)
+
+    def _build_default_promotion_guard(self) -> PromotionGuard:
+        guard = self._promotion_guard_from_config()
+        if guard is not None:
+            return guard
+
+        ledger_path = Path(
+            os.getenv("POLICY_LEDGER_PATH", str(_DEFAULT_LEDGER_PATH))
+        )
+        diary_path = Path(
+            os.getenv("DECISION_DIARY_PATH", str(_DEFAULT_DIARY_PATH))
+        )
+        regimes_env = os.getenv("PROMOTION_REQUIRED_REGIMES")
+        required_regimes: Iterable[str] | None
+        if regimes_env:
+            required_regimes = [value.strip() for value in regimes_env.split(",") if value.strip()]
+        else:
+            required_regimes = None
+        try:
+            min_regime = int(os.getenv("PROMOTION_MIN_REGIME_COUNT", "3"))
+        except ValueError:
+            min_regime = 3
+        return PromotionGuard(
+            ledger_path=ledger_path,
+            diary_path=diary_path,
+            required_regimes=required_regimes,
+            min_decisions_per_regime=min_regime,
+        )
+
+    def _promotion_guard_from_config(self) -> PromotionGuard | None:
+        config_path_env = os.getenv("PROMOTION_GUARD_CONFIG")
+        if config_path_env:
+            config_path = Path(config_path_env).expanduser()
+        else:
+            config_path = _DEFAULT_PROMOTION_GUARD_CONFIG
+        if not config_path.exists():
+            return None
+        if yaml is None:
+            self._logger.warning(
+                "PyYAML unavailable; skipping promotion guard config at %s", config_path
+            )
+            return None
+        try:
+            raw_payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        except Exception as exc:  # pragma: no cover - defensive guard for malformed YAML
+            self._logger.warning(
+                "Failed to load promotion guard config from %s: %s", config_path, exc
+            )
+            return None
+        if not isinstance(raw_payload, Mapping):
+            self._logger.warning(
+                "Promotion guard config at %s must be a mapping", config_path
+            )
+            return None
+        guard_payload = raw_payload.get("promotion_guard", raw_payload)
+        if not isinstance(guard_payload, Mapping):
+            self._logger.warning(
+                "Promotion guard payload at %s missing 'promotion_guard' mapping", config_path
+            )
+            return None
+
+        ledger_path = Path(
+            str(guard_payload.get("ledger_path", _DEFAULT_LEDGER_PATH))
+        ).expanduser()
+        diary_path = Path(
+            str(guard_payload.get("diary_path", _DEFAULT_DIARY_PATH))
+        ).expanduser()
+
+        stage_requirements_payload = guard_payload.get("stage_requirements")
+        stage_requirements: MutableMapping[str, str | PolicyLedgerStage] | None = None
+        if isinstance(stage_requirements_payload, Mapping):
+            stage_requirements = {}
+            for status_key, stage_value in stage_requirements_payload.items():
+                key = str(status_key).strip()
+                if not key:
+                    continue
+                try:
+                    stage = PolicyLedgerStage.from_value(stage_value)
+                except ValueError:
+                    self._logger.warning(
+                        "Skipping unknown stage requirement '%s' -> %r in %s",
+                        key,
+                        stage_value,
+                        config_path,
+                    )
+                    continue
+                stage_requirements[key] = stage
+
+        regimes_payload = guard_payload.get("required_regimes")
+        required_regimes: tuple[str, ...] | None = None
+        if isinstance(regimes_payload, Iterable) and not isinstance(regimes_payload, (str, bytes)):
+            cleaned: list[str] = []
+            seen: dict[str, None] = {}
+            for value in regimes_payload:
+                text = str(value).strip().lower()
+                if text and text not in seen:
+                    seen[text] = None
+                    cleaned.append(text)
+            required_regimes = tuple(cleaned) if cleaned else None
+
+        min_decisions_raw = guard_payload.get("min_decisions_per_regime")
+        if min_decisions_raw is None:
+            min_decisions_raw = guard_payload.get("min_decisions")
+        try:
+            min_decisions = int(min_decisions_raw) if min_decisions_raw is not None else 3
+        except (TypeError, ValueError):
+            min_decisions = 3
+
+        gate_statuses_payload = guard_payload.get("regime_gate_statuses")
+        regime_gate_statuses: tuple[str, ...] | None = None
+        if isinstance(gate_statuses_payload, Iterable) and not isinstance(
+            gate_statuses_payload, (str, bytes)
+        ):
+            cleaned_statuses = {
+                str(value).strip().lower()
+                for value in gate_statuses_payload
+                if value and str(value).strip()
+            }
+            regime_gate_statuses = tuple(sorted(cleaned_statuses)) if cleaned_statuses else None
+
+        guard_kwargs: dict[str, Any] = {
+            "ledger_path": ledger_path,
+            "diary_path": diary_path,
+            "min_decisions_per_regime": max(0, min_decisions),
+        }
+        if stage_requirements:
+            guard_kwargs["stage_requirements"] = stage_requirements
+        if required_regimes:
+            guard_kwargs["required_regimes"] = required_regimes
+        if regime_gate_statuses:
+            guard_kwargs["regime_gate_statuses"] = regime_gate_statuses
+
+        return PromotionGuard(**guard_kwargs)
 
     def _json_loads(self, payload: str | None, context: str) -> Any | None:
         if not payload:

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timezone, timedelta
 
-from typing import Mapping
+from typing import Any, Mapping
 
 import pytest
 
@@ -118,6 +119,7 @@ def _build_runner(
     tmp_path,
     trading_manager,
     feature_toggles: AdaptationFeatureToggles | None = None,
+    runner_kwargs: dict[str, Any] | None = None,
 ) -> tuple[AlphaTradeLoopRunner, DecisionDiaryStore]:
     buffer = BeliefBuffer(belief_id="alpha-belief")
     belief_emitter = BeliefEmitter(
@@ -170,6 +172,8 @@ def _build_runner(
         release_manager=release_manager,
     )
 
+    runner_kwargs = runner_kwargs or {}
+
     runner = AlphaTradeLoopRunner(
         belief_emitter=belief_emitter,
         regime_fsm=regime_fsm,
@@ -177,6 +181,7 @@ def _build_runner(
         trading_manager=trading_manager,
         understanding_router=understanding_router,
         feature_toggles=feature_toggles,
+        **runner_kwargs,
     )
 
     return runner, diary_store
@@ -649,3 +654,189 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
 
     policy_router = runner._understanding_router.policy_router
     assert policy_router.exploration_freeze_active() is True
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_warns_when_diary_coverage_slips(
+    monkeypatch, tmp_path, caplog
+) -> None:
+    trading_manager = _FakeTradingManager()
+    base_time = datetime.now(tz=UTC)
+    clock_values = iter(
+        [
+            base_time,
+            base_time + timedelta(minutes=1),
+            base_time + timedelta(minutes=2),
+        ]
+    )
+
+    def fake_clock() -> datetime:
+        try:
+            return next(clock_values)
+        except StopIteration:
+            return base_time + timedelta(minutes=2)
+
+    runner, _ = _build_runner(
+        monkeypatch,
+        tmp_path,
+        trading_manager,
+        runner_kwargs={
+            "diary_minimum_samples": 2,
+            "diary_coverage_target": 0.95,
+            "clock": fake_clock,
+        },
+    )
+
+    monkeypatch.setattr(runner._orchestrator._diary_store, "_now", fake_clock)
+
+    original_run_iteration = runner._orchestrator.run_iteration
+    invocation_count = {"value": 0}
+
+    def stub_run_iteration(*args, **kwargs):
+        invocation_count["value"] += 1
+        if invocation_count["value"] == 2:
+            raise RuntimeError("diary failure")
+        return original_run_iteration(*args, **kwargs)
+
+    monkeypatch.setattr(runner._orchestrator, "run_iteration", stub_run_iteration)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    logger_name = "src.orchestration.alpha_trade_runner"
+    caplog.set_level(logging.WARNING, logger=logger_name)
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    with pytest.raises(RuntimeError):
+        await runner.process(
+            sensory_snapshot,
+            policy_id="alpha.live",
+            trade_overrides={"policy_id": "alpha.live"},
+        )
+
+    stats = runner.describe_diary_coverage()
+    assert stats["iterations"] == 2
+    assert stats["recorded"] == 1
+    assert stats["missing"] == 1
+    assert stats["coverage"] == pytest.approx(0.5)
+
+    warning_records = [
+        record for record in caplog.records if "coverage" in record.message.lower()
+    ]
+    assert warning_records, "expected coverage warning to be emitted"
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_flags_diary_gap(monkeypatch, tmp_path, caplog) -> None:
+    trading_manager = _FakeTradingManager()
+    base_time = datetime.now(tz=UTC)
+    clock_values = iter(
+        [
+            base_time,
+            base_time + timedelta(minutes=3),
+            base_time + timedelta(minutes=4),
+            base_time + timedelta(minutes=5),
+        ]
+    )
+
+    def fake_clock() -> datetime:
+        try:
+            return next(clock_values)
+        except StopIteration:
+            return base_time + timedelta(minutes=5)
+
+    runner, _ = _build_runner(
+        monkeypatch,
+        tmp_path,
+        trading_manager,
+        runner_kwargs={
+            "diary_gap_alert": timedelta(seconds=60),
+            "diary_coverage_target": 0.0,
+            "clock": fake_clock,
+        },
+    )
+
+    monkeypatch.setattr(runner._orchestrator._diary_store, "_now", fake_clock)
+
+    original_run_iteration = runner._orchestrator.run_iteration
+    invocation_count = {"value": 0}
+
+    def stub_run_iteration(*args, **kwargs):
+        invocation_count["value"] += 1
+        if invocation_count["value"] == 2:
+            raise RuntimeError("diary failure")
+        return original_run_iteration(*args, **kwargs)
+
+    monkeypatch.setattr(runner._orchestrator, "run_iteration", stub_run_iteration)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    logger_name = "src.orchestration.alpha_trade_runner"
+
+    caplog.set_level(logging.WARNING, logger=logger_name)
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    caplog.clear()
+
+    with pytest.raises(RuntimeError):
+        await runner.process(
+            sensory_snapshot,
+            policy_id="alpha.live",
+            trade_overrides={"policy_id": "alpha.live"},
+        )
+
+    stale_records = [
+        record for record in caplog.records if "stale" in record.message.lower()
+    ]
+    assert stale_records, "expected stale diary warning"
+
+    stats = runner.describe_diary_coverage()
+    assert stats.get("gap_breach") is True
+
+    caplog.clear()
+    caplog.set_level(logging.INFO, logger=logger_name)
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    stats_after = runner.describe_diary_coverage()
+    assert stats_after.get("gap_breach") is False
+
+    refresh_records = [
+        record for record in caplog.records if "refreshed" in record.message.lower()
+    ]
+    assert refresh_records, "expected gap recovery info log"

@@ -21,7 +21,7 @@ end-to-end AlphaTrade runs without manual glue code inside the test fixtures.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from enum import Enum
 import inspect
@@ -125,6 +125,10 @@ class AlphaTradeLoopRunner:
         publish_regime_signal: bool = False,
         trade_builder: TradeBuilder | None = None,
         feature_toggles: AdaptationFeatureToggles | None = None,
+        diary_coverage_target: float = 0.95,
+        diary_minimum_samples: int = 20,
+        diary_gap_alert: timedelta = timedelta(minutes=5),
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._belief_emitter = belief_emitter
         self._regime_fsm = regime_fsm
@@ -137,6 +141,17 @@ class AlphaTradeLoopRunner:
         self._exploration_safe_streak = 0
         self._exploration_release_threshold = self._DEFAULT_EXPLORATION_RELEASE_THRESHOLD
         self._last_freeze_reason: str | None = None
+        self._diary_target = max(0.0, min(1.0, float(diary_coverage_target)))
+        self._diary_min_samples = max(0, int(diary_minimum_samples))
+        self._diary_gap_alert = diary_gap_alert if diary_gap_alert >= timedelta(0) else timedelta(0)
+        self._clock = clock or (lambda: datetime.now(tz=timezone.utc))
+        self._diary_iterations = 0
+        self._diary_recorded = 0
+        self._diary_missing = 0
+        self._diary_coverage_value = 1.0
+        self._diary_alert_emitted = False
+        self._diary_gap_alert_emitted = False
+        self._last_diary_recorded_at: datetime | None = None
 
     async def process(
         self,
@@ -196,14 +211,24 @@ class AlphaTradeLoopRunner:
             trade_overrides,
         )
 
-        loop_result = self._orchestrator.run_iteration(
-            belief_snapshot,
-            belief_state=belief_state,
-            policy_id=policy_id,
-            trade=trade_plan.metadata,
-            notes=tuple(notes or ()),
-            extra_metadata=extra_metadata,
-        )
+        recorded_at: datetime | None = None
+        try:
+            loop_result = self._orchestrator.run_iteration(
+                belief_snapshot,
+                belief_state=belief_state,
+                policy_id=policy_id,
+                trade=trade_plan.metadata,
+                notes=tuple(notes or ()),
+                extra_metadata=extra_metadata,
+            )
+        except Exception:
+            self._record_diary_result(success=False, recorded_at=None)
+            raise
+        else:
+            diary_entry = getattr(loop_result, "diary_entry", None)
+            if diary_entry is not None:
+                recorded_at = getattr(diary_entry, "recorded_at", None)
+            self._record_diary_result(success=diary_entry is not None, recorded_at=recorded_at)
 
         fast_weight_metadata = self._build_fast_weight_metadata(
             loop_result.decision_bundle,
@@ -268,6 +293,9 @@ class AlphaTradeLoopRunner:
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
+        coverage_snapshot = dict(self.describe_diary_coverage())
+        loop_metadata_updates.setdefault("diary_coverage", coverage_snapshot)
+        trade_metadata.setdefault("diary_coverage", dict(coverage_snapshot))
         if attribution_payload:
             diary_annotations["attribution"] = attribution_payload
             loop_metadata_updates["attribution"] = attribution_payload
@@ -312,6 +340,13 @@ class AlphaTradeLoopRunner:
                 diary_entry=updated_entry,
                 metadata=MappingProxyType(merged_loop_metadata),
             )
+        elif loop_metadata_updates:
+            merged_loop_metadata = dict(loop_result.metadata)
+            merged_loop_metadata.update(loop_metadata_updates)
+            loop_result = replace(
+                loop_result,
+                metadata=MappingProxyType(merged_loop_metadata),
+            )
 
         if loop_result.metadata.get("trade_metadata") != trade_metadata:
             merged_loop_metadata = dict(loop_result.metadata)
@@ -334,6 +369,134 @@ class AlphaTradeLoopRunner:
             trade_intent=dict(intent_payload) if intent_payload is not None else None,
             trade_outcome=trade_outcome,
         )
+
+    def describe_diary_coverage(self) -> Mapping[str, Any]:
+        snapshot: dict[str, Any] = {
+            "target": self._diary_target,
+            "iterations": self._diary_iterations,
+            "recorded": self._diary_recorded,
+            "missing": self._diary_missing,
+            "coverage": round(self._diary_coverage_value, 4),
+            "minimum_samples": self._diary_min_samples,
+        }
+        if self._last_diary_recorded_at is not None:
+            snapshot["last_recorded_at"] = self._last_diary_recorded_at.isoformat()
+        if self._diary_gap_alert > timedelta(0):
+            snapshot["gap_threshold_seconds"] = self._diary_gap_alert.total_seconds()
+            snapshot["gap_breach"] = self._diary_gap_alert_emitted
+        return snapshot
+
+    def _record_diary_result(self, *, success: bool, recorded_at: datetime | None) -> None:
+        now = self._current_time()
+        previous_last = self._last_diary_recorded_at
+
+        self._diary_iterations += 1
+
+        if success:
+            resolved_recorded = self._ensure_utc(recorded_at) if recorded_at is not None else now
+            self._diary_recorded += 1
+            if previous_last is None or resolved_recorded >= previous_last:
+                self._last_diary_recorded_at = resolved_recorded
+            else:
+                self._last_diary_recorded_at = previous_last
+        else:
+            self._diary_missing += 1
+
+        if self._diary_iterations:
+            self._diary_coverage_value = self._diary_recorded / self._diary_iterations
+        else:  # pragma: no cover - defensive guard
+            self._diary_coverage_value = 1.0
+
+        current_last = self._last_diary_recorded_at
+
+        self._evaluate_diary_coverage()
+        self._evaluate_diary_gap(
+            now=now,
+            previous_recorded=previous_last,
+            current_recorded=current_last,
+            success=success,
+        )
+
+    def _evaluate_diary_coverage(self) -> None:
+        if self._diary_iterations < self._diary_min_samples:
+            return
+        target = self._diary_target
+        if target <= 0.0:
+            return
+        coverage = self._diary_coverage_value
+        if coverage + 1e-9 < target:
+            if not self._diary_alert_emitted:
+                logger.warning(
+                    "Decision diary coverage %.2f%% below %.2f%% target",
+                    coverage * 100.0,
+                    target * 100.0,
+                    extra={
+                        "diary_iterations": self._diary_iterations,
+                        "diary_recorded": self._diary_recorded,
+                        "diary_missing": self._diary_missing,
+                    },
+                )
+                self._diary_alert_emitted = True
+        elif coverage >= target and self._diary_alert_emitted:
+            logger.info(
+                "Decision diary coverage recovered to %.2f%% (target %.2f%%)",
+                coverage * 100.0,
+                target * 100.0,
+            )
+            self._diary_alert_emitted = False
+
+    def _evaluate_diary_gap(
+        self,
+        *,
+        now: datetime,
+        previous_recorded: datetime | None,
+        current_recorded: datetime | None,
+        success: bool,
+    ) -> None:
+        threshold = self._diary_gap_alert
+        if threshold <= timedelta(0):
+            return
+        if not success:
+            reference = previous_recorded
+            if reference is None:
+                return
+            elapsed = now - reference
+            if elapsed <= timedelta(0):
+                return
+            if elapsed > threshold and not self._diary_gap_alert_emitted:
+                logger.warning(
+                    "Decision diary entries stale for %.1fs (threshold %.1fs)",
+                    elapsed.total_seconds(),
+                    threshold.total_seconds(),
+                    extra={
+                        "diary_gap_seconds": elapsed.total_seconds(),
+                        "diary_last_recorded_at": reference.isoformat(),
+                    },
+                )
+                self._diary_gap_alert_emitted = True
+            return
+
+        if success:
+            if self._diary_gap_alert_emitted and current_recorded is not None:
+                elapsed_since_recorded = now - current_recorded
+                if elapsed_since_recorded < timedelta(0):
+                    elapsed_since_recorded = timedelta(0)
+                logger.info(
+                    "Decision diary entries refreshed after %.1fs gap (threshold %.1fs)",
+                    elapsed_since_recorded.total_seconds(),
+                    threshold.total_seconds(),
+                )
+            self._diary_gap_alert_emitted = False
+
+    def _current_time(self) -> datetime:
+        candidate = self._clock()
+        if isinstance(candidate, datetime):
+            return candidate if candidate.tzinfo else candidate.replace(tzinfo=timezone.utc)
+        raise TypeError("clock must return datetime instances")
+
+    @staticmethod
+    def _ensure_utc(value: datetime) -> datetime:
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
     @staticmethod
     def _select_top_features(

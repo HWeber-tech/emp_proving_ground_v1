@@ -30,6 +30,7 @@
   z-score windows with deterministic sampling constraints and guardrail
   coverage, though inputs remain synthetic until the ingest backbone is
   live.【F:src/sensory/how/how_sensor.py†L21-L210】【F:src/sensory/anomaly/anomaly_sensor.py†L21-L302】【F:src/sensory/anomaly/basic_detector.py†L1-L140】【F:tests/sensory/test_how_anomaly_sensors.py†L170-L294】【F:tests/sensory/test_basic_anomaly_detector.py†L1-L39】
+- Progress: The executable anomaly organ now tracks the last frame timestamp, length, and close value so it can ignore replayed candles while still ingesting new ticks, keeping rolling windows stable during ingest replays under regression coverage.【F:src/sensory/organs/dimensions/executable_organs.py†L376-L480】【F:tests/sensory/test_dimension_organs.py†L225-L304】
 - Institutional understanding engine now injects a bounded random source for
   jitter, normalises NaN/∞ samples, and reads bid/ask spreads so HOW signals
   respond to order-book shifts; regression fixtures assert bullish versus

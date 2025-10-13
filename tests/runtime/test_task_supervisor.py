@@ -164,6 +164,63 @@ async def test_supervisor_restarts_task_until_success(caplog: pytest.LogCaptureF
 
 
 @pytest.mark.asyncio()
+async def test_supervisor_hang_timeout_triggers_restart(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    supervisor = TaskSupervisor(namespace="test-hang")
+    attempts = 0
+    completion_flag = asyncio.Event()
+
+    async def _workload() -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            await asyncio.sleep(0.2)
+        else:
+            completion_flag.set()
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        task = supervisor.create(
+            _workload(),
+            name="hang-task",
+            restart_callback=_workload,
+            max_restarts=3,
+            restart_backoff=0.0,
+            hang_timeout=0.05,
+        )
+        snapshots = supervisor.describe()
+        assert snapshots and pytest.approx(0.05, rel=1e-3) == snapshots[0]["hang_timeout_seconds"]
+        await asyncio.wait_for(completion_flag.wait(), timeout=1.0)
+        await asyncio.wait_for(task, timeout=1.0)
+
+    assert attempts == 2
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("hang-task exceeded hang timeout" in message for message in messages)
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_supervisor_hang_timeout_without_restart(caplog: pytest.LogCaptureFixture) -> None:
+    supervisor = TaskSupervisor(namespace="test-hang-fail")
+
+    async def _hang() -> None:
+        await asyncio.sleep(0.2)
+
+    with caplog.at_level(logging.ERROR, logger=supervisor._logger.name):
+        task = supervisor.create(
+            _hang(),
+            name="hang-failure",
+            hang_timeout=0.05,
+        )
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(task, timeout=1.0)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("hang-failure exceeded hang timeout" in message for message in messages)
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
 async def test_supervisor_cancel_all_reports_hung_tasks(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

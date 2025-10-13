@@ -569,6 +569,41 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio()
+async def test_runtime_builder_configures_hang_timeouts(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_INGEST_HANG_TIMEOUT_SECONDS": "12.5",
+            "RUNTIME_TRADING_HANG_TIMEOUT_SECONDS": "7.5",
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    runtime_app = build_professional_runtime_application(
+        app,
+        skip_ingest=False,
+        symbols_csv="EURUSD",
+        duckdb_path=str(tmp_path / "tier0.duckdb"),
+    )
+
+    try:
+        assert runtime_app.ingestion is not None
+        assert runtime_app.trading is not None
+        assert runtime_app.ingestion.hang_timeout == pytest.approx(12.5)
+        assert runtime_app.trading.hang_timeout == pytest.approx(7.5)
+
+        runtime_summary = runtime_app.summary()
+        assert runtime_summary["ingestion"].get("hang_timeout_seconds") == pytest.approx(12.5)
+        assert runtime_summary["trading"].get("hang_timeout_seconds") == pytest.approx(7.5)
+    finally:
+        await runtime_app.shutdown()
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
 async def test_professional_app_summary_includes_runtime_application(tmp_path):
     cfg = SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,
@@ -1922,6 +1957,24 @@ def test_normalise_ingest_plan_metadata_handles_iterables(
     value: object, expected: list[str]
 ) -> None:
     assert _normalise_ingest_plan_metadata(value) == expected
+
+
+def test_resolve_workload_hang_timeout_parses_values() -> None:
+    extras = {"RUNTIME_INGEST_HANG_TIMEOUT_SECONDS": "42.5"}
+    resolved = runtime_builder_module._resolve_workload_hang_timeout(
+        extras,
+        component="ingest",
+        default_timeout=30.0,
+    )
+    assert resolved == pytest.approx(42.5)
+
+    extras_invalid = {"RUNTIME_INGEST_HANG_TIMEOUT_SECONDS": "-10"}
+    resolved_invalid = runtime_builder_module._resolve_workload_hang_timeout(
+        extras_invalid,
+        component="ingest",
+        default_timeout=30.0,
+    )
+    assert resolved_invalid == pytest.approx(30.0)
 
 
 @pytest.mark.asyncio()

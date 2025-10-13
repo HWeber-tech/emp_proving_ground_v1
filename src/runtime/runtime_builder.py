@@ -916,6 +916,7 @@ class RuntimeWorkload:
     description: str
     metadata: Mapping[str, object] | None = None
     restart_policy: WorkloadRestartPolicy | None = None
+    hang_timeout: float | None = None
 
 
 @dataclass
@@ -1129,6 +1130,7 @@ class RuntimeApplication:
                             restart_backoff=0.0
                             if restart_policy is None
                             else restart_policy.backoff_seconds,
+                            hang_timeout=workload.hang_timeout,
                         )
                         task_mapping[task] = workload
                         all_tasks.add(task)
@@ -1208,6 +1210,8 @@ class RuntimeApplication:
                     "max_restarts": workload.restart_policy.max_restarts,
                     "backoff_seconds": workload.restart_policy.backoff_seconds,
                 }
+            if workload.hang_timeout is not None:
+                payload["hang_timeout_seconds"] = workload.hang_timeout
             return payload
 
         summary: MutableMapping[str, object] = {
@@ -2691,6 +2695,7 @@ def _build_bootstrap_workload(
     db_path: str,
     reason: str | None = None,
     restart_policy: WorkloadRestartPolicy,
+    hang_timeout: float | None,
 ) -> RuntimeWorkload:
     metadata: dict[str, object] = {
         "mode": app.config.data_backbone_mode.value,
@@ -2712,6 +2717,7 @@ def _build_bootstrap_workload(
         description="Tier-0 DuckDB ingest",
         metadata=metadata,
         restart_policy=restart_policy,
+        hang_timeout=hang_timeout,
     )
 
 
@@ -2873,6 +2879,47 @@ def _resolve_workload_restart_policy(
     )
 
 
+def _resolve_workload_hang_timeout(
+    extras: Mapping[str, object],
+    *,
+    component: str,
+    default_timeout: float | None,
+) -> float | None:
+    """Resolve hang-timeout configuration for a runtime workload."""
+
+    key = f"RUNTIME_{component.upper()}_HANG_TIMEOUT_SECONDS"
+    raw_value = extras.get(key)
+    if raw_value is None:
+        return default_timeout
+
+    text = str(raw_value).strip()
+    lowered = text.lower()
+    if lowered in {"", "none", "null", "disabled", "off"}:
+        return None
+
+    try:
+        value = float(text)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid %s value %r; using default %s",
+            key,
+            raw_value,
+            default_timeout,
+        )
+        return default_timeout
+
+    if value <= 0:
+        logger.warning(
+            "Non-positive %s value %r; using default %s",
+            key,
+            raw_value,
+            default_timeout,
+        )
+        return default_timeout
+
+    return value
+
+
 def _configure_runtime_logging(config: SystemConfig) -> None:
     extras = config.extras or {}
     if not _coerce_bool(extras.get("RUNTIME_LOG_STRUCTURED"), False):
@@ -2968,6 +3015,12 @@ def _configure_drift_monitor(
         return
 
     interval_seconds = max(1.0, _coerce_float(extras.get("RUNTIME_DRIFT_MONITOR_INTERVAL_SECONDS"), 120.0))
+    default_hang_timeout = max(interval_seconds * 4.0, interval_seconds + 60.0)
+    hang_timeout = _resolve_workload_hang_timeout(
+        extras,
+        component="drift_monitor",
+        default_timeout=default_hang_timeout,
+    )
 
     workload_metadata = {
         "interval_seconds": interval_seconds,
@@ -3039,6 +3092,7 @@ def _configure_drift_monitor(
                 max_restarts=None,
                 backoff_seconds=max(5.0, min(interval_seconds, 60.0)),
             ),
+            hang_timeout=hang_timeout,
         )
     )
 
@@ -3344,6 +3398,11 @@ def build_professional_runtime_application(
         default_backoff=5.0,
     )
     ingest_restart_policy = resolved_ingest_policy.policy
+    ingest_hang_timeout = _resolve_workload_hang_timeout(
+        extras_mapping,
+        component="ingest",
+        default_timeout=600.0,
+    )
     bootstrap_max_restarts = (
         ingest_restart_policy.max_restarts
         if resolved_ingest_policy.max_overridden
@@ -3366,6 +3425,11 @@ def build_professional_runtime_application(
         default_backoff=2.0,
     )
     trading_restart_policy = resolved_trading_policy.policy
+    trading_hang_timeout = _resolve_workload_hang_timeout(
+        extras_mapping,
+        component="trading",
+        default_timeout=180.0,
+    )
 
     ingestion: RuntimeWorkload | None
 
@@ -4433,6 +4497,7 @@ def build_professional_runtime_application(
                 description="Institutional Timescale ingest orchestrator",
                 metadata=metadata,
                 restart_policy=ingest_restart_policy,
+                hang_timeout=ingest_hang_timeout,
             )
         else:
             reason: str | None = None
@@ -4444,6 +4509,7 @@ def build_professional_runtime_application(
                 db_path=duckdb_path,
                 reason=reason,
                 restart_policy=bootstrap_ingest_restart_policy,
+                hang_timeout=ingest_hang_timeout,
             )
 
     trading_metadata: dict[str, object] = {
@@ -4463,6 +4529,7 @@ def build_professional_runtime_application(
         description="Professional Predator trading loop",
         metadata=trading_metadata,
         restart_policy=trading_restart_policy,
+        hang_timeout=trading_hang_timeout,
     )
 
     runtime_app = RuntimeApplication(
@@ -4528,4 +4595,5 @@ __all__ = [
     "build_professional_runtime_application",
     "_normalise_ingest_plan_metadata",
     "_execute_timescale_ingest",
+    "_resolve_workload_hang_timeout",
 ]

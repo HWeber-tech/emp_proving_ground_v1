@@ -283,6 +283,7 @@ from src.operations.sensory_drift import (
 )
 from src.runtime.healthcheck import RuntimeHealthServer
 from src.runtime.predator_app import ProfessionalPredatorApp
+from src.runtime.final_dry_run_support import configure_final_dry_run_support
 from src.runtime.task_supervisor import TaskSupervisor
 from src.trading.risk.risk_api import (
     RISK_API_RUNBOOK,
@@ -3460,6 +3461,8 @@ def build_professional_runtime_application(
             configuration_engine.dispose()
         except Exception:  # pragma: no cover - defensive cleanup
             logger.debug("Failed to dispose configuration audit engine", exc_info=True)
+
+    configure_final_dry_run_support(app)
 
     resolved_ingest_policy = _resolve_workload_restart_policy(
         extras_mapping,

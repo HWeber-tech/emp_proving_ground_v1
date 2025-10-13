@@ -389,6 +389,19 @@ class SystemConfig:
             if k not in recognized_keys:
                 extras[k] = str(v)
 
+        # Final dry run orchestration injects evidence paths via dedicated
+        # environment variables. Mirror them onto the canonical extras keys so
+        # runtime components that look for DECISION_DIARY_PATH /
+        # PERFORMANCE_METRICS_PATH pick them up automatically when operators
+        # rely on the new harness.
+        final_dry_run_diary = extras.get("FINAL_DRY_RUN_DIARY_PATH")
+        if final_dry_run_diary and "DECISION_DIARY_PATH" not in extras:
+            extras["DECISION_DIARY_PATH"] = final_dry_run_diary
+
+        final_dry_run_performance = extras.get("FINAL_DRY_RUN_PERFORMANCE_PATH")
+        if final_dry_run_performance and "PERFORMANCE_METRICS_PATH" not in extras:
+            extras["PERFORMANCE_METRICS_PATH"] = final_dry_run_performance
+
         return cls(
             run_mode=run_mode,
             environment=environment,

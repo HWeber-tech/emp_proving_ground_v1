@@ -130,7 +130,7 @@
     and a replay/evidence checklist covering data backbone hydration, governed
     simulation runs, diary validation, and KPI regeneration so observability
     reviewers can reproduce the paper-trading packet directly from versioned
-    documentation instead of ad-hoc notes.【F:docs/AlphaTrade_Whitepaper.md†L30-L36】【F:docs/AlphaTrade_Whitepaper.md†L341-L362】
+    documentation instead of ad-hoc notes.【F:docs/AlphaTrade_Whitepaper.md†L21-L28】【F:docs/AlphaTrade_Whitepaper.md†L50-L77】
   - Progress: Dry-run audit evaluator now applies minimum runtime and uptime
     thresholds, emitting structured incidents when evidence windows are too
     short or availability slips, with regression coverage confirming the new

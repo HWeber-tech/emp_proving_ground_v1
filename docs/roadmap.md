@@ -110,7 +110,7 @@
 
 **Deliverables**
 - [ ] `[ops]` Live broker integration (sandbox/prod) behind same interfaces; credential rotation & secrets mgmt.
-- [ ] `[risk]` â€œLimitedâ€‘liveâ€ governance gate (explicit ledger entry required to enable any real trades).
+- [x] `[risk]` â€œLimitedâ€‘liveâ€ governance gate (explicit ledger entry required to enable any real trades). _Progress: Ledger release manager now caps default limited-live stages to pilot without a policy record, the release router forces paper routes until a ledger entry exists, and regression coverage asserts forced-paper metadata for missing governance approvals so real trading stays disabled by default.【F:src/governance/policy_ledger.py†L550-L623】【F:src/trading/execution/release_router.py†L86-L310】【F:tests/governance/test_policy_ledger.py†L331-L345】【F:tests/trading/test_release_execution_router.py†L88-L167】_
 - [ ] `[ops]` Endâ€‘toâ€‘end audit log export; compliance artifact pack.
 
 **Acceptance (DoD)**
@@ -133,10 +133,10 @@
 - [x] `[adapt]` (Âµ+Î») evolution mode in addition to tournament selection. _Progress: EvolutionConfig now exposes a `mu_plus_lambda` mode with survivor retention, configurable offspring counts, and fitness-safe parent sampling, and the regression suite locks survivor preservation plus invalid config guards.【F:src/core/evolution/engine.py†L45-L320】【F:tests/current/test_evolution_engine_basic.py†L1-L58】_
 - [x] `[adapt]` `op_mix_strategies` (ensembles) with stability penalties (switching frictions). _Progress: The new strategy mixer operator blends scored tactics with friction, decay, and bounds enforcement, exports typed dataclasses, and ships regression coverage for score prioritisation, friction decay, and max-share enforcement so ensemble evolution can progress beyond the backlog stub.【F:src/evolution/mutation/strategy_mixer.py†L1-L200】【F:tests/evolution/test_strategy_mix_operator.py†L1-L118】_
 - [ ] `[reflect]` Counterfactual explainers per trade (why not alternative topology).
-- [ ] `[core]` HMMâ€‘based RegimeFSM v2; learned transition priors.
+- [x] `[core]` HMMâ€‘based RegimeFSM v2; learned transition priors. _Progress: RegimeFSM now embeds an online Gaussian HMM that learns transition counts, emits regime probability matrices, and exposes the learned parameters through metadata and health checks with regression coverage proving priors update across belief sequences.【F:src/understanding/belief.py†L905-L1250】【F:tests/understanding/test_belief_updates.py†L321-L456】_
 - [x] `[obs]` Prometheus/Grafana (or cloud) monitoring; SLO alerting as code. _Progress: Prometheus rule files, Grafana provisioning, and the operations runbook now live in-repo with tests guarding alert coverage and dashboard wiring so SLO panels and alerts stay reproducible.【F:config/prometheus/emp_rules.yml†L1-L65】【F:config/grafana/dashboards/json/emp_observability.json†L1-L200】【F:docs/operations/prometheus_grafana.md†L1-L26】【F:tests/config/test_prometheus_monitoring.py†L1-L50】【F:tests/config/test_grafana_dashboard.py†L1-L45】_
 - [ ] `[ops]` K8s deployment (dev/paper); sealed secrets; autoscaling for replay jobs.
-- [ ] `[docs]` Whitepaper v1 (architecture + governance + empirical results).
+- [x] `[docs]` Whitepaper v1 (architecture + governance + empirical results). _Progress: Whitepaper v1 now inventories each loop layer, tabulates guardrail evidence, and publishes reproducible command drills so reviewers trace roadmap Definition-of-Done checks to executable artifacts and context packs.【F:docs/AlphaTrade_Whitepaper.md†L1-L77】_
 
 ---
 
@@ -195,3 +195,11 @@
 - 574873e1 refactor(orchestration): tune 5 files (2025-10-13)
 - 29755921 feat(trading): add 5 files (2025-10-13)
 - 4e57f692 docs(docs): tune 1 file (2025-10-13)
+
+## Automation updates — 2025-10-13T13:44:20Z
+
+### Last 4 commits
+- 4321cc3d docs(docs): tune 1 file (2025-10-13)
+- 7ad61ea2 refactor(governance): tune 4 files (2025-10-13)
+- 86adfce5 refactor(understanding): tune 2 files (2025-10-13)
+- e88e77b3 docs(docs): tune 1 file (2025-10-13)

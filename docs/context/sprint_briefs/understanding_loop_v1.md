@@ -39,7 +39,7 @@
   - *Progress*: Belief buffer and emitter publish schema-versioned `BeliefState`
     snapshots with Hebbian PSD guardrails and regime FSM events, backed by
     guardrail pytest coverage and golden fixtures to prevent contract drift.【F:src/understanding/belief.py†L39-L347】【F:tests/understanding/test_belief_updates.py†L111-L239】【F:tests/understanding/golden/belief_snapshot.json†L1-L939】
-  - *Progress*: Regime FSM now emits structured transition events with latency/volatility metadata, retains a bounded history, and surfaces health metrics so routing audits can trace regime flips under regression coverage.【F:src/understanding/belief.py†L695-L878】【F:tests/understanding/test_belief_updates.py†L327-L394】
+- *Progress*: Regime FSM now emits structured transition events with latency/volatility metadata, retains a bounded history, and streams online HMM regime probabilities plus transition matrices so routing audits can trace regime flips under regression coverage.【F:src/understanding/belief.py†L905-L1250】【F:tests/understanding/test_belief_updates.py†L321-L456】
   - *Progress*: Dynamic sensory payloads now backfill missing dimensions,
     extend the canonical feature order, and align prior covariance shapes so
     live ingest that adds or drops features continues emitting stable

@@ -286,6 +286,8 @@
   messages to metadata and Markdown while reusing the shared failover helper so
   operational dashboards display the exact broken checks even during runtime bus
   degradation, with pytest covering metadata capture and failover paths.【F:src/operations/system_validation.py†L724-L889】【F:tests/operations/test_system_validation.py†L77-L160】
+- Publish nightly graph diagnostics runs that compute structural metrics, enforce thresholds, and archive review-ready evidence.
+- Progress: Graph diagnostics helpers now summarise node degrees, modularity, and core-periphery ratios, score results against configurable thresholds, persist JSON/DOT/Markdown evidence, and execute via a nightly CLI so observability packs inherit deterministic graph health posture with regression coverage locking the export contract.【F:src/operations/graph_diagnostics.py†L1-L412】【F:tools/operations/nightly_graph_diagnostics.py†L1-L280】【F:tests/operations/test_graph_diagnostics.py†L1-L117】【F:tests/tools/test_nightly_graph_diagnostics.py†L1-L46】
 
 ### Next (30–90 days)
 

@@ -34,7 +34,7 @@
 - [x] `[reflect]` **Decision Diary** table + writer (belief, policy_hash, exec_topo, risk_template, features, decision, ex_post). _Progress: DecisionDiaryStore normalises policy decisions, attaches probe ownership, records reflection summaries, and the CLI exports Markdown/JSON transcripts with guardrail tests for governance evidence.【F:src/understanding/decision_diary.py†L1-L240】【F:tests/tools/test_decision_diary_cli.py†L1-L188】_
 - [ ] `[reflect]` 3â€“5 **synapse probes** (e.g., opening auction, sweep risk, imbalance surge). _Progress: WHAT sensor now emits trend-strength telemetry, metadata, and lineage parity so probes discriminate bullish versus bearish sequences under regression coverage.【F:src/sensory/what/what_sensor.py†L83-L200】【F:tests/sensory/test_primary_dimension_sensors.py†L35-L83】_
 - [ ] `[reflect]` **Drift Sentry** (Pageâ€“Hinkley/CUSUM) + actions (freeze exploration, halve size) + â€œtheory packetâ€.
-- [ ] `[obs]` Graph diagnostics nightly job: degree hist, modularity, coreâ€“periphery (thresholds set).
+- [x] `[obs]` Graph diagnostics nightly job: degree hist, modularity, coreâ€“periphery (thresholds set). _Progress: Nightly graph diagnostics job now computes degree histograms, modularity, and core ratios, evaluates thresholds, archives JSON/DOT/markdown snapshots, and exports CLI wiring with pytest coverage so observability packs inherit deterministic graph health evidence each run.【F:src/operations/graph_diagnostics.py†L1-L412】【F:tools/operations/nightly_graph_diagnostics.py†L1-L280】【F:tests/operations/test_graph_diagnostics.py†L1-L117】【F:tests/tools/test_nightly_graph_diagnostics.py†L1-L46】_
 
 **Acceptance (DoD)**
 - [x] `[sim]` **Determinism**: Replay same tape + seeds â‡’ identical diary & PnL. _Progress: Paper replay determinism now seeds the runtime via `seed_runtime`, replays the bootstrap simulation twice against the same tape, and asserts identical decision diaries and performance snapshots so reproducibility becomes a hard gate under pytest coverage.【F:src/runtime/determinism.py†L1-L64】【F:src/runtime/paper_simulation.py†L1-L219】【F:tests/runtime/test_replay_determinism.py†L1-L174】_
@@ -50,7 +50,7 @@
 **Genotype/Phenotype & Operators**
 - [x] `[adapt]` **StrategyGenotype/Phenotype** contracts (fields: features, exec topology, risk template, tunables). _Progress: Immutable strategy contracts now normalise feature, topology, tunable, and risk definitions and realise phenotypes with override guards and metadata merges, while regression tests exercise override paths, duplicate detection, and bound enforcement so evolution operators can consume a typed schema immediately.【F:src/thinking/adaptation/strategy_contracts.py†L1-L409】【F:tests/thinking/adaptation/test_strategy_contracts.py†L17-L119】_
 - [ ] `[adapt]` Operators: `op_add_feature`, `op_drop_feature`, `op_swap_execution_topology`, `op_tighten_risk`.
-- [ ] `[adapt]` Operator constraints (allowed domain, regimeâ€‘aware rules).
+- [x] `[adapt]` Operator constraints (allowed domain, regimeâ€‘aware rules). _Progress: Operator constraint schemas now parse mappings/sequences into typed sets, EvolutionManager resolves constraint bundles per strategy, AlphaTrade threads regime state into adaptation, and regression suites cover allow/deny flows so adaptive operators respect stage/regime gates and parameter bounds before registering variants.【F:src/thinking/adaptation/operator_constraints.py†L1-L388】【F:src/thinking/adaptation/evolution_manager.py†L80-L412】【F:src/orchestration/alpha_trade_loop.py†L658-L699】【F:tests/thinking/test_operator_constraints.py†L1-L104】【F:tests/thinking/test_evolution_manager.py†L310-L455】_
 
 **Search & Selection**
 - [ ] `[adapt]` **Tournament selection** over **regime grid** (multiâ€‘regime fitness table).
@@ -164,13 +164,13 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-13T16:17:04Z
+## Automation updates — 2025-10-13T16:44:42Z
 
 ### Last 4 commits
+- 77357fe0 feat(orchestration): add 6 files (2025-10-13)
+- 2de10b0f feat(operations): add 5 files (2025-10-13)
+- a83a9a42 docs(docs): tune 4 files (2025-10-13)
 - 7ef08544 feat(thinking): add 4 files (2025-10-13)
-- fb7eb27a feat(runtime): add 3 files (2025-10-13)
-- 262b6dcd refactor(understanding): tune 5 files (2025-10-13)
-- 9b789bf1 docs(docs): tune 4 files (2025-10-13)
 
 ## Automation updates — 2025-10-13T15:45:02Z
 

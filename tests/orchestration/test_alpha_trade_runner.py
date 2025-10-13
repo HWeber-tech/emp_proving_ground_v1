@@ -17,7 +17,11 @@ from src.understanding.belief import BeliefBuffer, BeliefEmitter, RegimeFSM
 from src.understanding.decision_diary import DecisionDiaryStore
 from src.understanding.router import UnderstandingRouter
 from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
-from src.thinking.adaptation.policy_router import PolicyRouter, PolicyTactic
+from src.thinking.adaptation.policy_router import (
+    FastWeightExperiment,
+    PolicyRouter,
+    PolicyTactic,
+)
 
 
 UTC = timezone.utc
@@ -244,6 +248,121 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert isinstance(performance_health, dict)
     assert performance_health.get("healthy") is True
     assert result.trade_metadata.get("performance_health") == performance_health
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_merges_counterfactual_guardrail(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+
+    buffer = BeliefBuffer(belief_id="alpha-live-belief")
+    belief_emitter = BeliefEmitter(
+        buffer=buffer,
+        event_bus=object(),
+    )
+    regime_fsm = RegimeFSM(
+        event_bus=object(),
+        signal_id="alpha-live-signal",
+    )
+
+    policy_router = PolicyRouter()
+    policy_router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha.live",
+            base_weight=1.0,
+            parameters={
+                "symbol": "EURUSD",
+                "side": "buy",
+                "size": 25_000,
+                "price": 1.2345,
+            },
+            guardrails={},
+            regime_bias={"balanced": 1.0},
+            confidence_sensitivity=0.0,
+        )
+    )
+    understanding_router = UnderstandingRouter(policy_router)
+    understanding_router.policy_router.register_experiment(
+        FastWeightExperiment(
+            experiment_id="live_counterfactual",
+            tactic_id="alpha.live",
+            delta=1.0,
+            rationale="force counterfactual guardrail",
+            min_confidence=0.0,
+        )
+    )
+
+    diary_store = DecisionDiaryStore(tmp_path / "counterfactual_diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "counterfactual_ledger.json")
+    ledger_store.upsert(
+        policy_id="alpha.live",
+        tactic_id="alpha.live",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha-live",
+    )
+    release_manager = LedgerReleaseManager(ledger_store)
+    drift_gate = DriftSentryGate()
+
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=understanding_router,
+        diary_store=diary_store,
+        drift_gate=drift_gate,
+        release_manager=release_manager,
+    )
+
+    runner = AlphaTradeLoopRunner(
+        belief_emitter=belief_emitter,
+        regime_fsm=regime_fsm,
+        orchestrator=orchestrator,
+        trading_manager=trading_manager,
+        understanding_router=understanding_router,
+    )
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 2, 12, 0, tzinfo=UTC),
+        "price": 1.2345,
+        "quantity": 25_000,
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.1, "confidence": 0.9},
+        },
+        "integrated_signal": {"strength": 0.2, "confidence": 0.9},
+    }
+
+    existing_guardrails = {
+        "risk_guardrail": {
+            "breached": True,
+            "force_paper": True,
+            "reason": "risk_guardrail_active",
+        }
+    }
+
+    result = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={
+            "policy_id": "alpha.live",
+            "guardrails": existing_guardrails,
+        },
+    )
+
+    assert trading_manager.intents, "expected trade intent to be forwarded"
+    intent_metadata = trading_manager.intents[0]["metadata"]
+
+    guardrails = result.trade_metadata.get("guardrails")
+    assert isinstance(guardrails, dict)
+    assert guardrails.get("force_paper") is True
+    counterfactual = guardrails.get("counterfactual_guardrail")
+    assert isinstance(counterfactual, dict)
+    assert counterfactual.get("breached") is True
+    assert counterfactual.get("reason") == "counterfactual_guardrail_delta_exceeded"
+    assert counterfactual.get("action") == "force_paper"
+    assert guardrails.get("risk_guardrail") == existing_guardrails["risk_guardrail"]
+
+    assert intent_metadata.get("guardrails") == guardrails
+    assert result.trade_outcome.metadata.get("guardrails") == guardrails
 
 
 @pytest.mark.asyncio()

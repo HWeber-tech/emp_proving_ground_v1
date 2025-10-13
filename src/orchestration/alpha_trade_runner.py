@@ -191,8 +191,13 @@ class AlphaTradeLoopRunner:
         if "fast_weight" not in trade_metadata:
             trade_metadata["fast_weight"] = dict(fast_weight_metadata)
         guardrails_payload = dict(loop_result.decision.guardrails)
+        merged_guardrails: dict[str, Any] | None = None
         if guardrails_payload:
-            trade_metadata.setdefault("guardrails", guardrails_payload)
+            merged_guardrails = self._merge_guardrail_payload(
+                trade_metadata.get("guardrails"),
+                guardrails_payload,
+            )
+            trade_metadata["guardrails"] = merged_guardrails
 
         attribution_payload = self._build_order_attribution(
             belief_state=belief_state,
@@ -210,8 +215,14 @@ class AlphaTradeLoopRunner:
                 metadata_payload["fast_weight"] = dict(fast_weight_metadata)
             if attribution_payload and "attribution" not in metadata_payload:
                 metadata_payload["attribution"] = attribution_payload
-            if guardrails_payload and "guardrails" not in metadata_payload:
-                metadata_payload["guardrails"] = guardrails_payload
+            if guardrails_payload:
+                base_guardrails = metadata_payload.get("guardrails")
+                if base_guardrails is None and merged_guardrails is not None:
+                    base_guardrails = merged_guardrails
+                metadata_payload["guardrails"] = self._merge_guardrail_payload(
+                    base_guardrails,
+                    guardrails_payload,
+                )
             raw_intent["metadata"] = metadata_payload
             intent_payload = raw_intent
         if intent_payload is None:
@@ -856,6 +867,39 @@ class AlphaTradeLoopRunner:
             }
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
             return [AlphaTradeLoopRunner._normalise_metadata_value(item) for item in value]
+        return value
+
+    @staticmethod
+    def _merge_guardrail_payload(
+        existing: Mapping[str, Any] | None,
+        addition: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Merge guardrail payloads without mutating the original mappings."""
+
+        base: dict[str, Any] = {}
+        if isinstance(existing, Mapping):
+            for key, value in existing.items():
+                base[str(key)] = AlphaTradeLoopRunner._clone_guardrail_value(value)
+
+        for key, value in addition.items():
+            key_str = str(key)
+            current = base.get(key_str)
+            if isinstance(current, Mapping) and isinstance(value, Mapping):
+                base[key_str] = AlphaTradeLoopRunner._merge_guardrail_payload(current, value)
+                continue
+            base[key_str] = AlphaTradeLoopRunner._clone_guardrail_value(value)
+
+        return base
+
+    @staticmethod
+    def _clone_guardrail_value(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {
+                str(key): AlphaTradeLoopRunner._clone_guardrail_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [AlphaTradeLoopRunner._clone_guardrail_value(item) for item in value]
         return value
 
     @staticmethod

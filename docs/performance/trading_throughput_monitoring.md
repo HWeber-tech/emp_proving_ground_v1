@@ -29,6 +29,10 @@ the following keys:
 | `throttle_remaining_trades` | Remaining trade credits in the active window. |
 | `throttle_max_trades` | Maximum trade credits allocated to the active window. |
 | `throttle_window_utilisation` | Current utilisation percentage of the active rate window. |
+| `throttle_remaining_notional` | Remaining notional budget within the active window. |
+| `throttle_max_notional` | Maximum notional budget allocated to the active window. |
+| `throttle_notional_utilisation` | Portion of the notional budget currently consumed (0-1). |
+| `throttle_consumed_notional` | Aggregate notional used in the active window. |
 | `throttle_scope` | Metadata describing the scope (e.g. strategy) that triggered throttling. |
 | `throttle_scope_key` | Normalised scope identifier list for programmatic routing. |
 
@@ -38,10 +42,10 @@ The monitor accepts ingestion timestamps from `ingested_at`, `created_at`,
 
 `TradingManager` rebuilds this snapshot every time throttle posture changes, so
 the throughput payload always mirrors the most recent retry timers and scope
-metadata without callers needing to interrogate the throttle directly.【F:src/trading/trading_manager.py†L521-L839】【F:src/trading/trading_manager.py†L1433-L1450】
+metadata without callers needing to interrogate the throttle directly.【F:src/trading/trading_manager.py†L542-L906】【F:src/trading/trading_manager.py†L1433-L1450】
 Regression coverage asserts throttled runs surface the enriched payload while
 disabling the throttle clears the guardrail fields, keeping dashboards and
-evidence packs in sync with real posture.【F:tests/trading/test_trading_manager_execution.py†L2092-L2160】
+evidence packs in sync with real posture.【F:tests/trading/test_trading_manager_execution.py†L2046-L2169】
 
 Execution stats additionally expose aggregate backlog counters so operators can
 prove that bursts remain under control:
@@ -191,10 +195,10 @@ utilisation without re-querying the throttle in-process. The manager also
 exposes `get_trade_throttle_scope_snapshots()` for callers that need a tuple of
 deep-copied payloads, and `collect_performance_baseline()` adds the same data as
 `throttle_scopes` so performance dossiers archive the guardrail state observed
-during a drill.【F:src/trading/trading_manager.py†L621-L725】【F:src/trading/execution/performance_baseline.py†L52-L74】
+during a drill.【F:src/trading/trading_manager.py†L542-L569】【F:src/trading/trading_manager.py†L2614-L2619】【F:src/trading/execution/performance_baseline.py†L52-L74】
 Guardrail suites assert the scopes list populates when throttles block, the
 baseline helper includes the snapshots, and both surfaces clear the list once
-throttling is disabled.【F:tests/trading/test_trade_throttle.py†L171-L210】【F:tests/trading/test_trading_manager_execution.py†L2092-L2138】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】
+throttling is disabled.【F:tests/trading/test_trade_throttle.py†L160-L210】【F:tests/trading/test_trading_manager_execution.py†L2046-L2144】【F:tests/trading/test_trading_manager_execution.py†L2860-L2923】
 
 ### Countdown telemetry & capacity summaries
 

@@ -2177,6 +2177,97 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
 
 
 @pytest.mark.asyncio()
+async def test_trade_throttle_blocks_on_notional_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={
+            "max_trades": 5,
+            "window_seconds": 120.0,
+            "max_notional": 1_000.0,
+        },
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    first_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=600.0,
+        price=1.0,
+        confidence=0.8,
+        strategy_id="alpha",
+    )
+    second_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=500.0,
+        price=1.0,
+        confidence=0.8,
+        strategy_id="alpha",
+    )
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=[first_intent, second_intent])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    caplog.set_level(logging.WARNING, logger="src.trading.trading_manager")
+
+    await manager.on_trade_intent(first_intent)
+    await manager.on_trade_intent(second_intent)
+
+    assert engine.calls == 1
+    stats = manager.get_execution_stats()
+    assert stats.get("throttle_blocks") == 1
+    assert stats.get("throttle_remaining_notional") == pytest.approx(400.0)
+    assert stats.get("throttle_consumed_notional") == pytest.approx(600.0)
+    assert stats.get("throttle_max_notional") == pytest.approx(1_000.0)
+    throughput_snapshot = stats.get("throughput")
+    assert isinstance(throughput_snapshot, Mapping)
+    assert throughput_snapshot.get("throttle_state") == "notional_limit"
+    assert throughput_snapshot.get("throttle_remaining_notional") == pytest.approx(400.0)
+    assert throughput_snapshot.get("throttle_notional_utilisation") == pytest.approx(0.6)
+
+    throttle_snapshot = stats.get("trade_throttle")
+    assert isinstance(throttle_snapshot, Mapping)
+    assert throttle_snapshot.get("state") == "notional_limit"
+    throttle_meta = throttle_snapshot.get("metadata", {})
+    assert throttle_meta.get("consumed_notional") == pytest.approx(600.0)
+    assert throttle_meta.get("attempted_notional") == pytest.approx(500.0)
+    assert throttle_meta.get("remaining_notional") == pytest.approx(400.0)
+
+    events = manager.get_experiment_events()
+    throttled_event = next(event for event in events if event["status"] == "throttled")
+    throttle_metadata = throttled_event.get("metadata", {})
+    assert throttle_metadata.get("reason") == "max_notional_1000_per_120s"
+    nested_snapshot = throttle_metadata.get("throttle", {})
+    assert nested_snapshot.get("state") == "notional_limit"
+    nested_meta = nested_snapshot.get("metadata", {})
+    assert nested_meta.get("attempted_notional") == pytest.approx(500.0)
+
+    history_entry = manager.get_trade_throttle_history()[-1]
+    assert history_entry.get("state") == "notional_limit"
+    assert history_entry.get("max_notional") == pytest.approx(1_000.0)
+    assert history_entry.get("remaining_notional") == pytest.approx(400.0)
+
+    throttled_logs = [
+        record for record in caplog.records if "Throttled trade intent" in record.getMessage()
+    ]
+    assert throttled_logs, "expected notional throttle warning"
+    assert any("notional" in record.getMessage().lower() for record in throttled_logs)
+
+
+@pytest.mark.asyncio()
 async def test_backlog_breach_enforces_throttle_cooldown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

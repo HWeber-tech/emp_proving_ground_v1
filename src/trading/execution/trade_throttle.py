@@ -27,6 +27,11 @@ class TradeThrottleConfig(BaseModel):
         ge=1,
         description="Maximum number of trades permitted within the window",
     )
+    max_notional: float | None = Field(
+        default=None,
+        gt=0.0,
+        description="Maximum aggregate notional permitted within the window",
+    )
     window_seconds: float = Field(
         default=60.0,
         gt=0.0,
@@ -106,6 +111,9 @@ class TradeThrottleDecision:
     retry_in_seconds: float | None = None
     evaluated_at: datetime | None = None
     scope_key: tuple[str, ...] = field(default_factory=tuple)
+    remaining_notional: float | None = None
+    notional_utilisation: float | None = None
+    applied_notional: float | None = None
 
     def as_dict(self) -> Mapping[str, Any]:
         """Return a serialisable view of the throttle snapshot."""
@@ -123,6 +131,9 @@ class TradeThrottle:
     _RATE_LIMIT_REASON = re.compile(
         r"^max_(?P<count>\d+)_trades_per_(?P<window>\d+(?:\.\d+)?)s$"
     )
+    _NOTIONAL_LIMIT_REASON = re.compile(
+        r"^max_notional_(?P<notional>\d+(?:\.\d+)?)_per_(?P<window>\d+(?:\.\d+)?)s$"
+    )
     _GLOBAL_SCOPE: tuple[str, ...] = ("__global__",)
 
     @dataclass
@@ -131,6 +142,8 @@ class TradeThrottle:
         cooldown_until: datetime | None = None
         last_trade: datetime | None = None
         scope_descriptor: Mapping[str, Any] | None = None
+        notional_records: Deque[tuple[datetime, float]] = field(default_factory=deque)
+        notional_total: float = 0.0
 
     @dataclass(frozen=True)
     class _ExternalCooldown:
@@ -198,6 +211,14 @@ class TradeThrottle:
         message: str | None = None
         retry_in_seconds: float | None = None
         cooldown_payload = self._external_cooldowns.get(scope_key)
+        applied_notional: float | None = None
+
+        notional_limit = (
+            float(self._config.max_notional)
+            if self._config.max_notional is not None
+            else None
+        )
+        trade_notional = self._resolve_notional(metadata)
 
         if state.cooldown_until is not None and moment < state.cooldown_until:
             allowed = False
@@ -227,12 +248,39 @@ class TradeThrottle:
             else:
                 oldest = state.timestamps[0] if state.timestamps else moment
                 retry_at = oldest + window_duration
+        elif notional_limit is not None:
+            projected_notional = state.notional_total
+            if trade_notional is not None:
+                projected_notional += trade_notional
+            if projected_notional > notional_limit + 1e-9:
+                allowed = False
+                active = True
+                throttle_state = "notional_limit"
+                reason = (
+                    f"max_notional_{notional_limit:g}_per_{window_seconds:g}s"
+                )
+                if state.notional_records:
+                    oldest_notional = state.notional_records[0][0]
+                elif state.timestamps:
+                    oldest_notional = state.timestamps[0]
+                else:
+                    oldest_notional = moment
+                retry_at = oldest_notional + window_duration
+            else:
+                allowed = True
         else:
             allowed = True
+
+        if allowed:
             state.timestamps.append(moment)
             state.cooldown_until = None
             state.last_trade = moment
-
+            if trade_notional is not None:
+                state.notional_records.append((moment, trade_notional))
+                state.notional_total += trade_notional
+                applied_notional = trade_notional
+            else:
+                applied_notional = None
         if message is None:
             message = self._format_reason(reason, retry_at)
 
@@ -252,6 +300,10 @@ class TradeThrottle:
         if retry_at is not None:
             retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
 
+        attempted_notional: float | None = None
+        if not allowed and throttle_state == "notional_limit":
+            attempted_notional = trade_notional
+
         snapshot = self._build_snapshot(
             state=throttle_state,
             active=active,
@@ -270,6 +322,8 @@ class TradeThrottle:
             cooldown_metadata=(
                 cooldown_payload.metadata if cooldown_payload is not None else None
             ),
+            notional_total=state.notional_total,
+            attempted_notional=attempted_notional,
         )
         self._last_snapshot = snapshot
         self._scope_snapshots[scope_key] = snapshot
@@ -282,6 +336,23 @@ class TradeThrottle:
             if not math.isfinite(multiplier):
                 multiplier = None
 
+        remaining_notional: float | None = None
+        notional_utilisation: float | None = None
+        metadata_view = snapshot.get("metadata")
+        if isinstance(metadata_view, Mapping):
+            remaining_raw = metadata_view.get("remaining_notional")
+            utilisation_raw = metadata_view.get("notional_utilisation")
+            try:
+                if isinstance(remaining_raw, (int, float)):
+                    remaining_notional = float(remaining_raw)
+            except (TypeError, ValueError):
+                remaining_notional = None
+            try:
+                if isinstance(utilisation_raw, (int, float)):
+                    notional_utilisation = float(utilisation_raw)
+            except (TypeError, ValueError):
+                notional_utilisation = None
+
         return TradeThrottleDecision(
             allowed=allowed,
             snapshot=snapshot,
@@ -291,6 +362,9 @@ class TradeThrottle:
             retry_in_seconds=retry_in_seconds,
             evaluated_at=moment,
             scope_key=scope_key,
+            remaining_notional=remaining_notional,
+            notional_utilisation=notional_utilisation,
+            applied_notional=applied_notional,
         )
 
     def snapshot(self) -> Mapping[str, Any]:
@@ -346,6 +420,20 @@ class TradeThrottle:
 
         if not removed:
             return None
+
+        applied_notional = decision.applied_notional
+        if applied_notional is not None:
+            records = state.notional_records
+            target_notional = float(applied_notional)
+            for index in range(len(records) - 1, -1, -1):
+                record_time, record_value = records[index]
+                if abs((record_time - moment).total_seconds()) <= 1e-6 and math.isclose(
+                    float(record_value), target_notional, rel_tol=1e-9, abs_tol=1e-6
+                ):
+                    del records[index]
+                    state.notional_total -= float(record_value)
+                    break
+            state.notional_total = max(state.notional_total, 0.0)
 
         if state.last_trade == moment:
             state.last_trade = timestamps[-1] if timestamps else None
@@ -425,6 +513,8 @@ class TradeThrottle:
             cooldown_metadata=(
                 cooldown_payload.metadata if cooldown_payload is not None else None
             ),
+            notional_total=state.notional_total,
+            attempted_notional=None,
         )
 
         if scope_key == self._GLOBAL_SCOPE:
@@ -500,6 +590,8 @@ class TradeThrottle:
             window_reset_in_seconds=None,
             retry_in_seconds=retry_in_seconds,
             cooldown_metadata=metadata_payload,
+            notional_total=state.notional_total,
+            attempted_notional=None,
         )
 
         self._last_snapshot = snapshot
@@ -524,6 +616,8 @@ class TradeThrottle:
             window_reset_at=None,
             window_reset_in_seconds=None,
             retry_in_seconds=None,
+            notional_total=0.0,
+            attempted_notional=None,
         )
 
     def _build_snapshot(
@@ -544,6 +638,8 @@ class TradeThrottle:
         window_reset_in_seconds: float | None,
         retry_in_seconds: float | None,
         cooldown_metadata: Mapping[str, Any] | None = None,
+        notional_total: float = 0.0,
+        attempted_notional: float | None = None,
     ) -> Mapping[str, Any]:
         remaining_trades = max(self._config.max_trades - int(recent_trades), 0)
 
@@ -553,6 +649,24 @@ class TradeThrottle:
             "recent_trades": recent_trades,
             "remaining_trades": remaining_trades,
         }
+        if self._config.max_notional is not None:
+            max_notional_value = float(self._config.max_notional)
+            consumed_notional = max(float(notional_total), 0.0)
+            remaining_notional = max(max_notional_value - consumed_notional, 0.0)
+            utilisation = (
+                0.0
+                if max_notional_value <= 0.0
+                else min(consumed_notional / max_notional_value, 1.0)
+            )
+            meta_payload["max_notional"] = max_notional_value
+            meta_payload["consumed_notional"] = consumed_notional
+            meta_payload["remaining_notional"] = remaining_notional
+            meta_payload["notional_utilisation"] = utilisation
+            if attempted_notional is not None:
+                try:
+                    meta_payload["attempted_notional"] = float(attempted_notional)
+                except (TypeError, ValueError):
+                    meta_payload["attempted_notional"] = attempted_notional
         if self._config.min_spacing_seconds:
             meta_payload["min_spacing_seconds"] = float(self._config.min_spacing_seconds)
         cooldown_seconds = float(self._config.cooldown_seconds)
@@ -569,7 +683,7 @@ class TradeThrottle:
             }
         if cooldown_until is not None:
             meta_payload["cooldown_until"] = cooldown_until.astimezone(UTC).isoformat()
-        if metadata:
+        if isinstance(metadata, Mapping):
             meta_payload["context"] = dict(metadata)
         if cooldown_metadata is not None:
             meta_payload["cooldown_context"] = dict(cooldown_metadata)
@@ -654,6 +768,20 @@ class TradeThrottle:
             f"{label} between trades (retry in {remaining_label} at {retry_iso})"
         )
 
+    def _resolve_notional(self, metadata: Mapping[str, Any] | None) -> float | None:
+        if not isinstance(metadata, Mapping):
+            return None
+        candidate = metadata.get("notional")
+        if candidate is None:
+            return None
+        try:
+            value = float(candidate)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(value):
+            return None
+        return abs(value)
+
     def _resolve_scope(
         self, metadata: Mapping[str, Any] | None
     ) -> tuple[tuple[str, ...], Mapping[str, Any] | None]:
@@ -693,6 +821,11 @@ class TradeThrottle:
         timestamps = state.timestamps
         while timestamps and moment - timestamps[0] >= window:
             timestamps.popleft()
+        notional_records = state.notional_records
+        while notional_records and moment - notional_records[0][0] >= window:
+            _record_time, record_notional = notional_records.popleft()
+            state.notional_total -= float(record_notional)
+        state.notional_total = max(state.notional_total, 0.0)
         if state.cooldown_until is not None and moment >= state.cooldown_until:
             state.cooldown_until = None
             self._external_cooldowns.pop(scope_key, None)
@@ -710,6 +843,8 @@ class TradeThrottle:
         if not self._should_remove_scope(state, moment, window):
             return False
         state.last_trade = None
+        state.notional_records.clear()
+        state.notional_total = 0.0
         self._states.pop(scope_key, None)
         self._scope_snapshots.pop(scope_key, None)
         return True
@@ -727,6 +862,8 @@ class TradeThrottle:
         window: timedelta,
     ) -> bool:
         if state.timestamps:
+            return False
+        if state.notional_records:
             return False
         cooldown_until = state.cooldown_until
         if cooldown_until is not None and moment < cooldown_until:
@@ -799,6 +936,17 @@ class TradeThrottle:
                 f"(limit {count} {trades_label} per {window_label})"
             )
 
+        notional_match = self._NOTIONAL_LIMIT_REASON.match(reason)
+        if notional_match:
+            notional_limit = float(notional_match.group("notional"))
+            window_seconds = float(notional_match.group("window"))
+            window_label = self._format_window_description(window_seconds)
+            notional_label = self._format_notional_value(notional_limit)
+            return (
+                "Throttled: notional limit exceeded "
+                f"(limit {notional_label} per {window_label})"
+            )
+
         return f"Throttle reason: {reason}"
 
     @staticmethod
@@ -835,3 +983,16 @@ class TradeThrottle:
         if seconds.is_integer():
             return f"{int(seconds)} seconds"
         return f"{seconds:.2f} seconds"
+
+    @staticmethod
+    def _format_notional_value(value: float) -> str:
+        if not math.isfinite(value):
+            return str(value)
+        absolute = abs(value)
+        if absolute >= 1_000_000:
+            return f"{value:,.0f}"
+        if absolute >= 1_000:
+            formatted = f"{value:,.2f}"
+        else:
+            formatted = f"{value:g}"
+        return formatted.rstrip("0").rstrip(".") if "." in formatted else formatted

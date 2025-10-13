@@ -30,6 +30,7 @@ class BaselineOptions:
     throttle_cooldown_seconds: float | None = None
     throttle_min_spacing_seconds: float | None = None
     throttle_multiplier: float | None = None
+    throttle_max_notional: float | None = None
     throttle_scope_fields: tuple[str, ...] = field(default_factory=tuple)
     backlog_threshold_ms: float | None = None
     max_processing_ms: float = 250.0
@@ -51,6 +52,8 @@ class BaselineOptions:
             config["min_spacing_seconds"] = self.throttle_min_spacing_seconds
         if self.throttle_multiplier is not None:
             config["multiplier"] = self.throttle_multiplier
+        if self.throttle_max_notional is not None:
+            config["max_notional"] = self.throttle_max_notional
         if self.throttle_scope_fields:
             config["scope_fields"] = self.throttle_scope_fields
         return config
@@ -65,6 +68,7 @@ class BaselineOptions:
             "max_cpu_percent": self.max_cpu_percent,
             "max_memory_mb": self.max_memory_mb,
             "max_memory_percent": self.max_memory_percent,
+            "throttle_max_notional": self.throttle_max_notional,
         }
 
 
@@ -121,6 +125,11 @@ def parse_args(argv: Sequence[str] | None = None) -> BaselineOptions:
         "--throttle-min-spacing-seconds",
         type=float,
         help="required spacing between trades in seconds",
+    )
+    parser.add_argument(
+        "--throttle-max-notional",
+        type=float,
+        help="aggregate notional budget permitted in the throttle window",
     )
     parser.add_argument(
         "--throttle-multiplier",
@@ -195,6 +204,7 @@ def parse_args(argv: Sequence[str] | None = None) -> BaselineOptions:
         throttle_window_seconds=window_seconds,
         throttle_cooldown_seconds=args.throttle_cooldown_seconds,
         throttle_min_spacing_seconds=args.throttle_min_spacing_seconds,
+        throttle_max_notional=args.throttle_max_notional,
         throttle_multiplier=args.throttle_multiplier,
         throttle_scope_fields=scope_fields,
         backlog_threshold_ms=args.backlog_threshold_ms,

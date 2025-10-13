@@ -110,6 +110,82 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     assert fourth_meta.get("window_utilisation") == pytest.approx(1.0)
 
 
+def test_trade_throttle_enforces_notional_limit() -> None:
+    config = TradeThrottleConfig(
+        name="notional",
+        max_trades=5,
+        window_seconds=60.0,
+        max_notional=1_000.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 9, 0, 0, tzinfo=timezone.utc)
+
+    first = throttle.evaluate(
+        now=base,
+        metadata={"symbol": "EURUSD", "strategy_id": "alpha", "notional": 600.0},
+    )
+    assert first.allowed is True
+    assert first.applied_notional == pytest.approx(600.0)
+    meta_first = first.snapshot.get("metadata", {})
+    assert meta_first.get("consumed_notional") == pytest.approx(600.0)
+    assert meta_first.get("remaining_notional") == pytest.approx(400.0)
+    assert meta_first.get("notional_utilisation") == pytest.approx(0.6)
+
+    second = throttle.evaluate(
+        now=base + timedelta(seconds=5),
+        metadata={"symbol": "EURUSD", "strategy_id": "alpha", "notional": 500.0},
+    )
+    assert second.allowed is False
+    assert second.reason == "max_notional_1000_per_60s"
+    assert second.snapshot["state"] == "notional_limit"
+    message = second.snapshot.get("message")
+    assert isinstance(message, str)
+    assert "notional" in message.lower()
+    meta_second = second.snapshot.get("metadata", {})
+    assert meta_second.get("remaining_notional") == pytest.approx(400.0)
+    assert meta_second.get("notional_utilisation") == pytest.approx(0.6)
+    assert meta_second.get("attempted_notional") == pytest.approx(500.0)
+
+    resume = throttle.evaluate(
+        now=base + timedelta(seconds=65),
+        metadata={"symbol": "EURUSD", "strategy_id": "alpha", "notional": 500.0},
+    )
+    assert resume.allowed is True
+    meta_resume = resume.snapshot.get("metadata", {})
+    assert meta_resume.get("consumed_notional") == pytest.approx(500.0)
+    assert meta_resume.get("remaining_notional") == pytest.approx(500.0)
+
+
+def test_trade_throttle_rollback_restores_notional_budget() -> None:
+    config = TradeThrottleConfig(
+        name="rollback-notional",
+        max_trades=3,
+        window_seconds=120.0,
+        max_notional=2_000.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 2, 1, 14, 0, 0, tzinfo=timezone.utc)
+
+    decision = throttle.evaluate(
+        now=base,
+        metadata={"symbol": "GBPUSD", "notional": 1_250.0},
+    )
+    assert decision.allowed is True
+    meta_before = throttle.snapshot().get("metadata", {})
+    assert meta_before.get("consumed_notional") == pytest.approx(1_250.0)
+    assert meta_before.get("remaining_notional") == pytest.approx(750.0)
+
+    throttle.rollback(decision)
+
+    snapshot_after = throttle.snapshot()
+    meta_after = snapshot_after.get("metadata", {})
+    assert meta_after.get("consumed_notional") == pytest.approx(0.0)
+    assert meta_after.get("remaining_notional") == pytest.approx(2_000.0)
+    assert meta_after.get("notional_utilisation") == pytest.approx(0.0)
+
+
 def test_trade_throttle_handles_fractional_window() -> None:
     config = TradeThrottleConfig(
         name="fractional",

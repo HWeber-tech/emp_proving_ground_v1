@@ -137,7 +137,7 @@
   execution decision from the release-aware router, capturing forced paper
   routes, drift severity, and audit metadata so dashboards and audits inherit
   the exact enforcement evidence under regression coverage.【F:src/trading/trading_manager.py†L1068-L1134】【F:src/trading/execution/release_router.py†L98-L154】【F:tests/trading/test_execution_risk_context.py†L119-L165】【F:tests/trading/test_trading_manager_execution.py†L874-L999】
-- Progress: Execution throughput snapshots now embed `throttle_active`, state, reasons, retry timers, remaining capacity, and scope metadata so compliance dashboards and evidence packs can show exactly why trades were blocked without cross-referencing throttle internals; throttled versus disabled flows are locked under regression coverage.【F:src/trading/trading_manager.py†L521-L839】【F:src/trading/trading_manager.py†L1433-L1450】【F:src/trading/trading_manager.py†L1897-L1940】【F:tests/trading/test_trading_manager_execution.py†L2092-L2160】
+- Progress: Execution throughput snapshots now embed `throttle_active`, state, reasons, retry timers, remaining capacity, and scope metadata so compliance dashboards and evidence packs can show exactly why trades were blocked without cross-referencing throttle internals; throttled versus disabled flows are locked under regression coverage.【F:src/trading/trading_manager.py†L542-L906】【F:src/trading/trading_manager.py†L1433-L1450】【F:src/trading/trading_manager.py†L1897-L1940】【F:tests/trading/test_trading_manager_execution.py†L2046-L2169】
 - Progress: Release-aware execution router now inspects policy-ledger audit
   posture, merges DriftSentry overrides with audit enforcement, and records the
   forced-reason history plus audit metadata so compliance snapshots explain why

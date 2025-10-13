@@ -42,11 +42,14 @@ PYTHONPATH=. python3 tools/performance_baseline.py \
   --trades 6 \
   --throttle-max-trades 1 \
   --throttle-window-seconds 60 \
+  --throttle-max-notional 1000 \
   --max-lag-ms 150 \
   --max-processing-ms 150 \
   --max-cpu-percent 75 \
   --output artifacts/perf_baseline.json
 ```
+
+Use `--throttle-max-notional` to bound total notional per window; the baseline payload will surface `throttle_consumed_notional`, `throttle_remaining_notional`, and `throttle_notional_utilisation` alongside the existing trade-count fields.
 
 Sample (truncated) output:
 
@@ -122,4 +125,4 @@ trade throttle activates deterministically under burst conditions. The
 dedicated `get_trade_throttle_scope_snapshots()` helper on the trading manager
 returns the same per-scope payloads used in the baseline so observability
 tooling can reuse the snapshots without rerunning the collection
-routine.【F:src/trading/trading_manager.py†L621-L725】【F:src/trading/execution/performance_baseline.py†L52-L74】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】
+routine.【F:src/trading/trading_manager.py†L542-L569】【F:src/trading/trading_manager.py†L2614-L2619】【F:src/trading/execution/performance_baseline.py†L52-L74】【F:tests/trading/test_trading_manager_execution.py†L2860-L2923】

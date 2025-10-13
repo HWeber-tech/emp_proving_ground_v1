@@ -559,6 +559,10 @@ class TradingManager:
             "last_throttle_multiplier": None,
             "throttle_retry_at": None,
             "throttle_retry_in_seconds": None,
+            "throttle_remaining_notional": None,
+            "throttle_max_notional": None,
+            "throttle_notional_utilisation": None,
+            "throttle_consumed_notional": None,
             "last_throttle_cooldown": None,
             "last_throttle_event": None,
             "throttle_history_size": 0,
@@ -738,6 +742,10 @@ class TradingManager:
             self._execution_stats["throttle_retry_at"] = None
             self._execution_stats["throttle_retry_in_seconds"] = None
             self._execution_stats.pop("trade_throttle_scopes", None)
+            self._execution_stats["throttle_remaining_notional"] = None
+            self._execution_stats["throttle_max_notional"] = None
+            self._execution_stats["throttle_notional_utilisation"] = None
+            self._execution_stats["throttle_consumed_notional"] = None
             self._refresh_throughput_snapshot()
             return
 
@@ -745,6 +753,10 @@ class TradingManager:
         metadata = snapshot_dict.get("metadata")
         retry_at_iso: str | None = None
         retry_in_seconds_value: float | None = None
+        remaining_notional_value: float | None = None
+        consumed_notional_value: float | None = None
+        max_notional_value: float | None = None
+        notional_utilisation_value: float | None = None
         if isinstance(metadata, Mapping):
             metadata_copy = dict(metadata)
             snapshot_dict["metadata"] = metadata_copy
@@ -757,10 +769,26 @@ class TradingManager:
             retry_in_seconds_raw = metadata_copy.get("retry_in_seconds")
             if isinstance(retry_in_seconds_raw, (int, float)):
                 retry_in_seconds_value = float(retry_in_seconds_raw)
+            remaining_raw = metadata_copy.get("remaining_notional")
+            if isinstance(remaining_raw, (int, float)):
+                remaining_notional_value = float(remaining_raw)
+            consumed_raw = metadata_copy.get("consumed_notional")
+            if isinstance(consumed_raw, (int, float)):
+                consumed_notional_value = float(consumed_raw)
+            max_notional_raw = metadata_copy.get("max_notional")
+            if isinstance(max_notional_raw, (int, float)):
+                max_notional_value = float(max_notional_raw)
+            utilisation_raw = metadata_copy.get("notional_utilisation")
+            if isinstance(utilisation_raw, (int, float)):
+                notional_utilisation_value = float(utilisation_raw)
         self._trade_throttle_snapshot = snapshot_dict
         self._execution_stats["trade_throttle"] = snapshot_dict
         self._execution_stats["throttle_retry_at"] = retry_at_iso
         self._execution_stats["throttle_retry_in_seconds"] = retry_in_seconds_value
+        self._execution_stats["throttle_remaining_notional"] = remaining_notional_value
+        self._execution_stats["throttle_max_notional"] = max_notional_value
+        self._execution_stats["throttle_notional_utilisation"] = notional_utilisation_value
+        self._execution_stats["throttle_consumed_notional"] = consumed_notional_value
         multiplier = snapshot_dict.get("multiplier")
         if multiplier is not None:
             try:
@@ -834,10 +862,18 @@ class TradingManager:
         remaining_trades = None
         max_trades = None
         window_utilisation = None
+        remaining_notional = None
+        max_notional_value = None
+        notional_utilisation_value = None
+        consumed_notional = None
         if throttle_metadata is not None:
             remaining_trades = throttle_metadata.get("remaining_trades")
             max_trades = throttle_metadata.get("max_trades")
             window_utilisation = throttle_metadata.get("window_utilisation")
+            remaining_notional = throttle_metadata.get("remaining_notional")
+            max_notional_value = throttle_metadata.get("max_notional")
+            notional_utilisation_value = throttle_metadata.get("notional_utilisation")
+            consumed_notional = throttle_metadata.get("consumed_notional")
 
         snapshot["throttle_active"] = throttle_active
         snapshot["throttle_state"] = throttle_state
@@ -854,6 +890,14 @@ class TradingManager:
             snapshot["throttle_max_trades"] = max_trades
         if window_utilisation is not None:
             snapshot["throttle_window_utilisation"] = window_utilisation
+        if remaining_notional is not None:
+            snapshot["throttle_remaining_notional"] = remaining_notional
+        if max_notional_value is not None:
+            snapshot["throttle_max_notional"] = max_notional_value
+        if notional_utilisation_value is not None:
+            snapshot["throttle_notional_utilisation"] = notional_utilisation_value
+        if consumed_notional is not None:
+            snapshot["throttle_consumed_notional"] = consumed_notional
         if throttle_scope is not None:
             snapshot["throttle_scope"] = throttle_scope
         if throttle_scope_key is not None:
@@ -1939,6 +1983,16 @@ class TradingManager:
             if key in metadata_dict:
                 entry[key] = metadata_dict.get(key)
 
+        for key in (
+            "remaining_notional",
+            "max_notional",
+            "notional_utilisation",
+            "consumed_notional",
+            "attempted_notional",
+        ):
+            if key in metadata_dict:
+                entry[key] = metadata_dict.get(key)
+
         context_block = metadata_dict.get("context")
         if isinstance(context_block, MappingABC) and context_block:
             entry["context"] = dict(context_block)
@@ -1967,8 +2021,11 @@ class TradingManager:
         if event_metadata and isinstance(event_metadata, MappingABC):
             cleaned_event_meta = dict(event_metadata)
             cleaned_event_meta.pop("throttle", None)
-            if cleaned_event_meta:
-                entry["event_metadata"] = cleaned_event_meta
+        if cleaned_event_meta:
+            entry["event_metadata"] = cleaned_event_meta
+
+        if decision is not None and decision.applied_notional is not None:
+            entry["applied_notional"] = decision.applied_notional
 
         return entry
 

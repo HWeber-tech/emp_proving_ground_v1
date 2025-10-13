@@ -13,7 +13,7 @@ from src.data_foundation.cache.redis_cache import (
     ManagedRedisCache,
     RedisCachePolicy,
 )
-from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.persist.timescale import TimescaleConnectionSettings, TimescaleIngestJournal
 from src.data_foundation.pipelines.operational_backbone import (
     OperationalBackbonePipeline,
     OperationalIngestRequest,
@@ -492,3 +492,115 @@ async def test_operational_backbone_streaming_feeds_sensory(tmp_path) -> None:
         await event_bus.stop()
         cache.metrics(reset=True)
         _flush_cache(cache)
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_records_ingest_history(tmp_path) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'pipeline_journal.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, KAFKA_TOPICS)
+    event_bus = EventBus()
+    sensory = RealSensoryOrgan()
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        return _consumer_factory(broker, event_bus)
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=sensory,
+        event_topics=("telemetry.ingest",),
+        record_ingest_history=True,
+    )
+
+    base = datetime(2024, 5, 6, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1m",
+        macro_events=_macro_events(base),
+    )
+
+    try:
+        await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+            poll_consumer=False,
+        )
+    finally:
+        await pipeline.shutdown()
+        _flush_cache(cache)
+
+    engine = settings.create_engine()
+    try:
+        journal = TimescaleIngestJournal(engine)
+        records = journal.fetch_recent(limit=10)
+    finally:
+        engine.dispose()
+
+    dimensions = {record.dimension for record in records}
+    assert {"daily_bars", "intraday_trades", "macro_events"}.issubset(dimensions)
+    for record in records:
+        if record.dimension in {"daily_bars", "intraday_trades", "macro_events"}:
+            assert record.status in {"ok", "skipped"}
+            assert record.symbols, "expected symbols recorded for ingest run"
+
+
+@pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_journal_records_failure(
+    tmp_path, monkeypatch
+) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'pipeline_journal_fail.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, KAFKA_TOPICS)
+    event_bus = EventBus()
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=lambda: _consumer_factory(broker, event_bus),
+        sensory_organ=RealSensoryOrgan(),
+        event_topics=("telemetry.ingest",),
+        record_ingest_history=True,
+    )
+
+    def _failing_ingest(**_: object) -> dict[str, Any]:
+        raise RuntimeError("Timescale offline")
+
+    monkeypatch.setattr(manager, "ingest_market_slice", _failing_ingest)
+    monkeypatch.setattr(manager, "fetch_data", lambda *_, **__: pd.DataFrame())
+    monkeypatch.setattr(manager, "fetch_macro_events", lambda **__: pd.DataFrame())
+
+    base = datetime(2024, 5, 7, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+    )
+
+    try:
+        result = await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+            poll_consumer=False,
+        )
+        assert result.ingest_error is not None
+    finally:
+        await pipeline.shutdown()
+        _flush_cache(cache)
+
+    engine = settings.create_engine()
+    try:
+        journal = TimescaleIngestJournal(engine)
+        records = journal.fetch_recent(limit=5)
+    finally:
+        engine.dispose()
+
+    failure_records = [record for record in records if record.dimension == "operational_backbone"]
+    assert failure_records, "expected failure record in ingest journal"
+    assert failure_records[0].status == "failed"
+    assert "error" in failure_records[0].metadata

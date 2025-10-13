@@ -305,6 +305,7 @@ def _build_pipeline(
         kafka_consumer_factory=_consumer_factory,
         sensory_organ=RealSensoryOrgan(),
         task_supervisor=task_supervisor,
+        record_ingest_history=True,
     )
 
 

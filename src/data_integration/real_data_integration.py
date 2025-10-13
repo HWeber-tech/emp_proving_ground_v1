@@ -677,6 +677,12 @@ class RealDataManager(MarketDataGateway):
     def cache(self) -> ManagedRedisCache:
         return self._cache
 
+    @property
+    def engine(self) -> Engine:
+        """Expose the underlying SQLAlchemy engine used for Timescale access."""
+
+        return self._engine
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

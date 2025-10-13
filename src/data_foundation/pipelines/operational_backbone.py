@@ -7,11 +7,18 @@ import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Callable, Mapping, MutableMapping, Sequence, TypeVar
+from uuid import uuid4
 
 import pandas as pd
+from sqlalchemy.exc import NoSuchTableError
 
 from src.core.event_bus import Event, EventBus, SubscriptionHandle
-from src.data_foundation.persist.timescale import TimescaleIngestResult
+from src.data_foundation.persist.timescale import (
+    TimescaleIngestJournal,
+    TimescaleIngestResult,
+    TimescaleIngestRunRecord,
+    TimescaleMigrator,
+)
 from src.data_foundation.streaming.kafka_stream import (
     KafkaConnectionSettings,
     KafkaIngestEventConsumer,
@@ -163,6 +170,8 @@ class OperationalBackbonePipeline:
         sensory_snapshot_callback: Callable[[Mapping[str, Any]], None] | None = None,
         shutdown_manager_on_close: bool = True,
         sensory_topic: str | None = None,
+        record_ingest_history: bool = False,
+        ingest_journal_factory: Callable[[], TimescaleIngestJournal] | None = None,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
@@ -202,6 +211,10 @@ class OperationalBackbonePipeline:
         else:
             topic_name = sensory_topic
         self._sensory_topic = topic_name.strip() if topic_name and topic_name.strip() else None
+        self._record_ingest_history_enabled = bool(
+            record_ingest_history or ingest_journal_factory is not None
+        )
+        self._ingest_journal_factory = ingest_journal_factory
 
     def _capture_task_snapshots(
         self,
@@ -734,6 +747,14 @@ class OperationalBackbonePipeline:
             historical_snapshots = tuple(dict(entry) for entry in task_snapshot_history)
             combined_snapshots = historical_snapshots + supervisor_snapshots
 
+            journal = self._get_ingest_journal()
+            self._record_ingest_history(
+                journal,
+                request=request,
+                ingest_results=ingest_results,
+                ingest_error=ingest_error,
+            )
+
             return OperationalBackboneResult(
                 ingest_results=dict(ingest_results),
                 frames=dict(frames),
@@ -757,6 +778,120 @@ class OperationalBackbonePipeline:
                     self._event_bus.unsubscribe(handle)
                 if bus_started_here:
                     await self._event_bus.stop()
+
+    def _get_ingest_journal(self) -> TimescaleIngestJournal | None:
+        if not self._record_ingest_history_enabled:
+            return None
+        if self._ingest_journal_factory is not None:
+            try:
+                return self._ingest_journal_factory()
+            except Exception:  # pragma: no cover - journal factory errors are non-fatal
+                logger.exception("Operational backbone ingest journal factory failed")
+                return None
+
+        engine = getattr(self._manager, "engine", None)
+        if engine is None:
+            return None
+        return TimescaleIngestJournal(engine)
+
+    def _ingest_record_metadata(
+        self,
+        dimension: str,
+        request: OperationalIngestRequest,
+    ) -> dict[str, object]:
+        metadata: dict[str, object] = {
+            "requested_symbols": list(request.normalised_symbols()),
+            "source": request.source,
+        }
+
+        if dimension == "daily_bars":
+            metadata["daily_lookback_days"] = request.daily_lookback_days
+        elif dimension == "intraday_trades":
+            metadata["intraday_lookback_days"] = request.intraday_lookback_days
+            metadata["intraday_interval"] = request.intraday_interval
+        elif dimension == "macro_events":
+            metadata["macro_source"] = request.macro_source
+            metadata["macro_start"] = request.macro_start
+            metadata["macro_end"] = request.macro_end
+            calendars = request.macro_calendars()
+            if calendars:
+                metadata["macro_calendars"] = list(calendars)
+            if request.macro_events is not None:
+                metadata["macro_event_count"] = len(request.macro_events)
+
+        return {
+            key: value
+            for key, value in metadata.items()
+            if value not in (None, "", [], {}, ())
+        }
+
+    def _record_ingest_history(
+        self,
+        journal: TimescaleIngestJournal | None,
+        *,
+        request: OperationalIngestRequest,
+        ingest_results: Mapping[str, TimescaleIngestResult],
+        ingest_error: str | None,
+    ) -> None:
+        if journal is None:
+            return
+
+        try:
+            executed_at = datetime.now(tz=UTC)
+            records: list[TimescaleIngestRunRecord] = []
+            default_symbols = request.normalised_symbols()
+
+            for dimension, result in ingest_results.items():
+                metadata = self._ingest_record_metadata(dimension, request)
+                source = result.source or request.source
+                symbols = result.symbols if result.symbols else default_symbols
+                records.append(
+                    TimescaleIngestRunRecord(
+                        run_id=str(uuid4()),
+                        dimension=dimension,
+                        status="ok" if result.rows_written > 0 else "skipped",
+                        rows_written=int(result.rows_written),
+                        freshness_seconds=result.freshness_seconds,
+                        ingest_duration_seconds=result.ingest_duration_seconds,
+                        executed_at=executed_at,
+                        source=source,
+                        symbols=symbols,
+                        metadata=metadata,
+                    )
+                )
+
+            if ingest_error:
+                failure_metadata = self._ingest_record_metadata("operational_backbone", request)
+                failure_metadata["error"] = ingest_error
+                records.append(
+                    TimescaleIngestRunRecord(
+                        run_id=str(uuid4()),
+                        dimension="operational_backbone",
+                        status="failed",
+                        rows_written=0,
+                        freshness_seconds=None,
+                        ingest_duration_seconds=None,
+                        executed_at=executed_at,
+                        source=request.source,
+                        symbols=default_symbols,
+                        metadata=failure_metadata,
+                    )
+                )
+
+            if records:
+                try:
+                    journal.record(records)
+                except NoSuchTableError:
+                    engine = getattr(journal, "_engine", None)
+                    if engine is None:
+                        raise
+                    try:
+                        TimescaleMigrator(engine).apply()
+                        journal.record(records)
+                    except Exception:
+                        raise
+        except Exception:  # pragma: no cover - journal failures should not abort pipeline
+            logger.exception("Operational backbone ingest history recording failed")
 
     def _ensure_task_supervisor(self) -> TaskSupervisor:
         if self._task_supervisor is None:
@@ -1058,6 +1193,8 @@ def create_operational_backbone_pipeline(
     event_topics: Sequence[str] | None = None,
     auto_close_consumer: bool | None = None,
     manager_kwargs: Mapping[str, object] | None = None,
+    record_ingest_history: bool = True,
+    ingest_journal_factory: Callable[[], TimescaleIngestJournal] | None = None,
 ) -> OperationalBackbonePipeline:
     """Instantiate an operational backbone pipeline from ``SystemConfig``.
 
@@ -1135,6 +1272,8 @@ def create_operational_backbone_pipeline(
             auto_close_consumer=bool(auto_close_consumer),
             task_supervisor=task_supervisor,
             sensory_topic=sensory_topic_name,
+            record_ingest_history=record_ingest_history,
+            ingest_journal_factory=ingest_journal_factory,
         )
     except Exception:
         manager.close()

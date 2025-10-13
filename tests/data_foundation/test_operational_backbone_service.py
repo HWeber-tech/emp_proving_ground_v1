@@ -124,6 +124,7 @@ def _service_fixture(tmp_path) -> tuple[OperationalBackboneService, ManagedRedis
         sensory_organ=sensory,
         event_topics=("telemetry.ingest",),
         shutdown_manager_on_close=False,
+        record_ingest_history=True,
     )
 
     service = OperationalBackboneService(

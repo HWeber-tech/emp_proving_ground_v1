@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: emp-ingress
+  namespace: emp-system
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-paper
+spec:
+  rules:
+    - host: emp-paper.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: emp-app-service
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - emp-paper.internal
+      secretName: emp-paper-tls

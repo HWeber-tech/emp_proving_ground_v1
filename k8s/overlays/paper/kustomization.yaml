@@ -1,19 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: emp-system
-generators:
-  - secret-generator.yaml
+namespace: emp-system-paper
+nameSuffix: -paper
 resources:
   - ../../base
+  - sealedsecret.yaml
 patches:
   - path: patch-configmap.yaml
   - path: patch-deployment.yaml
   - path: patch-ingress.yaml
   - path: patch-cronjob.yaml
   - path: patch-scaledjob.yaml
-nameSuffix: -prod
 commonLabels:
-  env: production
+  env: paper
 images:
   - name: ghcr.io/emp/emp-app
-    newTag: stable
+    newTag: paper

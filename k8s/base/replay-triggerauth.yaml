@@ -1,0 +1,10 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: emp-replay-redis-auth
+  namespace: emp-system
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: emp-secrets
+      key: REDIS_PASSWORD

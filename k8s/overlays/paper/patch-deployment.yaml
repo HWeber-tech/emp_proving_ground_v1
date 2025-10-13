@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emp-app
+  namespace: emp-system
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: emp-app
+          image: ghcr.io/emp/emp-app:paper
+          resources:
+            requests:
+              cpu: "400m"
+              memory: "768Mi"
+            limits:
+              cpu: "900m"
+              memory: "1536Mi"
+          env:
+            - name: EMP_ENV
+              value: paper
+            - name: PAPER_PROFILE
+              value: "true"

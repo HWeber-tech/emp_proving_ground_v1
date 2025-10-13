@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: emp-nightly-replay
+  namespace: emp-system
+spec:
+  schedule: "*/30 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: nightly-replay
+              image: ghcr.io/emp/emp-app:dev
+              args:
+                - --log-level
+                - DEBUG
+                - --run-root
+                - /app/artifacts/nightly_replay
+                - --snapshot-count
+                - "16"

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: emp-config
+  namespace: emp-system
+  labels:
+    component: replay
+# The namespace value above is rewritten by Kustomize after suffixing.
+data:
+  EMP_ENVIRONMENT: "paper"
+  LOG_LEVEL: "INFO"
+  PAPER_PROFILE_ENABLED: "true"

@@ -1,0 +1,65 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: emp-replay-autoscaler
+  namespace: emp-system
+  labels:
+    app: emp-app
+    component: replay
+spec:
+  jobTargetRef:
+    parallelism: 1
+    completions: 1
+    template:
+      metadata:
+        labels:
+          app: emp-app
+          component: replay
+      spec:
+        serviceAccountName: emp-replay-runner
+        restartPolicy: Never
+        containers:
+          - name: replay-worker
+            image: ghcr.io/emp/emp-app:latest
+            imagePullPolicy: IfNotPresent
+            command:
+              - python3
+              - tools/operations/nightly_replay_job.py
+            args:
+              - --log-level
+              - INFO
+              - --run-root
+              - /app/artifacts/nightly_replay
+            envFrom:
+              - configMapRef:
+                  name: emp-config
+              - secretRef:
+                  name: emp-secrets
+            env:
+              - name: EMP_ENV
+                valueFrom:
+                  configMapKeyRef:
+                    name: emp-config
+                    key: EMP_ENVIRONMENT
+            volumeMounts:
+              - name: emp-artifacts
+                mountPath: /app/artifacts
+        volumes:
+          - name: emp-artifacts
+            persistentVolumeClaim:
+              claimName: emp-reports-pvc
+  pollingInterval: 30
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 5
+  maxReplicaCount: 5
+  minReplicaCount: 0
+  scalingStrategy:
+    strategy: accurate
+  triggers:
+    - type: redis
+      metadata:
+        address: redis://emp-redis:6379
+        listName: emp:replay:queue
+        listLength: "5"
+      authenticationRef:
+        name: emp-replay-redis-auth

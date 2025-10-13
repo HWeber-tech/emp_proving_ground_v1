@@ -1,0 +1,28 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: emp-replay-autoscaler
+  namespace: emp-system
+spec:
+  maxReplicaCount: 2
+  triggers:
+    - type: redis
+      metadata:
+        address: redis://emp-redis:6379
+        listName: emp:replay:dev
+        listLength: "1"
+      authenticationRef:
+        name: emp-replay-redis-auth
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+          - name: replay-worker
+            image: ghcr.io/emp/emp-app:dev
+            args:
+              - --log-level
+              - DEBUG
+              - --run-root
+              - /app/artifacts/nightly_replay
+              - --snapshot-count
+              - "16"

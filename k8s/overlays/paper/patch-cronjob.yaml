@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: emp-nightly-replay
+  namespace: emp-system
+spec:
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: nightly-replay
+              image: ghcr.io/emp/emp-app:paper
+              args:
+                - --log-level
+                - INFO
+                - --run-root
+                - /app/artifacts/nightly_replay
+                - --min-confidence
+                - "0.65"

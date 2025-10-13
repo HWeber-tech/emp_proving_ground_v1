@@ -8,6 +8,7 @@ from .policy_router import (
     PolicyTactic,
     RegimeState,
 )
+from .regime_fitness import RegimeFitnessTable
 from .fast_weights import (
     FastWeightConstraints,
     FastWeightController,
@@ -53,6 +54,7 @@ __all__ = [
     "PolicyRouter",
     "PolicyTactic",
     "RegimeState",
+    "RegimeFitnessTable",
     "FastWeightConstraints",
     "FastWeightController",
     "FastWeightMetrics",

@@ -527,6 +527,101 @@ def test_exploration_freeze_blocks_and_releases() -> None:
         assert post_state.get("active") is False
 
 
+def test_tournament_selection_requires_history() -> None:
+    router = PolicyRouter(tournament_size=3, tournament_min_regime_decisions=5)
+    router.register_tactics(
+        (
+            PolicyTactic(tactic_id="alpha", base_weight=1.0, regime_bias={"bull": 1.05}),
+            PolicyTactic(tactic_id="beta", base_weight=0.95, regime_bias={"bull": 1.02}),
+        )
+    )
+
+    decision = router.route(_regime(regime="bull"))
+
+    summary = decision.reflection_summary.get("tournament_selection")
+    assert summary is not None
+    assert summary["reason"] == "insufficient_history"
+    assert summary["decisions_observed"] == 0
+    assert summary["tournament_size"] == 3
+
+
+def test_regime_fitness_tournament_promotes_global_performer() -> None:
+    router = PolicyRouter(
+        tournament_size=3,
+        tournament_min_regime_decisions=2,
+        tournament_weights={
+            "current": 0.1,
+            "regime": 0.2,
+            "global": 0.55,
+            "regime_coverage": 0.15,
+        },
+        tournament_bonus=1.0,
+    )
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="alpha",
+                base_weight=1.0,
+                regime_bias={"bull": 1.05, "bear": 0.7},
+                confidence_sensitivity=0.0,
+            ),
+            PolicyTactic(
+                tactic_id="beta",
+                base_weight=0.97,
+                regime_bias={"bull": 1.04, "bear": 1.5},
+                confidence_sensitivity=0.0,
+            ),
+        )
+    )
+
+    base_time = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+
+    for offset in range(3):
+        router.route(
+            RegimeState(
+                regime="bear",
+                confidence=0.82,
+                features={"volume_z": 0.1, "volatility": 0.35},
+                timestamp=base_time + timedelta(minutes=offset),
+            )
+        )
+
+    for offset in range(2):
+        router.route(
+            RegimeState(
+                regime="bull",
+                confidence=0.78,
+                features={"volume_z": 0.14, "volatility": 0.22},
+                timestamp=base_time + timedelta(hours=1, minutes=offset),
+            )
+        )
+
+    final_decision = router.route(
+        RegimeState(
+            regime="bull",
+            confidence=0.8,
+            features={"volume_z": 0.2, "volatility": 0.2},
+            timestamp=base_time + timedelta(hours=1, minutes=10),
+        )
+    )
+
+    assert final_decision.tactic_id == "beta"
+
+    tournament = final_decision.reflection_summary.get("tournament_selection")
+    assert tournament is not None
+    assert tournament["reason"] == "tournament"
+    assert tournament["winner_reason"] == "composite_bonus"
+    assert tournament["selected_tactic"] == "beta"
+    candidate_ids = {candidate["tactic_id"] for candidate in tournament["candidates"]}
+    assert {"alpha", "beta"}.issubset(candidate_ids)
+
+    snapshot = router.regime_fitness_snapshot()
+    assert snapshot["regimes"]["bear"]["decisions"] == 3
+    beta_regimes = snapshot["tactics"]["beta"]["regimes"]
+    assert beta_regimes["bear"]["observations"] >= 3
+    assert beta_regimes["bull"]["observations"] >= 3
+
+
 def test_prune_experiments_removes_expired_entries() -> None:
     router = PolicyRouter()
     router.register_tactic(PolicyTactic(tactic_id="alpha", base_weight=1.0))

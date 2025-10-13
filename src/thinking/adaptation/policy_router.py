@@ -14,6 +14,15 @@ from datetime import datetime, timezone
 from typing import Deque, Iterable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
 from .fast_weights import FastWeightController
+from .regime_fitness import RegimeFitnessTable
+
+
+_DEFAULT_TOURNAMENT_WEIGHTS: Mapping[str, float] = {
+    "current": 0.5,
+    "regime": 0.3,
+    "global": 0.15,
+    "regime_coverage": 0.05,
+}
 
 
 def _serialise_feature_gates(
@@ -363,6 +372,10 @@ class PolicyRouter:
         enforce_regime_topology: bool = True,
         exploration_max_fraction: float | None = None,
         exploration_mutate_every: int | None = None,
+        tournament_size: int = 3,
+        tournament_min_regime_decisions: int = 3,
+        tournament_weights: Mapping[str, float] | None = None,
+        tournament_bonus: float = 0.25,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -383,11 +396,37 @@ class PolicyRouter:
         else:
             self._exploration_budget = None
         self._exploration_freeze = ExplorationFreezeState()
+        self._regime_fitness = RegimeFitnessTable()
+        self._tournament_size = max(0, int(tournament_size))
+        if self._tournament_size > 1:
+            self._tournament_min_regime_decisions = max(1, int(tournament_min_regime_decisions))
+        else:
+            self._tournament_min_regime_decisions = 0
+        self._tournament_weights = dict(self._normalise_tournament_weights(tournament_weights))
+        self._tournament_bonus = max(0.0, float(tournament_bonus))
 
     def exploration_freeze_active(self) -> bool:
         """Return ``True`` when exploration is currently frozen."""
 
         return self._exploration_freeze.active
+
+    @staticmethod
+    def _normalise_tournament_weights(
+        weights: Mapping[str, float] | None,
+    ) -> Mapping[str, float]:
+        if weights is None:
+            return dict(_DEFAULT_TOURNAMENT_WEIGHTS)
+
+        cleaned: MutableMapping[str, float] = {}
+        for key in _DEFAULT_TOURNAMENT_WEIGHTS:
+            value = max(0.0, float(weights.get(key, 0.0) or 0.0))
+            cleaned[key] = value
+
+        total = sum(cleaned.values())
+        if total <= 0.0:
+            return dict(_DEFAULT_TOURNAMENT_WEIGHTS)
+
+        return {key: value / total for key, value in cleaned.items()}
 
     def exploration_freeze_state(self) -> Mapping[str, object]:
         """Expose the current freeze state for observability surfaces."""
@@ -540,6 +579,171 @@ class PolicyRouter:
             entries.append(entry)
         return tuple(entries)
 
+    def _apply_tournament_selection(
+        self,
+        *,
+        ranked: Sequence[Mapping[str, object]],
+        regime_state: RegimeState,
+    ) -> tuple[Mapping[str, object], Mapping[str, object] | None]:
+        if self._tournament_size <= 1 or len(ranked) <= 1:
+            return ranked[0], None
+
+        decisions_observed = self._regime_fitness.regime_decision_count(regime_state.regime)
+        if decisions_observed < self._tournament_min_regime_decisions:
+            context = {
+                "reason": "insufficient_history",
+                "regime": regime_state.regime,
+                "decisions_observed": decisions_observed,
+                "tournament_size": self._tournament_size,
+                "weights": dict(self._tournament_weights),
+                "bonus": self._tournament_bonus,
+            }
+            return ranked[0], context
+
+        metrics: list[MutableMapping[str, object]] = []
+        regime_key = regime_state.regime
+        for entry in ranked:
+            tactic = entry.get("tactic")
+            tactic_id = getattr(tactic, "tactic_id", None)
+            if not tactic_id:
+                continue
+
+            if entry.get("exploration_budget_status") == "blocked":
+                continue
+
+            score = float(entry.get("score", 0.0) or 0.0)
+            record = self._regime_fitness.record(tactic_id)
+            regime_avg = record.regime_average(regime_key) if record else 0.0
+            global_avg = record.average_score() if record else 0.0
+            regime_count = record.regime_observations(regime_key) if record else 0
+
+            metrics.append(
+                {
+                    "entry": entry,
+                    "tactic_id": tactic_id,
+                    "score": score,
+                    "regime_avg": regime_avg,
+                    "global_avg": global_avg,
+                    "regime_count": float(regime_count),
+                }
+            )
+
+        if not metrics:
+            return ranked[0], None
+
+        max_current = max((float(m["score"]) for m in metrics), default=0.0)
+        max_regime_avg = max((float(m["regime_avg"]) for m in metrics), default=0.0)
+        max_global_avg = max((float(m["global_avg"]) for m in metrics), default=0.0)
+        max_regime_count = max((float(m["regime_count"]) for m in metrics), default=0.0)
+
+        def _normalise(value: float, maximum: float) -> float:
+            if maximum <= 0.0:
+                return 0.0
+            ratio = value / maximum
+            if ratio < 0.0:
+                return 0.0
+            return min(ratio, 1.0)
+
+        for metric in metrics:
+            metric["norm_current"] = _normalise(float(metric["score"]), max_current)
+            metric["norm_regime"] = _normalise(float(metric["regime_avg"]), max_regime_avg)
+            metric["norm_global"] = _normalise(float(metric["global_avg"]), max_global_avg)
+            metric["norm_regime_count"] = _normalise(float(metric["regime_count"]), max_regime_count)
+            composite = (
+                self._tournament_weights.get("current", 0.0) * float(metric["norm_current"])
+                + self._tournament_weights.get("regime", 0.0) * float(metric["norm_regime"])
+                + self._tournament_weights.get("global", 0.0) * float(metric["norm_global"])
+                + self._tournament_weights.get("regime_coverage", 0.0)
+                * float(metric["norm_regime_count"])
+            )
+            metric["composite"] = composite
+
+        baseline_entry = ranked[0]
+        baseline_metric = next(
+            (metric for metric in metrics if metric.get("entry") is baseline_entry),
+            metrics[0],
+        )
+        baseline_tactic = str(baseline_metric["tactic_id"])
+
+        metrics_sorted = sorted(metrics, key=lambda item: float(item["composite"]), reverse=True)
+        selected_metrics: list[MutableMapping[str, object]] = []
+        seen: set[str] = set()
+
+        selected_metrics.append(baseline_metric)
+        seen.add(baseline_tactic)
+
+        for metric in metrics_sorted:
+            tactic_id = str(metric["tactic_id"])
+            if tactic_id in seen:
+                continue
+            selected_metrics.append(metric)
+            seen.add(tactic_id)
+            if len(selected_metrics) >= self._tournament_size:
+                break
+
+        max_composite = max((float(metric["composite"]) for metric in selected_metrics), default=0.0)
+
+        winner_entry = baseline_entry
+        winner_adjusted = float("-inf")
+        candidate_payloads: list[Mapping[str, object]] = []
+        baseline_adjusted = None
+
+        for metric in selected_metrics:
+            tactic_id = str(metric["tactic_id"])
+            composite = float(metric["composite"])
+            composite_norm = composite / max_composite if max_composite > 0.0 else 0.0
+            adjusted_score = float(metric["score"]) * (1.0 + self._tournament_bonus * composite_norm)
+
+            payload = {
+                "tactic_id": tactic_id,
+                "score": float(metric["score"]),
+                "regime_average": float(metric["regime_avg"]),
+                "global_average": float(metric["global_avg"]),
+                "regime_observations": int(float(metric["regime_count"])),
+                "composite": composite,
+                "composite_normalised": composite_norm,
+                "adjusted_score": adjusted_score,
+                "is_baseline": tactic_id == baseline_tactic,
+            }
+            candidate_payloads.append(payload)
+
+            if tactic_id == baseline_tactic:
+                baseline_adjusted = adjusted_score
+
+            if adjusted_score > winner_adjusted:
+                winner_adjusted = adjusted_score
+                winner_entry = metric["entry"]
+
+        if baseline_adjusted is None:
+            baseline_adjusted = winner_adjusted
+
+        reason = "baseline"
+        winner_tactic_id = getattr(winner_entry.get("tactic"), "tactic_id", baseline_tactic)  # type: ignore[union-attr]
+        if winner_entry is not baseline_entry and winner_adjusted > baseline_adjusted:
+            reason = "composite_bonus"
+
+        context = {
+            "reason": "tournament",
+            "winner_reason": reason,
+            "regime": regime_state.regime,
+            "decisions_observed": decisions_observed,
+            "tournament_size": self._tournament_size,
+            "weights": dict(self._tournament_weights),
+            "bonus": self._tournament_bonus,
+            "baseline_tactic": baseline_tactic,
+            "baseline_adjusted_score": baseline_adjusted,
+            "candidates": candidate_payloads,
+            "selected_tactic": winner_tactic_id,
+            "selected_adjusted_score": winner_adjusted,
+        }
+
+        return winner_entry, context
+
+    def regime_fitness_snapshot(self) -> Mapping[str, object]:
+        """Expose the regime fitness aggregates for observability surfaces."""
+
+        return self._regime_fitness.snapshot()
+
     def route(
         self,
         regime_state: RegimeState,
@@ -629,7 +833,16 @@ class PolicyRouter:
         )
         previous_topology = self._last_topology
 
+        tournament_context: Mapping[str, object] | None = None
         winner_entry = working_entries[0]
+        if self._tournament_size > 1 and len(working_entries) > 1:
+            selected_entry, context = self._apply_tournament_selection(
+                ranked=working_entries,
+                regime_state=regime_state,
+            )
+            winner_entry = selected_entry
+            tournament_context = context
+
         switch_forced = False
         if regime_changed and self._enforce_regime_topology:
             candidate_entry, forced = self._select_regime_transition_winner(
@@ -638,6 +851,11 @@ class PolicyRouter:
                 previous_topology=previous_topology,
                 default_entry=winner_entry,
             )
+            if candidate_entry is not winner_entry:
+                if tournament_context is not None:
+                    payload = dict(tournament_context)
+                    payload["override_reason"] = "regime_topology_enforcement"
+                    tournament_context = payload
             winner_entry = candidate_entry
             switch_forced = forced
 
@@ -699,7 +917,19 @@ class PolicyRouter:
         )
         reflection_summary["decision_timestamp"] = decision_time.isoformat()
         reflection_summary["regime_transition"] = regime_transition
+        if tournament_context is not None:
+            tournament_snapshot = dict(tournament_context)
+            tournament_snapshot["selected_tactic"] = tactic.tactic_id
+            tournament_snapshot["selected_score"] = float(winner_entry["score"])
+            tournament_snapshot.setdefault("regime", regime_state.regime)
+            reflection_summary["tournament_selection"] = tournament_snapshot
         self._history.append(reflection_summary)
+
+        self._regime_fitness.update(
+            regime=regime_state.regime,
+            entries=scoreboard,
+            decision_timestamp=decision_time,
+        )
 
         self._last_regime = regime_state.regime
         self._last_tactic_id = tactic.tactic_id

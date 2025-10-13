@@ -78,7 +78,7 @@
 ## M3 â€” Governed Reflection Feedback (Weeks 5â€“8)
 
 **Deliverables**
-- [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers).
+- [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers). _Progress: RIMSuggestion contracts now ship a traceability payload that records code/config/model hashes, batch diary slices, and target strategies, with TRM runner and application tests asserting the evidence pointers persist through governance queues and ledger metadata.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L166】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】_
 - [x] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available. _Progress: Auto-apply guard now loads thresholds from `config/reflection/rim.config.example.yml`, evaluates uplift, risk hits, and budget utilisation inside `TRMRunner`, and surfaces evaluations in the governance queue and digest with regression coverage documenting rejection reasons.【F:config/reflection/rim.config.example.yml†L13-L24】【F:src/reflection/trm/config.py†L44-L169】【F:src/reflection/trm/runner.py†L138-L213】【F:tests/reflection/test_trm_runner.py†L70-L150】_
 - [x] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded). _Progress: The shadow runner now enforces the governance gate, writes skip digests, and stamps auto-apply decisions into the queue/markdown artifacts, with regression coverage ensuring nightly RIM runs stage approved changes without bypassing safeguards.【F:tools/rim_shadow_run.py†L160-L222】【F:src/reflection/trm/governance.py†L19-L247】【F:tests/tools/test_rim_shadow_run.py†L44-L139】【F:tests/reflection/test_trm_governance.py†L16-L126】_
 - [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs. _Progress: Ledger releases now surface metadata/policy deltas alongside staged approvals so governance packets inherit the recorded reviewers and auto-applied changes in the exported posture snapshot.【F:src/governance/policy_ledger.py†L572-L595】_
@@ -144,7 +144,7 @@
 
 - [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a CLI reports average/median/p90 turnaround and breach details so the experimentation loop can track adherence in real time under regression coverage.【F:emp/core/findings_memory.py†L1-L460】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L86】_
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates. _Progress: Strategy registry now bootstraps a config-driven PromotionGuard that enforces stage requirements, ledger/diary paths, and regime coverage, with tests proving missing regimes block approvals until coverage is recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】_
-- [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned.
+- [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned. _Progress: Risk guardrail incidents now start a force-paper cooldown, snapshot remaining time and reason into execution stats, propagate `risk_guardrail` blocks onto intents, and trigger release routing to keep near misses on paper, with regression coverage proving the forced routes and telemetry payloads.【F:src/trading/trading_manager.py†L546-L590】【F:src/trading/trading_manager.py†L2011-L2219】【F:src/trading/execution/release_router.py†L433-L547】【F:tests/trading/test_trading_manager_execution.py†L730-L872】_
 - [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Execution stats now surface attribution coverage metrics and end-to-end tests assert executed trades retain the enriched payload, enabling governance dashboards to track the 90% target quantitatively.【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [ ] **Operator leverage**: experiments/week/person â†‘ without quality loss.
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-13T14:05:18Z
+
+### Last 4 commits
+- 4ce99a58 refactor(trading): tune 3 files (2025-10-13)
+- 7bb97e80 refactor(docs): tune 8 files (2025-10-13)
+- d14b4bf2 docs(docs): tune 4 files (2025-10-13)
+- 4321cc3d docs(docs): tune 1 file (2025-10-13)
 
 ## Automation updates — 2025-10-13T11:49:05Z
 

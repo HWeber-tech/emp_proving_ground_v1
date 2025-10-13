@@ -131,6 +131,7 @@
     simulation runs, diary validation, and KPI regeneration so observability
     reviewers can reproduce the paper-trading packet directly from versioned
     documentation instead of ad-hoc notes.【F:docs/AlphaTrade_Whitepaper.md†L21-L28】【F:docs/AlphaTrade_Whitepaper.md†L50-L77】
+  - Progress: TRM reflection exports now embed a `trace` payload capturing batch diary slices, code/config/model hashes, and target strategies, with runner and auto-apply tests ensuring the evidence pointers persist through governance queues and ledger metadata for observability packets.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L166】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】
   - Progress: Dry-run audit evaluator now applies minimum runtime and uptime
     thresholds, emitting structured incidents when evidence windows are too
     short or availability slips, with regression coverage confirming the new

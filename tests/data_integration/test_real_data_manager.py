@@ -27,6 +27,7 @@ from src.runtime.task_supervisor import TaskSupervisor
 
 import src.data_integration.real_data_integration as real_data_module
 from src.data_integration.real_data_integration import RealDataManager
+from src.governance.system_config import DataBackboneMode, SystemConfig
 
 
 try:  # pragma: no cover - optional dependency improves fidelity
@@ -506,3 +507,22 @@ def test_real_data_manager_monthly_interval_queries_daily_data(tmp_path):
     assert frame_weekly.iloc[-1]["close"] == pytest.approx(1.125)
 
     manager.close()
+
+
+def test_real_data_manager_requires_timescale_institutional_mode() -> None:
+    config = SystemConfig(data_backbone_mode=DataBackboneMode.institutional)
+
+    with pytest.raises(RuntimeError, match="Timescale connection required"):
+        RealDataManager(system_config=config)
+
+
+def test_real_data_manager_institutional_mode_accepts_configured_timescale(tmp_path) -> None:
+    config = SystemConfig(data_backbone_mode=DataBackboneMode.institutional)
+    url = f"sqlite:///{tmp_path / 'institutional_configured.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    manager = RealDataManager(system_config=config, timescale_settings=settings)
+    try:
+        assert manager.engine is not None
+    finally:
+        manager.close()

@@ -245,25 +245,37 @@ class RealDataManager(MarketDataGateway):
                 return False
             return default
 
-        default_require = False
+        mode_indicator: str | None = None
+        if system_config is not None:
+            mode_attr = getattr(system_config, "data_backbone_mode", None)
+            if mode_attr is not None:
+                mode_indicator = getattr(mode_attr, "value", str(mode_attr))
+        if not mode_indicator:
+            raw_mode = payload.get("DATA_BACKBONE_MODE")
+            if raw_mode:
+                mode_indicator = str(raw_mode)
+        normalized_mode = (mode_indicator or "").strip().lower()
+        timescale_default_required = normalized_mode == "institutional"
+        redis_default_required = False
+        kafka_default_required = False
 
         timescale_required = _coerce_bool_flag(
             require_timescale
             if require_timescale is not None
             else payload.get("DATA_BACKBONE_REQUIRE_TIMESCALE"),
-            default_require,
+            timescale_default_required,
         )
         redis_required = _coerce_bool_flag(
             require_redis
             if require_redis is not None
             else payload.get("DATA_BACKBONE_REQUIRE_REDIS"),
-            default_require,
+            redis_default_required,
         )
         kafka_required = _coerce_bool_flag(
             require_kafka
             if require_kafka is not None
             else payload.get("DATA_BACKBONE_REQUIRE_KAFKA"),
-            default_require,
+            kafka_default_required,
         )
 
         self._timescale_settings = timescale_settings or TimescaleConnectionSettings.from_mapping(

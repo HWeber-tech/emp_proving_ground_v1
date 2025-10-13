@@ -71,7 +71,12 @@ class _StubEventBus:
         return 1
 
 
-def _build_dimensions(strength: float, confidence: float) -> Mapping[str, Mapping[str, object]]:
+def _build_dimensions(
+    strength: float,
+    confidence: float,
+    *,
+    timestamp: datetime,
+) -> Mapping[str, Mapping[str, object]]:
     anomaly_strength = abs(strength) * 0.3
     anomaly_flag = anomaly_strength > 0.15
     anomaly_z_score = anomaly_strength * 4.0
@@ -83,17 +88,66 @@ def _build_dimensions(strength: float, confidence: float) -> Mapping[str, Mappin
         "volatility_drag": float(0.08 * abs_strength),
         "volatility": float(0.35 * abs_strength),
     }
+    quality_timestamp = timestamp.isoformat().replace("+00:00", "Z")
+
+    def _quality_payload(source: str, *, strength_value: float, confidence_value: float, data_quality: float) -> Mapping[str, object]:
+        return {
+            "source": source,
+            "timestamp": quality_timestamp,
+            "confidence": confidence_value,
+            "strength": strength_value,
+            "data_quality": data_quality,
+        }
 
     return {
-        "WHY": {"signal": strength * 0.6, "confidence": confidence * 0.9},
-        "WHAT": {"signal": strength * 0.4, "confidence": confidence * 0.85},
-        "WHEN": {"signal": strength * 0.2, "confidence": confidence * 0.8},
+        "WHY": {
+            "signal": strength * 0.6,
+            "confidence": confidence * 0.9,
+            "metadata": {
+                "quality": _quality_payload(
+                    "tests.synthetic.why",
+                    strength_value=strength * 0.6,
+                    confidence_value=confidence * 0.9,
+                    data_quality=0.92,
+                )
+            },
+        },
+        "WHAT": {
+            "signal": strength * 0.4,
+            "confidence": confidence * 0.85,
+            "metadata": {
+                "quality": _quality_payload(
+                    "tests.synthetic.what",
+                    strength_value=strength * 0.4,
+                    confidence_value=confidence * 0.85,
+                    data_quality=0.93,
+                )
+            },
+        },
+        "WHEN": {
+            "signal": strength * 0.2,
+            "confidence": confidence * 0.8,
+            "metadata": {
+                "quality": _quality_payload(
+                    "tests.synthetic.when",
+                    strength_value=strength * 0.2,
+                    confidence_value=confidence * 0.8,
+                    data_quality=0.91,
+                )
+            },
+        },
         "HOW": {
             "signal": strength * 0.1,
             "confidence": confidence * 0.75,
             "value": how_value,
             "metadata": {
                 "telemetry": how_value,
+                "quality": _quality_payload(
+                    "tests.synthetic.how",
+                    strength_value=strength * 0.1,
+                    confidence_value=confidence * 0.75,
+                    data_quality=0.9,
+                ),
             },
         },
         "ANOMALY": {
@@ -109,6 +163,12 @@ def _build_dimensions(strength: float, confidence: float) -> Mapping[str, Mappin
                 "audit": {
                     "z_score": anomaly_z_score,
                 },
+                "quality": _quality_payload(
+                    "tests.synthetic.anomaly",
+                    strength_value=anomaly_strength,
+                    confidence_value=confidence * 0.7,
+                    data_quality=0.88,
+                ),
             },
         },
     }
@@ -121,7 +181,7 @@ def _build_snapshot(
     timestamp: datetime,
     lineage_counter: int,
 ) -> Mapping[str, Any]:
-    dimensions = _build_dimensions(strength, confidence)
+    dimensions = _build_dimensions(strength, confidence, timestamp=timestamp)
     lineage = build_lineage_record(
         "SENSORY_FUSION",
         "tests.sensory.synthetic",
@@ -266,11 +326,12 @@ def test_regime_fsm_publishes_signal() -> None:
 
 def test_belief_buffer_requires_lineage_metadata() -> None:
     buffer = BeliefBuffer(belief_id="understanding-belief")
+    generated_at = datetime.now(tz=UTC)
     snapshot = {
         "symbol": "EURUSD",
-        "generated_at": datetime.now(tz=UTC),
+        "generated_at": generated_at,
         "integrated_signal": {"strength": 0.1, "confidence": 0.5},
-        "dimensions": _build_dimensions(0.1, 0.5),
+        "dimensions": _build_dimensions(0.1, 0.5, timestamp=generated_at),
     }
 
     with pytest.raises(ValueError):

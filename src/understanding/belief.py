@@ -188,6 +188,31 @@ def _populate_dimension_features(
         accumulator[f"{dimension}_{key}"] = _coerce_float(raw_value)
 
 
+def _populate_quality_features(
+    accumulator: MutableMapping[str, float],
+    dimension: str,
+    metadata_payload: Mapping[str, object] | None,
+) -> None:
+    if not metadata_payload:
+        return
+
+    quality_payload = metadata_payload.get("quality")
+    if not isinstance(quality_payload, Mapping):
+        return
+
+    confidence = quality_payload.get("confidence")
+    if confidence is not None:
+        accumulator[f"{dimension}_quality_confidence"] = _coerce_float(confidence)
+
+    strength = quality_payload.get("strength")
+    if strength is not None:
+        accumulator[f"{dimension}_quality_strength"] = _coerce_float(strength)
+
+    data_quality = quality_payload.get("data_quality")
+    if data_quality is not None:
+        accumulator[f"{dimension}_data_quality"] = _coerce_float(data_quality)
+
+
 def _extract_anomaly_flag(
     value_payload: Mapping[str, object] | None,
     metadata_payload: Mapping[str, object] | None,
@@ -576,8 +601,6 @@ class BeliefBuffer:
                     if isinstance(raw_value, Mapping):
                         value_payload = {str(k): v for k, v in raw_value.items()}
                     raw_metadata = dimension.get("metadata")
-                    if isinstance(raw_metadata, Mapping):
-                        metadata_payload = {str(k): v for k, v in raw_metadata.items()}
                 else:
                     signal = getattr(dimension, "signal", None)
                     confidence = getattr(dimension, "confidence", None)
@@ -587,10 +610,11 @@ class BeliefBuffer:
                     if isinstance(raw_value, Mapping):
                         value_payload = {str(k): v for k, v in raw_value.items()}
                     raw_metadata = getattr(dimension, "metadata", None)
-                    if isinstance(raw_metadata, Mapping):
-                        metadata_payload = {str(k): v for k, v in raw_metadata.items()}
+                if isinstance(raw_metadata, Mapping):
+                    metadata_payload = {str(k): v for k, v in raw_metadata.items()}
 
                 _populate_dimension_features(payload, key_base, value_payload)
+                _populate_quality_features(payload, key_base, metadata_payload)
 
                 if key_base == "ANOMALY":
                     anomaly_flag = _extract_anomaly_flag(value_payload, metadata_payload)

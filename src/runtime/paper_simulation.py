@@ -25,6 +25,11 @@ from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import EventBus
 from src.governance.system_config import SystemConfig
+from src.operations.incident_response import (
+    IncidentResponsePolicy,
+    IncidentResponseState,
+    evaluate_incident_response,
+)
 from src.runtime.predator_app import _build_bootstrap_runtime
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 
@@ -50,6 +55,9 @@ class PaperTradingSimulationReport:
     performance_health: Mapping[str, Any] | None = None
     strategy_summary: Mapping[str, Any] | None = None
     release: Mapping[str, Any] | None = None
+    trade_throttle: Mapping[str, Any] | None = None
+    trade_throttle_scopes: Sequence[Mapping[str, Any]] | None = None
+    incident_response: Mapping[str, Any] | None = None
 
     def to_dict(self) -> Mapping[str, Any]:
         """Return a JSON-serialisable representation of the report."""
@@ -77,6 +85,14 @@ class PaperTradingSimulationReport:
             payload["strategy_summary"] = dict(self.strategy_summary)
         if self.release is not None:
             payload["release"] = dict(self.release)
+        if self.trade_throttle is not None:
+            payload["trade_throttle"] = dict(self.trade_throttle)
+        if self.trade_throttle_scopes is not None:
+            payload["trade_throttle_scopes"] = [
+                dict(scope) for scope in self.trade_throttle_scopes
+            ]
+        if self.incident_response is not None:
+            payload["incident_response"] = dict(self.incident_response)
         return payload
 
 
@@ -234,6 +250,15 @@ async def run_paper_trading_simulation(
         performance_health=performance_health,
         strategy_summary=_resolve_strategy_summary(runtime),
         release=release_summary,
+        trade_throttle=_resolve_trade_throttle_snapshot(runtime),
+        trade_throttle_scopes=_resolve_trade_throttle_scopes(runtime),
+        incident_response=_resolve_incident_response(
+            runtime,
+            config,
+            release_summary=release_summary,
+            performance_health=performance_health,
+            execution_stats=execution_stats,
+        ),
     )
     if report_path is not None:
         path = Path(report_path)
@@ -426,6 +451,55 @@ def _resolve_release_summary(runtime: Any) -> Mapping[str, Any] | None:
     return dict(summary)
 
 
+def _resolve_trade_throttle_snapshot(runtime: Any) -> Mapping[str, Any] | None:
+    manager = getattr(runtime, "trading_manager", None)
+    if manager is None:
+        return None
+
+    snapshot_fn = getattr(manager, "get_trade_throttle_snapshot", None)
+    if not callable(snapshot_fn):
+        return None
+
+    try:
+        snapshot = snapshot_fn()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.debug("Failed to resolve trade throttle snapshot", exc_info=True)
+        return None
+
+    if isinstance(snapshot, Mapping):
+        return _serialise_runtime_value(snapshot)
+    return None
+
+
+def _resolve_trade_throttle_scopes(
+    runtime: Any,
+) -> Sequence[Mapping[str, Any]] | None:
+    manager = getattr(runtime, "trading_manager", None)
+    if manager is None:
+        return None
+
+    scopes_fn = getattr(manager, "get_trade_throttle_scope_snapshots", None)
+    if not callable(scopes_fn):
+        return None
+
+    try:
+        snapshots = scopes_fn()
+    except Exception:  # pragma: no cover - defensive guard
+        logger.debug("Failed to resolve trade throttle scopes", exc_info=True)
+        return None
+
+    if not isinstance(snapshots, Sequence):
+        return None
+
+    serialised: list[Mapping[str, Any]] = []
+    for snapshot in snapshots:
+        if isinstance(snapshot, Mapping):
+            serialised.append(_serialise_runtime_value(snapshot))
+    if not serialised:
+        return None
+    return serialised
+
+
 def _resolve_portfolio_snapshot(
     paper_engine: PaperBrokerExecutionAdapter,
 ) -> Mapping[str, Any] | None:
@@ -510,6 +584,81 @@ def _resolve_diary_count(config: SystemConfig, runtime: Any) -> int:
     if isinstance(entries, Sequence):
         return len(entries)
     return 0
+
+
+def _resolve_incident_response(
+    runtime: Any,
+    config: SystemConfig,
+    *,
+    release_summary: Mapping[str, Any] | None,
+    performance_health: Mapping[str, Any] | None,
+    execution_stats: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    getter = getattr(runtime, "get_last_incident_response_snapshot", None)
+    if not callable(getter):
+        snapshot = None
+    else:
+        try:
+            snapshot = getter()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to capture incident response snapshot", exc_info=True)
+            snapshot = None
+
+    if snapshot is None:
+        extras = config.extras or {}
+        if not any(key.startswith("INCIDENT_") for key in extras):
+            return None
+        policy = IncidentResponsePolicy.from_mapping(extras)
+        state = IncidentResponseState.from_mapping(extras)
+        incident_context: MutableMapping[str, Any] = {}
+        if release_summary:
+            posture = release_summary.get("posture")
+            if isinstance(posture, Mapping):
+                status = posture.get("status") or posture.get("state")
+                if status is not None:
+                    incident_context["execution_status"] = status
+                stage = posture.get("stage")
+                if stage is not None:
+                    incident_context.setdefault("execution_stage", stage)
+        if execution_stats:
+            orders_submitted = execution_stats.get("orders_submitted")
+            if orders_submitted is not None:
+                incident_context["orders_submitted"] = orders_submitted
+            last_error = execution_stats.get("last_error")
+            if last_error:
+                incident_context["last_execution_error"] = last_error
+        if performance_health:
+            throughput = performance_health.get("throughput")
+            if isinstance(throughput, Mapping):
+                incident_context["throughput_healthy"] = bool(throughput.get("healthy"))
+        incident_service = str(
+            extras.get("INCIDENT_SERVICE_NAME") or "incident_response"
+        )
+        try:
+            snapshot = evaluate_incident_response(
+                policy,
+                state,
+                service=incident_service,
+                metadata=incident_context,
+            )
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to synthesise incident response snapshot", exc_info=True)
+            snapshot = None
+
+    if snapshot is None:
+        return None
+
+    payload: MutableMapping[str, Any] = {"snapshot": snapshot.as_dict()}
+    to_markdown = getattr(snapshot, "to_markdown", None)
+    if callable(to_markdown):
+        try:
+            markdown = to_markdown()
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to render incident response markdown", exc_info=True)
+        else:
+            if isinstance(markdown, str) and markdown.strip():
+                payload["markdown"] = markdown
+    return dict(payload)
 
 
 def _serialise_runtime_value(value: Any) -> Any:

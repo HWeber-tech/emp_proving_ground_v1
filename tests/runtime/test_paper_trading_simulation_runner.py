@@ -9,6 +9,7 @@ from aiohttp import web
 
 from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.system_config import ConnectionProtocol, SystemConfig
+from src.operations.incident_response import IncidentResponseStatus
 from src.runtime.paper_simulation import run_paper_trading_simulation
 
 
@@ -47,7 +48,7 @@ def _build_extras(
     *,
     max_ticks: int = 3,
 ) -> dict[str, str]:
-    return {
+    extras = {
         "PAPER_TRADING_API_URL": base_url,
         "PAPER_TRADING_ORDER_ENDPOINT": "/orders",
         "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
@@ -65,6 +66,30 @@ def _build_extras(
         "BOOTSTRAP_MIN_LIQ_CONF": "0.0",
         "BOOTSTRAP_ORDER_SIZE": "1",
     }
+    extras.update(
+        {
+            "TRADE_THROTTLE_ENABLED": "true",
+            "TRADE_THROTTLE_NAME": "paper_guardrail",
+            "TRADE_THROTTLE_MAX_TRADES": "10",
+            "TRADE_THROTTLE_WINDOW_SECONDS": "60",
+            "TRADE_THROTTLE_MIN_SPACING_SECONDS": "0.1",
+            "TRADE_THROTTLE_COOLDOWN_SECONDS": "0",
+            "TRADE_THROTTLE_SCOPE_FIELDS": "strategy_id",
+            "INCIDENT_REQUIRED_RUNBOOKS": "paper_broker_outage",
+            "INCIDENT_AVAILABLE_RUNBOOKS": "paper_broker_outage",
+            "INCIDENT_MIN_PRIMARY_RESPONDERS": "1",
+            "INCIDENT_PRIMARY_RESPONDERS": "alice",
+            "INCIDENT_MIN_SECONDARY_RESPONDERS": "1",
+            "INCIDENT_SECONDARY_RESPONDERS": "bob",
+            "INCIDENT_TRAINING_INTERVAL_DAYS": "30",
+            "INCIDENT_TRAINING_AGE_DAYS": "5",
+            "INCIDENT_DRILL_INTERVAL_DAYS": "45",
+            "INCIDENT_DRILL_AGE_DAYS": "10",
+            "INCIDENT_POSTMORTEM_SLA_HOURS": "48",
+            "INCIDENT_CHATOPS_READY": "true",
+        }
+    )
+    return extras
 
 
 @pytest.mark.asyncio()
@@ -131,6 +156,14 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     execution = report.release.get("execution") if report.release else None
     assert execution is not None
     assert execution.get("default_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert report.trade_throttle is not None
+    assert report.trade_throttle.get("state") in {"open", "cooldown", "rate_limited", "min_interval"}
+    assert report.trade_throttle_scopes is not None
+    assert all(isinstance(scope, dict) for scope in report.trade_throttle_scopes)
+    assert report.incident_response is not None
+    incident_snapshot = report.incident_response.get("snapshot")
+    assert incident_snapshot is not None
+    assert incident_snapshot.get("status") == IncidentResponseStatus.ok.value
 
 
 @pytest.mark.asyncio()

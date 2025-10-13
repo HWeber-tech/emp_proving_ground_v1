@@ -137,3 +137,20 @@ rebuild-policy:
 .PHONY: nightly-replay
 nightly-replay:
 	python3 tools/operations/nightly_replay_job.py
+
+# ------------------------------------------------------------------------
+# Governance policy rebuild helpers
+# ------------------------------------------------------------------------
+
+POLICY_LEDGER ?= artifacts/governance/policy_ledger.json
+POLICY_PHENOTYPE_DIR ?= artifacts/phenotypes
+
+.PHONY: rebuild-policy
+rebuild-policy:
+ifndef HASH
+	$(error HASH is required, invoke as `make rebuild-policy HASH=<policy hash>`)
+endif
+	python3 tools/governance/rebuild_policy_phenotype.py \
+		--ledger $(POLICY_LEDGER) \
+		--policy-hash $(HASH) \
+		--output $(POLICY_PHENOTYPE_DIR)/$(HASH)/phenotype.json

@@ -65,6 +65,7 @@ class PaperTradingSimulationReport:
     order_summary: Mapping[str, Any] | None = None
     paper_broker: Mapping[str, Any] | None = None
     paper_metrics: Mapping[str, Any] | None = None
+    paper_failover: Mapping[str, Any] | None = None
     portfolio_state: Mapping[str, Any] | None = None
     performance: Mapping[str, Any] | None = None
     execution_stats: Mapping[str, Any] | None = None
@@ -346,6 +347,7 @@ async def run_paper_trading_simulation(
         order_summary=order_summary,
         paper_broker=_resolve_paper_broker_snapshot(runtime),
         paper_metrics=paper_engine.describe_metrics(),
+        paper_failover=_resolve_paper_failover_snapshot(paper_engine),
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
         execution_stats=execution_stats,
@@ -521,6 +523,15 @@ def _resolve_paper_broker_snapshot(runtime: Any) -> Mapping[str, Any] | None:
     if not summary:
         return None
     return dict(summary)
+
+
+def _resolve_paper_failover_snapshot(
+    paper_engine: PaperBrokerExecutionAdapter,
+) -> Mapping[str, Any] | None:
+    snapshot = _maybe_describe_mapping(paper_engine, "describe_failover")
+    if snapshot:
+        return dict(snapshot)
+    return None
 
 
 def _resolve_strategy_summary(runtime: Any) -> Mapping[str, Any] | None:

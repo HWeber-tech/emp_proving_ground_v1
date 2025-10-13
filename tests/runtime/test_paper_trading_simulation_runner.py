@@ -150,6 +150,10 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.paper_metrics is not None
     assert report.paper_metrics.get("success_ratio") == pytest.approx(1.0)
     assert report.paper_metrics.get("failure_ratio") == pytest.approx(0.0)
+    assert report.paper_failover is not None
+    assert report.paper_failover.get("threshold") == 2
+    assert report.paper_failover.get("active") is False
+    assert report.paper_failover.get("consecutive_failures") == 0
     assert report.diary_entries >= 1
     assert report.decisions >= 1
     assert report.errors == []
@@ -396,9 +400,12 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     assert payload["order_summary"].get("total_orders") == len(report.orders)
     assert payload.get("decisions") == report.decisions
     assert "paper_metrics" in payload
+    assert "paper_failover" in payload
     metrics_payload = payload.get("paper_metrics", {})
     assert metrics_payload.get("success_ratio", 0.0) >= 0.0
     assert metrics_payload.get("failure_ratio", 0.0) >= 0.0
+    failover_payload = payload.get("paper_failover", {})
+    assert failover_payload.get("threshold") == 2
     assert "execution_stats" in payload
     assert "performance_health" in payload
     assert "strategy_summary" in payload
@@ -464,6 +471,9 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
     assert report.paper_metrics.get("failure_ratio") == 1.0
     assert report.paper_metrics.get("consecutive_failures", 0) >= 1
     assert "failover" in report.paper_metrics
+    assert report.paper_failover is not None
+    assert report.paper_failover.get("threshold") == 2
+    assert report.paper_failover.get("consecutive_failures", 0) >= 1
     assert report.execution_stats is not None
     assert report.performance_health is not None
     assert report.strategy_summary is not None

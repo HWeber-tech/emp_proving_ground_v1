@@ -962,6 +962,32 @@ class CompetitiveIntelligenceSystem:
         except Exception as e:
             logger.error(f"Error storing understanding snapshot: {e}")
 
+    @staticmethod
+    def _with_legacy_aliases(stats: dict[str, object]) -> dict[str, object]:
+        """Attach legacy intelligence keys so downstream consumers keep working."""
+
+        alias_map: dict[str, tuple[str, ...]] = {
+            "total_understanding_cycles": ("total_intelligence_cycles",),
+            "total_understanding_signatures_detected": ("total_signatures_detected",),
+            "total_understanding_competitors_analyzed": ("total_competitors_analyzed",),
+            "total_understanding_counter_strategies_developed": (
+                "total_counter_strategies_developed",
+            ),
+            "average_understanding_signatures_per_cycle": (
+                "average_signatures_per_cycle",
+            ),
+            "last_understanding": ("last_intelligence",),
+        }
+
+        merged = dict(stats)
+        for canonical, aliases in alias_map.items():
+            if canonical not in stats:
+                continue
+            value = stats[canonical]
+            for alias in aliases:
+                merged[alias] = value
+        return merged
+
     async def get_understanding_stats(self) -> dict[str, object]:
         """Get competitive understanding statistics (with legacy aliases)."""
         try:

@@ -192,6 +192,7 @@
   governance approvals, and CLI sequence for advancing capital tiers so review
   boards inherit a deterministic checklist aligned with the graduation helpers
   and release metadata exports.【F:docs/operations/promotion_gate.md†L1-L98】【F:tools/governance/alpha_trade_graduation.py†L34-L282】【F:src/governance/policy_ledger.py†L572-L595】
+- Progress: Promotion tooling now builds `PolicyTraceability` metadata containing diary slices, git code hashes, and config-delta digests, wiring the payload into both single-policy and graduation CLIs so every ledger record carries reproducible provenance under regression coverage that inspects stored trace entries and CLI summaries.【F:src/governance/policy_traceability.py†L1-L230】【F:tools/governance/promote_policy.py†L323-L379】【F:tools/governance/alpha_trade_graduation.py†L168-L221】【F:tests/governance/test_policy_traceability.py†L1-L112】【F:tests/tools/test_promote_policy_cli.py†L60-L118】
 - Progress: Strategy registry now bootstraps `config/governance/promotion_guard.yaml`, enforcing stage requirements, ledger/diary locations, regime coverage, and minimum decision counts, and regression tests prove promotions fail until missing regimes are recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】
 - Progress: TRM auto-apply pipeline records queue metadata, approvals, and
   threshold overrides directly in the ledger during runtime startup, with paper

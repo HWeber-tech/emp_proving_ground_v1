@@ -40,7 +40,7 @@
 - [x] `[sim]` **Determinism**: Replay same tape + seeds â‡’ identical diary & PnL. _Progress: Paper replay determinism now seeds the runtime via `seed_runtime`, replays the bootstrap simulation twice against the same tape, and asserts identical decision diaries and performance snapshots so reproducibility becomes a hard gate under pytest coverage.【F:src/runtime/determinism.py†L1-L64】【F:src/runtime/paper_simulation.py†L1-L219】【F:tests/runtime/test_replay_determinism.py†L1-L174】_
 - [x] `[adapt]` **Regimeâ€‘aware routing**: regime flip â‡’ topology switch within N ms; proven in diary. _Progress: PolicyRouter enforces topology switches on regime changes, tracks switch latency, and reflection summaries capture the transition under dedicated pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L520】【F:tests/thinking/test_policy_router.py†L60-L152】_
 - [ ] `[reflect]` **Drift throttle**: injected alpha decay â‡’ sentry fires within 1 decision step; theory packet written.
-- [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms). _Progress: AlphaTradeLoopRunner now attaches belief/probe attribution payloads to trade metadata and decision diaries, while TradingManager records `orders_with_attribution` and `attribution_coverage` stats and warns when coverage slips below the 90% target under guardrail tests for executed intents.【F:src/orchestration/alpha_trade_runner.py†L168-L234】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
+- [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms). _Progress: AlphaTradeLoopRunner now attaches belief/probe attribution payloads, tracks diary coverage targets with gap alerts, and persists the stats into trade metadata/diaries while TradingManager records `orders_with_attribution` metrics; regression coverage exercises intentional diary drops to assert warning emission alongside executed-intent coverage checks.【F:src/orchestration/alpha_trade_runner.py†L128-L420】【F:tests/orchestration/test_alpha_trade_runner.py†L660-L836】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [x] `[risk]` **0** invariant violations in a 4-hour sim run. _Progress: Simulation invariant guards validate four-hour rehearsal reports and fail fast on runtime shortfalls or guardrail incidents, with CLI integration exporting the assessment and pytest coverage locking the zero-violation proof for the acceptance gate.【F:src/runtime/simulation_invariants.py†L75-L156】【F:tools/trading/run_paper_trading_simulation.py†L332-L365】【F:tests/runtime/test_simulation_invariants.py†L37-L122】_
 
 ---
@@ -49,7 +49,7 @@
 
 **Genotype/Phenotype & Operators**
 - [x] `[adapt]` **StrategyGenotype/Phenotype** contracts (fields: features, exec topology, risk template, tunables). _Progress: Immutable strategy contracts now normalise feature, topology, tunable, and risk definitions and realise phenotypes with override guards and metadata merges, while regression tests exercise override paths, duplicate detection, and bound enforcement so evolution operators can consume a typed schema immediately.【F:src/thinking/adaptation/strategy_contracts.py†L1-L409】【F:tests/thinking/adaptation/test_strategy_contracts.py†L17-L119】_
-- [ ] `[adapt]` Operators: `op_add_feature`, `op_drop_feature`, `op_swap_execution_topology`, `op_tighten_risk`.
+- [x] `[adapt]` Operators: `op_add_feature`, `op_drop_feature`, `op_swap_execution_topology`, `op_tighten_risk`. _Progress: Genotype operators now clone typed strategy genomes, apply feature/topology/risk mutations with validation, and emit `GenotypeOperatorResult` payloads capturing lineage metadata while exports surface the helpers in the adaptation package and pytest coverage locks happy-path, replacement, duplicate, and risk-scaling flows.【F:src/thinking/adaptation/operators.py†L1-L353】【F:src/thinking/adaptation/__init__.py†L28-L98】【F:tests/thinking/adaptation/test_genotype_operators.py†L1-L180】_
 - [x] `[adapt]` Operator constraints (allowed domain, regimeâ€‘aware rules). _Progress: Operator constraint schemas now parse mappings/sequences into typed sets, EvolutionManager resolves constraint bundles per strategy, AlphaTrade threads regime state into adaptation, and regression suites cover allow/deny flows so adaptive operators respect stage/regime gates and parameter bounds before registering variants.【F:src/thinking/adaptation/operator_constraints.py†L1-L388】【F:src/thinking/adaptation/evolution_manager.py†L80-L412】【F:src/orchestration/alpha_trade_loop.py†L658-L699】【F:tests/thinking/test_operator_constraints.py†L1-L104】【F:tests/thinking/test_evolution_manager.py†L310-L455】_
 
 **Search & Selection**
@@ -85,7 +85,7 @@
 
 **Acceptance (DoD)**
 - [x] `[sim]` At least **one** RIMâ€‘driven change applied via governance rule in sim/paper. _Progress: Paper runtime now ingests auto-applied TRM queue entries, tags the ledger with `rim-auto` approvals, persists threshold deltas, and exposes the metadata in release posture exports with regression coverage across the helper and paper simulation flow.【F:src/reflection/trm/application.py†L17-L159】【F:tests/reflection/test_trm_application.py†L49-L100】【F:src/runtime/predator_app.py†L2557-L2585】【F:tests/runtime/test_paper_trading_simulation_runner.py†L191-L278】_
-- [ ] `[reflect]` Every proposal traceable (input diary slice, code hash, config hash).
+- [x] `[reflect]` Every proposal traceable (input diary slice, code hash, config hash). _Progress: Promotion tooling now builds `PolicyTraceability` payloads that bundle diary slices with git code hashes and config-delta digests, threading the metadata into single-policy and graduation CLIs so ledger entries persist verifiable provenance under regression coverage that inspects CLI summaries and stored records.【F:src/governance/policy_traceability.py†L1-L230】【F:tools/governance/promote_policy.py†L323-L379】【F:tools/governance/alpha_trade_graduation.py†L168-L221】【F:tests/governance/test_policy_traceability.py†L1-L112】【F:tests/tools/test_promote_policy_cli.py†L60-L118】_
 - [ ] `[risk]` No autoâ€‘applied proposal can bypass invariants or budget constraints.
 
 ---
@@ -145,7 +145,7 @@
 - [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a metrics CLI reports average/median/p90 turnaround plus breach details, while the new scheduler CLI quick-screens ideas, applies UCB-lite promotion with bounded `--max-quick`/`--max-full` budgets, and stamps evidence notes so candidates enter replay within the 24 h envelope under regression coverage.【F:emp/core/findings_memory.py†L1-L332】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L94】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】_
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates. _Progress: Strategy registry now bootstraps a config-driven PromotionGuard that enforces stage requirements, ledger/diary paths, and regime coverage, with tests proving missing regimes block approvals until coverage is recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】_
 - [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned. _Progress: Risk guardrail incidents now start a force-paper cooldown, snapshot remaining time and reason into execution stats, propagate `risk_guardrail` blocks onto intents, and trigger release routing to keep near misses on paper, with regression coverage proving the forced routes and telemetry payloads.【F:src/trading/trading_manager.py†L546-L590】【F:src/trading/trading_manager.py†L2011-L2219】【F:src/trading/execution/release_router.py†L433-L547】【F:tests/trading/test_trading_manager_execution.py†L730-L872】_
-- [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Execution stats now surface attribution coverage metrics and end-to-end tests assert executed trades retain the enriched payload, enabling governance dashboards to track the 90% target quantitatively.【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
+- [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Loop runner telemetry now emits diary-coverage snapshots with warnings on sustained gaps while the trading manager continues to record attribution metrics; end-to-end tests cover both executed-trade coverage and forced diary misses so observability surfaces quantify drift toward the 90% goal.【F:src/orchestration/alpha_trade_runner.py†L128-L420】【F:tests/orchestration/test_alpha_trade_runner.py†L660-L836】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [x] **Operator leverage**: experiments/week/person â†‘ without quality loss. _Progress: Operator leverage evaluator now rolls experimentation logs into per-operator velocity and quality telemetry, escalates WARN/FAIL posture for lagging operators, and the observability dashboard panel renders the snapshot with deterministic top-operator summaries under guardrail coverage.【F:src/operations/operator_leverage.py†L1-L543】【F:src/operations/observability_dashboard.py†L701-L748】【F:tests/operations/test_operator_leverage.py†L49-L139】【F:tests/operations/test_observability_dashboard.py†L560-L598】_
 
 ---
@@ -164,13 +164,13 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-13T17:09:54Z
+## Automation updates — 2025-10-13T17:41:12Z
 
 ### Last 4 commits
-- a884a82f feat(thinking): add 4 files (2025-10-13)
-- db1967d0 feat(operations): add 5 files (2025-10-13)
-- b67cbaf8 docs(docs): add 21 files (2025-10-13)
-- 69d46f9f docs(docs): tune 4 files (2025-10-13)
+- e9dc22c5 refactor(orchestration): tune 2 files (2025-10-13)
+- a06d2fca feat(thinking): add 4 files (2025-10-13)
+- 40ddcacb feat(governance): add 5 files (2025-10-13)
+- b580f931 docs(docs): tune 5 files (2025-10-13)
 
 ## Automation updates — 2025-10-13T15:45:02Z
 

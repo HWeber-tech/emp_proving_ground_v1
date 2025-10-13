@@ -65,6 +65,105 @@ def test_tracker_computes_per_strategy_kpis() -> None:
     assert totals.roi == pytest.approx(600.0 / (10_000.0 + 8_000.0 + 5_000.0))
 
 
+def test_tracker_collects_fast_weight_metrics_and_hebbian_samples() -> None:
+    tracker = StrategyPerformanceTracker(initial_capital=120_000.0)
+
+    tracker.record_trade(
+        "alpha",
+        pnl=400.0,
+        notional=12_000.0,
+        return_pct=0.033,
+        timestamp=_timestamp(0),
+        fast_weights_enabled=True,
+        fast_weight_metrics={
+            "total": 5,
+            "active": 2,
+            "dormant": 3,
+            "inhibitory": 1,
+            "suppressed_inhibitory": 0,
+            "active_percentage": 40.0,
+            "sparsity": 0.6,
+            "max_multiplier": 1.6,
+            "min_multiplier": 0.85,
+        },
+        fast_weight_summary={
+            "momentum_boost": {
+                "current_multiplier": 1.6,
+                "previous_multiplier": 1.4,
+                "feature_value": 0.9,
+            }
+        },
+    )
+
+    tracker.record_trade(
+        "alpha",
+        pnl=250.0,
+        notional=9_000.0,
+        return_pct=0.027,
+        timestamp=_timestamp(1),
+        fast_weights_enabled=False,
+        fast_weight_metrics={
+            "total": 4,
+            "active": 1,
+            "dormant": 3,
+            "inhibitory": 0,
+            "suppressed_inhibitory": 1,
+            "active_percentage": 25.0,
+            "sparsity": 0.75,
+            "max_multiplier": 1.25,
+            "min_multiplier": 0.7,
+        },
+        fast_weight_summary={
+            "momentum_boost": {
+                "current_multiplier": 1.25,
+                "previous_multiplier": 1.5,
+                "feature_value": 0.8,
+            },
+            "mean_reversion_guard": {
+                "current_multiplier": 0.95,
+                "previous_multiplier": 1.05,
+            },
+        },
+    )
+
+    report = tracker.generate_report(as_of=_timestamp(2))
+
+    alpha = next(strategy for strategy in report.strategies if strategy.strategy_id == "alpha")
+    fast_weight_meta = alpha.metadata.get("fast_weight")
+    assert fast_weight_meta is not None
+
+    toggle_counts = fast_weight_meta.get("toggle_counts", {})
+    assert toggle_counts["enabled"] == 1
+    assert toggle_counts["disabled"] == 1
+
+    metrics_summary = fast_weight_meta.get("metrics", {})
+    assert metrics_summary["samples"] == 2
+    assert metrics_summary["active_mean"] == pytest.approx((2 + 1) / 2)
+    assert metrics_summary["sparsity_mean"] == pytest.approx((0.6 + 0.75) / 2)
+    assert metrics_summary["max_multiplier"] == pytest.approx(1.6)
+    assert metrics_summary["min_multiplier"] == pytest.approx(0.7)
+
+    hebbian_adapters = fast_weight_meta.get("hebbian_adapters", {})
+    assert "momentum_boost" in hebbian_adapters
+    momentum_stats = hebbian_adapters["momentum_boost"]
+    assert momentum_stats["samples"] == 2
+    assert momentum_stats["current_multiplier_mean"] == pytest.approx((1.6 + 1.25) / 2)
+    assert momentum_stats["delta_mean"] == pytest.approx(((1.6 - 1.4) + (1.25 - 1.5)) / 2)
+    assert momentum_stats["feature_value_mean"] == pytest.approx((0.9 + 0.8) / 2)
+
+    assert "mean_reversion_guard" in hebbian_adapters
+    guard_stats = hebbian_adapters["mean_reversion_guard"]
+    assert guard_stats["samples"] == 1
+    assert guard_stats["current_multiplier_mean"] == pytest.approx(0.95)
+
+    aggregates_meta = report.aggregates.metadata.get("fast_weight")
+    assert aggregates_meta is not None
+    assert aggregates_meta["toggle_counts"]["enabled"] == 1
+    assert aggregates_meta["metrics"]["samples"] == 2
+    assert aggregates_meta["metrics"]["active_percentage_mean"] == pytest.approx((40.0 + 25.0) / 2)
+    assert "momentum_boost" in aggregates_meta["hebbian_adapters"]
+
+
 def test_tracker_reports_loop_metrics() -> None:
     tracker = StrategyPerformanceTracker(initial_capital=50_000.0)
 

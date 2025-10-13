@@ -11,6 +11,186 @@ from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 from src.operations.roi import RoiCostModel, RoiTelemetrySnapshot, evaluate_roi_posture
 
 
+@dataclass(slots=True)
+class _MetricAggregate:
+    """Helper that tracks running totals for a numeric metric."""
+
+    total: float = 0.0
+    samples: int = 0
+
+    def add(self, value: float) -> None:
+        self.total += value
+        self.samples += 1
+
+    def mean(self) -> float | None:
+        if not self.samples:
+            return None
+        return self.total / self.samples
+
+
+def _as_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+@dataclass
+class _FastWeightTelemetryAccumulator:
+    """Aggregate sparsity metrics captured from fast-weight controllers."""
+
+    samples: int = 0
+    total_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    active_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    dormant_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    inhibitory_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    suppressed_inhibitory_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    active_percentage_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    sparsity_metric: _MetricAggregate = field(default_factory=_MetricAggregate)
+    max_multiplier: float | None = None
+    min_multiplier: float | None = None
+
+    def add_from_mapping(self, metrics: Mapping[str, Any]) -> None:
+        if not metrics:
+            return
+
+        recorded = False
+
+        def _ingest(target: _MetricAggregate, key: str) -> None:
+            nonlocal recorded
+            value = _as_float(metrics.get(key))
+            if value is None:
+                return
+            target.add(value)
+            recorded = True
+
+        _ingest(self.total_metric, "total")
+        _ingest(self.active_metric, "active")
+        _ingest(self.dormant_metric, "dormant")
+        _ingest(self.inhibitory_metric, "inhibitory")
+        _ingest(self.suppressed_inhibitory_metric, "suppressed_inhibitory")
+        _ingest(self.active_percentage_metric, "active_percentage")
+        _ingest(self.sparsity_metric, "sparsity")
+
+        max_multiplier = _as_float(metrics.get("max_multiplier"))
+        if max_multiplier is not None:
+            self.max_multiplier = (
+                max_multiplier if self.max_multiplier is None else max(self.max_multiplier, max_multiplier)
+            )
+            recorded = True
+
+        min_multiplier = _as_float(metrics.get("min_multiplier"))
+        if min_multiplier is not None:
+            self.min_multiplier = (
+                min_multiplier if self.min_multiplier is None else min(self.min_multiplier, min_multiplier)
+            )
+            recorded = True
+
+        if recorded:
+            self.samples += 1
+
+    def summary(self) -> Mapping[str, Any]:
+        if not self.samples:
+            return {}
+
+        def _maybe_mean(aggregate: _MetricAggregate, key: str) -> tuple[str, float] | None:
+            value = aggregate.mean()
+            if value is None:
+                return None
+            return key, value
+
+        payload: dict[str, Any] = {"samples": self.samples}
+
+        for aggregate, label in (
+            (self.total_metric, "total_mean"),
+            (self.active_metric, "active_mean"),
+            (self.dormant_metric, "dormant_mean"),
+            (self.inhibitory_metric, "inhibitory_mean"),
+            (self.suppressed_inhibitory_metric, "suppressed_inhibitory_mean"),
+            (self.active_percentage_metric, "active_percentage_mean"),
+            (self.sparsity_metric, "sparsity_mean"),
+        ):
+            entry = _maybe_mean(aggregate, label)
+            if entry is not None:
+                key, value = entry
+                payload[key] = value
+
+        if self.max_multiplier is not None:
+            payload["max_multiplier"] = self.max_multiplier
+        if self.min_multiplier is not None:
+            payload["min_multiplier"] = self.min_multiplier
+
+        return payload
+
+
+@dataclass
+class _HebbianAdapterAccumulator:
+    """Aggregate Hebbian multiplier telemetry per fast-weight adapter."""
+
+    adapter_id: str
+    samples: int = 0
+    current_multiplier: _MetricAggregate = field(default_factory=_MetricAggregate)
+    previous_multiplier: _MetricAggregate = field(default_factory=_MetricAggregate)
+    delta: _MetricAggregate = field(default_factory=_MetricAggregate)
+    feature_value: _MetricAggregate = field(default_factory=_MetricAggregate)
+    last_multiplier: float | None = None
+    max_multiplier: float | None = None
+    min_multiplier: float | None = None
+
+    def add(self, summary: Mapping[str, Any]) -> None:
+        current = _as_float(summary.get("current_multiplier"))
+        if current is None:
+            return
+
+        self.samples += 1
+        self.current_multiplier.add(current)
+        self.last_multiplier = current
+        self.max_multiplier = current if self.max_multiplier is None else max(self.max_multiplier, current)
+        self.min_multiplier = current if self.min_multiplier is None else min(self.min_multiplier, current)
+
+        previous = _as_float(summary.get("previous_multiplier"))
+        if previous is not None:
+            self.previous_multiplier.add(previous)
+            self.delta.add(current - previous)
+
+        feature = _as_float(summary.get("feature_value"))
+        if feature is not None:
+            self.feature_value.add(feature)
+
+    def summary(self) -> Mapping[str, Any]:
+        if not self.samples:
+            return {}
+
+        payload: dict[str, Any] = {"samples": self.samples}
+
+        current_mean = self.current_multiplier.mean()
+        if current_mean is not None:
+            payload["current_multiplier_mean"] = current_mean
+
+        previous_mean = self.previous_multiplier.mean()
+        if previous_mean is not None:
+            payload["previous_multiplier_mean"] = previous_mean
+
+        delta_mean = self.delta.mean()
+        if delta_mean is not None:
+            payload["delta_mean"] = delta_mean
+
+        feature_mean = self.feature_value.mean()
+        if feature_mean is not None:
+            payload["feature_value_mean"] = feature_mean
+
+        if self.max_multiplier is not None:
+            payload["max_multiplier"] = self.max_multiplier
+        if self.min_multiplier is not None:
+            payload["min_multiplier"] = self.min_multiplier
+        if self.last_multiplier is not None:
+            payload["last_multiplier"] = self.last_multiplier
+
+        return payload
+
+
 @dataclass(frozen=True)
 class StrategyModeSummary:
     """Aggregated metrics for a specific fast-weight mode."""
@@ -252,6 +432,8 @@ class _TradeRecord:
     fast_weights_enabled: bool | None
     regime: str | None
     metadata: Mapping[str, Any]
+    fast_weight_metrics: Mapping[str, Any] | None = None
+    fast_weight_summary: Mapping[str, Mapping[str, Any]] | None = None
 
 
 @dataclass
@@ -295,6 +477,11 @@ class _StrategyAccumulator:
         default_factory=lambda: {True: _StrategyModeAccumulator(), False: _StrategyModeAccumulator()}
     )
     metadata: Counter[str] = field(default_factory=Counter)
+    fast_weight_toggle_counts: Counter[str] = field(default_factory=Counter)
+    fast_weight_telemetry: _FastWeightTelemetryAccumulator = field(
+        default_factory=_FastWeightTelemetryAccumulator
+    )
+    hebbian_adapters: MutableMapping[str, _HebbianAdapterAccumulator] = field(default_factory=dict)
 
     def add_trade(self, record: _TradeRecord) -> None:
         self.trades.append(record)
@@ -310,8 +497,24 @@ class _StrategyAccumulator:
             self.fast_weight_modes.setdefault(
                 record.fast_weights_enabled, _StrategyModeAccumulator()
             ).add(record.pnl, record.notional, record.return_pct)
+            toggle_bucket = "enabled" if record.fast_weights_enabled else "disabled"
+            self.fast_weight_toggle_counts[toggle_bucket] += 1
+        else:
+            self.fast_weight_toggle_counts["unknown"] += 1
         if record.regime:
             self.metadata[f"regime:{record.regime}"] += 1
+        if record.fast_weight_metrics:
+            self.fast_weight_telemetry.add_from_mapping(record.fast_weight_metrics)
+        if record.fast_weight_summary:
+            for adapter_id, summary in record.fast_weight_summary.items():
+                if not isinstance(summary, Mapping):
+                    continue
+                adapter_key = str(adapter_id)
+                adapter_accumulator = self.hebbian_adapters.setdefault(
+                    adapter_key,
+                    _HebbianAdapterAccumulator(adapter_id=adapter_key),
+                )
+                adapter_accumulator.add(summary)
 
     def kpi(self) -> StrategyKpi:
         trades_count = len(self.trades)
@@ -329,6 +532,10 @@ class _StrategyAccumulator:
         metadata: dict[str, Any] = {}
         if self.metadata:
             metadata["regime_counts"] = dict(self.metadata)
+
+        fast_weight_metadata = self._fast_weight_metadata()
+        if fast_weight_metadata:
+            metadata["fast_weight"] = fast_weight_metadata
 
         return StrategyKpi(
             strategy_id=self.strategy_id,
@@ -368,6 +575,31 @@ class _StrategyAccumulator:
         max_drawdown_pct = (max_drawdown / base) if base else None
         return max_drawdown, max_drawdown_pct
 
+    def _fast_weight_metadata(self) -> Mapping[str, Any]:
+        payload: dict[str, Any] = {}
+
+        toggle_counts = {
+            bucket: int(count)
+            for bucket, count in self.fast_weight_toggle_counts.items()
+            if count
+        }
+        if toggle_counts:
+            payload["toggle_counts"] = toggle_counts
+
+        metrics_summary = self.fast_weight_telemetry.summary()
+        if metrics_summary:
+            payload["metrics"] = dict(metrics_summary)
+
+        hebbian_payload: dict[str, Any] = {}
+        for adapter_id, accumulator in self.hebbian_adapters.items():
+            summary = accumulator.summary()
+            if summary:
+                hebbian_payload[adapter_id] = dict(summary)
+        if hebbian_payload:
+            payload["hebbian_adapters"] = hebbian_payload
+
+        return payload
+
 
 class StrategyPerformanceTracker:
     """Collects per-strategy KPIs and exports daily reports."""
@@ -387,6 +619,9 @@ class StrategyPerformanceTracker:
         self._regime_total = 0
         self._regime_correct = 0
         self._drift_counts: Counter[str] = Counter()
+        self._fast_weight_toggle_counts: Counter[str] = Counter()
+        self._fast_weight_telemetry = _FastWeightTelemetryAccumulator()
+        self._hebbian_adapters: MutableMapping[str, _HebbianAdapterAccumulator] = {}
 
     @property
     def period_start(self) -> datetime:
@@ -403,6 +638,8 @@ class StrategyPerformanceTracker:
         regime: str | None = None,
         fast_weights_enabled: bool | None = None,
         metadata: Mapping[str, Any] | None = None,
+        fast_weight_metrics: Mapping[str, Any] | None = None,
+        fast_weight_summary: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> None:
         """Record a completed trade for KPI calculations."""
 
@@ -411,6 +648,14 @@ class StrategyPerformanceTracker:
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=UTC)
         notional_value = float(notional)
+        metrics_payload = dict(fast_weight_metrics) if fast_weight_metrics else None
+        summary_payload: Mapping[str, Mapping[str, Any]] | None = None
+        if fast_weight_summary:
+            summary_payload = {
+                str(adapter_id): dict(summary)
+                for adapter_id, summary in fast_weight_summary.items()
+                if isinstance(summary, Mapping)
+            }
         record = _TradeRecord(
             timestamp=timestamp.astimezone(UTC),
             pnl=float(pnl),
@@ -419,12 +664,32 @@ class StrategyPerformanceTracker:
             fast_weights_enabled=fast_weights_enabled,
             regime=regime,
             metadata=dict(metadata or {}),
+            fast_weight_metrics=metrics_payload,
+            fast_weight_summary=summary_payload,
         )
         accumulator = self._strategies.setdefault(
             strategy_id, _StrategyAccumulator(strategy_id=strategy_id)
         )
         accumulator.add_trade(record)
         self._global_trades.append(record)
+
+        if fast_weights_enabled is True:
+            self._fast_weight_toggle_counts["enabled"] += 1
+        elif fast_weights_enabled is False:
+            self._fast_weight_toggle_counts["disabled"] += 1
+        else:
+            self._fast_weight_toggle_counts["unknown"] += 1
+
+        if metrics_payload:
+            self._fast_weight_telemetry.add_from_mapping(metrics_payload)
+
+        if summary_payload:
+            for adapter_id, summary in summary_payload.items():
+                adapter_accumulator = self._hebbian_adapters.setdefault(
+                    adapter_id,
+                    _HebbianAdapterAccumulator(adapter_id=adapter_id),
+                )
+                adapter_accumulator.add(summary)
 
     def record_regime_evaluation(self, predicted: str, actual: str) -> None:
         """Capture a regime classification outcome for accuracy KPIs."""
@@ -498,6 +763,30 @@ class StrategyPerformanceTracker:
                 fast_weight_entries.append(breakdown.roi_uplift)
         if fast_weight_entries:
             metadata["fast_weight_roi_uplift_mean"] = fmean(fast_weight_entries)
+
+        fast_weight_metadata: dict[str, Any] = {}
+        toggle_counts = {
+            bucket: int(count)
+            for bucket, count in self._fast_weight_toggle_counts.items()
+            if count
+        }
+        if toggle_counts:
+            fast_weight_metadata["toggle_counts"] = toggle_counts
+
+        metrics_summary = self._fast_weight_telemetry.summary()
+        if metrics_summary:
+            fast_weight_metadata["metrics"] = dict(metrics_summary)
+
+        hebbian_payload: dict[str, Any] = {}
+        for adapter_id, accumulator in self._hebbian_adapters.items():
+            summary = accumulator.summary()
+            if summary:
+                hebbian_payload[adapter_id] = dict(summary)
+        if hebbian_payload:
+            fast_weight_metadata["hebbian_adapters"] = hebbian_payload
+
+        if fast_weight_metadata:
+            metadata["fast_weight"] = fast_weight_metadata
 
         return StrategyPerformanceAggregates(
             trades=trades,

@@ -120,7 +120,9 @@ class TradeThrottleDecision:
 class TradeThrottle:
     """Maintains rolling trade counters to limit execution frequency."""
 
-    _RATE_LIMIT_REASON = re.compile(r"^max_(?P<count>\d+)_trades_per_(?P<window>\d+)s$")
+    _RATE_LIMIT_REASON = re.compile(
+        r"^max_(?P<count>\d+)_trades_per_(?P<window>\d+(?:\.\d+)?)s$"
+    )
     _GLOBAL_SCOPE: tuple[str, ...] = ("__global__",)
 
     @dataclass
@@ -159,7 +161,8 @@ class TradeThrottle:
         """
 
         moment = self._coerce_timestamp(now)
-        window_duration = timedelta(seconds=float(self._config.window_seconds))
+        window_seconds = float(self._config.window_seconds)
+        window_duration = timedelta(seconds=window_seconds)
         cooldown_duration = timedelta(seconds=float(self._config.cooldown_seconds))
 
         scope_key, scope_descriptor = self._resolve_scope(metadata)
@@ -203,9 +206,7 @@ class TradeThrottle:
             allowed = False
             active = True
             throttle_state = "rate_limited"
-            reason = (
-                f"max_{self._config.max_trades}_trades_per_{int(window_duration.total_seconds())}s"
-            )
+            reason = f"max_{self._config.max_trades}_trades_per_{window_seconds:g}s"
             if cooldown_duration.total_seconds() > 0:
                 state.cooldown_until = moment + cooldown_duration
                 retry_at = state.cooldown_until
@@ -679,7 +680,7 @@ class TradeThrottle:
         match = self._RATE_LIMIT_REASON.match(reason)
         if match:
             count = int(match.group("count"))
-            window_seconds = int(match.group("window"))
+            window_seconds = float(match.group("window"))
             trades_label = "trade" if count == 1 else "trades"
             window_label = self._format_window_description(window_seconds)
             return (
@@ -690,14 +691,23 @@ class TradeThrottle:
         return f"Throttle reason: {reason}"
 
     @staticmethod
-    def _format_window_description(window_seconds: int) -> str:
-        if window_seconds % 3600 == 0:
-            hours = window_seconds // 3600
-            return f"{hours} hour{'s' if hours != 1 else ''}"
-        if window_seconds % 60 == 0:
-            minutes = window_seconds // 60
-            return f"{minutes} minute{'s' if minutes != 1 else ''}"
-        return f"{window_seconds} second{'s' if window_seconds != 1 else ''}"
+    def _format_window_description(window_seconds: float) -> str:
+        seconds = float(window_seconds)
+        if seconds <= 0.0:
+            return "0 seconds"
+        if seconds >= 3600.0:
+            hours = seconds / 3600.0
+            if math.isclose(hours, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+                return "1 hour"
+            return f"{hours:g} hours"
+        if seconds >= 60.0:
+            minutes = seconds / 60.0
+            if math.isclose(minutes, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+                return "1 minute"
+            return f"{minutes:g} minutes"
+        if math.isclose(seconds, 1.0, abs_tol=1e-9):
+            return "1 second"
+        return f"{seconds:g} seconds"
 
     @staticmethod
     def _format_seconds_brief(seconds: float) -> str:

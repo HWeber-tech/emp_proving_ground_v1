@@ -110,6 +110,34 @@ def test_trade_throttle_enforces_window_and_retry(cooldown_seconds: float) -> No
     assert fourth_meta.get("window_utilisation") == pytest.approx(1.0)
 
 
+def test_trade_throttle_handles_fractional_window() -> None:
+    config = TradeThrottleConfig(
+        name="fractional",
+        max_trades=1,
+        window_seconds=2.5,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    first = throttle.evaluate(now=base, metadata={"symbol": "EURUSD"})
+    assert first.allowed is True
+
+    second_time = base + timedelta(seconds=1.0)
+    blocked = throttle.evaluate(now=second_time, metadata={"symbol": "EURUSD"})
+    assert blocked.allowed is False
+    assert blocked.reason == "max_1_trades_per_2.5s"
+
+    message = blocked.snapshot.get("message")
+    assert isinstance(message, str)
+    assert "Throttled: too many trades in short time" in message
+    assert "2.5 seconds" in message
+
+    retry_seconds = blocked.snapshot.get("metadata", {}).get("retry_in_seconds")
+    assert retry_seconds == pytest.approx(1.5)
+    assert blocked.retry_in_seconds == pytest.approx(1.5)
+
+
 def test_trade_throttle_scopes_by_metadata_field() -> None:
     config = TradeThrottleConfig(
         name="scoped",

@@ -16,6 +16,7 @@ Design goals:
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Any, Mapping, Optional
 
 logger = logging.getLogger(__name__)
@@ -146,7 +147,7 @@ class Phase3IntelligenceOrchestrator:
         self.adversarial_trainer = None
         self.red_team = None
         self.specialized_evolution = None
-        self.competitive_intelligence = None
+        self._competitive_understanding: Any | None = None
         # Portfolio evolution surface was removed during dead-code cleanup; keep
         # attribute stub so callers referencing it get a clear None.
         self.portfolio_evolution: Any | None = None
@@ -172,7 +173,7 @@ class Phase3IntelligenceOrchestrator:
         self.red_team = RedTeamAI()
         self.specialized_evolution = SpecializedPredatorEvolution()
         self.portfolio_evolution = None
-        self.competitive_intelligence = CompetitiveIntelligenceSystem()
+        self.competitive_understanding = CompetitiveIntelligenceSystem()
 
         # If any components expose initialize coroutines, call them defensively
         import inspect
@@ -183,7 +184,7 @@ class Phase3IntelligenceOrchestrator:
             self.adversarial_trainer,
             self.red_team,
             self.specialized_evolution,
-            self.competitive_intelligence,
+            self.competitive_understanding,
         ):
             init = getattr(comp, "initialize", None)
             if callable(init):
@@ -202,7 +203,7 @@ class Phase3IntelligenceOrchestrator:
         assert self.adversarial_trainer is not None
         assert self.red_team is not None
         assert self.specialized_evolution is not None
-        assert self.competitive_intelligence is not None
+        assert self.competitive_understanding is not None
 
         results: dict[str, Any] = {
             "timestamp": datetime.utcnow(),
@@ -250,7 +251,7 @@ class Phase3IntelligenceOrchestrator:
         }
 
         # 7. Competitive understanding
-        competitive_report = await self.competitive_intelligence.identify_competitors(
+        competitive_report = await self.competitive_understanding.identify_competitors(
             market_data
         )
         results["competitive_understanding"] = competitive_report
@@ -264,9 +265,9 @@ class Phase3IntelligenceOrchestrator:
         assert self.adversarial_trainer is not None
         assert self.red_team is not None
         assert self.specialized_evolution is not None
-        assert self.competitive_intelligence is not None
+        assert self.competitive_understanding is not None
 
-        competitive_stats = await self.competitive_intelligence.get_understanding_stats()
+        competitive_stats = await self.competitive_understanding.get_understanding_stats()
 
         return {
             "sentient_engine": self.sentient_engine.get_status(),
@@ -280,6 +281,38 @@ class Phase3IntelligenceOrchestrator:
             },
             "competitive_understanding": competitive_stats,
         }
+
+    @property
+    def competitive_understanding(self) -> Any | None:
+        """Canonical accessor for the competitive understanding component."""
+
+        return self._competitive_understanding
+
+    @competitive_understanding.setter
+    def competitive_understanding(self, component: Any | None) -> None:
+        self._competitive_understanding = component
+
+    @property
+    def competitive_intelligence(self) -> Any | None:  # pragma: no cover - legacy alias
+        """Deprecated alias maintained for backwards compatibility."""
+
+        warnings.warn(
+            "competitive_intelligence attribute is deprecated; use"
+            " competitive_understanding instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._competitive_understanding
+
+    @competitive_intelligence.setter
+    def competitive_intelligence(self, component: Any | None) -> None:  # pragma: no cover - legacy alias
+        warnings.warn(
+            "Setting competitive_intelligence is deprecated; assign to"
+            " competitive_understanding instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self._competitive_understanding = component
 
 
 # Global instance (lazy)

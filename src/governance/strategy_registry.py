@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Iterator, Mapping, cast
+
+from src.governance.promotion_integrity import PromotionGuard, PromotionIntegrityError
 
 
 class StrategyStatus(Enum):
@@ -31,11 +34,42 @@ class StrategyRegistryError(RuntimeError):
 class StrategyRegistry:
     """Persistent strategy registry using SQLite database."""
 
-    def __init__(self, db_path: str = "governance.db") -> None:
+    def __init__(
+        self,
+        db_path: str = "governance.db",
+        *,
+        promotion_guard: PromotionGuard | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._logger = logging.getLogger(f"{__name__}.StrategyRegistry")
         self._initialize_database()
+        if promotion_guard is None:
+            ledger_path = os.getenv(
+                "POLICY_LEDGER_PATH",
+                "artifacts/governance/policy_ledger.json",
+            )
+            diary_path = os.getenv(
+                "DECISION_DIARY_PATH",
+                "artifacts/governance/decision_diary.json",
+            )
+            regimes_env = os.getenv("PROMOTION_REQUIRED_REGIMES")
+            required_regimes = (
+                [value.strip() for value in regimes_env.split(",") if value.strip()]
+                if regimes_env
+                else None
+            )
+            try:
+                min_regime = int(os.getenv("PROMOTION_MIN_REGIME_COUNT", "3"))
+            except ValueError:
+                min_regime = 3
+            promotion_guard = PromotionGuard(
+                ledger_path=ledger_path,
+                diary_path=diary_path,
+                required_regimes=required_regimes,
+                min_decisions_per_regime=min_regime,
+            )
+        self._promotion_guard = promotion_guard
 
     @contextmanager
     def _managed_connection(self) -> Iterator[sqlite3.Connection]:
@@ -314,6 +348,16 @@ class StrategyRegistry:
         self, strategy_id: str, new_status: StrategyStatus | str
     ) -> bool:
         status_value = self._normalise_status(new_status, default=StrategyStatus.EVOLVED)
+        status_enum: StrategyStatus | None
+        try:
+            status_enum = StrategyStatus(status_value)
+        except ValueError:
+            status_enum = None
+        if self._promotion_guard is not None:
+            try:
+                self._promotion_guard.validate(strategy_id, status_enum or status_value)
+            except PromotionIntegrityError as exc:
+                raise StrategyRegistryError(str(exc)) from exc
         with self._managed_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(

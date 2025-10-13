@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.promotion import (
     PromotionFeatureFlags,
     promote_manifest_to_registry,
 )
+from src.governance.promotion_integrity import PromotionGuard
 from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
+from src.understanding.decision_diary import DecisionDiaryStore
 
 
 def _write_manifest(path: Path, fitness: float = 4.2) -> Path:
@@ -37,8 +41,65 @@ def _write_manifest(path: Path, fitness: float = 4.2) -> Path:
     return manifest_path
 
 
-def _registry(tmp_path: Path) -> StrategyRegistry:
-    return StrategyRegistry(db_path=str(tmp_path / "registry.db"))
+def _expected_genome_id() -> str:
+    return "ma_crossover_ga::2025::s8::l64::r350"
+
+
+def _promotion_guard(tmp_path: Path, policy_id: str) -> PromotionGuard:
+    ledger_path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk", "compliance"),
+        evidence_id=f"dd-{policy_id}-promotion",
+    )
+    diary_path = tmp_path / "decision_diary.json"
+    diary = DecisionDiaryStore(diary_path, publish_on_record=False)
+    regimes = ("balanced", "bullish", "bearish")
+    base = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    for index, regime in enumerate(regimes):
+        recorded_at = base + timedelta(minutes=index * 7)
+        diary.record(
+            policy_id=policy_id,
+            decision={
+                "tactic_id": policy_id,
+                "parameters": {},
+                "selected_weight": 1.0,
+                "guardrails": {},
+                "rationale": "promotion-check",
+                "experiments_applied": (),
+                "reflection_summary": {},
+                "weight_breakdown": {},
+            },
+            regime_state={
+                "regime": regime,
+                "confidence": 0.75,
+                "features": {},
+                "timestamp": recorded_at.isoformat(),
+            },
+            outcomes={"paper_pnl": 0.0},
+            metadata={
+                "release_stage": PolicyLedgerStage.PAPER.value,
+                "release_execution": {"stage": PolicyLedgerStage.PAPER.value, "route": "paper"},
+            },
+            recorded_at=recorded_at,
+        )
+    return PromotionGuard(
+        ledger_path=ledger_path,
+        diary_path=diary_path,
+        required_regimes=regimes,
+        min_decisions_per_regime=1,
+    )
+
+
+def _registry(tmp_path: Path, policy_id: str | None = None) -> StrategyRegistry:
+    guard = _promotion_guard(tmp_path, policy_id or _expected_genome_id())
+    return StrategyRegistry(
+        db_path=str(tmp_path / "registry.db"),
+        promotion_guard=guard,
+    )
 
 
 def test_promotion_skipped_when_flag_disabled(tmp_path: Path) -> None:

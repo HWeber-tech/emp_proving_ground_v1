@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
 from src.evolution.experiments.promotion import promote_ma_crossover_champion
+from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
+from src.governance.promotion_integrity import PromotionGuard
 from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
+from src.understanding.decision_diary import DecisionDiaryStore
 
 
 @pytest.fixture()
@@ -55,16 +59,92 @@ def sample_manifest(tmp_path: Path) -> Path:
     return path
 
 
-def _build_registry(tmp_path: Path) -> StrategyRegistry:
+def _resolve_genome_id(manifest_path: Path) -> str:
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    genome = payload.get("best_genome", {})
+    experiment = str(payload.get("experiment", "ma_crossover_ga"))
+    seed = payload.get("seed", "seed")
+    short_window = int(genome.get("short_window", 0))
+    long_window = int(genome.get("long_window", 0))
+    risk_fraction = float(genome.get("risk_fraction", 0.0))
+    window_part = f"{short_window}-{long_window}-{risk_fraction:.3f}"
+    return "::".join((experiment, str(seed), window_part))
+
+
+def _promotion_guard(
+    tmp_path: Path,
+    policy_id: str,
+    *,
+    stage: PolicyLedgerStage = PolicyLedgerStage.PAPER,
+    regimes: tuple[str, ...] = ("balanced", "bullish", "bearish"),
+) -> PromotionGuard:
+    ledger_path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=stage,
+        approvals=("risk", "compliance"),
+        evidence_id=f"dd-{policy_id}-promotion",
+    )
+    diary_path = tmp_path / "decision_diary.json"
+    diary = DecisionDiaryStore(diary_path, publish_on_record=False)
+    base = datetime(2024, 3, 1, tzinfo=timezone.utc)
+    for index, regime in enumerate(regimes):
+        recorded_at = base + timedelta(minutes=index * 5)
+        diary.record(
+            policy_id=policy_id,
+            decision={
+                "tactic_id": policy_id,
+                "parameters": {},
+                "selected_weight": 1.0,
+                "guardrails": {},
+                "rationale": "promotion-check",
+                "experiments_applied": (),
+                "reflection_summary": {},
+                "weight_breakdown": {},
+            },
+            regime_state={
+                "regime": regime,
+                "confidence": 0.78,
+                "features": {},
+                "timestamp": recorded_at.isoformat(),
+            },
+            outcomes={"paper_pnl": 0.0},
+            metadata={
+                "release_stage": stage.value,
+                "release_execution": {
+                    "stage": stage.value,
+                    "route": "live" if stage is PolicyLedgerStage.LIMITED_LIVE else "paper",
+                },
+            },
+            recorded_at=recorded_at,
+        )
+    return PromotionGuard(
+        ledger_path=ledger_path,
+        diary_path=diary_path,
+        required_regimes=regimes,
+        min_decisions_per_regime=1,
+    )
+
+
+def _build_registry(
+    tmp_path: Path,
+    policy_id: str,
+    *,
+    stage: PolicyLedgerStage = PolicyLedgerStage.PAPER,
+) -> StrategyRegistry:
+    guard = _promotion_guard(tmp_path, policy_id, stage=stage)
     db_path = tmp_path / "registry.db"
-    return StrategyRegistry(db_path=str(db_path))
+    return StrategyRegistry(db_path=str(db_path), promotion_guard=guard)
 
 
 def test_promote_ga_champion_registers_evolved_by_default(
     sample_manifest: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv("PAPER_TRADE_GA_MA_CROSSOVER", raising=False)
-    registry = _build_registry(tmp_path)
+    policy_id = _resolve_genome_id(sample_manifest)
+    registry = _build_registry(tmp_path, policy_id)
     try:
         result = promote_ma_crossover_champion(sample_manifest, registry)
         assert result.registered is True
@@ -87,7 +167,8 @@ def test_promote_ga_champion_honours_approved_flag(
     sample_manifest: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PAPER_TRADE_GA_MA_CROSSOVER", "approved")
-    registry = _build_registry(tmp_path)
+    policy_id = _resolve_genome_id(sample_manifest)
+    registry = _build_registry(tmp_path, policy_id)
     try:
         result = promote_ma_crossover_champion(sample_manifest, registry)
         assert result.target_status == StrategyStatus.APPROVED
@@ -104,7 +185,12 @@ def test_promote_ga_champion_honours_active_flag(
     sample_manifest: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PAPER_TRADE_GA_MA_CROSSOVER", "active")
-    registry = _build_registry(tmp_path)
+    policy_id = _resolve_genome_id(sample_manifest)
+    registry = _build_registry(
+        tmp_path,
+        policy_id,
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+    )
     try:
         result = promote_ma_crossover_champion(sample_manifest, registry)
         assert result.target_status == StrategyStatus.ACTIVE

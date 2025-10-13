@@ -35,6 +35,36 @@ The evaluator also reports global metrics (total decisions, forced ratio,
 latest stage) so governance reviewers can spot deteriorating quality before a
 promotion attempt.【F:tools/governance/alpha_trade_graduation.py†L119-L163】
 
+## Performance KPIs
+
+Promotion decisions also inherit the capital ladder KPIs and walk-forward
+targets defined in the roadmap and encyclopaedia. Confirm the quantitative
+gates below before running `--apply` promotions so the ledger evidence aligns
+with the documented thresholds.【F:docs/reports/ROADMAP_COMPREHENSIVE.md†L21-L31】【F:EMP_ENCYCLOPEDIA_v2.3_CANONICAL.md†L3092-L3092】
+
+| Evaluation window | KPI | Threshold |
+| --- | --- | --- |
+| 3 consecutive weeks | Net PnL > 0, positive expectancy, no kill-switch triggers, operational KPIs green (latency & error rates) | Roadmap capital ladder gate |
+| Tier-specific risk band | Max drawdown stays within the ladder limits for the current capital tier | Roadmap capital ladder gate |
+| Rolling 4 weeks | Walk-forward ΔSharpe ≥ +0.05 vs baseline and max drawdown ≤ baseline | Encyclopaedia promotion gate |
+
+Use the dry-run evidence tools to generate machine-readable proof of these
+metrics before seeking approvals. A typical workflow packages the latest
+paper/pilot run logs, performance JSON, and diary evidence:
+
+```bash
+poetry run python -m tools.operations.final_dry_run_review \
+  --log artifacts/runs/paper/latest/log.json \
+  --performance artifacts/runs/paper/latest/performance.json \
+  --diary artifacts/governance/decision_diary.json \
+  --sign-off --sign-off-min-sharpe 0.05 \
+  --output artifacts/governance/performance/paper-gate.md
+```
+
+The review brief, underlying JSON, and associated replay artifacts should be
+archived alongside the promotion packet so compliance can verify KPI
+satisfaction during audits.【F:tools/operations/final_dry_run_review.py†L1-L212】【F:docs/operations/runbooks/policy_promotion_governance.md†L1-L33】
+
 ## Guard configuration and enforcement
 
 `StrategyRegistry` bootstraps a `PromotionGuard` so runtime status changes
@@ -65,6 +95,10 @@ cannot outrun the governance posture.【F:src/governance/strategy_registry.py†
 * Governance approvals (`risk`, `compliance`, etc.) recorded in the ledger.
 * Promotion log entry appended to `artifacts/governance/policy_promotions.log`
   with the ledger posture, captured automatically by the CLIs.【F:tools/governance/_promotion_helpers.py†L13-L108】
+* Performance KPI packet (Sharpe, drawdown, expectancy, latency/error posture)
+  produced from the dry-run review tooling and stored under
+  `artifacts/governance/performance/` with Markdown/JSON outputs matching the
+  command above.
 * Optional Markdown summary (`--summary-path`) for release notebooks and the
   regenerated policy/guardrail bundle produced by `rebuild_policy.py`.
 

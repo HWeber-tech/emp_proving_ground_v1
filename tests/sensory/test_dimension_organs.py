@@ -252,6 +252,28 @@ async def test_anomaly_sensory_organ_accepts_sequence_payload() -> None:
 
 
 @pytest.mark.asyncio
+async def test_anomaly_sensory_organ_flags_sequence_outlier() -> None:
+    """High-magnitude spikes should trigger an anomaly flag and alert state."""
+
+    organ = AnomalySensoryOrgan()
+    baseline = [1.0] * 15
+    spike = baseline + [9.5]
+
+    reading = await organ.process(spike)
+
+    metadata = reading.metadata
+    value = reading.data["value"]
+
+    assert metadata.get("threshold_state") in {"alert", "critical"}
+    assert metadata.get("is_anomaly") is True
+    assert value.get("is_anomaly") is True
+    assert value.get("z_score", 0.0) > 3.0
+    quality = metadata.get("quality")
+    assert isinstance(quality, Mapping)
+    assert quality.get("source") == "sensory.anomaly"
+
+
+@pytest.mark.asyncio
 async def test_anomaly_sensory_organ_deduplicates_replayed_frames() -> None:
     organ = AnomalySensoryOrgan()
     base_time = datetime(2024, 1, 1, 12, tzinfo=timezone.utc)

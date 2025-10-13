@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from asyncio import AbstractEventLoop
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Callable, Coroutine, Mapping, MutableMapping, Sequence, TypeVar
@@ -67,6 +68,9 @@ class TaskSupervisor:
         self._cancel_timeout = cancel_timeout
         self._tasks: MutableMapping[asyncio.Task[Any], _TrackedTask] = {}
         self._closing: bool = False
+        self._installed_loop: AbstractEventLoop | None = None
+        self._original_task_factory: Callable[..., asyncio.Task[Any]] | None = None
+        self._loop_factory_metadata: Mapping[str, Any] | None = None
 
     @property
     def active_tasks(self) -> tuple[asyncio.Task[Any], ...]:
@@ -225,6 +229,110 @@ class TaskSupervisor:
             record_holder.append(record)
         return task
 
+    def install_loop_task_factory(
+        self,
+        *,
+        loop: AbstractEventLoop | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Instrument ``loop`` so ``asyncio.create_task`` routes through the supervisor.
+
+        When installed, any task spawned via ``loop.create_task`` (and therefore
+        ``asyncio.create_task``) is automatically tracked by the supervisor.  A
+        caller can provide ``metadata`` that will be attached to tasks that did
+        not opt-in to supervision explicitly.  Installing the factory twice for
+        the same loop is a no-op; attempting to install against a different
+        loop without uninstalling first raises ``RuntimeError``.
+        """
+
+        if loop is None:
+            loop = asyncio.get_running_loop()
+
+        if self._installed_loop is loop:
+            self._loop_factory_metadata = dict(metadata) if metadata is not None else None
+            return
+        if self._installed_loop is not None and self._installed_loop is not loop:
+            raise RuntimeError(
+                "TaskSupervisor loop task factory already installed on a different loop"
+            )
+
+        original_factory = loop.get_task_factory()
+
+        def _supervised_factory(
+            loop: AbstractEventLoop,
+            coro: Coroutine[Any, Any, Any],
+            *factory_args: object,
+            **factory_kwargs: object,
+        ) -> asyncio.Task[Any]:
+            if original_factory is None:
+                kwargs = dict(factory_kwargs)
+                name_hint = kwargs.pop("name", None)
+                context_obj = kwargs.pop("context", None)
+                if kwargs:  # pragma: no cover - unexpected kwargs
+                    self._logger.debug(
+                        "Ignoring unsupported task factory kwargs: %s",
+                        sorted(kwargs.keys()),
+                    )
+                task = asyncio.Task(coro, loop=loop, *factory_args)
+                if context_obj is not None:
+                    set_context = getattr(task, "set_context", None)
+                    if callable(set_context):  # pragma: no cover - Py311+ specific hook
+                        try:
+                            set_context(context_obj)
+                        except Exception:
+                            self._logger.debug(
+                                "Failed to apply task context for supervised task",
+                                exc_info=True,
+                            )
+                if name_hint is not None:
+                    try:
+                        task.set_name(str(name_hint))
+                    except Exception:
+                        self._logger.debug(
+                            "Failed to assign task name %s via loop factory", name_hint,
+                            exc_info=True,
+                        )
+            else:
+                task = original_factory(loop, coro, *factory_args, **factory_kwargs)
+
+            try:
+                if not self.is_tracked(task):
+                    metadata_source = self._loop_factory_metadata
+                    task_metadata = (
+                        dict(metadata_source) if metadata_source is not None else None
+                    )
+                else:
+                    task_metadata = None
+                self.track(task, metadata=task_metadata)
+            except Exception:  # pragma: no cover - defensive logging only
+                self._logger.debug(
+                    "Failed to track task spawned via loop task factory", exc_info=True
+                )
+            return task
+
+        loop.set_task_factory(_supervised_factory)
+        self._installed_loop = loop
+        self._original_task_factory = original_factory
+        self._loop_factory_metadata = dict(metadata) if metadata is not None else None
+
+    def uninstall_loop_task_factory(self) -> None:
+        """Restore the loop's original task factory if previously installed."""
+
+        loop = self._installed_loop
+        if loop is None:
+            return
+
+        try:
+            loop.set_task_factory(self._original_task_factory)
+        except Exception:  # pragma: no cover - defensive best effort
+            self._logger.debug(
+                "Failed to restore original loop task factory", exc_info=True
+            )
+        finally:
+            self._installed_loop = None
+            self._original_task_factory = None
+            self._loop_factory_metadata = None
+
     def track(
         self,
         task: asyncio.Task[Any],
@@ -287,6 +395,8 @@ class TaskSupervisor:
 
         if self._closing:
             return
+
+        self.uninstall_loop_task_factory()
 
         tasks: Sequence[asyncio.Task[Any]] = tuple(self._tasks.keys())
         task_records = {task: self._tasks.get(task) for task in tasks}

@@ -200,6 +200,67 @@ async def test_supervisor_hang_timeout_triggers_restart(
 
 
 @pytest.mark.asyncio()
+async def test_supervisor_loop_task_factory_tracks_asyncio_create_task() -> None:
+    supervisor = TaskSupervisor(namespace="loop-factory")
+    loop = asyncio.get_running_loop()
+    supervisor.install_loop_task_factory(loop=loop, metadata={"origin": "loop"})
+
+    ready = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _worker() -> None:
+        ready.set()
+        await release.wait()
+
+    task = asyncio.create_task(_worker(), name="loop-worker")
+
+    await asyncio.wait_for(ready.wait(), timeout=1.0)
+    await asyncio.sleep(0)
+
+    assert supervisor.is_tracked(task)
+    snapshots = supervisor.describe()
+    assert any(
+        (snap.get("metadata") or {}).get("origin") == "loop"
+        for snap in snapshots
+    )
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    await supervisor.cancel_all()
+    assert loop.get_task_factory() is None
+
+
+@pytest.mark.asyncio()
+async def test_supervisor_loop_task_factory_reinstall_updates_metadata() -> None:
+    supervisor = TaskSupervisor(namespace="loop-factory-reinstall")
+    loop = asyncio.get_running_loop()
+    supervisor.install_loop_task_factory(loop=loop, metadata={"origin": "first"})
+    supervisor.install_loop_task_factory(loop=loop, metadata={"origin": "second"})
+
+    triggered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _job() -> None:
+        triggered.set()
+        await release.wait()
+
+    task = asyncio.create_task(_job(), name="loop-reinstall-worker")
+
+    await asyncio.wait_for(triggered.wait(), timeout=1.0)
+    await asyncio.sleep(0)
+
+    snapshots = supervisor.describe()
+    assert any(
+        (snap.get("metadata") or {}).get("origin") == "second"
+        for snap in snapshots
+    )
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
 async def test_supervisor_hang_timeout_without_restart(caplog: pytest.LogCaptureFixture) -> None:
     supervisor = TaskSupervisor(namespace="test-hang-fail")
 

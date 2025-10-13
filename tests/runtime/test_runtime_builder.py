@@ -342,6 +342,52 @@ async def test_runtime_application_ingest_torture_retries_without_crash(
     assert summary["workload_states"].get("trade-torture") == "finished"
 
 
+@pytest.mark.asyncio()
+async def test_runtime_application_tracks_asyncio_create_task_backgrounds() -> None:
+    ready = asyncio.Event()
+    inspect = asyncio.Event()
+    release = asyncio.Event()
+    background_holder: dict[str, asyncio.Task[Any]] = {}
+
+    async def _background_worker() -> None:
+        ready.set()
+        await release.wait()
+
+    async def _ingest() -> None:
+        task = asyncio.create_task(
+            _background_worker(),
+            name="loop-factory-background",
+        )
+        background_holder["task"] = task
+        await ready.wait()
+        inspect.set()
+        await release.wait()
+        await task
+
+    app = RuntimeApplication(
+        ingestion=RuntimeWorkload(
+            name="ingest",
+            factory=_ingest,
+            description="spawns background task via asyncio.create_task",
+        ),
+    )
+
+    run_task = asyncio.create_task(app.run())
+    await asyncio.wait_for(inspect.wait(), timeout=1.0)
+    await asyncio.sleep(0)
+
+    task = background_holder["task"]
+    assert app.task_supervisor.is_tracked(task)
+    snapshots = app.task_snapshots()
+    assert any(
+        (snapshot.get("metadata") or {}).get("origin") == "loop_task_factory"
+        for snapshot in snapshots
+    )
+
+    release.set()
+    await asyncio.wait_for(run_task, timeout=1.0)
+
+
 def test_merge_task_snapshots_coerces_and_combines() -> None:
     class Snapshot:
         def __init__(self, name: str, state: str) -> None:

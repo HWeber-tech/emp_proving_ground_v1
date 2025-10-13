@@ -1100,6 +1100,28 @@ class RuntimeApplication:
     async def run(self) -> None:
         """Run the configured workloads and execute shutdown hooks on exit."""
 
+        loop_factory_installed = False
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # pragma: no cover - defensive guard for exotic loop setups
+            loop = None
+        else:
+            try:
+                self._task_supervisor.install_loop_task_factory(
+                    loop=loop,
+                    metadata={
+                        "component": "runtime.application",
+                        "origin": "loop_task_factory",
+                    },
+                )
+            except Exception:  # pragma: no cover - diagnostics only
+                self._logger.debug(
+                    "Failed to install runtime loop task factory",
+                    exc_info=True,
+                )
+            else:
+                loop_factory_installed = True
+
         try:
             for callback in list(self.startup_callbacks):
                 callback_name = getattr(callback, "__name__", repr(callback))
@@ -1201,6 +1223,8 @@ class RuntimeApplication:
                             task.cancel()
                     await asyncio.gather(*all_tasks, return_exceptions=True)
         finally:
+            if loop_factory_installed:
+                self._task_supervisor.uninstall_loop_task_factory()
             await self.shutdown()
 
     def task_snapshots(self) -> tuple[dict[str, object], ...]:

@@ -54,6 +54,24 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    explicit log coverage guarantees.
 3. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
 
+## Smoke testing
+Use the bundled simulated runtime to verify harness wiring before committing to
+a multi-day rehearsal:
+
+```sh
+tools/operations/final_dry_run_smoke.py \
+  --duration-seconds 30 \
+  --tick-interval 1.0 \
+  --review-markdown artifacts/final_dry_run_smoke/review.md
+```
+
+The smoke wrapper launches `src.operations.final_dry_run_simulated_runtime`,
+which emits structured heartbeats, diary entries, and performance snapshots in
+real time. The short run exercises progress telemetry, evidence freshness
+monitors, review briefs, and packet assembly without waiting 72 hours. Run the
+smoke command after dependency upgrades or harness changes to catch regressions
+quickly.
+
 ## Evidence bundle
 - Structured logs: `<log-dir>/final_dry_run_<timestamp>.jsonl`
 - Raw runtime logs: `<log-dir>/final_dry_run_<timestamp>.log`

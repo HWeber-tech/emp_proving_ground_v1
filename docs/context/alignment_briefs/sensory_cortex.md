@@ -45,7 +45,7 @@
   payloads, keeps a bounded inspection history, emits lineage telemetry via
   runtime or fallback buses, and serialises per-dimension metadata plus numeric
   telemetry so responders and downstream metrics inherit audit-ready payloads
-  under pytest coverage.【F:src/sensory/real_sensory_organ.py†L41-L489】【F:src/sensory/real_sensory_organ.py†L198-L205】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】【F:tests/sensory/test_real_sensory_organ.py†L132-L144】【F:tests/sensory/test_lineage.py†L85-L145】
+  under pytest coverage.【F:src/sensory/real_sensory_organ.py†L41-L489】【F:src/sensory/real_sensory_organ.py†L198-L205】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】【F:tests/sensory/test_real_sensory_organ.py†L132-L144】【F:tests/sensory/test_lineage.py†L85-L145】 Fallback signals delivered by the fused organ now embed the same quality + lineage metadata as primary dimensions, with regression coverage proving diaries retain audit context when upstream sensors return empty frames.【src/sensory/real_sensory_organ.py:276】【tests/sensory/test_real_sensory_organ.py:276】
 - Executable HOW/ANOMALY sensory organs now wrap the canonical sensors, normalise
   market frames or sequences, maintain calibrated windows, and emit structured
   lineage/telemetry payloads under guardrail regression coverage, though they

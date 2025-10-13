@@ -199,6 +199,17 @@ and evidence packs can therefore display a single authoritative timer for when
 each strategy regains capacity, whether they inspect the decision diary entry,
 live throttle snapshot, or execution stats feed.
 
+### Rollback support for failed executions
+
+`TradeThrottle.rollback()` lets the trading manager release capacity when an
+order was permitted but the downstream execution failed. The helper removes the
+recorded timestamp, clears retry timers, and prunes empty scope state so throttle
+posture immediately returns to `open` instead of forcing operators to wait for
+the window to expire. `TradingManager._rollback_trade_throttle_decision()` calls
+into the helper whenever the execution engine raises, keeping diary and telemetry
+snapshots aligned with actual broker outcomes while guardrail tests assert both
+the throttle and manager stats reopen after failures.【src/trading/execution/trade_throttle.py:289】【src/trading/trading_manager.py:1240】【tests/trading/test_trade_throttle.py:313】【tests/trading/test_trading_manager_execution.py:2149】
+
 ### Throttle sizing multipliers
 
 Governance teams can now soften bursty tactics instead of blocking them outright

@@ -1,0 +1,84 @@
+gates:
+  - gate_id: reflection_trm_governance
+    title: "Reflection Governance Review"
+    description: "TRM outputs align with governance queue requirements and rehearsal evidence."
+    severity: high
+    owners:
+      - Reflection Lead
+      - Governance Board
+    criteria:
+      - id: telemetry_synced
+        description: "TRM telemetry stream publishes into the governance queue and persists in audit storage."
+        mandatory: true
+      - id: evidence_pack
+        description: "Latest dry-run evidence pack includes the TRM suggestion bundle and governance review notes."
+        mandatory: true
+      - id: rehearsal_result
+        description: "Recent TRM rehearsal executed via CLI with green guardrail regression results."
+        mandatory: false
+    artifacts:
+      - "artifacts/reflection/trm_governance_packet.json"
+      - "reports/governance.json"
+
+  - gate_id: perception_live_feeds
+    title: "Perception Live Feed Sign-off"
+    description: "Production sensory organs ingest live data with drift and anomaly safeguards."
+    severity: high
+    owners:
+      - Perception Team
+      - Ops Duty
+    criteria:
+      - id: live_connectivity
+        description: "Kafka or FIX feed connectors pass connectivity checks with documented rollback plan."
+        mandatory: true
+      - id: drift_dashboard
+        description: "Anomaly and drift diagnostics produce a daily report stored with observability evidence."
+        mandatory: true
+      - id: calibration_schedule
+        description: "Sensor calibration job completed for seven consecutive days."
+        mandatory: false
+    artifacts:
+      - "artifacts/perception/live_feed_report.json"
+      - "docs/runbooks/sensor_drift_monitoring.md"
+
+  - gate_id: adaptation_governance
+    title: "Adaptation Promotion Governance"
+    description: "Adaptive tactics meet promotion review criteria and ledger governance expectations."
+    severity: medium
+    owners:
+      - Adaptation Lead
+      - Governance Board
+    criteria:
+      - id: replay_suite
+        description: "Replay harness covers promotion and rollback flows with guardrail tests."
+        mandatory: true
+      - id: policy_decisions
+        description: "Policy ledger entries include approvals for the targeted promotion stage."
+        mandatory: true
+      - id: kpi_metrics
+        description: "Fast-weight telemetry logs into the KPI baseline with regression coverage."
+        mandatory: false
+    artifacts:
+      - "artifacts/governance/policy_ledger.json"
+      - "tests/operations/test_paper_trading_dry_run.py"
+
+  - gate_id: operations_final_signoff
+    title: "Final Dry Run Governance Sign-off"
+    description: "Multi-day final dry run meets uptime, telemetry, and evidence completeness requirements."
+    severity: high
+    owners:
+      - Operations Lead
+      - Risk Chair
+    criteria:
+      - id: dry_run_duration
+        description: "Final dry run completed with duration of at least 72 hours and uptime of 0.99 or better."
+        mandatory: true
+      - id: evidence_packet
+        description: "Evidence packet generated with logs, diaries, performance metrics, and review notes."
+        mandatory: true
+      - id: signoff_verdict
+        description: "Governance board recorded explicit verdict and follow-up actions in the review brief."
+        mandatory: true
+    artifacts:
+      - "artifacts/final-dry-run"
+      - "artifacts/final-dry-run-brief.md"

@@ -528,7 +528,7 @@ class TradingManager:
             "last_error": None,
             "last_execution_at": None,
             "last_successful_order": None,
-            "throughput": self._throughput_monitor.snapshot(),
+            "throughput": {},
             "resource_usage": self._resource_monitor.snapshot(),
             "backlog": self._backlog_tracker.snapshot(),
             "backlog_breaches": 0,
@@ -537,7 +537,9 @@ class TradingManager:
             "throttle_scalings": 0,
             "last_throttle_multiplier": None,
             "throttle_retry_at": None,
+            "throttle_retry_in_seconds": None,
         }
+        self._refresh_throughput_snapshot()
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
 
@@ -711,6 +713,7 @@ class TradingManager:
             self._execution_stats["throttle_retry_at"] = None
             self._execution_stats["throttle_retry_in_seconds"] = None
             self._execution_stats.pop("trade_throttle_scopes", None)
+            self._refresh_throughput_snapshot()
             return
 
         snapshot_dict = dict(snapshot)
@@ -745,6 +748,93 @@ class TradingManager:
             self._execution_stats["trade_throttle_scopes"] = list(
                 self._trade_throttle.scope_snapshots()
             )
+        self._refresh_throughput_snapshot()
+
+    def _refresh_throughput_snapshot(self) -> None:
+        """Synchronise throughput metrics with the latest throttle posture."""
+
+        if not hasattr(self, "_execution_stats"):
+            return
+
+        base_snapshot = self._throughput_monitor.snapshot()
+        snapshot: dict[str, Any] = dict(base_snapshot)
+
+        throttle_snapshot = getattr(self, "_trade_throttle_snapshot", None)
+        throttle_metadata: Mapping[str, Any] | None = None
+        throttle_active = False
+        throttle_state: str | None = None
+        throttle_reason: str | None = None
+        throttle_message: str | None = None
+        throttle_scope: Mapping[str, Any] | None = None
+        throttle_scope_key: list[str] | None = None
+
+        retry_in_seconds: float | None = None
+        retry_at_iso: str | None = None
+
+        retry_seconds_raw = self._execution_stats.get("throttle_retry_in_seconds")
+        if isinstance(retry_seconds_raw, (int, float)):
+            retry_in_seconds = float(retry_seconds_raw)
+
+        retry_at_raw = self._execution_stats.get("throttle_retry_at")
+        if isinstance(retry_at_raw, datetime):
+            retry_at_iso = retry_at_raw.astimezone(timezone.utc).isoformat()
+        elif isinstance(retry_at_raw, str):
+            retry_at_iso = retry_at_raw
+
+        if isinstance(throttle_snapshot, MappingABC):
+            throttle_state = throttle_snapshot.get("state")
+            throttle_active = bool(throttle_snapshot.get("active", False))
+            throttle_reason = throttle_snapshot.get("reason")
+            throttle_message = throttle_snapshot.get("message")
+            scope_key_raw = throttle_snapshot.get("scope_key")
+            if isinstance(scope_key_raw, (list, tuple)):
+                throttle_scope_key = [str(entry) for entry in scope_key_raw]
+            metadata = throttle_snapshot.get("metadata")
+            if isinstance(metadata, MappingABC):
+                throttle_metadata = metadata
+                if retry_in_seconds is None:
+                    retry_value = metadata.get("retry_in_seconds")
+                    if isinstance(retry_value, (int, float)):
+                        retry_in_seconds = float(retry_value)
+                if retry_at_iso is None:
+                    retry_at_value = metadata.get("retry_at")
+                    if isinstance(retry_at_value, datetime):
+                        retry_at_iso = retry_at_value.astimezone(timezone.utc).isoformat()
+                    elif isinstance(retry_at_value, str):
+                        retry_at_iso = retry_at_value
+                scope_meta = metadata.get("scope")
+                if isinstance(scope_meta, MappingABC):
+                    throttle_scope = dict(scope_meta)
+
+        remaining_trades = None
+        max_trades = None
+        window_utilisation = None
+        if throttle_metadata is not None:
+            remaining_trades = throttle_metadata.get("remaining_trades")
+            max_trades = throttle_metadata.get("max_trades")
+            window_utilisation = throttle_metadata.get("window_utilisation")
+
+        snapshot["throttle_active"] = throttle_active
+        snapshot["throttle_state"] = throttle_state
+        if throttle_reason is not None:
+            snapshot["throttle_reason"] = throttle_reason
+        if throttle_message is not None:
+            snapshot["throttle_message"] = throttle_message
+        snapshot["throttle_retry_in_seconds"] = retry_in_seconds
+        if retry_at_iso is not None:
+            snapshot["throttle_retry_at"] = retry_at_iso
+        if remaining_trades is not None:
+            snapshot["throttle_remaining_trades"] = remaining_trades
+        if max_trades is not None:
+            snapshot["throttle_max_trades"] = max_trades
+        if window_utilisation is not None:
+            snapshot["throttle_window_utilisation"] = window_utilisation
+        if throttle_scope is not None:
+            snapshot["throttle_scope"] = throttle_scope
+        if throttle_scope_key is not None:
+            snapshot["throttle_scope_key"] = throttle_scope_key
+
+        self._execution_stats["throughput"] = snapshot
 
     def _rollback_trade_throttle_decision(
         self, decision: TradeThrottleDecision | None
@@ -1355,8 +1445,8 @@ class TradingManager:
                 )
             except Exception:  # pragma: no cover - diagnostics only
                 logger.debug("Failed to record throughput metrics", exc_info=True)
-            else:
-                self._execution_stats["throughput"] = self._throughput_monitor.snapshot()
+            finally:
+                self._refresh_throughput_snapshot()
             backlog_observation = self._backlog_tracker.record(
                 lag_ms=lag_ms, timestamp=started_wall
             )
@@ -1807,6 +1897,7 @@ class TradingManager:
     def get_execution_stats(self) -> Mapping[str, object]:
         """Return execution telemetry derived from the configured engine."""
 
+        self._refresh_throughput_snapshot()
         stats: dict[str, object] = dict(self._execution_stats)
         samples = coerce_int(stats.get("latency_samples"), default=0)
         total_latency = coerce_float(stats.get("total_latency_ms"), default=0.0)
@@ -1843,7 +1934,10 @@ class TradingManager:
         if fills is not None:
             stats["fills"] = fills
 
-        stats.setdefault("throughput", self._throughput_monitor.snapshot())
+        stats.setdefault(
+            "throughput",
+            dict(self._execution_stats.get("throughput", {})),
+        )
 
         strategy_summary = self.get_strategy_execution_summary()
         if strategy_summary:

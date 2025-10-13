@@ -2094,6 +2094,21 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     assert stats["orders_submitted"] == 1
     assert stats["throttle_blocks"] == 1
     assert stats["throttle_retry_in_seconds"] is not None
+    throughput_snapshot = stats.get("throughput")
+    assert isinstance(throughput_snapshot, Mapping)
+    assert throughput_snapshot.get("throttle_active") is True
+    assert throughput_snapshot.get("throttle_state") in {
+        "rate_limited",
+        "cooldown",
+        "min_interval",
+    }
+    assert throughput_snapshot.get("throttle_retry_in_seconds") == pytest.approx(
+        stats["throttle_retry_in_seconds"]
+    )
+    assert throughput_snapshot.get("throttle_reason")
+    assert throughput_snapshot.get("throttle_message")
+    assert throughput_snapshot.get("throttle_remaining_trades") is not None
+    assert throughput_snapshot.get("throttle_max_trades") is not None
     throttle_stats = stats.get("trade_throttle")
     assert isinstance(throttle_stats, dict)
     assert throttle_stats.get("active") is True
@@ -2136,6 +2151,13 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     assert manager.get_trade_throttle_scope_snapshots() == tuple()
     stats_after_disable = manager.get_execution_stats()
     assert "trade_throttle_scopes" not in stats_after_disable
+    throughput_after_disable = stats_after_disable.get("throughput")
+    assert isinstance(throughput_after_disable, Mapping)
+    assert throughput_after_disable.get("throttle_active") is False
+    assert throughput_after_disable.get("throttle_state") is None
+    retry_after_disable = throughput_after_disable.get("throttle_retry_in_seconds")
+    if retry_after_disable is not None:
+        assert retry_after_disable == pytest.approx(0.0)
 
     await manager.on_trade_intent(intent)
     assert engine.calls == 2

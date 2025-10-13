@@ -303,10 +303,6 @@ class AlphaTradeLoopRunner:
             mitigation_copy = dict(mitigation_payload)
             diary_annotations["drift_mitigation"] = mitigation_copy
             loop_metadata_updates["drift_mitigation"] = mitigation_copy
-        if theory_packet_payload:
-            packet_copy = dict(theory_packet_payload)
-            diary_annotations["theory_packet"] = packet_copy
-            loop_metadata_updates["theory_packet"] = packet_copy
         if intent_payload is not None:
             outcome = await self._trading_manager.on_trade_intent(intent_payload)
             trade_outcome = outcome
@@ -321,6 +317,24 @@ class AlphaTradeLoopRunner:
                     trade_execution_payload["throttle"] = dict(outcome.throttle)
                 diary_annotations["trade_execution"] = trade_execution_payload
                 loop_metadata_updates["trade_execution"] = trade_execution_payload
+
+                throttle_payload, updated_packet = self._apply_throttle_decay(
+                    trade_outcome=trade_outcome,
+                    trade_metadata=trade_metadata,
+                    intent_payload=intent_payload,
+                    existing_theory_packet=theory_packet_payload,
+                )
+                if throttle_payload:
+                    throttle_copy = dict(throttle_payload)
+                    diary_annotations["drift_throttle"] = throttle_copy
+                    loop_metadata_updates["drift_throttle"] = throttle_copy
+                if updated_packet is not None:
+                    theory_packet_payload = updated_packet
+
+        if theory_packet_payload:
+            packet_copy = dict(theory_packet_payload)
+            diary_annotations["theory_packet"] = packet_copy
+            loop_metadata_updates["theory_packet"] = packet_copy
 
         performance_health = await self._collect_performance_health()
         if performance_health is not None:
@@ -1176,6 +1190,151 @@ class AlphaTradeLoopRunner:
             intent["metadata"]["release_stage"] = release_stage
 
         return intent
+
+    def _apply_throttle_decay(
+        self,
+        *,
+        trade_outcome: "TradeIntentOutcome | None",
+        trade_metadata: MutableMapping[str, Any],
+        intent_payload: MutableMapping[str, Any] | None,
+        existing_theory_packet: Mapping[str, Any] | None,
+    ) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None]:
+        """Capture trade throttle alpha-decay metadata and theory packet."""
+
+        if trade_outcome is None:
+            return None, existing_theory_packet
+
+        outcome_metadata = getattr(trade_outcome, "metadata", None)
+        if not isinstance(outcome_metadata, Mapping):
+            return None, existing_theory_packet
+
+        multiplier = _coerce_float(
+            outcome_metadata.get("throttle_multiplier")
+            or outcome_metadata.get("multiplier")
+        )
+        if multiplier is None or multiplier <= 0.0 or abs(multiplier - 1.0) <= 1e-9:
+            return None, existing_theory_packet
+
+        quantity_before = _coerce_float(
+            outcome_metadata.get("quantity_before_throttle")
+            or outcome_metadata.get("quantity_before")
+        )
+        quantity_after = _coerce_float(
+            outcome_metadata.get("quantity_after_throttle")
+            or outcome_metadata.get("quantity_after")
+            or outcome_metadata.get("quantity")
+        )
+
+        if quantity_after is not None:
+            trade_metadata["quantity"] = quantity_after
+
+        notional_value = _coerce_float(outcome_metadata.get("notional"))
+        if notional_value is None and quantity_after is not None:
+            price_hint = _coerce_float(outcome_metadata.get("price"))
+            if price_hint is None:
+                price_hint = _coerce_float(trade_metadata.get("price"))
+            if price_hint is not None:
+                notional_value = abs(quantity_after) * abs(price_hint)
+        if notional_value is not None:
+            trade_metadata["notional"] = notional_value
+
+        applied_reference = _coerce_datetime(trade_metadata.get("timestamp"))
+        applied_reference = applied_reference or datetime.now(timezone.utc)
+        applied_iso = applied_reference.astimezone(timezone.utc).isoformat()
+
+        throttle_snapshot = getattr(trade_outcome, "throttle", None)
+        throttle_payload: dict[str, Any] = {
+            "multiplier": multiplier,
+            "applied_at": applied_iso,
+            "status": str(getattr(trade_outcome, "status", "executed")),
+            "reason": outcome_metadata.get("reason") or "alpha_decay",
+            "source": "trade_throttle",
+        }
+        if quantity_before is not None:
+            throttle_payload["quantity_before"] = quantity_before
+        if quantity_after is not None:
+            throttle_payload["quantity_after"] = quantity_after
+        if notional_value is not None:
+            throttle_payload["notional"] = notional_value
+        if isinstance(throttle_snapshot, Mapping):
+            throttle_payload["snapshot"] = dict(throttle_snapshot)
+
+        trade_metadata["drift_throttle"] = dict(throttle_payload)
+
+        if isinstance(intent_payload, MutableMapping):
+            if quantity_after is not None:
+                intent_payload["quantity"] = quantity_after
+            intent_meta = intent_payload.get("metadata")
+            if isinstance(intent_meta, MutableMapping):
+                if notional_value is not None:
+                    intent_meta["notional"] = notional_value
+                intent_meta["drift_throttle"] = dict(throttle_payload)
+            elif isinstance(intent_meta, Mapping):
+                merged_meta = dict(intent_meta)
+                if notional_value is not None:
+                    merged_meta["notional"] = notional_value
+                merged_meta["drift_throttle"] = dict(throttle_payload)
+                intent_payload["metadata"] = merged_meta
+            else:
+                payload_meta: dict[str, Any] = {"drift_throttle": dict(throttle_payload)}
+                if notional_value is not None:
+                    payload_meta["notional"] = notional_value
+                intent_payload["metadata"] = payload_meta
+
+        action_entry: dict[str, Any] = {
+            "action": "alpha_decay",
+            "value": multiplier,
+            "applied_at": applied_iso,
+            "status": throttle_payload["status"],
+        }
+        if quantity_before is not None:
+            action_entry["quantity_before"] = quantity_before
+        if quantity_after is not None:
+            action_entry["quantity_after"] = quantity_after
+        if isinstance(throttle_snapshot, Mapping):
+            action_entry["throttle_state"] = throttle_snapshot.get("state")
+
+        if existing_theory_packet is not None:
+            packet = dict(existing_theory_packet)
+            actions = list(packet.get("actions", []))
+            actions.append(action_entry)
+            packet["actions"] = actions
+            summary = str(packet.get("summary") or "").strip()
+            addition = f"alpha decay multiplier {multiplier:.2f} via trade throttle"
+            if addition.lower() not in summary.lower():
+                packet["summary"] = f"{summary + '; ' if summary else ''}{addition}"
+            packet.setdefault("generated_at", applied_iso)
+            packet.setdefault("severity", "info")
+        else:
+            packet = {
+                "summary": f"Trade throttle applied alpha decay multiplier {multiplier:.2f}",
+                "generated_at": applied_iso,
+                "severity": "info",
+                "actions": [action_entry],
+            }
+
+        packet["alpha_decay_multiplier"] = multiplier
+        packet["status"] = throttle_payload["status"]
+        packet.setdefault("reason", throttle_payload.get("reason"))
+        if isinstance(throttle_snapshot, Mapping):
+            packet["throttle_snapshot"] = dict(throttle_snapshot)
+
+        trade_metadata["theory_packet"] = dict(packet)
+
+        if isinstance(intent_payload, MutableMapping):
+            intent_meta = intent_payload.get("metadata")
+            if isinstance(intent_meta, MutableMapping):
+                intent_meta["theory_packet"] = dict(packet)
+            elif isinstance(intent_meta, Mapping):
+                merged_meta = dict(intent_meta)
+                merged_meta["theory_packet"] = dict(packet)
+                intent_payload["metadata"] = merged_meta
+            else:
+                intent_payload["metadata"] = {
+                    "theory_packet": dict(packet),
+                }
+
+        return throttle_payload, packet
 
 
 __all__ = [

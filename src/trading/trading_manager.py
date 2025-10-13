@@ -2234,6 +2234,7 @@ class TradingManager:
             if isinstance(metadata_block, MappingABC)
             else {}
         )
+        cleaned_event_meta: dict[str, Any] | None = None
 
         entry: dict[str, Any] = {
             "timestamp": datetime.now(tz=timezone.utc).isoformat(),

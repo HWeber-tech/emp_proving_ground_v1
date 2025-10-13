@@ -114,6 +114,51 @@ class _RiskRejectTradingManager:
         }
 
 
+class _AlphaDecayTradingManager:
+    def __init__(self, multiplier: float = 0.65) -> None:
+        self.intents: list[dict[str, object]] = []
+        self._multiplier = multiplier
+
+    async def on_trade_intent(self, event: dict[str, object]) -> TradeIntentOutcome:
+        self.intents.append(dict(event))
+        price = float(event.get("price", 1.0))
+        quantity_before = float(event.get("quantity", 0.0))
+        quantity_after = quantity_before * self._multiplier
+        metadata = {
+            "latency_ms": 8.0,
+            "notional": quantity_after * price,
+            "price": price,
+            "quantity": quantity_after,
+            "throttle_multiplier": self._multiplier,
+            "quantity_before_throttle": quantity_before,
+            "quantity_after_throttle": quantity_after,
+        }
+        throttle_snapshot = {
+            "name": "alpha_decay",
+            "state": "active",
+            "active": True,
+            "multiplier": self._multiplier,
+        }
+        return TradeIntentOutcome(
+            status="executed",
+            executed=True,
+            throttle=throttle_snapshot,
+            metadata=metadata,
+        )
+
+    def assess_performance_health(self) -> dict[str, object]:
+        return {
+            "healthy": True,
+            "throughput": {"healthy": True},
+            "backlog": {"healthy": True, "evaluated": False},
+            "resource": {
+                "healthy": True,
+                "status": "not_configured",
+                "sample": {},
+            },
+        }
+
+
 def _build_runner(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -654,6 +699,64 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
 
     policy_router = runner._understanding_router.policy_router
     assert policy_router.exploration_freeze_active() is True
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_records_alpha_decay_throttle(monkeypatch, tmp_path) -> None:
+    multiplier = 0.7
+    trading_manager = _AlphaDecayTradingManager(multiplier)
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 2, 2, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.15, "confidence": 0.78},
+            "momentum": {"signal": 0.42, "confidence": 0.84},
+        },
+        "integrated_signal": {"strength": 0.21, "confidence": 0.88},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    result = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    trade_metadata = result.trade_metadata
+    drift_throttle = trade_metadata.get("drift_throttle")
+    assert isinstance(drift_throttle, dict)
+    assert drift_throttle.get("reason") == "alpha_decay"
+    assert drift_throttle.get("status") == "executed"
+    assert drift_throttle.get("multiplier") == pytest.approx(multiplier)
+
+    quantity_before = float(sensory_snapshot["quantity"])
+    expected_quantity = quantity_before * multiplier
+    assert drift_throttle.get("quantity_after") == pytest.approx(expected_quantity)
+    assert trade_metadata.get("quantity") == pytest.approx(expected_quantity)
+
+    recorded_price = trade_metadata.get("price") or sensory_snapshot["price"]
+    expected_notional = expected_quantity * float(recorded_price)
+    assert trade_metadata.get("notional") == pytest.approx(expected_notional)
+
+    theory_packet = trade_metadata.get("theory_packet")
+    assert isinstance(theory_packet, dict)
+    assert theory_packet.get("alpha_decay_multiplier") == pytest.approx(multiplier)
+    actions = theory_packet.get("actions") or []
+    alpha_actions = [entry for entry in actions if entry.get("action") == "alpha_decay"]
+    assert alpha_actions, "expected alpha_decay action recorded"
+    assert alpha_actions[0].get("value") == pytest.approx(multiplier)
+
+    loop_metadata = result.loop_result.metadata
+    assert loop_metadata.get("drift_throttle") == drift_throttle
+    assert loop_metadata.get("theory_packet") == theory_packet
+
+    diary_metadata = result.loop_result.diary_entry.metadata
+    assert diary_metadata.get("drift_throttle") == drift_throttle
+    assert diary_metadata.get("theory_packet") == theory_packet
 
 
 @pytest.mark.asyncio()

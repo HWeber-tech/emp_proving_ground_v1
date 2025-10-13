@@ -18,7 +18,7 @@ import logging
 import threading
 import time
 import warnings
-from concurrent.futures import TimeoutError as FuturesTimeoutError
+from concurrent.futures import Future, TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
@@ -515,30 +515,79 @@ class AsyncEventBus:
                     "Failed to await cancellation of event bus tasks", exc_info=True
                 )
 
+        metadata = {
+            "component": "event_bus",
+            "task": "shutdown",
+            "pending_tasks": len(tasks_to_cancel),
+        }
+
+        def _schedule_shutdown(
+            target_loop: asyncio.AbstractEventLoop,
+            *,
+            thread_safe: bool,
+            await_completion: bool,
+        ) -> Future[None] | None:
+            completion: Future[None] | None = Future() if await_completion else None
+
+            def _finalise(done_task: asyncio.Task[Any]) -> None:
+                if completion is None or completion.done():
+                    return
+                try:
+                    done_task.result()
+                except Exception as exc:  # pragma: no cover - defensive path
+                    completion.set_exception(exc)
+                else:
+                    completion.set_result(None)
+
+            def _spawn() -> None:
+                try:
+                    shutdown_task = self._spawn_task(
+                        _shutdown(),
+                        name="event-bus-shutdown",
+                        metadata=metadata,
+                    )
+                except Exception as exc:  # pragma: no cover - defensive spawn guard
+                    if completion is not None and not completion.done():
+                        completion.set_exception(exc)
+                    return
+
+                shutdown_task.add_done_callback(self._log_shutdown_failure)
+                shutdown_task.add_done_callback(_finalise)
+
+            if thread_safe:
+                target_loop.call_soon_threadsafe(_spawn)
+            else:
+                _spawn()
+
+            return completion
+
         try:
             running_loop = asyncio.get_running_loop()
         except RuntimeError:
             running_loop = None
 
         loop = self._loop
-        if running_loop is loop and running_loop is not None:
-            task = running_loop.create_task(_shutdown())
-            task.add_done_callback(self._log_shutdown_failure)
-            return
-
         if loop is not None and loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(_shutdown(), loop)
-            try:
-                future.result()
-            except Exception:  # pragma: no cover - defensive clean-up logging
-                logger.debug(
-                    "Failed to cancel event bus supervised tasks", exc_info=True
-                )
+            completion = _schedule_shutdown(
+                loop,
+                thread_safe=running_loop is not loop,
+                await_completion=running_loop is not loop,
+            )
+            if completion is not None:
+                try:
+                    completion.result()
+                except Exception:  # pragma: no cover - defensive clean-up logging
+                    logger.debug(
+                        "Failed to cancel event bus supervised tasks", exc_info=True
+                    )
             return
 
         if running_loop is not None:
-            task = running_loop.create_task(_shutdown())
-            task.add_done_callback(self._log_shutdown_failure)
+            _schedule_shutdown(
+                running_loop,
+                thread_safe=False,
+                await_completion=False,
+            )
 
     @staticmethod
     def _log_shutdown_failure(task: asyncio.Task[Any]) -> None:

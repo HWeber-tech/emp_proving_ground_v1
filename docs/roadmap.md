@@ -20,7 +20,7 @@
 **Acceptance (DoD)**
 - [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes.
 - [ ] `[obs]` Heartbeat visible during a 30â€‘minute run; latency counters populated.
-- [ ] `[ops]` Deterministic run reproducible via one command (`make run-sim` or equivalent).
+- [x] `[ops]` Deterministic run reproducible via one command (`make run-sim` or equivalent). _Progress: The `run-sim` wrapper now boots the bootstrap runtime with deterministic defaults, writes summaries/diaries, exposes CLI overrides, and ships a Makefile target plus regression coverage so a single command reproduces the acceptance drill with evidence artifacts.【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】【F:Makefile†L103-L121】_
 
 ---
 
@@ -28,7 +28,7 @@
 
 **Deliverables**
 - [ ] `[core]` **BeliefEmitter** with **ReLU + topâ€‘k sparsity**; persisted `belief_snapshots` (DuckDB/Parquet).
-- [ ] `[core]` **RegimeFSM v1** (ruleâ€‘based thresholds + confidence + transitions logged).
+- [x] `[core]` **RegimeFSM v1** (ruleâ€‘based thresholds + confidence + transitions logged). _Progress: RegimeFSM now emits structured transition events with latency/volatility context, keeps a bounded transition history, and exposes health metrics under regression coverage so regime flips remain auditable for policy routing.【F:src/understanding/belief.py†L695-L878】【F:tests/understanding/test_belief_updates.py†L327-L394】_
 - [ ] `[adapt]` **LinearAttentionRouter** (flagâ€‘guarded) for policy arbitration.
 - [x] `[adapt]` **Fastâ€‘weights (Ïƒ) kernel** (Hebbian decay + potentiation); **lowâ€‘rank** implementation; clamps/decay. _Progress: UnderstandingRouter now applies feature-gated Hebbian adapters with deterministic decay, persists multiplier history, and exposes fast-weight metrics so governance can audit adaptive runs under regression coverage.【F:src/understanding/router.py†L70-L240】【F:tests/understanding/test_understanding_router.py†L1-L185】_
 - [x] `[reflect]` **Decision Diary** table + writer (belief, policy_hash, exec_topo, risk_template, features, decision, ex_post). _Progress: DecisionDiaryStore normalises policy decisions, attaches probe ownership, records reflection summaries, and the CLI exports Markdown/JSON transcripts with guardrail tests for governance evidence.【F:src/understanding/decision_diary.py†L1-L240】【F:tests/tools/test_decision_diary_cli.py†L1-L188】_
@@ -80,11 +80,11 @@
 **Deliverables**
 - [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers).
 - [ ] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available.
-- [ ] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded).
+- [x] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded). _Progress: The shadow runner now enforces the governance gate, writes skip digests, and stamps auto-apply decisions into the queue/markdown artifacts, with regression coverage ensuring nightly RIM runs stage approved changes without bypassing safeguards.【F:tools/rim_shadow_run.py†L160-L222】【F:src/reflection/trm/governance.py†L19-L247】【F:tests/tools/test_rim_shadow_run.py†L44-L139】【F:tests/reflection/test_trm_governance.py†L16-L126】_
 - [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs.
 
 **Acceptance (DoD)**
-- [ ] `[sim]` At least **one** RIMâ€‘driven change applied via governance rule in sim/paper.
+- [ ] `[sim]` At least **one** RIMâ€‘driven change applied via governance rule in sim/paper. _Progress: Auto-apply governance now promotes qualifying TRM suggestions directly in the queue/digest artifacts under test coverage, paving the way for paper-run promotion drills.【F:src/reflection/trm/governance.py†L94-L247】【F:tests/reflection/test_trm_governance.py†L16-L126】_
 - [ ] `[reflect]` Every proposal traceable (input diary slice, code hash, config hash).
 - [ ] `[risk]` No autoâ€‘applied proposal can bypass invariants or budget constraints.
 
@@ -152,10 +152,10 @@
 
 ## Commands & Artifacts (to standardize)
 
-- [ ] `make run-sim` â€” deterministic sim/replay run (acceptance tests).
+- [x] `make run-sim` â€” deterministic sim/replay run (acceptance tests). _Progress: New tooling wraps the bootstrap runtime into `make run-sim`, wiring environment defaults, summary/diary exports, and pytest coverage so the acceptance drill is a single reproducible command.【F:Makefile†L103-L121】【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】_
 - [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, streams progress, and persists structured summaries for dashboards under pytest coverage.【F:Makefile†L90-L98】【F:src/runtime/cli.py†L1-L220】【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】_
 - [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger.
-- [ ] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report.
+- [x] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report. _Progress: The `rim-shadow` target now drives the governance-gated shadow runner, emitting suggestions plus queue/digest markdown artifacts with auto-apply annotations under pytest coverage so nightly cron jobs stay audit-ready.【F:Makefile†L67-L85】【F:tools/rim_shadow_run.py†L160-L222】【F:tests/tools/test_rim_shadow_run.py†L44-L139】_
 - [ ] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders).
 
 ---

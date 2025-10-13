@@ -5,7 +5,7 @@
 1. Ensure the Decision Diary source directory exists (default `artifacts/diaries/`) and contains files matching `diary_glob` (`diaries-*.jsonl`). If absent, generate sample diaries via `make sim-diaries` (or copy fixtures into place).
 2. Copy `config/reflection/rim.config.example.yml` to `config/reflection/rim.config.yml` (the tooling will fall back to the example if the real config is missing) and adjust parameters including `diaries_dir`, `diary_glob`, window, and caps.
 3. Run `make rim-shadow` to execute `tools/rim_shadow_run.py`.
-4. Inspect emitted artifact under `artifacts/rim_suggestions/` and confirm governance gate remains enabled.
+4. Inspect emitted artifact under `artifacts/rim_suggestions/` and confirm governance gate remains enabled; queue entries now include an `auto_apply` block with the applied/skipped rationale and latency stamps when proposals clear safeguards.【F:src/reflection/trm/governance.py†L94-L247】【F:tests/reflection/test_trm_governance.py†L16-L126】
 
 ## Production Runner (non-shadow execution)
 
@@ -24,6 +24,7 @@
 ## Sanity Checks
 
 - **Encoder Output:** Enable debug logging (`RIM_DEBUG=1 make rim-shadow`) to log encoded feature shapes and batch counts.
+- **Auto-apply Decisions:** Inspect `governance.queue_path` and `digest.json` to confirm approved suggestions are marked `status: "auto_applied"` with a populated `auto_apply` summary, or carry reason codes when the safeguard rejects them.【F:src/reflection/trm/governance.py†L94-L247】【F:tests/reflection/test_trm_governance.py†L16-L126】
 - **Suggestion Count:** Verify suggestions do not exceed `suggestion_cap` and confidence remains above `confidence_floor`.
 - **Telemetry:** Review `artifacts/rim_logs/rim-<date>.log` for runtime percentiles (`p50_ms`, `p95_ms`), throughput (`windows_processed`, `windows_halted_early_%`), and suggestion mix (`suggestions_emitted`, `suggestions_dropped_low_confidence`).
 - **Schema Validation:** Run `make rim-validate` to validate JSONL artifacts (docs/examples + latest emissions).

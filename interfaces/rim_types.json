@@ -80,12 +80,17 @@
     },
     "Traceability": {
       "type": "object",
-      "required": ["diary_slice"],
+      "required": [
+        "code_hash",
+        "config_hash",
+        "batch_input_hash",
+        "diary_slice"
+      ],
       "properties": {
-        "code_hash": {"type": "string"},
-        "config_hash": {"type": "string"},
-        "model_hash": {"type": "string"},
-        "batch_input_hash": {"type": "string"},
+        "code_hash": {"type": "string", "minLength": 1},
+        "config_hash": {"type": "string", "minLength": 1},
+        "model_hash": {"type": "string", "minLength": 1},
+        "batch_input_hash": {"type": "string", "minLength": 1},
         "target_strategy_ids": {
           "type": "array",
           "items": {"type": "string"}
@@ -154,7 +159,8 @@
         "confidence",
         "rationale",
         "audit_ids",
-        "created_at"
+        "created_at",
+        "trace"
       ],
       "properties": {
         "schema_version": {"const": "rim.v1"},

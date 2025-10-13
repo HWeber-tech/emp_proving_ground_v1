@@ -107,7 +107,8 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
         assert trace.get("config_hash") == suggestion["config_hash"]
         assert trace.get("model_hash") == suggestion["model_hash"]
         assert trace.get("batch_input_hash") == suggestion["input_hash"]
-        assert isinstance(trace.get("code_hash"), str)
+        code_hash = trace.get("code_hash")
+        assert isinstance(code_hash, str) and code_hash
         diary_slice = trace.get("diary_slice")
         assert isinstance(diary_slice, dict)
         assert "window" in diary_slice

@@ -16,7 +16,7 @@ Design goals:
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 

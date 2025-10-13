@@ -27,6 +27,11 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    `FINAL_DRY_RUN_PERFORMANCE_PATH` into the child process unless you override
    them via `--env`. Metadata, objectives, attendees, notes (including
    `--notes-file`) flow into the generated review brief.
+   The runtime now mirrors these extras onto the canonical
+   `DECISION_DIARY_PATH` / `PERFORMANCE_METRICS_PATH` keys during
+   `SystemConfig` construction and installs a supervised performance writer when
+   `FINAL_DRY_RUN_PERFORMANCE_PATH` is present, so decision diary consumers and
+   the auto-generated performance snapshot stay aligned without extra wiring.
 3. When you need to reuse an existing directory or integrate with external
    wrappers you can still call the harness CLI directly—available both through
    the repo utility script and the consolidated EMP CLI:

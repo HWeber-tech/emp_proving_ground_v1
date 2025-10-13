@@ -376,6 +376,9 @@ class AnomalySensoryOrgan(SensoryOrgan):
         window = int(getattr(sensor_config, "window", 32))
         self._sequence_min_length = int(getattr(sensor_config, "sequence_min_length", 8))
         self._window: deque[float] = deque(maxlen=window if window > 0 else 32)
+        self._last_frame_timestamp: pd.Timestamp | None = None
+        self._last_frame_length: int = 0
+        self._last_close_value: float | None = None
 
     async def process(
         self,
@@ -393,13 +396,8 @@ class AnomalySensoryOrgan(SensoryOrgan):
             )
 
         frame = _normalise_frame(market_data)
-        if not frame.empty and "close" in frame:
-            try:
-                closes = frame["close"].astype(float)
-            except (TypeError, ValueError):
-                closes = pd.Series(dtype=float)
-            for value in closes:
-                self._window.append(float(value))
+        if not frame.empty:
+            self._ingest_frame(frame)
 
         if len(self._window) >= self._sequence_min_length:
             signals = self._sensor.process(list(self._window))
@@ -414,6 +412,73 @@ class AnomalySensoryOrgan(SensoryOrgan):
             dimension="ANOMALY",
             signal=signals[0],
         )
+
+    # ------------------------------------------------------------------
+    def _append_close_value(self, value: float) -> None:
+        self._window.append(float(value))
+        self._last_close_value = float(value)
+
+    def _ingest_frame(self, frame: pd.DataFrame) -> None:
+        if "close" not in frame:
+            return
+
+        closes = pd.to_numeric(frame["close"], errors="coerce")
+        valid_close_mask = closes.notna()
+        if not valid_close_mask.any():
+            self._last_frame_length = 0
+            return
+
+        timestamps = None
+        if "timestamp" in frame:
+            try:
+                timestamps = pd.to_datetime(frame["timestamp"], utc=True, errors="coerce")
+            except Exception:  # pragma: no cover - defensive guard
+                timestamps = None
+        if timestamps is not None:
+            timestamps = timestamps[valid_close_mask]
+
+        closes = closes[valid_close_mask]
+        appended = False
+
+        if timestamps is not None and timestamps.notna().any():
+            valid_ts = timestamps.dropna()
+            if not valid_ts.empty:
+                if self._last_frame_timestamp is not None:
+                    valid_ts = valid_ts[valid_ts > self._last_frame_timestamp]
+                for value in closes.loc[valid_ts.index]:
+                    self._append_close_value(float(value))
+                    appended = True
+                latest_ts = timestamps.dropna()
+                if not latest_ts.empty:
+                    self._last_frame_timestamp = latest_ts.max()
+                self._last_frame_length = int(closes.shape[0])
+                if appended:
+                    return
+                # no new timestamps; retain last close for equality checks
+                self._last_close_value = float(closes.iloc[-1])
+                return
+
+        frame_length = int(closes.shape[0])
+        start_idx = 0
+        if frame_length > self._last_frame_length:
+            start_idx = self._last_frame_length
+        elif frame_length == self._last_frame_length and frame_length > 0:
+            last_value = float(closes.iloc[-1])
+            if self._last_close_value is None or last_value != self._last_close_value:
+                start_idx = frame_length - 1
+            else:
+                self._last_frame_length = frame_length
+                return
+        else:
+            start_idx = 0
+
+        if start_idx < frame_length:
+            for value in closes.iloc[start_idx:]:
+                self._append_close_value(float(value))
+            self._last_close_value = float(closes.iloc[-1])
+
+        self._last_frame_length = frame_length
+        self._last_frame_timestamp = None
 
 
 class WhatSensoryOrgan(SensoryOrgan):

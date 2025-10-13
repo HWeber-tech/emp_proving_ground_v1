@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
+import pandas as pd
 import pytest
 
 from src.sensory.enhanced.how_dimension import InstitutionalUnderstandingEngine
@@ -247,6 +248,47 @@ async def test_anomaly_sensory_organ_accepts_sequence_payload() -> None:
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("metadata", {}).get("mode") == "sequence"
+
+
+@pytest.mark.asyncio
+async def test_anomaly_sensory_organ_deduplicates_replayed_frames() -> None:
+    organ = AnomalySensoryOrgan()
+    base_time = datetime(2024, 1, 1, 12, tzinfo=timezone.utc)
+
+    def _build_frame(count: int) -> pd.DataFrame:
+        rows = []
+        for idx in range(count):
+            rows.append(
+                {
+                    "timestamp": base_time + timedelta(minutes=idx),
+                    "symbol": "EURUSD",
+                    "open": 1.101 + idx * 0.0002,
+                    "high": 1.102 + idx * 0.00025,
+                    "low": 1.1005 + idx * 0.00015,
+                    "close": 1.1012 + idx * 0.0003,
+                    "volume": 1500.0 + idx * 20,
+                    "volatility": 0.0005 + idx * 0.00001,
+                    "spread": 0.00005,
+                }
+            )
+        return pd.DataFrame(rows)
+
+    frame_initial = _build_frame(10)
+    reading_initial = await organ.process(frame_initial)
+    telemetry_initial = reading_initial.metadata.get("telemetry", {})
+    sample_initial = telemetry_initial.get("sample_size")
+    assert sample_initial == pytest.approx(10.0)
+
+    reading_replayed = await organ.process(frame_initial)
+    telemetry_replayed = reading_replayed.metadata.get("telemetry", {})
+    sample_replayed = telemetry_replayed.get("sample_size")
+    assert sample_replayed == pytest.approx(sample_initial)
+
+    frame_extended = _build_frame(11)
+    reading_extended = await organ.process(frame_extended)
+    telemetry_extended = reading_extended.metadata.get("telemetry", {})
+    sample_extended = telemetry_extended.get("sample_size")
+    assert sample_extended == pytest.approx(sample_initial + 1.0)
 
 
 @pytest.mark.asyncio

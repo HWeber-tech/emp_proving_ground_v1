@@ -321,7 +321,19 @@ def test_regime_fsm_publishes_signal() -> None:
     assert signal.regime_state.regime in {"bullish", "balanced", "bearish", "uncertain"}
     assert signal.regime_state.volatility_state in {"calm", "normal", "storm"}
     assert signal.regime_state.volatility >= 0.0
-    assert payload["metadata"]["volatility_state"] == signal.regime_state.volatility_state
+    metadata = payload["metadata"]
+    assert metadata["volatility_state"] == signal.regime_state.volatility_state
+    probabilities = metadata["regime_probabilities"]
+    assert set(probabilities) >= {"bullish", "balanced", "bearish"}
+    assert sum(probabilities.values()) == pytest.approx(1.0, rel=1e-6)
+    transition_matrix = metadata["hmm_transition_matrix"]
+    assert len(transition_matrix) == len(probabilities)
+    for row in transition_matrix:
+        assert sum(row) == pytest.approx(1.0, rel=1e-6)
+    state_means = metadata["hmm_state_means"]
+    assert set(state_means) >= {"bullish", "balanced", "bearish"}
+    state_variances = metadata["hmm_state_variances"]
+    assert set(state_variances) == set(state_means)
 
 
 def test_regime_fsm_records_transitions() -> None:
@@ -392,6 +404,56 @@ def test_regime_fsm_records_transitions() -> None:
     assert health["transition_count"] == 2
     assert health["last_regime"] == "bullish"
     assert health["last_transition_reason"] == "regime_and_volatility"
+
+
+def test_regime_fsm_hmm_updates_transition_priors() -> None:
+    bus = _StubEventBus()
+    buffer = BeliefBuffer(belief_id="hmm-belief")
+    emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+    base_time = datetime(2025, 2, 1, 9, 0, tzinfo=UTC)
+
+    fsm = RegimeFSM(event_bus=bus, signal_id="hmm-regime")
+
+    initial_state = emitter.emit(
+        _build_snapshot(
+            strength=0.0,
+            confidence=0.8,
+            timestamp=base_time,
+            lineage_counter=0,
+        )
+    )
+    fsm.publish(initial_state)
+    initial_matrix = fsm.healthcheck()["hmm_transition_matrix"]
+
+    for step in range(6):
+        bullish_state = emitter.emit(
+            _build_snapshot(
+                strength=0.75,
+                confidence=0.9,
+                timestamp=base_time + timedelta(minutes=step * 2 + 1),
+                lineage_counter=step * 2 + 1,
+            )
+        )
+        fsm.publish(bullish_state)
+
+        balanced_state = emitter.emit(
+            _build_snapshot(
+                strength=0.05,
+                confidence=0.8,
+                timestamp=base_time + timedelta(minutes=step * 2 + 2),
+                lineage_counter=step * 2 + 2,
+            )
+        )
+        fsm.publish(balanced_state)
+
+    updated_matrix = fsm.healthcheck()["hmm_transition_matrix"]
+    regime_index = {label: idx for idx, label in enumerate(fsm._hmm_regime_labels)}
+    balanced_idx = regime_index["balanced"]
+    bullish_idx = regime_index["bullish"]
+    bearish_idx = regime_index["bearish"]
+
+    assert updated_matrix[balanced_idx][bullish_idx] > updated_matrix[balanced_idx][bearish_idx]
+    assert updated_matrix[balanced_idx][bullish_idx] > initial_matrix[balanced_idx][bullish_idx]
 
 
 def test_belief_buffer_requires_lineage_metadata() -> None:

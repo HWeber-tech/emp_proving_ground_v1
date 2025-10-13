@@ -788,6 +788,186 @@ class BeliefEmitter:
         }
 
 
+def _logsumexp(values: np.ndarray, axis: int | None = None) -> np.ndarray:
+    """Stable log-sum-exp helper that guards against overflow."""
+
+    if axis is None:
+        values = np.asarray(values, dtype=float)
+        if values.size == 0:
+            return np.array(float("-inf"))
+        max_value = float(np.max(values))
+        if not np.isfinite(max_value):
+            return np.array(max_value)
+        shifted = values - max_value
+        total = float(np.sum(np.exp(shifted)))
+        return np.array(max_value + np.log(total + 1e-12))
+
+    max_value = np.max(values, axis=axis, keepdims=True)
+    shifted = values - max_value
+    total = np.sum(np.exp(shifted), axis=axis, keepdims=True)
+    return (max_value + np.log(total + 1e-12)).squeeze(axis)
+
+
+def _softmax(values: np.ndarray, axis: int | None = None) -> np.ndarray:
+    """Numerically stable softmax."""
+
+    shifted = values - np.max(values, axis=axis, keepdims=True)
+    numerator = np.exp(shifted)
+    denominator = np.sum(numerator, axis=axis, keepdims=True)
+    return numerator / np.clip(denominator, 1e-12, None)
+
+
+class _OnlineRegimeHMM:
+    """Minimal online Gaussian HMM tailored for regime detection."""
+
+    def __init__(
+        self,
+        *,
+        state_names: Sequence[str],
+        regime_labels: Sequence[str],
+        transition_concentration: float,
+        transition_forgetting: float,
+        emission_learning_rate: float,
+        initial_means: Sequence[float],
+        initial_variance: float,
+        min_variance: float,
+        max_variance: float | None,
+    ) -> None:
+        if len(state_names) != len(regime_labels):
+            raise ValueError("state_names and regime_labels must align")
+        if len(initial_means) != len(state_names):
+            raise ValueError("initial_means must align with states")
+        if transition_concentration <= 0.0:
+            raise ValueError("transition_concentration must be positive")
+        if not 0.0 < transition_forgetting <= 1.0:
+            raise ValueError("transition_forgetting must be in (0, 1]")
+        if not 0.0 < emission_learning_rate <= 1.0:
+            raise ValueError("emission_learning_rate must be in (0, 1]")
+        if initial_variance <= 0.0:
+            raise ValueError("initial_variance must be positive")
+        if min_variance <= 0.0:
+            raise ValueError("min_variance must be positive")
+        if max_variance is not None and max_variance <= min_variance:
+            raise ValueError("max_variance must exceed min_variance")
+
+        self._state_names = tuple(state_names)
+        self._regime_labels = tuple(regime_labels)
+        self._state_index = {name: idx for idx, name in enumerate(self._state_names)}
+        self._count = len(self._state_names)
+        self._transition_forgetting = transition_forgetting
+        self._emission_learning_rate = emission_learning_rate
+        self._min_variance = float(min_variance)
+        self._max_variance = float(max_variance) if max_variance is not None else None
+
+        base = np.full((self._count, self._count), float(transition_concentration))
+        np.fill_diagonal(base, float(transition_concentration) * 2.5)
+        self._base_transition_counts = base
+        self._transition_counts = base.copy()
+
+        self._state_probabilities = np.full(self._count, 1.0 / self._count)
+        self._emission_means = np.asarray(initial_means, dtype=float)
+        self._emission_variances = np.full(self._count, float(initial_variance))
+
+    @property
+    def regime_labels(self) -> tuple[str, ...]:
+        return self._regime_labels
+
+    @property
+    def state_probabilities(self) -> np.ndarray:
+        return self._state_probabilities.copy()
+
+    @property
+    def emission_means(self) -> np.ndarray:
+        return self._emission_means.copy()
+
+    @property
+    def emission_variances(self) -> np.ndarray:
+        return self._emission_variances.copy()
+
+    @property
+    def transition_matrix(self) -> np.ndarray:
+        counts = np.clip(self._transition_counts, 1e-12, None)
+        normalised = counts / np.sum(counts, axis=1, keepdims=True)
+        return normalised
+
+    def reset(self) -> None:
+        self._transition_counts = self._base_transition_counts.copy()
+        self._state_probabilities = np.full(self._count, 1.0 / self._count)
+
+    def _gaussian_log_pdf(self, observation: float) -> np.ndarray:
+        variance = np.clip(self._emission_variances, self._min_variance, None)
+        if self._max_variance is not None:
+            variance = np.clip(variance, None, self._max_variance)
+        diff = observation - self._emission_means
+        return -0.5 * (
+            np.log(2.0 * np.pi * variance)
+            + (diff**2) / np.clip(variance, self._min_variance, None)
+        )
+
+    def _update_emissions(self, observation: float, weights: np.ndarray, confidence: float) -> None:
+        belief = float(np.clip(confidence, 0.0, 1.0))
+        if belief <= 0.0:
+            return
+        scaled = float(self._emission_learning_rate) * belief
+        for idx in range(self._count):
+            weight = float(np.clip(weights[idx], 0.0, 1.0))
+            if weight <= 0.0:
+                continue
+            learning_rate = scaled * weight
+            if learning_rate <= 0.0:
+                continue
+            mean = self._emission_means[idx]
+            variance = self._emission_variances[idx]
+            delta = observation - mean
+            mean = mean + learning_rate * delta
+            centred = observation - mean
+            variance = (1.0 - learning_rate) * variance + learning_rate * (centred**2)
+            variance = float(np.clip(variance, self._min_variance, self._max_variance))
+            self._emission_means[idx] = float(mean)
+            self._emission_variances[idx] = variance
+
+    def step(
+        self,
+        observation: float,
+        *,
+        confidence: float,
+        prior_hint: str | None = None,
+    ) -> Mapping[str, float]:
+        obs = float(np.clip(observation, -10.0, 10.0))
+        log_emission = self._gaussian_log_pdf(obs)
+
+        transition_matrix = np.clip(self.transition_matrix, 1e-12, None)
+        log_transition = np.log(transition_matrix)
+        log_state = np.log(np.clip(self._state_probabilities, 1e-12, None))
+
+        joint = log_state[:, None] + log_transition + log_emission[None, :]
+        log_marginal = _logsumexp(joint, axis=0)
+        posterior = _softmax(log_marginal)
+
+        if prior_hint is not None and prior_hint in self._state_index:
+            idx = self._state_index[prior_hint]
+            posterior[idx] = posterior[idx] + 0.1
+            posterior = posterior / np.sum(posterior)
+
+        log_normaliser = float(_logsumexp(joint))
+        xi = np.exp(joint - log_normaliser)
+
+        forgetting = float(self._transition_forgetting)
+        refreshed = (1.0 - forgetting) * self._transition_counts + forgetting * (
+            self._base_transition_counts + xi
+        )
+        self._transition_counts = np.clip(refreshed, 1e-8, None)
+
+        self._update_emissions(obs, posterior, confidence)
+        self._state_probabilities = posterior
+
+        probabilities = {
+            regime: float(prob)
+            for regime, prob in zip(self._regime_labels, posterior)
+        }
+        return probabilities
+
+
 class RegimeFSM:
     """Classify belief states into regime signals and publish them."""
 
@@ -811,6 +991,15 @@ class RegimeFSM:
         calibration_min_samples: int = 6,
         calm_percentile: float = 0.35,
         storm_percentile: float = 0.85,
+        hmm_state_names: Sequence[str] | None = None,
+        hmm_regime_labels: Sequence[str] | None = None,
+        hmm_initial_means: Sequence[float] | None = None,
+        hmm_initial_variance: float = 0.25,
+        hmm_min_variance: float = 0.02,
+        hmm_max_variance: float | None = 1.5,
+        hmm_transition_concentration: float = 3.0,
+        hmm_transition_forgetting: float = 0.08,
+        hmm_emission_learning_rate: float = 0.3,
     ) -> None:
         self._event_bus = event_bus
         self._signal_id = signal_id
@@ -848,6 +1037,46 @@ class RegimeFSM:
         self._storm_percentile = storm_percentile
         self._dynamic_calm_threshold: float | None = None
         self._dynamic_storm_threshold: float | None = None
+        default_states = ("bear", "neutral", "bull")
+        state_names = tuple(hmm_state_names) if hmm_state_names is not None else default_states
+        if len(state_names) < 2:
+            raise ValueError("hmm_state_names must include at least two states")
+        default_labels = ("bearish", "balanced", "bullish")[: len(state_names)]
+        regime_labels = (
+            tuple(hmm_regime_labels)
+            if hmm_regime_labels is not None
+            else default_labels
+        )
+        if len(regime_labels) != len(state_names):
+            raise ValueError("hmm_regime_labels must align with hmm_state_names")
+        default_means = (-0.45, 0.0, 0.45)
+        if len(state_names) != len(default_means):
+            if hmm_initial_means is None:
+                raise ValueError(
+                    "hmm_initial_means must be provided when using a custom number of states"
+                )
+        initial_means = (
+            tuple(float(value) for value in hmm_initial_means)
+            if hmm_initial_means is not None
+            else default_means[: len(state_names)]
+        )
+        self._hmm = _OnlineRegimeHMM(
+            state_names=state_names,
+            regime_labels=regime_labels,
+            transition_concentration=float(hmm_transition_concentration),
+            transition_forgetting=float(hmm_transition_forgetting),
+            emission_learning_rate=float(hmm_emission_learning_rate),
+            initial_means=initial_means,
+            initial_variance=float(hmm_initial_variance),
+            min_variance=float(hmm_min_variance),
+            max_variance=float(hmm_max_variance) if hmm_max_variance is not None else None,
+        )
+        self._hmm_state_names = state_names
+        self._hmm_regime_labels = regime_labels
+        self._hint_state_map: dict[str, str] = {}
+        for state, regime in zip(state_names, regime_labels):
+            self._hint_state_map[state.lower()] = state
+            self._hint_state_map[regime.lower()] = state
 
     @property
     def calm_threshold(self) -> float:
@@ -895,6 +1124,7 @@ class RegimeFSM:
         storm_percentile: float | None = None,
         reset_history: bool = False,
         reset_dynamic_thresholds: bool = True,
+        reset_hmm: bool = False,
     ) -> None:
         """Update volatility thresholds and history to match new calibration."""
 
@@ -934,24 +1164,40 @@ class RegimeFSM:
         if reset_dynamic_thresholds:
             self._dynamic_calm_threshold = None
             self._dynamic_storm_threshold = None
+        if reset_hmm:
+            self._hmm.reset()
 
     def classify(self, belief_state: BeliefState) -> RegimeSignal:
         posterior = belief_state.posterior
         strength = posterior.strength
         confidence = max(posterior.confidence, 0.0)
+        regime_hint: str | None = None
+        metadata_payload = belief_state.metadata
+        if isinstance(metadata_payload, Mapping):
+            raw_hint = metadata_payload.get("regime_hint")
+            if isinstance(raw_hint, str):
+                regime_hint = raw_hint.strip().lower()
 
-        if confidence < self._confidence_floor:
+        prior_state = self._hint_state_map.get(regime_hint) if regime_hint else None
+        regime_probabilities = self._hmm.step(
+            strength,
+            confidence=float(np.clip(confidence, 0.0, 1.0)),
+            prior_hint=prior_state,
+        )
+
+        regime_name = max(regime_probabilities, key=regime_probabilities.get)
+        hmm_confidence = float(np.clip(regime_probabilities[regime_name], 0.0, 1.0))
+        belief_confidence = float(np.clip(confidence, 0.0, 1.0))
+        combined_confidence = float(
+            np.clip(0.5 * hmm_confidence + 0.5 * belief_confidence, 0.0, 1.0)
+        )
+
+        if hmm_confidence < self._confidence_floor or belief_confidence < self._confidence_floor:
             regime = "uncertain"
-            regime_confidence = self._confidence_floor
-        elif strength >= self._bullish_threshold:
-            regime = "bullish"
-            regime_confidence = min(1.0, confidence + 0.1)
-        elif strength <= self._bearish_threshold:
-            regime = "bearish"
-            regime_confidence = min(1.0, confidence + 0.1)
+            regime_confidence = max(self._confidence_floor, combined_confidence)
         else:
-            regime = "balanced"
-            regime_confidence = confidence
+            regime = regime_name
+            regime_confidence = max(combined_confidence, self._confidence_floor)
 
         feature_map: MutableMapping[str, float] = {}
         for name, value in zip(belief_state.features, belief_state.posterior.mean):
@@ -988,9 +1234,29 @@ class RegimeFSM:
             "storm_threshold": self._current_thresholds()[1],
             "posterior_strength": float(strength),
             "posterior_confidence": float(confidence),
+            "regime_probabilities": dict(regime_probabilities),
+            "hmm_state_means": {
+                regime_label: float(mean)
+                for regime_label, mean in zip(
+                    self._hmm_regime_labels, self._hmm.emission_means
+                )
+            },
+            "hmm_state_variances": {
+                regime_label: float(variance)
+                for regime_label, variance in zip(
+                    self._hmm_regime_labels,
+                    self._hmm.emission_variances,
+                )
+            },
+            "hmm_transition_matrix": [
+                [float(value) for value in row]
+                for row in self._hmm.transition_matrix.tolist()
+            ],
         }
         if volatility_sample is not None:
             metadata["volatility_sample"] = volatility_sample
+        if regime_hint is not None:
+            metadata["regime_hint"] = regime_hint
 
         return RegimeSignal(
             signal_id=self._signal_id,
@@ -1047,6 +1313,19 @@ class RegimeFSM:
                 if self._last_transition
                 else None
             ),
+            "hmm_state_probabilities": [
+                float(value) for value in self._hmm.state_probabilities.tolist()
+            ],
+            "hmm_emission_means": [
+                float(value) for value in self._hmm.emission_means.tolist()
+            ],
+            "hmm_emission_variances": [
+                float(value) for value in self._hmm.emission_variances.tolist()
+            ],
+            "hmm_transition_matrix": [
+                [float(value) for value in row]
+                for row in self._hmm.transition_matrix.tolist()
+            ],
         }
 
     def apply_threshold_scale(self, scale: float) -> None:

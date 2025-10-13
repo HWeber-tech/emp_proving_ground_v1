@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.sensory.anomaly.anomaly_sensor import AnomalySensor
 from src.sensory.how.how_sensor import HowSensor
+from src.sensory.calibration import CalibrationUpdate, ContinuousSensorCalibrator
 from src.sensory.lineage import SensorLineageRecord, build_lineage_record
 from src.sensory.lineage_publisher import SensoryLineagePublisher
 from src.sensory.monitoring.sensor_drift import SensorDriftSummary, evaluate_sensor_drift
@@ -58,6 +59,7 @@ class RealSensoryOrgan:
         drift_config: SensoryDriftConfig | None = None,
         lineage_publisher: SensoryLineagePublisher | None = None,
         global_bus_factory: Callable[[], TopicBus] | None = None,
+        calibrator: ContinuousSensorCalibrator | None = None,
     ) -> None:
         self._why = why_sensor or WhySensor()
         self._how = how_sensor or HowSensor()
@@ -73,6 +75,51 @@ class RealSensoryOrgan:
         self._latest_drift: SensorDriftSummary | None = None
         self._lineage_publisher = lineage_publisher
         self._global_bus_factory = global_bus_factory or get_global_bus
+        self._calibrator = calibrator or ContinuousSensorCalibrator()
+        self._register_calibration_handlers()
+
+    # ------------------------------------------------------------------
+    def _register_calibration_handlers(self) -> None:
+        self._calibrator.register_dimension(
+            "HOW",
+            apply_callback=self._apply_how_calibration,
+            absolute_strength=True,
+            clamp_min=0.0,
+            clamp_max=1.0,
+        )
+        self._calibrator.register_dimension(
+            "ANOMALY",
+            apply_callback=self._apply_anomaly_calibration,
+            absolute_strength=True,
+            clamp_min=0.0,
+            clamp_max=1.0,
+        )
+        for dimension in ("WHY", "WHAT", "WHEN"):
+            self._calibrator.register_dimension(
+                dimension,
+                calibrate=False,
+                absolute_strength=True,
+            )
+
+    def _apply_how_calibration(self, update: CalibrationUpdate) -> None:
+        warn = update.warn_threshold
+        alert = update.alert_threshold
+        if warn is None and alert is None:
+            return
+        self._how.recalibrate_thresholds(
+            warn_threshold=warn,
+            alert_threshold=alert,
+        )
+
+    def _apply_anomaly_calibration(self, update: CalibrationUpdate) -> None:
+        warn = update.warn_threshold
+        alert = update.alert_threshold
+        if warn is None and alert is None:
+            return
+        self._anomaly.recalibrate_thresholds(
+            warn_threshold=warn,
+            alert_threshold=alert,
+        )
 
     # ------------------------------------------------------------------
     def observe(
@@ -199,6 +246,10 @@ class RealSensoryOrgan:
             lineage_records=dimension_lineage_records,
         )
 
+        for name, payload in dimension_payloads.items():
+            lineage_obj = dimension_lineage_records.get(name) or payload.get("lineage")
+            self._calibrator.observe(name, payload, lineage_obj)
+
         audit_entry = {
             "symbol": resolved_symbol,
             "generated_at": timestamp.isoformat(),
@@ -253,6 +304,7 @@ class RealSensoryOrgan:
             status["lineage"] = lineage_history
         if lineage_latest is not None:
             status["lineage_latest"] = lineage_latest
+        status["calibration"] = self._calibrator.status()
         return status
 
     def metrics(self) -> Mapping[str, Any]:
@@ -287,6 +339,7 @@ class RealSensoryOrgan:
             "integrated": integrated_metrics,
             "dimensions": dimensions,
             "drift_summary": self._serialise_drift_summary(self._latest_drift),
+            "calibration": self._calibrator.status(),
         }
 
     # ------------------------------------------------------------------

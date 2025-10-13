@@ -56,6 +56,40 @@ class AnomalySensor:
         )
         self._basic_detector = detector
 
+    @property
+    def config(self) -> AnomalySensorConfig:
+        """Expose the active anomaly sensor configuration."""
+
+        return self._config
+
+    def recalibrate_thresholds(
+        self,
+        *,
+        warn_threshold: float | None = None,
+        alert_threshold: float | None = None,
+        minimum_confidence: float | None = None,
+    ) -> None:
+        """Apply recalibrated thresholds from the continuous calibrator."""
+
+        warn_value = self._config.warn_threshold
+        alert_value = self._config.alert_threshold
+
+        if warn_threshold is not None:
+            warn_value = max(0.0, min(1.0, float(warn_threshold)))
+
+        if alert_threshold is not None:
+            alert_value = max(0.0, min(1.0, float(alert_threshold)))
+
+        if alert_value <= warn_value:
+            alert_value = min(1.0, warn_value + 1e-6)
+
+        self._config.warn_threshold = warn_value
+        self._config.alert_threshold = alert_value
+
+        if minimum_confidence is not None:
+            confidence_value = max(0.0, min(1.0, float(minimum_confidence)))
+            self._config.minimum_confidence = confidence_value
+
     def process(
         self, data: pd.DataFrame | Mapping[str, Any] | Sequence[float] | None
     ) -> list[SensorSignal]:

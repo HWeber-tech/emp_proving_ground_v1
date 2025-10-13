@@ -15,6 +15,8 @@ __all__ = [
     "ReleaseAwareExecutionRouter",
     "PaperBrokerExecutionAdapter",
     "PaperBrokerError",
+    "LiveBrokerExecutionAdapter",
+    "LiveBrokerError",
 ]
 
 
@@ -35,4 +37,12 @@ def __getattr__(name: str) -> object:
         from .paper_broker_adapter import PaperBrokerError
 
         return PaperBrokerError
+    if name == "LiveBrokerExecutionAdapter":
+        from .live_broker_adapter import LiveBrokerExecutionAdapter
+
+        return LiveBrokerExecutionAdapter
+    if name == "LiveBrokerError":
+        from .live_broker_adapter import LiveBrokerError
+
+        return LiveBrokerError
     raise AttributeError(name)

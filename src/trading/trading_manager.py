@@ -83,6 +83,7 @@ from src.trading.execution.trade_throttle import (
     TradeThrottleConfig,
     TradeThrottleDecision,
 )
+from src.trading.execution.live_broker_adapter import LiveBrokerExecutionAdapter
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.gating import (
     DriftGateEvent,
@@ -2539,11 +2540,13 @@ class TradingManager:
         order_timeout: float | None = 5.0,
         failover_threshold: int = 3,
         failover_cooldown: float = 30.0,
+        risk_block_cooldown: float | None = 5.0,
     ) -> ReleaseAwareExecutionRouter | None:
-        """Install a paper broker adapter as the live execution engine.
+        """Install a live broker adapter as the release router's live engine.
 
-        This bridges validated intents into the FIX paper trading stack when the
-        governance ledger promotes a tactic into the ``limited_live`` stage.
+        The adapter replays the risk gateway validation immediately before order
+        submission so governance receives deterministic telemetry when an order
+        is blocked at the broker boundary.
         """
 
         if broker_interface is None:
@@ -2557,18 +2560,35 @@ class TradingManager:
             cooldown_value = max(0.0, float(failover_cooldown))
         except Exception:
             cooldown_value = 30.0
+        try:
+            risk_block_value = max(0.0, float(risk_block_cooldown))
+        except Exception:
+            risk_block_value = 5.0
 
-        adapter = PaperBrokerExecutionAdapter(
-            broker_interface=broker_interface,
-            portfolio_monitor=self.portfolio_monitor,
-            order_timeout=order_timeout,
-            failover_threshold=threshold_value,
-            failover_cooldown_seconds=cooldown_value,
-        )
+        risk_gateway = getattr(self, "risk_gateway", None)
+        if risk_gateway is not None:
+            adapter = LiveBrokerExecutionAdapter(
+                broker_interface=broker_interface,
+                portfolio_monitor=self.portfolio_monitor,
+                risk_gateway=risk_gateway,
+                risk_policy=self._risk_policy,
+                order_timeout=order_timeout,
+                failover_threshold=threshold_value,
+                failover_cooldown_seconds=cooldown_value,
+                risk_block_cooldown_seconds=risk_block_value,
+            )
+        else:  # pragma: no cover - legacy bootstrap path
+            adapter = PaperBrokerExecutionAdapter(
+                broker_interface=broker_interface,
+                portfolio_monitor=self.portfolio_monitor,
+                order_timeout=order_timeout,
+                failover_threshold=threshold_value,
+                failover_cooldown_seconds=cooldown_value,
+            )
 
         if self._release_manager is None:
             logger.warning(
-                "Release manager is not configured; skipping paper broker adapter installation",
+                "Release manager is not configured; skipping live broker adapter installation",
             )
             self._live_engine = adapter
             return None
@@ -2587,7 +2607,7 @@ class TradingManager:
             base_engine = self.execution_engine
             if base_engine is None:
                 raise RuntimeError(
-                    "TradingManager must have a base execution engine before attaching the paper broker adapter",
+                    "TradingManager must have a base execution engine before attaching the live broker adapter",
                 )
             resolved_default = stage_default
             if resolved_default is None:

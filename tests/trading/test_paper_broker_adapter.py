@@ -7,6 +7,7 @@ import pytest
 
 from src.config.risk.risk_config import RiskConfig
 from src.governance.policy_ledger import PolicyLedgerStage
+from src.trading.execution.live_broker_adapter import LiveBrokerExecutionAdapter
 from src.trading.execution.paper_broker_adapter import (
     PaperBrokerError,
     PaperBrokerExecutionAdapter,
@@ -406,7 +407,7 @@ async def test_trading_manager_routes_live_stage_to_paper_broker_adapter() -> No
     router = manager.attach_live_broker_adapter(broker)
 
     assert isinstance(router, ReleaseAwareExecutionRouter)
-    assert router.live_engine is not None
+    assert isinstance(router.live_engine, LiveBrokerExecutionAdapter)
 
     intent = {
         "policy_id": "alpha",

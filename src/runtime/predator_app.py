@@ -2639,6 +2639,10 @@ def _maybe_attach_paper_trading_adapter(
         extras.get("PAPER_TRADING_FAILOVER_COOLDOWN"),
         default=30.0,
     )
+    risk_block_cooldown_value = _coerce_non_negative_float(
+        extras.get("PAPER_TRADING_RISK_BLOCK_COOLDOWN"),
+        default=5.0,
+    )
 
     try:
         router = runtime.trading_manager.attach_live_broker_adapter(
@@ -2647,6 +2651,7 @@ def _maybe_attach_paper_trading_adapter(
             order_timeout=order_timeout,
             failover_threshold=failover_threshold_value,
             failover_cooldown=failover_cooldown_value,
+            risk_block_cooldown=risk_block_cooldown_value,
         )
     except PaperTradingApiError as exc:
         logger.warning("Failed to initialise paper trading adapter: %s", exc)

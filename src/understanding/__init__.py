@@ -7,6 +7,7 @@ from .belief import (
     BeliefState,
     RegimeFSM,
     RegimeSignal,
+    RegimeTransition,
     hebbian_step,
 )
 from .diagnostics import (
@@ -48,6 +49,7 @@ __all__ = [
     "BeliefState",
     "RegimeFSM",
     "RegimeSignal",
+    "RegimeTransition",
     "hebbian_step",
     "UnderstandingArtifacts",
     "UnderstandingDiagnosticsBuilder",

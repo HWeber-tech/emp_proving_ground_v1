@@ -324,6 +324,76 @@ def test_regime_fsm_publishes_signal() -> None:
     assert payload["metadata"]["volatility_state"] == signal.regime_state.volatility_state
 
 
+def test_regime_fsm_records_transitions() -> None:
+    bus = _StubEventBus()
+    buffer = BeliefBuffer(belief_id="transition-belief")
+    emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+    base_time = datetime(2025, 1, 3, 10, 0, tzinfo=UTC)
+
+    initial_state = emitter.emit(
+        _build_snapshot(
+            strength=0.05,
+            confidence=0.6,
+            timestamp=base_time,
+            lineage_counter=1,
+        )
+    )
+
+    fsm = RegimeFSM(
+        event_bus=bus,
+        signal_id="transition-regime",
+        bullish_threshold=0.2,
+        bearish_threshold=-0.2,
+        calm_threshold=0.02,
+        storm_threshold=0.05,
+        transition_history_size=8,
+    )
+
+    first_signal = fsm.publish(initial_state)
+
+    follow_up_state = emitter.emit(
+        _build_snapshot(
+            strength=0.6,
+            confidence=0.9,
+            timestamp=base_time + timedelta(minutes=1),
+            lineage_counter=2,
+        )
+    )
+    second_signal = fsm.publish(follow_up_state)
+
+    transition_events = [
+        event for event in bus.events if event.type == "telemetry.understanding.regime_transition"
+    ]
+    assert len(transition_events) == 2
+
+    initial_payload = transition_events[0].payload
+    assert initial_payload["previous_regime"] is None
+    assert initial_payload["current_regime"] == first_signal.regime_state.regime
+    assert initial_payload["reason"] == "initial"
+    assert initial_payload["latency_ms"] is None
+
+    change_payload = transition_events[1].payload
+    assert change_payload["previous_regime"] == "balanced"
+    assert change_payload["current_regime"] == "bullish"
+    assert change_payload["previous_volatility_state"] == "calm"
+    assert change_payload["current_volatility_state"] == "storm"
+    assert change_payload["reason"] == "regime_and_volatility"
+    assert change_payload["latency_ms"] == pytest.approx(60_000.0)
+
+    history = fsm.transition_history()
+    assert len(history) == 2
+    assert history[0].reason == "initial"
+    assert history[1].current_regime == "bullish"
+    assert history[1].current_volatility_state == "storm"
+    assert fsm.last_transition is history[-1]
+    assert fsm.last_signal is second_signal
+
+    health = fsm.healthcheck()
+    assert health["transition_count"] == 2
+    assert health["last_regime"] == "bullish"
+    assert health["last_transition_reason"] == "regime_and_volatility"
+
+
 def test_belief_buffer_requires_lineage_metadata() -> None:
     buffer = BeliefBuffer(belief_id="understanding-belief")
     generated_at = datetime.now(tz=UTC)

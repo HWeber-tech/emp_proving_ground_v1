@@ -33,6 +33,7 @@ __all__ = [
     "BeliefBuffer",
     "BeliefEmitter",
     "RegimeSignal",
+    "RegimeTransition",
     "RegimeFSM",
     "hebbian_step",
 ]
@@ -691,6 +692,41 @@ class RegimeSignal:
         }
 
 
+@dataclass(slots=True, frozen=True)
+class RegimeTransition:
+    """Structured transition emitted when the regime or volatility state changes."""
+
+    signal_id: str
+    timestamp: datetime
+    previous_regime: str | None
+    current_regime: str
+    previous_volatility_state: str | None
+    current_volatility_state: str
+    confidence: float
+    volatility: float
+    latency_ms: float | None
+    reason: str
+    metadata: Mapping[str, object] = field(default_factory=dict)
+    features: Mapping[str, float] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, object]:
+        payload: dict[str, object] = {
+            "signal_id": self.signal_id,
+            "timestamp": self.timestamp.isoformat(),
+            "previous_regime": self.previous_regime,
+            "current_regime": self.current_regime,
+            "previous_volatility_state": self.previous_volatility_state,
+            "current_volatility_state": self.current_volatility_state,
+            "confidence": self.confidence,
+            "volatility": self.volatility,
+            "latency_ms": self.latency_ms,
+            "reason": self.reason,
+            "metadata": dict(self.metadata),
+            "features": dict(self.features),
+        }
+        return payload
+
+
 class BeliefEmitter:
     """Translate sensory snapshots into belief states and publish them."""
 
@@ -764,6 +800,8 @@ class RegimeFSM:
         bearish_threshold: float = -0.25,
         confidence_floor: float = 0.35,
         event_type: str = "telemetry.understanding.regime",
+        transition_event_type: str = "telemetry.understanding.regime_transition",
+        transition_history_size: int = 256,
         global_bus_factory: Callable[[], TopicBus] | None = None,
         volatility_feature: str = "HOW_signal",
         volatility_window: int = 48,
@@ -780,7 +818,16 @@ class RegimeFSM:
         self._bearish_threshold = bearish_threshold
         self._confidence_floor = confidence_floor
         self._event_type = event_type
+        self._transition_event_type = transition_event_type
         self._global_bus_factory = global_bus_factory
+        if transition_history_size <= 0:
+            raise ValueError("transition_history_size must be positive")
+        self._transition_history_limit = int(transition_history_size)
+        self._transition_history: deque[RegimeTransition] = deque(
+            maxlen=self._transition_history_limit
+        )
+        self._last_signal: RegimeSignal | None = None
+        self._last_transition: RegimeTransition | None = None
         if volatility_window <= 1:
             raise ValueError("volatility_window must be greater than 1")
         if calm_threshold < 0.0:
@@ -821,6 +868,19 @@ class RegimeFSM:
     @property
     def adaptive_thresholds(self) -> bool:
         return self._adaptive_thresholds
+
+    def transition_history(self) -> Sequence[RegimeTransition]:
+        """Return recorded regime transitions in chronological order."""
+
+        return tuple(self._transition_history)
+
+    @property
+    def last_transition(self) -> RegimeTransition | None:
+        return self._last_transition
+
+    @property
+    def last_signal(self) -> RegimeSignal | None:
+        return self._last_signal
 
     def reconfigure(
         self,
@@ -926,6 +986,8 @@ class RegimeFSM:
             "volatility_state": volatility_state,
             "calm_threshold": self._current_thresholds()[0],
             "storm_threshold": self._current_thresholds()[1],
+            "posterior_strength": float(strength),
+            "posterior_confidence": float(confidence),
         }
         if volatility_sample is not None:
             metadata["volatility_sample"] = volatility_sample
@@ -940,6 +1002,7 @@ class RegimeFSM:
 
     def publish(self, belief_state: BeliefState) -> RegimeSignal:
         signal = self.classify(belief_state)
+        self._record_transition(signal)
         event = Event(
             type=self._event_type,
             payload=signal.as_dict(),
@@ -971,6 +1034,19 @@ class RegimeFSM:
             "storm_threshold": self._storm_threshold,
             "dynamic_calm_threshold": self._dynamic_calm_threshold,
             "dynamic_storm_threshold": self._dynamic_storm_threshold,
+            "transition_history_size": self._transition_history_limit,
+            "transition_count": len(self._transition_history),
+            "last_regime": (
+                self._last_signal.regime_state.regime if self._last_signal else None
+            ),
+            "last_transition_reason": (
+                self._last_transition.reason if self._last_transition else None
+            ),
+            "last_transition_timestamp": (
+                self._last_transition.timestamp.isoformat()
+                if self._last_transition
+                else None
+            ),
         }
 
     def apply_threshold_scale(self, scale: float) -> None:
@@ -990,6 +1066,96 @@ class RegimeFSM:
             and self._dynamic_storm_threshold <= self._dynamic_calm_threshold
         ):
             self._dynamic_storm_threshold = self._dynamic_calm_threshold + 1e-6
+
+    def _record_transition(self, signal: RegimeSignal) -> None:
+        previous_signal = self._last_signal
+        current_state = signal.regime_state
+
+        def _normalise(timestamp: datetime) -> datetime:
+            if timestamp.tzinfo is None:
+                return timestamp.replace(tzinfo=UTC)
+            return timestamp.astimezone(UTC)
+
+        if previous_signal is None:
+            reason = "initial"
+            previous_state: RegimeState | None = None
+        else:
+            previous_state = previous_signal.regime_state
+            regime_changed = current_state.regime != previous_state.regime
+            volatility_changed = (
+                current_state.volatility_state != previous_state.volatility_state
+            )
+            if not regime_changed and not volatility_changed:
+                self._last_signal = signal
+                return
+            if regime_changed and volatility_changed:
+                reason = "regime_and_volatility"
+            elif regime_changed:
+                reason = "regime"
+            else:
+                reason = "volatility"
+
+        current_timestamp = _normalise(current_state.timestamp)
+        previous_timestamp = (
+            _normalise(previous_state.timestamp) if previous_signal is not None else None
+        )
+        latency_ms = (
+            max(0.0, (current_timestamp - previous_timestamp).total_seconds() * 1000.0)
+            if previous_timestamp is not None
+            else None
+        )
+
+        calm_threshold, storm_threshold = self._current_thresholds()
+        metadata = dict(signal.metadata)
+        metadata.setdefault("calm_threshold", calm_threshold)
+        metadata.setdefault("storm_threshold", storm_threshold)
+
+        transition = RegimeTransition(
+            signal_id=signal.signal_id,
+            timestamp=current_timestamp,
+            previous_regime=previous_state.regime if previous_signal else None,
+            current_regime=current_state.regime,
+            previous_volatility_state=(
+                previous_state.volatility_state if previous_signal else None
+            ),
+            current_volatility_state=current_state.volatility_state,
+            confidence=current_state.confidence,
+            volatility=current_state.volatility,
+            latency_ms=latency_ms,
+            reason=reason,
+            metadata=metadata,
+            features=dict(signal.features),
+        )
+
+        self._transition_history.append(transition)
+        self._last_transition = transition
+        self._last_signal = signal
+
+        logger.info(
+            "Regime transition %s -> %s (reason=%s, volatility_state=%s, confidence=%.3f)",
+            transition.previous_regime or "<init>",
+            transition.current_regime,
+            transition.reason,
+            transition.current_volatility_state,
+            transition.confidence,
+        )
+
+        event = Event(
+            type=self._transition_event_type,
+            payload=transition.as_dict(),
+            source="understanding.regime_fsm",
+        )
+        _publish_event(
+            self._event_bus,
+            event,
+            logger=logger,
+            runtime_fallback_message="Runtime bus rejected regime transition; falling back to global bus",
+            runtime_unexpected_message="Unexpected error publishing regime transition via runtime bus",
+            runtime_none_message="Runtime bus returned no result while publishing regime transition",
+            global_not_running_message="Global event bus not running while publishing regime transition",
+            global_unexpected_message="Unexpected error publishing regime transition via global bus",
+            global_bus_factory=self._global_bus_factory,
+        )
 
     def _resolve_volatility(
         self,

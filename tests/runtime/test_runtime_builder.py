@@ -655,6 +655,100 @@ async def test_runtime_builder_labels_workload_components(tmp_path):
 
 
 @pytest.mark.asyncio()
+async def test_runtime_builder_allows_restart_policy_overrides(tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_INGEST_MAX_RESTARTS": "4",
+            "RUNTIME_INGEST_RESTART_BACKOFF_SECONDS": "1.5",
+            "RUNTIME_TRADING_MAX_RESTARTS": "2",
+            "RUNTIME_TRADING_RESTART_BACKOFF_SECONDS": "3.25",
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    runtime_app: RuntimeApplication | None = None
+    try:
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=False,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        assert runtime_app.ingestion is not None
+        assert runtime_app.ingestion.restart_policy == WorkloadRestartPolicy(
+            max_restarts=4,
+            backoff_seconds=1.5,
+        )
+        assert runtime_app.trading.restart_policy == WorkloadRestartPolicy(
+            max_restarts=2,
+            backoff_seconds=3.25,
+        )
+    finally:
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_builder_restart_policy_invalid_values_fall_back(
+    tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_INGEST_MAX_RESTARTS": "-5",
+            "RUNTIME_INGEST_RESTART_BACKOFF_SECONDS": "-0.5",
+            "RUNTIME_TRADING_MAX_RESTARTS": "invalid",
+            "RUNTIME_TRADING_RESTART_BACKOFF_SECONDS": "-2.1",
+        },
+    )
+
+    caplog.set_level(logging.WARNING, logger="src.runtime.runtime_builder")
+
+    app = await build_professional_predator_app(config=cfg)
+
+    runtime_app: RuntimeApplication | None = None
+    try:
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=False,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        assert runtime_app.ingestion is not None
+        assert runtime_app.ingestion.restart_policy == WorkloadRestartPolicy(
+            max_restarts=None,
+            backoff_seconds=2.0,
+        )
+        assert runtime_app.trading.restart_policy == WorkloadRestartPolicy(
+            max_restarts=None,
+            backoff_seconds=2.0,
+        )
+    finally:
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("RUNTIME_INGEST_MAX_RESTARTS" in message for message in messages)
+    assert any(
+        "RUNTIME_INGEST_RESTART_BACKOFF_SECONDS" in message for message in messages
+    )
+    assert any("RUNTIME_TRADING_MAX_RESTARTS" in message for message in messages)
+    assert any(
+        "RUNTIME_TRADING_RESTART_BACKOFF_SECONDS" in message for message in messages
+    )
+
+
+@pytest.mark.asyncio()
 async def test_runtime_builder_ingest_failure_keeps_trading_running(
     caplog: pytest.LogCaptureFixture,
     tmp_path,

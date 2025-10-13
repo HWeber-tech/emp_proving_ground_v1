@@ -2690,6 +2690,7 @@ def _build_bootstrap_workload(
     symbols_csv: str,
     db_path: str,
     reason: str | None = None,
+    restart_policy: WorkloadRestartPolicy,
 ) -> RuntimeWorkload:
     metadata: dict[str, object] = {
         "mode": app.config.data_backbone_mode.value,
@@ -2710,7 +2711,7 @@ def _build_bootstrap_workload(
         factory=_run_bootstrap,
         description="Tier-0 DuckDB ingest",
         metadata=metadata,
-        restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=2.0),
+        restart_policy=restart_policy,
     )
 
 
@@ -2778,6 +2779,98 @@ def _coerce_log_level(raw: object, default: int) -> int:
         return default
     candidate = logging.getLevelName(str(raw).strip().upper())
     return candidate if isinstance(candidate, int) else default
+
+
+@dataclass(frozen=True)
+class _ResolvedRestartPolicy:
+    policy: WorkloadRestartPolicy
+    max_overridden: bool
+    backoff_overridden: bool
+
+
+def _resolve_workload_restart_policy(
+    extras: Mapping[str, object],
+    *,
+    component: str,
+    default_max_restarts: int | None,
+    default_backoff: float,
+) -> _ResolvedRestartPolicy:
+    """Resolve restart policy configuration for a runtime workload."""
+
+    key_prefix = f"RUNTIME_{component.upper()}"
+    max_key = f"{key_prefix}_MAX_RESTARTS"
+    backoff_key = f"{key_prefix}_RESTART_BACKOFF_SECONDS"
+
+    max_restarts = default_max_restarts
+    max_overridden = False
+    raw_max = extras.get(max_key)
+    if raw_max is not None:
+        text = str(raw_max).strip()
+        lowered = text.lower()
+        if lowered in {"none", "null", "unlimited"}:
+            max_restarts = None
+            max_overridden = True
+        elif text == "":
+            pass
+        else:
+            try:
+                candidate = int(text)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid %s value %r; using default %s",
+                    max_key,
+                    raw_max,
+                    default_max_restarts,
+                )
+            else:
+                if candidate < 0:
+                    logger.warning(
+                        "Negative %s value %r; using default %s",
+                        max_key,
+                        raw_max,
+                        default_max_restarts,
+                    )
+                else:
+                    max_restarts = candidate
+                    max_overridden = True
+
+    backoff_seconds = default_backoff
+    backoff_overridden = False
+    raw_backoff = extras.get(backoff_key)
+    if raw_backoff is not None:
+        text = str(raw_backoff).strip()
+        if text == "":
+            pass
+        else:
+            try:
+                candidate_backoff = float(text)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid %s value %r; using default %.2f",
+                    backoff_key,
+                    raw_backoff,
+                    default_backoff,
+                )
+            else:
+                if candidate_backoff < 0:
+                    logger.warning(
+                        "Negative %s value %r; using default %.2f",
+                        backoff_key,
+                        raw_backoff,
+                        default_backoff,
+                    )
+                else:
+                    backoff_seconds = candidate_backoff
+                    backoff_overridden = True
+
+    return _ResolvedRestartPolicy(
+        policy=WorkloadRestartPolicy(
+            max_restarts=max_restarts,
+            backoff_seconds=backoff_seconds,
+        ),
+        max_overridden=max_overridden,
+        backoff_overridden=backoff_overridden,
+    )
 
 
 def _configure_runtime_logging(config: SystemConfig) -> None:
@@ -3243,6 +3336,36 @@ def build_professional_runtime_application(
             configuration_engine.dispose()
         except Exception:  # pragma: no cover - defensive cleanup
             logger.debug("Failed to dispose configuration audit engine", exc_info=True)
+
+    resolved_ingest_policy = _resolve_workload_restart_policy(
+        extras_mapping,
+        component="ingest",
+        default_max_restarts=None,
+        default_backoff=5.0,
+    )
+    ingest_restart_policy = resolved_ingest_policy.policy
+    bootstrap_max_restarts = (
+        ingest_restart_policy.max_restarts
+        if resolved_ingest_policy.max_overridden
+        else None
+    )
+    bootstrap_backoff = (
+        ingest_restart_policy.backoff_seconds
+        if resolved_ingest_policy.backoff_overridden
+        else 2.0
+    )
+    bootstrap_ingest_restart_policy = WorkloadRestartPolicy(
+        max_restarts=bootstrap_max_restarts,
+        backoff_seconds=bootstrap_backoff,
+    )
+
+    resolved_trading_policy = _resolve_workload_restart_policy(
+        extras_mapping,
+        component="trading",
+        default_max_restarts=None,
+        default_backoff=2.0,
+    )
+    trading_restart_policy = resolved_trading_policy.policy
 
     ingestion: RuntimeWorkload | None
 
@@ -4309,7 +4432,7 @@ def build_professional_runtime_application(
                 factory=_run_institutional,
                 description="Institutional Timescale ingest orchestrator",
                 metadata=metadata,
-                restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=5.0),
+                restart_policy=ingest_restart_policy,
             )
         else:
             reason: str | None = None
@@ -4320,6 +4443,7 @@ def build_professional_runtime_application(
                 symbols_csv=symbols_csv,
                 db_path=duckdb_path,
                 reason=reason,
+                restart_policy=bootstrap_ingest_restart_policy,
             )
 
     trading_metadata: dict[str, object] = {
@@ -4338,7 +4462,7 @@ def build_professional_runtime_application(
         factory=lambda: app.run_forever(),
         description="Professional Predator trading loop",
         metadata=trading_metadata,
-        restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=2.0),
+        restart_policy=trading_restart_policy,
     )
 
     runtime_app = RuntimeApplication(

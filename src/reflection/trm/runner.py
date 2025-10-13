@@ -7,17 +7,18 @@ import json
 import os
 import platform
 import time
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from .adapter import RIMInputAdapter
-from .config import RIMRuntimeConfig
+from .config import AutoApplySettings, RIMRuntimeConfig
 from .encoder import RIMEncoder
 from .model import TRMModel
-from .governance import publish_governance_artifacts
+from .governance import AutoApplyRuleConfig, ProposalEvaluation, publish_governance_artifacts
 from .postprocess import build_suggestions
-from .types import RIMInputBatch
+from .types import RIMInputBatch, StrategyEncoding
 
 
 @dataclass(slots=True)
@@ -84,6 +85,25 @@ class TRMRunner:
             config_hash=self._config_hash,
         )
 
+        auto_apply_config: AutoApplyRuleConfig | None = None
+        proposal_evaluations: Sequence[ProposalEvaluation] | None = None
+        settings = self._config.auto_apply
+        if settings and settings.enabled:
+            proposal_evaluations = _build_proposal_evaluations(
+                suggestions,
+                batch=batch,
+                encodings=encodings,
+                settings=settings,
+            )
+            if proposal_evaluations:
+                auto_apply_config = AutoApplyRuleConfig(
+                    uplift_threshold=settings.uplift_threshold,
+                    max_risk_hits=settings.max_risk_hits,
+                    min_budget_remaining=settings.min_budget_remaining,
+                    max_budget_utilisation=settings.max_budget_utilisation,
+                    require_budget_metrics=settings.require_budget_metrics,
+                )
+
         suggestions_path = self._publish(
             suggestions,
             run_id=run_id,
@@ -98,6 +118,8 @@ class TRMRunner:
                 run_timestamp=run_timestamp,
                 batch=batch,
                 suggestions_path=suggestions_path,
+                proposal_evaluations=proposal_evaluations,
+                auto_apply_config=auto_apply_config,
             )
         return TRMRunResult(
             suggestions_path,
@@ -138,6 +160,8 @@ class TRMRunner:
         run_timestamp: dt.datetime,
         batch: RIMInputBatch,
         suggestions_path: Path | None,
+        proposal_evaluations: Sequence[ProposalEvaluation] | None = None,
+        auto_apply_config: AutoApplyRuleConfig | None = None,
     ) -> None:
         publish_governance_artifacts(
             suggestions,
@@ -151,6 +175,8 @@ class TRMRunner:
             digest_path=self._config.governance_digest_path,
             markdown_path=self._config.governance_markdown_path,
             artifact_path=suggestions_path,
+            proposal_evaluations=proposal_evaluations,
+            auto_apply_config=auto_apply_config,
         )
 
     def _log_metrics(
@@ -176,6 +202,91 @@ class TRMRunner:
         node = platform.node() or "unknown"
         slug = timestamp.strftime("%Y%m%dT%H%M%S")
         return f"{slug}-{node}-{os.getpid()}"
+
+
+def _build_proposal_evaluations(
+    suggestions: Sequence[Mapping[str, object]],
+    *,
+    batch: RIMInputBatch,
+    encodings: Sequence[StrategyEncoding],
+    settings: AutoApplySettings,
+) -> tuple[ProposalEvaluation, ...]:
+    if not suggestions or not encodings:
+        return tuple()
+
+    stats_lookup = {encoding.strategy_id: encoding.stats for encoding in encodings}
+    baseline_mean = 0.0
+    try:
+        baseline_mean = float(batch.aggregates.get("mean_pnl", 0.0) or 0.0)
+    except Exception:
+        baseline_mean = 0.0
+
+    entry_counts: Counter[str] = Counter(entry.strategy_id for entry in batch.entries)
+    risk_counts: Counter[str] = Counter()
+    for entry in batch.entries:
+        if entry.risk_flags:
+            risk_counts[entry.strategy_id] += len(entry.risk_flags)
+
+    evaluations: list[ProposalEvaluation] = []
+    for suggestion in suggestions:
+        suggestion_id = str(suggestion.get("suggestion_id", "")).strip()
+        if not suggestion_id:
+            continue
+        strategy_id = _suggestion_strategy_id(suggestion)
+        if strategy_id is None:
+            continue
+        stats = stats_lookup.get(strategy_id)
+        if stats is None:
+            continue
+
+        uplift = float(stats.mean_pnl - baseline_mean)
+        risk_hits = int(risk_counts.get(strategy_id, 0))
+
+        limit = settings.budget_limit_for(strategy_id)
+        if limit > 0:
+            used = float(entry_counts.get(strategy_id, 0))
+            budget_remaining = float(limit - used)
+            budget_utilisation = used / float(limit)
+        else:
+            budget_remaining = None
+            budget_utilisation = None
+
+        metadata: dict[str, object] = {
+            "baseline_mean_pnl": baseline_mean,
+            "strategy_mean_pnl": stats.mean_pnl,
+            "entry_count": stats.entry_count,
+            "window_minutes": batch.window.minutes,
+        }
+        if limit > 0:
+            metadata["budget_limit"] = float(limit)
+            metadata["entries_observed"] = entry_counts.get(strategy_id, 0)
+
+        evaluations.append(
+            ProposalEvaluation(
+                suggestion_id=suggestion_id,
+                oos_uplift=uplift,
+                risk_hits=risk_hits,
+                budget_remaining=budget_remaining,
+                budget_utilisation=budget_utilisation,
+                metadata=metadata,
+            )
+        )
+
+    return tuple(evaluations)
+
+
+def _suggestion_strategy_id(suggestion: Mapping[str, object]) -> str | None:
+    payload = suggestion.get("payload")
+    if isinstance(payload, Mapping):
+        raw_strategy = payload.get("strategy_id")
+        if raw_strategy:
+            return str(raw_strategy)
+        candidates = payload.get("strategy_candidates")
+        if isinstance(candidates, Sequence) and candidates:
+            candidate = candidates[0]
+            if candidate:
+                return str(candidate)
+    return None
 
 
 class _FileLock:

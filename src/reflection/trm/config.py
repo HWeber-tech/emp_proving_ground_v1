@@ -45,6 +45,29 @@ class ModelConfig:
 
 
 @dataclass(slots=True)
+class AutoApplySettings:
+    """Configuration for the TRM governance auto-apply safeguard."""
+
+    enabled: bool = False
+    uplift_threshold: float = 0.0
+    max_risk_hits: int = 0
+    min_budget_remaining: float = 0.0
+    max_budget_utilisation: float | None = None
+    require_budget_metrics: bool = True
+    default_budget_limit: float = 50.0
+    strategy_budget_limits: dict[str, float] = field(default_factory=dict)
+
+    def budget_limit_for(self, strategy_id: str) -> float:
+        """Return the configured budget limit for the supplied strategy."""
+
+        if self.strategy_budget_limits:
+            limit = self.strategy_budget_limits.get(strategy_id)
+            if isinstance(limit, (int, float)):
+                return float(limit)
+        return float(self.default_budget_limit)
+
+
+@dataclass(slots=True)
 class RIMRuntimeConfig:
     """Resolved configuration for the production TRM runner."""
 
@@ -65,6 +88,7 @@ class RIMRuntimeConfig:
     governance_queue_path: Path = Path("artifacts/governance/reflection_queue.jsonl")
     governance_digest_path: Path = Path("artifacts/governance/reflection_digest.json")
     governance_markdown_path: Path = Path("artifacts/governance/reflection_digest.md")
+    auto_apply: AutoApplySettings | None = None
 
 
 @dataclass(slots=True)
@@ -80,6 +104,15 @@ def _coerce_path(value: Any) -> Path:
     if isinstance(value, Path):
         return value
     return Path(str(value))
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _build_trm_params(mapping: dict[str, Any] | None) -> TRMParams:
@@ -113,6 +146,41 @@ def _build_model(mapping: dict[str, Any] | None) -> ModelConfig:
     path = _coerce_path(path_value) if path_value else None
     temperature = float(mapping.get("temperature", 1.0))
     return ModelConfig(path=path, temperature=temperature)
+
+
+def _build_auto_apply(mapping: dict[str, Any] | None) -> AutoApplySettings | None:
+    if not mapping:
+        return None
+
+    enabled = bool(mapping.get("enabled", True))
+    uplift_threshold = float(mapping.get("uplift_threshold", 0.0))
+    max_risk_hits = int(mapping.get("max_risk_hits", 0))
+    min_budget_remaining = float(mapping.get("min_budget_remaining", 0.0))
+    max_budget_utilisation = _coerce_optional_float(mapping.get("max_budget_utilisation"))
+    require_budget_metrics = bool(mapping.get("require_budget_metrics", True))
+    default_budget_limit = float(mapping.get("default_budget_limit", 50.0))
+
+    raw_limits = mapping.get("strategy_budget_limits")
+    limits: dict[str, float] = {}
+    if isinstance(raw_limits, dict):
+        for key, value in raw_limits.items():
+            if not key:
+                continue
+            try:
+                limits[str(key)] = float(value)
+            except (TypeError, ValueError):
+                continue
+
+    return AutoApplySettings(
+        enabled=enabled,
+        uplift_threshold=uplift_threshold,
+        max_risk_hits=max_risk_hits,
+        min_budget_remaining=min_budget_remaining,
+        max_budget_utilisation=max_budget_utilisation,
+        require_budget_metrics=require_budget_metrics,
+        default_budget_limit=default_budget_limit,
+        strategy_budget_limits=limits,
+    )
 
 
 def _load_config_dict(path: Path) -> tuple[dict[str, Any], str]:
@@ -169,6 +237,7 @@ def load_runtime_config(path: Path | None = None) -> RuntimeConfigBundle:
             RIMRuntimeConfig.governance_markdown_path,
         )
     )
+    auto_apply = _build_auto_apply(_ensure_mapping((governance or {}).get("auto_apply")))
 
     config = RIMRuntimeConfig(
         diaries_dir=diaries_dir,
@@ -188,6 +257,7 @@ def load_runtime_config(path: Path | None = None) -> RuntimeConfigBundle:
         governance_queue_path=governance_queue_path,
         governance_digest_path=governance_digest_path,
         governance_markdown_path=governance_markdown_path,
+        auto_apply=auto_apply,
     )
 
     return RuntimeConfigBundle(config=config, config_hash=digest, source_path=resolved_path)
@@ -202,6 +272,7 @@ def _ensure_mapping(value: Any) -> dict[str, Any] | None:
 
 
 __all__ = [
+    "AutoApplySettings",
     "ModelConfig",
     "RIMRuntimeConfig",
     "RuntimeConfigBundle",

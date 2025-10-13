@@ -4,7 +4,7 @@ from pathlib import Path
 import jsonschema
 
 from src.reflection.trm.adapter import RIMInputAdapter
-from src.reflection.trm.config import ModelConfig, RIMRuntimeConfig, TelemetryConfig
+from src.reflection.trm.config import AutoApplySettings, ModelConfig, RIMRuntimeConfig, TelemetryConfig
 from src.reflection.trm.encoder import RIMEncoder
 from src.reflection.trm.model import TRMModel
 from src.reflection.trm.runner import TRMRunner
@@ -70,6 +70,15 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
         governance_queue_path=queue_path,
         governance_digest_path=digest_path,
         governance_markdown_path=markdown_path,
+        auto_apply=AutoApplySettings(
+            enabled=True,
+            uplift_threshold=-0.01,
+            max_risk_hits=0,
+            min_budget_remaining=-5.0,
+            max_budget_utilisation=1.2,
+            require_budget_metrics=True,
+            default_budget_limit=100.0,
+        ),
     )
 
     model = TRMModel.load(config.model.path, temperature=config.model.temperature)
@@ -103,6 +112,12 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
     digest = json.loads(digest_path.read_text())
     assert digest["run_id"] == result.run_id
     assert digest["suggestion_count"] == result.suggestions_count
+    auto_apply_summary = digest.get("auto_apply")
+    assert auto_apply_summary is not None
+    assert auto_apply_summary["evaluated"] >= 1
+    assert auto_apply_summary.get("config") is not None
+    failure_reasons_summary = auto_apply_summary.get("failure_reasons", {})
+    assert failure_reasons_summary, "expected auto-apply summary to record failure reasons"
 
     assert markdown_path.exists(), "expected governance markdown"
     markdown = markdown_path.read_text()
@@ -115,7 +130,20 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
         if line.strip()
     ]
     assert len(queue_lines) == result.suggestions_count
+    failure_reasons = []
     for entry in queue_lines:
         governance_meta = entry.get("governance")
         assert governance_meta is not None
         assert governance_meta["run_id"] == result.run_id
+        auto_apply_block = governance_meta.get("auto_apply")
+        if auto_apply_block:
+            assert "applied" in auto_apply_block
+            evaluation = auto_apply_block.get("evaluation")
+            if evaluation:
+                assert "oos_uplift" in evaluation
+            failure_reasons.extend(auto_apply_block.get("reasons", []))
+        else:
+            # suggestions without evaluation should remain pending
+            assert governance_meta.get("status") == "pending"
+    assert failure_reasons, "expected auto-apply guard to record failure reasons"
+    assert any(reason.startswith("risk_hits_exceeded") for reason in failure_reasons)

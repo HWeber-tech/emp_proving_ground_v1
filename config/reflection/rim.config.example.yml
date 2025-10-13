@@ -14,6 +14,14 @@ governance:
   queue_path: artifacts/governance/reflection_queue.jsonl
   digest_path: artifacts/governance/reflection_digest.json
   markdown_path: artifacts/governance/reflection_digest.md
+  auto_apply:
+    enabled: true
+    uplift_threshold: 0.05
+    max_risk_hits: 0
+    min_budget_remaining: 5.0
+    max_budget_utilisation: 0.8
+    require_budget_metrics: true
+    default_budget_limit: 50
 telemetry:
   log_dir: artifacts/rim_logs
 trm_params:

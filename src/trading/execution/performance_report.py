@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from typing import Any, Mapping, Iterable
 
 
 def _format_float(value: object, *, precision: int = 2) -> str:
@@ -22,7 +22,7 @@ def _format_percentage(value: object, *, precision: int = 1) -> str:
 
 
 def _format_optional(value: object) -> str:
-    if value in (None, "", "-", 0):
+    if value in (None, "", "-"):
         return "—"
     return str(value)
 
@@ -31,6 +31,32 @@ def _format_bool(value: object) -> str:
     if isinstance(value, bool):
         return "Yes" if value else "No"
     return "—"
+
+
+def _format_seconds(value: object) -> str:
+    """Render a human-friendly representation of seconds."""
+
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return "—"
+
+    if seconds < 0:
+        seconds = 0.0
+
+    if seconds >= 3600:
+        hours = seconds / 3600.0
+        if hours.is_integer():
+            return f"{int(hours)}h"
+        return f"{hours:.2f}h"
+    if seconds >= 60:
+        minutes = seconds / 60.0
+        if minutes.is_integer():
+            return f"{int(minutes)}m"
+        return f"{minutes:.2f}m"
+    if seconds.is_integer():
+        return f"{int(seconds)}s"
+    return f"{seconds:.2f}s"
 
 
 def _render_mapping_lines(
@@ -82,6 +108,42 @@ def build_execution_performance_report(stats: Mapping[str, object]) -> str:
             if isinstance(context, Mapping) and context:
                 context_pairs = ", ".join(f"{key}={value}" for key, value in sorted(context.items()))
                 lines.append(f"- Context: {context_pairs}")
+            max_trades = metadata.get("max_trades")
+            remaining_trades = metadata.get("remaining_trades")
+            if max_trades is not None or remaining_trades is not None:
+                remaining_display = _format_optional(remaining_trades)
+                max_display = _format_optional(max_trades)
+                utilisation = metadata.get("window_utilisation")
+                utilisation_display = (
+                    f" ({_format_percentage(utilisation, precision=1)} utilised)"
+                    if utilisation is not None
+                    else ""
+                )
+                lines.append(
+                    f"- Capacity: {remaining_display} / {max_display} trades remaining"
+                    f"{utilisation_display}"
+                )
+            retry_in = metadata.get("retry_in_seconds")
+            if retry_in is not None:
+                lines.append(f"- Retry in: {_format_seconds(retry_in)}")
+            window_reset_in = metadata.get("window_reset_in_seconds")
+            window_reset_at = metadata.get("window_reset_at")
+            if window_reset_in is not None or window_reset_at:
+                label = _format_seconds(window_reset_in)
+                if window_reset_at:
+                    lines.append(
+                        f"- Window resets in: {label} (at {window_reset_at})"
+                    )
+                else:
+                    lines.append(f"- Window resets in: {label}")
+            scope = metadata.get("scope")
+            if isinstance(scope, Mapping) and scope:
+                lines.append("- Scope:")
+                lines.extend(_render_mapping_lines(scope, prefix="  -"))
+            scope_key = throttle_snapshot.get("scope_key")
+            if isinstance(scope_key, Iterable) and not isinstance(scope_key, (str, bytes)):
+                scope_key_display = list(scope_key)
+                lines.append(f"- Scope key: {scope_key_display}")
 
     throughput = stats.get("throughput")
     if isinstance(throughput, Mapping):
@@ -236,10 +298,42 @@ def build_performance_health_report(assessment: Mapping[str, object]) -> str:
         retry_at = throttle.get("retry_at")
         if retry_at:
             lines.append(f"- Retry at: {retry_at}")
+        remaining = throttle.get("remaining_trades")
+        max_trades = throttle.get("max_trades")
+        if remaining is not None or max_trades is not None:
+            lines.append(
+                f"- Remaining trades: {_format_optional(remaining)} / {_format_optional(max_trades)}"
+            )
+        utilisation = throttle.get("window_utilisation")
+        if utilisation is not None:
+            lines.append(
+                f"- Window utilisation: {_format_percentage(utilisation, precision=1)}"
+            )
+        retry_in = throttle.get("retry_in_seconds")
+        if retry_in is not None:
+            lines.append(f"- Retry in: {_format_seconds(retry_in)}")
+        window_reset_in = throttle.get("window_reset_in_seconds")
+        if window_reset_in is not None:
+            window_reset_at = throttle.get("window_reset_at")
+            if window_reset_at:
+                lines.append(
+                    f"- Window resets in: {_format_seconds(window_reset_in)} (at {window_reset_at})"
+                )
+            else:
+                lines.append(
+                    f"- Window resets in: {_format_seconds(window_reset_in)}"
+                )
         context = throttle.get("context")
         if isinstance(context, Mapping):
             lines.append("- Context:")
             lines.extend(_render_mapping_lines(context, prefix="  -"))
+        scope = throttle.get("scope")
+        if isinstance(scope, Mapping) and scope:
+            lines.append("- Scope:")
+            lines.extend(_render_mapping_lines(scope, prefix="  -"))
+        scope_key = throttle.get("scope_key")
+        if isinstance(scope_key, Iterable) and not isinstance(scope_key, (str, bytes)):
+            lines.append(f"- Scope key: {list(scope_key)}")
     return "\n".join(lines) + "\n"
 
 

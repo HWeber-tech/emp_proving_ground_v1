@@ -20,9 +20,17 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
             "state": "rate_limited",
             "reason": "max_1_trades_per_60s",
             "message": "Throttled: too many trades in short time (limit 1 trade per 1 minute)",
+            "scope_key": ["str:'alpha'"],
             "metadata": {
                 "retry_at": datetime(2024, 1, 1, 12, 1, tzinfo=timezone.utc).isoformat(),
                 "context": {"symbol": "EURUSD", "strategy_id": "alpha"},
+                "scope": {"strategy_id": "alpha"},
+                "max_trades": 1,
+                "remaining_trades": 0,
+                "window_utilisation": 1.0,
+                "retry_in_seconds": 45.0,
+                "window_reset_in_seconds": 55.0,
+                "window_reset_at": datetime(2024, 1, 1, 12, 1, 5, tzinfo=timezone.utc).isoformat(),
             },
         },
         "throughput": {
@@ -65,6 +73,12 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
     assert "Throttled: too many trades in short time" in report
     assert "retry_at" not in report.lower()  # Should keep original casing
     assert "Context: strategy_id=alpha, symbol=EURUSD" in report
+    assert "Capacity: 0 / 1 trades remaining" in report
+    assert "100.0% utilised" in report
+    assert "Retry in: 45s" in report
+    assert "Window resets in: 55s" in report
+    assert "- Scope:" in report
+    assert "Scope key:" in report
     assert "Throughput (per min)" in report
     assert "96.00" in report
     assert "Event backlog" in report
@@ -122,6 +136,14 @@ def test_build_performance_health_report_includes_sections() -> None:
             "reason": None,
             "message": None,
             "context": {"strategy_id": "alpha"},
+            "scope": {"strategy_id": "alpha"},
+            "scope_key": ["str:'alpha'"],
+            "remaining_trades": 2,
+            "max_trades": 5,
+            "window_utilisation": 0.6,
+            "retry_in_seconds": 12.5,
+            "window_reset_in_seconds": 40.0,
+            "window_reset_at": "2024-01-01T12:00:40+00:00",
         },
     }
 
@@ -136,6 +158,10 @@ def test_build_performance_health_report_includes_sections() -> None:
     assert "Max breach streak: 1" in report
     assert "## Resource utilisation" in report
     assert "## Trade throttle" in report
+    assert "Remaining trades: 2 / 5" in report
+    assert "Window utilisation: 60.0%" in report
+    assert "Retry in: 12.50s" in report
+    assert "Scope key:" in report
 
 
 def test_build_performance_health_report_handles_missing_data() -> None:

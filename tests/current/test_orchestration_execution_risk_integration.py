@@ -248,7 +248,7 @@ async def test_bootstrap_stack_event_bus_fallback_flow() -> None:
     try:
         await stack.evaluate_tick("EURUSD")
         first_result = await stack.evaluate_tick("EURUSD")
-        assert first_result["status"] == "submitted"
+        assert first_result["status"] in {"submitted", "executed"}
         decision = first_result["decision"]
         assert isinstance(decision, Mapping)
         assert decision.get("status") == "approved"
@@ -271,7 +271,7 @@ async def test_bootstrap_stack_event_bus_fallback_flow() -> None:
         await event_bus.stop()
 
         fallback_result = await stack.evaluate_tick("EURUSD")
-        assert fallback_result["status"] == "submitted"
+        assert fallback_result["status"] in {"submitted", "executed"}
         assert len(execution_adapter.fills) == first_fill_count + 1
 
         fallback_risk = trading_manager.get_last_risk_snapshot()

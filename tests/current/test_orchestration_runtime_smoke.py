@@ -52,8 +52,10 @@ async def test_phase3_orchestrator_pipeline_smoke(monkeypatch: pytest.MonkeyPatc
             "predictive",
             "adversarial",
             "specialized",
-            "competitive",
+            "understanding",
         }
+        assert "competitive" not in analysis["systems"]
+
         predictive = analysis["systems"]["predictive"]
         assert predictive["scenarios_generated"] == 2
         assert predictive["average_confidence"] == pytest.approx(0.65, rel=1e-3)
@@ -67,6 +69,7 @@ async def test_phase3_orchestrator_pipeline_smoke(monkeypatch: pytest.MonkeyPatc
         assert overall["systems_count"] == 5
         assert overall["success_ratio"] >= 0.0
         assert overall["presence"]["adversarial"] is True
+        assert overall["presence"]["understanding"] is True
     finally:
         await orchestrator.stop()
         await event_bus.stop()

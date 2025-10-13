@@ -1,18 +1,18 @@
 from collections.abc import Mapping
 
 """
-Phase 3 Orchestrator - Advanced Intelligence & Predatory Behavior
-================================================================
+Phase 3 Orchestrator - Understanding & Predatory Behavior
+========================================================
 
 Main orchestrator for Phase 3 implementation that coordinates all
-advanced intelligence features and predatory behavior systems.
+advanced understanding features and predatory behavior systems.
 
 This orchestrator manages:
 1. Sentient adaptation engine
 2. Predictive market modeling
 3. Adversarial training systems
 4. Specialized predator evolution
-5. Competitive intelligence
+5. Competitive understanding
 """
 
 import asyncio
@@ -84,7 +84,7 @@ class SpecializedEvolutionP(Protocol):
 
 
 @runtime_checkable
-class CompetitiveIntelP(Protocol):
+class CompetitiveUnderstandingP(Protocol):
     async def initialize(self) -> bool: ...
     async def stop(self) -> bool: ...
 
@@ -94,10 +94,10 @@ logger = logging.getLogger(__name__)
 
 class Phase3Orchestrator:
     """
-    Main orchestrator for Phase 3 advanced intelligence features.
+    Main orchestrator for Phase 3 advanced understanding features.
 
     Coordinates all predatory behavior systems and ensures they work
-    together as a unified, intelligent ecosystem.
+    together as a unified, understanding-first ecosystem.
     """
 
     def __init__(
@@ -124,9 +124,12 @@ class Phase3Orchestrator:
         self.market_gan: MarketGANP = MarketGAN(state_store)
         self.red_team: RedTeamP = RedTeamAI(state_store)
         self.specialized_evolution: SpecializedEvolutionP = SpecializedPredatorEvolution()
-        self.competitive_intelligence: CompetitiveIntelP = CompetitiveIntelligenceSystem(
-            state_store
+        self.competitive_understanding: CompetitiveUnderstandingP = (
+            CompetitiveIntelligenceSystem(state_store)
         )
+        # Legacy attribute retained for downstream compatibility during the
+        # intelligence -> understanding terminology migration.
+        self.competitive_intelligence = self.competitive_understanding
 
         # Configuration
         self.config = {
@@ -172,10 +175,10 @@ class Phase3Orchestrator:
                 await self.specialized_evolution.initialize()
                 logger.info("✓ Specialized predator evolution initialized")
 
-            # Initialize competitive intelligence
-            if self.config["competitive_enabled"]:
-                await self.competitive_intelligence.initialize()
-                logger.info("✓ Competitive intelligence system initialized")
+            # Initialize competitive understanding
+            if self._understanding_enabled():
+                await self.competitive_understanding.initialize()
+                logger.info("✓ Competitive understanding system initialized")
 
             logger.info("Phase 3 systems initialization complete")
             return True
@@ -278,7 +281,7 @@ class Phase3Orchestrator:
             await self.market_gan.stop()
             await self.red_team.stop()
             await self.specialized_evolution.stop()
-            await self.competitive_intelligence.stop()
+            await self.competitive_understanding.stop()
 
             logger.info("Phase 3 orchestrator stopped")
             return True
@@ -315,9 +318,11 @@ class Phase3Orchestrator:
             if self.config["specialized_enabled"]:
                 results["systems"]["specialized"] = await self._run_specialized_analysis()
 
-            # Run competitive intelligence
-            if self.config["competitive_enabled"]:
-                results["systems"]["competitive"] = await self._run_competitive_analysis()
+            # Run competitive understanding
+            if self._understanding_enabled():
+                results["systems"]["understanding"] = (
+                    await self._run_understanding_analysis()
+                )
 
             # Calculate overall metrics
             results["overall_metrics"] = await self._calculate_overall_metrics(results)
@@ -510,11 +515,17 @@ class Phase3Orchestrator:
             logger.error(f"Error in specialized analysis: {e}")
             return {"error": str(e), "status": "error", "modules": 0}
 
-    async def _run_competitive_analysis(self) -> dict[str, object]:
-        """Run competitive intelligence analysis (safe defaults)."""
+    def _understanding_enabled(self) -> bool:
+        """Return the feature flag for competitive understanding systems."""
+
+        cfg = self.config
+        return bool(cfg.get("competitive_enabled", True))
+
+    async def _run_understanding_analysis(self) -> dict[str, object]:
+        """Run competitive understanding analysis (safe defaults)."""
         try:
             result: dict[str, object] = {"competitors_analyzed": 0, "threats": []}
-            ci = getattr(self, "competitive_intelligence", None)
+            ci = getattr(self, "competitive_understanding", None)
             if ci is not None:
                 for method_name in ("analyze_competitors", "scan_market", "analyze", "scan"):
                     method = getattr(ci, method_name, None)
@@ -534,8 +545,13 @@ class Phase3Orchestrator:
             result.setdefault("threats", [])
             return result
         except Exception as e:
-            logger.error(f"Error in competitive analysis: {e}")
+            logger.error(f"Error in understanding analysis: {e}")
             return {"error": str(e), "competitors_analyzed": 0, "threats": []}
+
+    async def _run_competitive_analysis(self) -> dict[str, object]:  # pragma: no cover - legacy alias
+        """Compatibility shim for callers using the deprecated intelligence name."""
+
+        return await self._run_understanding_analysis()
 
     async def _calculate_overall_metrics(self, results: dict[str, object]) -> dict[str, object]:
         """Compute simple aggregate metrics from system results (defensive)."""
@@ -565,7 +581,7 @@ class Phase3Orchestrator:
                 "predictive": "predictive" in systems_t,
                 "adversarial": "adversarial" in systems_t,
                 "specialized": "specialized" in systems_t,
-                "competitive": "competitive" in systems_t,
+                "understanding": "understanding" in systems_t,
             }
 
             return {

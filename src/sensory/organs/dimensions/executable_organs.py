@@ -158,6 +158,11 @@ def _build_sensory_reading(
 
     strength = _extract_signal_strength(signal)
     confidence = _extract_confidence(signal)
+    timestamp = signal.timestamp if isinstance(signal.timestamp, datetime) else None
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+    else:
+        timestamp = _ensure_utc(timestamp)
 
     data_payload: dict[str, Any] = {
         "dimension": dimension,
@@ -168,6 +173,22 @@ def _build_sensory_reading(
 
     metadata = _clone_metadata(signal.metadata)
     metadata["dimension"] = dimension
+    metadata.setdefault("source", f"sensory.{dimension.lower()}")
+    quality_payload = metadata.get("quality")
+    if isinstance(quality_payload, Mapping):
+        quality = dict(quality_payload)
+    else:
+        quality = {}
+    quality.setdefault("source", f"sensory.{dimension.lower()}")
+    quality.setdefault("timestamp", timestamp.isoformat())
+    quality.setdefault("confidence", confidence)
+    quality.setdefault("strength", strength)
+    metadata["quality"] = quality
+
+    if "lineage" not in metadata and getattr(signal, "lineage", None) is not None:
+        lineage_record = signal.lineage
+        extractor = getattr(lineage_record, "as_dict", None)
+        metadata["lineage"] = extractor() if callable(extractor) else lineage_record
     telemetry = _extract_numeric_telemetry(metadata.get("audit"))
     if telemetry:
         metadata.setdefault("telemetry", {}).update(telemetry)
@@ -184,8 +205,6 @@ def _build_sensory_reading(
     lineage = metadata.get("lineage")
     if isinstance(lineage, Mapping):
         metadata["lineage"] = dict(lineage)
-
-    timestamp = signal.timestamp if isinstance(signal.timestamp, datetime) else datetime.utcnow()
 
     return SensoryReading(
         organ_name=organ_name,

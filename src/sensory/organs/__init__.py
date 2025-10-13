@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from .dimensions import AnomalySensoryOrgan, HowSensoryOrgan
+from .dimensions import (
+    AnomalySensoryOrgan,
+    HowSensoryOrgan,
+    WhatSensoryOrgan,
+    WhenSensoryOrgan,
+    WhySensoryOrgan,
+)
 
-__all__ = ["AnomalySensoryOrgan", "HowSensoryOrgan"]
-
+__all__ = [
+    "AnomalySensoryOrgan",
+    "HowSensoryOrgan",
+    "WhatSensoryOrgan",
+    "WhenSensoryOrgan",
+    "WhySensoryOrgan",
+]

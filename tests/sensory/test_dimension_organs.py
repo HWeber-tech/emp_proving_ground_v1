@@ -90,6 +90,21 @@ class _RecordingWhySensor:
         return [self._factory.build()]
 
 
+class _BareHowSensor:
+    def __init__(self, *, strength: float = 0.42, confidence: float = 0.72) -> None:
+        self._strength = strength
+        self._confidence = confidence
+
+    def process(self, frame):  # type: ignore[override]
+        return [
+            SensorSignal(
+                signal_type="HOW",
+                value={"strength": self._strength},
+                confidence=self._confidence,
+            )
+        ]
+
+
 @pytest.mark.asyncio
 async def test_how_sensory_organ_emits_lineage_and_telemetry() -> None:
     organ = HowSensoryOrgan()
@@ -345,3 +360,18 @@ async def test_why_sensory_organ_injects_narrative_context() -> None:
     assert sensor.seen_as_of is not None and sensor.seen_as_of.tzinfo is not None
     assert reading.data["dimension"] == "WHY"
     assert reading.metadata.get("quality", {}).get("source") == "stub.why"
+
+
+@pytest.mark.asyncio
+async def test_missing_quality_metadata_is_populated() -> None:
+    sensor = _BareHowSensor()
+    organ = HowSensoryOrgan(sensor=sensor)
+
+    reading = await organ.process({"symbol": "EURUSD"})
+
+    quality = reading.metadata.get("quality")
+    assert isinstance(quality, Mapping)
+    assert quality.get("source") == "sensory.how"
+    assert quality.get("confidence") == pytest.approx(sensor._confidence, rel=1e-6)
+    assert "timestamp" in quality
+    assert quality.get("strength") == pytest.approx(reading.data["signal_strength"], rel=1e-6)

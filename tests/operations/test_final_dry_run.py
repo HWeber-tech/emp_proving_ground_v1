@@ -144,6 +144,40 @@ sys.exit(0)
 """
 
 
+_LONG_HEARTBEAT_SCRIPT = r"""
+import datetime
+import json
+import signal
+import sys
+import time
+
+running = True
+
+
+def _stop(_signum, _frame):  # pragma: no cover - signal path
+    global running
+    running = False
+
+
+signal.signal(signal.SIGINT, _stop)
+signal.signal(signal.SIGTERM, _stop)
+
+start = time.time()
+counter = 0
+while running and time.time() - start < 1.2:
+    payload = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "level": "info",
+        "event": "heartbeat",
+        "counter": counter,
+    }
+    print(json.dumps(payload), flush=True)
+    counter += 1
+    time.sleep(0.05)
+
+sys.exit(0)
+"""
+
 
 async def _wait_for_file(path, timeout: float = 2.0) -> None:
     loop = asyncio.get_running_loop()
@@ -208,6 +242,28 @@ def test_final_dry_run_detects_early_exit(tmp_path):
     progress = json.loads(result.progress_path.read_text(encoding="utf-8"))
     assert progress["status"] == DryRunStatus.fail.value
     assert progress["phase"] == "complete"
+
+
+@pytest.mark.slow
+def test_final_dry_run_log_rotation(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _LONG_HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.8),
+        required_duration=timedelta(seconds=0.6),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.5,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        log_rotate_interval=timedelta(seconds=0.2),
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.status is DryRunStatus.pass_
+    assert len(result.log_paths) >= 2
+    assert len(result.raw_log_paths) >= 2
+    for path in (*result.log_paths, *result.raw_log_paths):
+        assert path.exists()
 
 
 def test_final_dry_run_live_gap_monitor_warn(tmp_path):

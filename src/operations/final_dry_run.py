@@ -69,6 +69,7 @@ class FinalDryRunConfig:
     evidence_check_interval: timedelta | None = None
     evidence_initial_grace: timedelta = timedelta(minutes=15)
     compress_logs: bool = False
+    log_rotate_interval: timedelta | None = None
 
     def __post_init__(self) -> None:
         if not self.command:
@@ -192,6 +193,14 @@ class FinalDryRunConfig:
 
         object.__setattr__(self, "compress_logs", bool(self.compress_logs))
 
+        rotate_interval = self.log_rotate_interval
+        if rotate_interval is not None:
+            if rotate_interval <= timedelta(0):
+                raise ValueError(
+                    "log_rotate_interval must be positive when provided"
+                )
+            object.__setattr__(self, "log_rotate_interval", rotate_interval)
+
 
 @dataclass(slots=True, frozen=True)
 class HarnessIncident:
@@ -223,8 +232,8 @@ class FinalDryRunResult:
     exit_code: int | None
     summary: DryRunSummary
     sign_off: DryRunSignOffReport | None
-    log_path: Path
-    raw_log_path: Path
+    log_paths: tuple[Path, ...]
+    raw_log_paths: tuple[Path, ...]
     progress_path: Path | None
     incidents: tuple[HarnessIncident, ...] = field(default_factory=tuple)
 
@@ -243,6 +252,14 @@ class FinalDryRunResult:
         if any(status is DryRunStatus.warn for status in statuses):
             return DryRunStatus.warn
         return DryRunStatus.pass_
+
+    @property
+    def log_path(self) -> Path:
+        return self.log_paths[0]
+
+    @property
+    def raw_log_path(self) -> Path:
+        return self.raw_log_paths[0]
 
 
 class _LogStats:
@@ -285,6 +302,108 @@ class _LogStats:
                     else None
                 ),
             }
+
+
+class _LogSink:
+    """Write structured/raw logs with optional rotation support."""
+
+    def __init__(
+        self,
+        *,
+        directory: Path,
+        slug: str,
+        compress: bool,
+        rotate_interval: timedelta | None,
+    ) -> None:
+        self._directory = Path(directory)
+        self._slug = slug
+        self._compress = compress
+        self._rotate_interval = rotate_interval
+        self._part_index = 0
+        self._structured_paths: list[Path] = []
+        self._raw_paths: list[Path] = []
+        self._structured_handle: TextIO | None = None
+        self._raw_handle: TextIO | None = None
+        self._structured_suffix = "jsonl.gz" if compress else "jsonl"
+        self._raw_suffix = "log.gz" if compress else "log"
+        self._part_started_at = datetime.now(tz=UTC)
+        self._open_new_handles(initial=True)
+
+    def write(
+        self,
+        *,
+        structured_line: str,
+        raw_line: str,
+        observed_at: datetime,
+    ) -> None:
+        self._rotate_if_needed(observed_at)
+        assert self._structured_handle is not None
+        assert self._raw_handle is not None
+        self._structured_handle.write(structured_line + "\n")
+        self._raw_handle.write(raw_line + "\n")
+        self._structured_handle.flush()
+        self._raw_handle.flush()
+
+    def close(self) -> None:
+        if self._structured_handle is not None:
+            self._structured_handle.flush()
+            self._structured_handle.close()
+            self._structured_handle = None
+        if self._raw_handle is not None:
+            self._raw_handle.flush()
+            self._raw_handle.close()
+            self._raw_handle = None
+
+    @property
+    def structured_paths(self) -> tuple[Path, ...]:
+        return tuple(self._structured_paths)
+
+    @property
+    def raw_paths(self) -> tuple[Path, ...]:
+        return tuple(self._raw_paths)
+
+    def _rotate_if_needed(self, observed_at: datetime) -> None:
+        if self._rotate_interval is None:
+            return
+        interval = self._rotate_interval
+        assert interval is not None
+        while observed_at - self._part_started_at >= interval:
+            self._open_new_handles(initial=False, start_at=observed_at)
+
+    def _open_new_handles(
+        self,
+        *,
+        initial: bool,
+        start_at: datetime | None = None,
+    ) -> None:
+        if not initial:
+            self.close()
+            self._part_index += 1
+            if start_at is not None:
+                self._part_started_at = start_at
+            else:
+                self._part_started_at = datetime.now(tz=UTC)
+        else:
+            self._part_started_at = datetime.now(tz=UTC)
+
+        structured_path = self._build_path(self._structured_suffix, self._part_index)
+        raw_path = self._build_path(self._raw_suffix, self._part_index)
+        self._structured_paths.append(structured_path)
+        self._raw_paths.append(raw_path)
+
+        if self._compress:
+            self._structured_handle = gzip.open(structured_path, "wt", encoding="utf-8")
+            self._raw_handle = gzip.open(raw_path, "wt", encoding="utf-8")
+        else:
+            self._structured_handle = structured_path.open("w", encoding="utf-8")
+            self._raw_handle = raw_path.open("w", encoding="utf-8")
+
+    def _build_path(self, suffix: str, part_index: int) -> Path:
+        if part_index == 0:
+            name = f"final_dry_run_{self._slug}.{suffix}"
+        else:
+            name = f"final_dry_run_{self._slug}_p{part_index:03d}.{suffix}"
+        return self._directory / name
 
 
 async def _append_incident(
@@ -721,14 +840,14 @@ async def perform_final_dry_run(
     incident_keys: set[tuple[str, ...]] = set()
 
     log_lock = asyncio.Lock()
-    log_file: TextIO
-    raw_file: TextIO
-    if config.compress_logs:
-        log_file = gzip.open(log_path, "wt", encoding="utf-8")
-        raw_file = gzip.open(raw_log_path, "wt", encoding="utf-8")
-    else:
-        log_file = log_path.open("w", encoding="utf-8")
-        raw_file = raw_log_path.open("w", encoding="utf-8")
+    sink = _LogSink(
+        directory=config.log_directory,
+        slug=slug,
+        compress=config.compress_logs,
+        rotate_interval=config.log_rotate_interval,
+    )
+    log_path = sink.structured_paths[0]
+    raw_log_path = sink.raw_paths[0]
 
     stats = _LogStats()
 
@@ -745,8 +864,7 @@ async def perform_final_dry_run(
             env=env,
         )
     except Exception as exc:  # pragma: no cover - defensive guard
-        log_file.close()
-        raw_file.close()
+        sink.close()
         raise RuntimeError(f"Failed to launch dry run command: {exc}") from exc
 
     progress_reporter: _ProgressReporter | None = None
@@ -861,10 +979,11 @@ async def perform_final_dry_run(
             )
             json_line = json.dumps(record, separators=(",", ":"))
             async with log_lock:
-                log_file.write(json_line + "\n")
-                raw_file.write(text + "\n")
-                log_file.flush()
-                raw_file.flush()
+                sink.write(
+                    structured_line=json_line,
+                    raw_line=text,
+                    observed_at=observed_at,
+                )
             await stats.record(stream_name, record["level"], observed_at)
             if monitor is not None:
                 await monitor.note(observed_at)
@@ -993,10 +1112,9 @@ async def perform_final_dry_run(
     ended_at = datetime.now(tz=UTC)
     actual_duration = ended_at - started_at
 
-    log_file.flush()
-    raw_file.flush()
-    log_file.close()
-    raw_file.close()
+    sink.close()
+    structured_paths = sink.structured_paths
+    raw_paths = sink.raw_paths
 
     if exit_code not in (0, None):
         incidents.append(
@@ -1039,12 +1157,14 @@ async def perform_final_dry_run(
         "log_level_counts": dict(stats_snapshot["levels"]),
         "log_total_lines": stats_snapshot.get("total_lines", 0),
     }
+    metadata["structured_log_paths"] = [path.as_posix() for path in structured_paths]
+    metadata["raw_log_paths"] = [path.as_posix() for path in raw_paths]
     if progress_path_value is not None:
         metadata["progress_path"] = str(progress_path_value)
     metadata.update(config.metadata)
 
     summary = evaluate_dry_run(
-        log_paths=[log_path],
+        log_paths=list(structured_paths),
         diary_path=config.diary_path,
         performance_path=config.performance_path,
         metadata=metadata,
@@ -1071,8 +1191,8 @@ async def perform_final_dry_run(
         exit_code=exit_code,
         summary=summary,
         sign_off=sign_off,
-        log_path=log_path,
-        raw_log_path=raw_log_path,
+        log_paths=structured_paths,
+        raw_log_paths=raw_paths,
         progress_path=progress_path_value,
         incidents=tuple(incidents),
     )

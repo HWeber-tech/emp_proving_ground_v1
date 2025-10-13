@@ -75,6 +75,8 @@ def test_final_dry_run_cli_success(tmp_path: Path) -> None:
             str(json_report),
             "--markdown-report",
             str(markdown_report),
+            "--log-rotate-hours",
+            "0.0001",
             "--review-output",
             str(review_output),
             "--metadata",

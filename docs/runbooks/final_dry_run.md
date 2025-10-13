@@ -58,6 +58,10 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    silent for `N` minutes. Tighten post-run expectations by supplying
    `--warn-gap-minutes` / `--fail-gap-minutes` when the 72 hour window requires
    explicit log coverage guarantees.
+   Multi-day rehearsals can optionally rotate log files with
+   `--log-rotate-hours 12` (or any positive interval), generating sequential
+   `final_dry_run_<timestamp>_pNNN.jsonl[.gz]` segments so evidence remains
+   reviewable without multi-gigabyte files.【F:src/operations/final_dry_run.py†L329-L414】【F:tests/operations/test_final_dry_run.py†L78-L115】
 3. Monitor stdout for harness incidents; failures will surface immediately and exit with a non-zero code.
 
 ## Smoke testing

@@ -51,9 +51,10 @@ async def perform_final_dry_run_workflow(
 
     run_result = await perform_final_dry_run(config)
 
-    log_paths: list[Path] = [run_result.log_path]
-    if run_result.raw_log_path != run_result.log_path:
-        log_paths.append(run_result.raw_log_path)
+    log_paths: list[Path] = list(run_result.log_paths)
+    for raw_path in run_result.raw_log_paths:
+        if raw_path not in log_paths:
+            log_paths.append(raw_path)
     if run_result.progress_path is not None:
         log_paths.append(run_result.progress_path)
 

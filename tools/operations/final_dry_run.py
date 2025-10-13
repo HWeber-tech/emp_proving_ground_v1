@@ -91,6 +91,12 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--log-rotate-hours",
+        type=float,
+        default=None,
+        help="Rotate structured/raw logs after this many hours (default: disabled).",
+    )
+    parser.add_argument(
         "--shutdown-grace-seconds",
         type=float,
         default=60.0,
@@ -447,6 +453,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     evidence_initial_grace = timedelta(
         minutes=max(args.evidence_initial_grace_minutes, 0.0)
     )
+    log_rotate_interval = (
+        timedelta(hours=args.log_rotate_hours)
+        if args.log_rotate_hours is not None and args.log_rotate_hours > 0.0
+        else None
+    )
 
     config = FinalDryRunConfig(
         command=command,
@@ -477,6 +488,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         evidence_check_interval=evidence_check_interval,
         evidence_initial_grace=evidence_initial_grace,
         compress_logs=args.compress_logs,
+        log_rotate_interval=log_rotate_interval,
     )
 
     workflow = run_final_dry_run_workflow(
@@ -496,8 +508,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  Runtime command: {' '.join(result.config.command)}")
     print(f"  Exit code: {result.exit_code}")
     print(f"  Duration: {result.duration}")
-    print(f"  Logs: {result.log_path}")
-    print(f"  Raw logs: {result.raw_log_path}")
+    log_display = str(result.log_path)
+    if len(result.log_paths) > 1:
+        log_display += f" (+{len(result.log_paths) - 1} rotated)"
+    print(f"  Logs: {log_display}")
+    raw_display = str(result.raw_log_path)
+    if len(result.raw_log_paths) > 1:
+        raw_display += f" (+{len(result.raw_log_paths) - 1} rotated)"
+    print(f"  Raw logs: {raw_display}")
     if result.progress_path is not None:
         print(f"  Progress: {result.progress_path}")
     if result.incidents:

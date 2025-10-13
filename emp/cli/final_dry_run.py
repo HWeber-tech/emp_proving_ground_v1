@@ -279,6 +279,11 @@ def _load_notes(paths: Iterable[Path]) -> list[str]:
     help="Toggle inclusion of the sign-off assessment in the review output.",
 )
 @click.option(
+    "--log-rotate-hours",
+    type=float,
+    help="Rotate structured/raw logs after this many hours (default: disabled).",
+)
+@click.option(
     "--compress-logs",
     is_flag=True,
     help="Compress structured and raw log outputs (writes .gz files).",
@@ -327,6 +332,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     no_review: bool,
     review_include_summary: bool,
     review_include_sign_off: bool,
+    log_rotate_hours: float | None,
     compress_logs: bool,
     command: Sequence[str],
 ) -> None:
@@ -416,6 +422,11 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     evidence_initial_grace = timedelta(
         minutes=max(evidence_initial_grace_minutes, 0.0)
     )
+    log_rotate_interval = (
+        timedelta(hours=log_rotate_hours)
+        if log_rotate_hours is not None and log_rotate_hours > 0.0
+        else None
+    )
 
     config = FinalDryRunConfig(
         command=command,
@@ -446,6 +457,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         evidence_check_interval=evidence_check_interval,
         evidence_initial_grace=evidence_initial_grace,
         compress_logs=compress_logs,
+        log_rotate_interval=log_rotate_interval,
     )
 
     workflow = run_final_dry_run_workflow(
@@ -465,8 +477,14 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     click.echo(f"  Runtime command: {' '.join(result.config.command)}")
     click.echo(f"  Exit code: {result.exit_code}")
     click.echo(f"  Duration: {result.duration}")
-    click.echo(f"  Logs: {result.log_path}")
-    click.echo(f"  Raw logs: {result.raw_log_path}")
+    log_display = str(result.log_path)
+    if len(result.log_paths) > 1:
+        log_display += f" (+{len(result.log_paths) - 1} rotated)"
+    click.echo(f"  Logs: {log_display}")
+    raw_display = str(result.raw_log_path)
+    if len(result.raw_log_paths) > 1:
+        raw_display += f" (+{len(result.raw_log_paths) - 1} rotated)"
+    click.echo(f"  Raw logs: {raw_display}")
     if result.progress_path is not None:
         click.echo(f"  Progress: {result.progress_path}")
     if result.incidents:

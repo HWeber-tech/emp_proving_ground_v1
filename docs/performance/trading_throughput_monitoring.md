@@ -264,6 +264,20 @@ Reason strings now preserve fractional window sizes and messages format the
 exact countdown (`max_1_trades_per_2.5s` → “2.5 seconds”), preventing loss of
 precision when governance dials sub-second throttles.【F:src/trading/execution/trade_throttle.py†L123-L712】【F:tests/trading/test_trade_throttle.py†L113-L148】
 
+### Throttle event history
+
+`TradingManager` now records every throttle action—blocks, cooldowns, rollbacks,
+and reopen events—into a bounded history buffer, exposing the most recent entry
+via `execution_stats["last_throttle_event"]` alongside a `throttle_history_size`
+counter. Each history record normalises retry timers, cooldown contexts, scope
+metadata, and multiplier settings so diagnostics can render concise JSON without
+scraping throttle snapshots. Callers can retrieve the buffered events through
+`get_trade_throttle_history(limit=…)`, while the paper-trading simulation embeds
+the serialised `trade_throttle_events` list in its JSON report to preserve the
+governance evidence trail for drills and sign-off packs. Guardrail suites assert
+blocked bursts and backlog cooldowns populate the history and mirror execution
+stats, keeping observability and compliance artefacts aligned.【F:src/trading/trading_manager.py†L542-L570】【F:src/trading/trading_manager.py†L1847-L1976】【F:src/trading/trading_manager.py†L2564-L2573】【F:src/runtime/paper_simulation.py†L244-L282】【F:tests/trading/test_trading_manager_execution.py†L2146-L2254】【F:tests/runtime/test_paper_trading_simulation_runner.py†L160-L169】
+
 ### Runtime configuration extras
 
 `build_professional_predator_app()` now resolves trade throttle settings straight

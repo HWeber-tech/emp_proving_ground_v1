@@ -155,6 +155,11 @@ async def test_create_operational_backbone_pipeline(tmp_path):
     metrics_after = result.cache_metrics_after_fetch
     assert int(metrics_after.get("hits", 0)) >= 0
 
+    assert result.task_snapshots
+    assert any(
+        entry.get("name") == "operational.backbone.ingest" for entry in result.task_snapshots
+    )
+
     assert not event_bus.is_running()
 
 

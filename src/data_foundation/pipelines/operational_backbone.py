@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, MutableMapping, Sequence
+from datetime import UTC, datetime
+from typing import Any, Callable, Mapping, MutableMapping, Sequence, TypeVar
 
 import pandas as pd
 
@@ -33,6 +34,8 @@ KafkaConsumerFactory = Callable[[], KafkaIngestEventConsumer | None]
 
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 
 def _normalise_symbols(values: Sequence[str]) -> tuple[str, ...]:
@@ -196,6 +199,69 @@ class OperationalBackbonePipeline:
             topic_name = sensory_topic
         self._sensory_topic = topic_name.strip() if topic_name and topic_name.strip() else None
 
+    def _capture_task_snapshots(
+        self,
+        supervisor: TaskSupervisor,
+        accumulator: list[Mapping[str, object]],
+    ) -> None:
+        """Append the supervisor's current snapshot to the accumulator."""
+
+        try:
+            snapshot_list = supervisor.describe()
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to capture task supervisor snapshot", exc_info=True)
+            return
+        for entry in snapshot_list:
+            accumulator.append(dict(entry))
+
+    async def _run_supervised_to_thread(
+        self,
+        supervisor: TaskSupervisor,
+        accumulator: list[Mapping[str, object]],
+        *,
+        name: str,
+        metadata: Mapping[str, object] | None,
+        func: Callable[..., _T],
+        call_args: Sequence[Any] | None = None,
+        call_kwargs: Mapping[str, Any] | None = None,
+    ) -> _T:
+        """Execute ``func`` in a thread while tracking supervisor metadata."""
+
+        task = supervisor.create(
+            asyncio.to_thread(
+                func,
+                *(call_args or ()),
+                **(call_kwargs or {}),
+            ),
+            name=name,
+            metadata=metadata,
+        )
+        self._capture_task_snapshots(supervisor, accumulator)
+        try:
+            result: _T = await task
+        except Exception as exc:
+            accumulator.append(
+                {
+                    "name": name,
+                    "state": "failed",
+                    "captured_at": datetime.now(tz=UTC).isoformat(),
+                    "metadata": dict(metadata) if metadata else None,
+                    "error": str(exc),
+                    "supervisor": supervisor.namespace,
+                }
+            )
+            raise
+        accumulator.append(
+            {
+                "name": name,
+                "state": "finished",
+                "captured_at": datetime.now(tz=UTC).isoformat(),
+                "metadata": dict(metadata) if metadata else None,
+                "supervisor": supervisor.namespace,
+            }
+        )
+        return result
+
     async def execute(
         self,
         request: OperationalIngestRequest,
@@ -221,23 +287,47 @@ class OperationalBackbonePipeline:
                 subscriptions.append(self._event_bus.subscribe(topic, _collector))
 
         try:
+            supervisor = self._ensure_task_supervisor()
+            task_snapshot_history: list[Mapping[str, object]] = []
+
             cache_before = self._manager.cache_metrics(reset=True)
             ingest_error: str | None = None
+
+            ingest_metadata: dict[str, object] = {
+                "symbols": list(request.normalised_symbols()),
+                "daily_requested": bool(request.daily_lookback_days and request.daily_lookback_days > 0),
+                "intraday_requested": bool(
+                    request.intraday_lookback_days and request.intraday_lookback_days > 0
+                ),
+                "macro_requested": bool(
+                    request.macro_events is not None
+                    or (request.macro_start is not None and request.macro_end is not None)
+                ),
+                "source": request.source,
+                "macro_source": request.macro_source,
+            }
+
             try:
-                ingest_results = await asyncio.to_thread(
-                    self._manager.ingest_market_slice,
-                    symbols=request.symbols,
-                    daily_lookback_days=request.daily_lookback_days,
-                    intraday_lookback_days=request.intraday_lookback_days,
-                    intraday_interval=request.intraday_interval,
-                    macro_start=request.macro_start,
-                    macro_end=request.macro_end,
-                    macro_events=request.macro_events,
-                    source=request.source,
-                    macro_source=request.macro_source,
-                    fetch_daily=fetch_daily,
-                    fetch_intraday=fetch_intraday,
-                    fetch_macro=fetch_macro,
+                ingest_results = await self._run_supervised_to_thread(
+                    supervisor,
+                    task_snapshot_history,
+                    name="operational.backbone.ingest",
+                    metadata=ingest_metadata,
+                    func=self._manager.ingest_market_slice,
+                    call_kwargs={
+                        "symbols": request.symbols,
+                        "daily_lookback_days": request.daily_lookback_days,
+                        "intraday_lookback_days": request.intraday_lookback_days,
+                        "intraday_interval": request.intraday_interval,
+                        "macro_start": request.macro_start,
+                        "macro_end": request.macro_end,
+                        "macro_events": request.macro_events,
+                        "source": request.source,
+                        "macro_source": request.macro_source,
+                        "fetch_daily": fetch_daily,
+                        "fetch_intraday": fetch_intraday,
+                        "fetch_macro": fetch_macro,
+                    },
                 )
             except Exception as exc:
                 ingest_results = {}
@@ -259,12 +349,24 @@ class OperationalBackbonePipeline:
                 period: str | None,
             ) -> pd.DataFrame:
                 try:
-                    frame = await asyncio.to_thread(
-                        self._manager.fetch_data,
-                        symbol,
-                        period=period,
-                        interval=interval,
-                    )
+                    frame = await self._run_supervised_to_thread(
+                        supervisor,
+                        task_snapshot_history,
+                    name=f"operational.backbone.fetch.{dimension}",
+                    metadata={
+                        "operation": "fetch",
+                        "dimension": dimension,
+                        "symbol": symbol,
+                        "interval": interval or "",
+                        "period": period or "",
+                    },
+                    func=self._manager.fetch_data,
+                    call_args=(symbol,),
+                    call_kwargs={
+                        "period": period,
+                        "interval": interval,
+                    },
+                )
                 except Exception as exc:
                     fallback = self._fallback_frames.get(dimension)
                     if fallback is not None and not fallback.empty:
@@ -285,11 +387,23 @@ class OperationalBackbonePipeline:
                     if not frame.empty:
                         self._fallback_frames[dimension] = frame.copy(deep=True)
                         try:
-                            await asyncio.to_thread(
-                                self._manager.fetch_data,
-                                symbol,
-                                period=period,
-                                interval=interval,
+                            await self._run_supervised_to_thread(
+                                supervisor,
+                                task_snapshot_history,
+                                name=f"operational.backbone.warm.{dimension}",
+                                metadata={
+                                    "operation": "warm",
+                                    "dimension": dimension,
+                                    "symbol": symbol,
+                                    "interval": interval or "",
+                                    "period": period or "",
+                                },
+                                func=self._manager.fetch_data,
+                                call_args=(symbol,),
+                                call_kwargs={
+                                    "period": period,
+                                    "interval": interval,
+                                },
                             )
                         except Exception:  # pragma: no cover - cache warm failures are non-fatal
                             logger.debug(
@@ -350,11 +464,23 @@ class OperationalBackbonePipeline:
 
             async def _fetch_macro_events() -> pd.DataFrame:
                 try:
-                    frame = await asyncio.to_thread(
-                        self._manager.fetch_macro_events,
-                        calendars=macro_calendars or None,
-                        start=macro_start,
-                        end=macro_end,
+                    frame = await self._run_supervised_to_thread(
+                        supervisor,
+                        task_snapshot_history,
+                        name="operational.backbone.fetch.macro",
+                        metadata={
+                            "operation": "fetch",
+                            "dimension": "macro_events",
+                            "calendars": list(macro_calendars) if macro_calendars else [],
+                            "start": macro_start,
+                            "end": macro_end,
+                        },
+                        func=self._manager.fetch_macro_events,
+                        call_kwargs={
+                            "calendars": macro_calendars or None,
+                            "start": macro_start,
+                            "end": macro_end,
+                        },
                     )
                 except Exception as exc:
                     fallback = self._fallback_frames.get("macro_events")
@@ -594,6 +720,9 @@ class OperationalBackbonePipeline:
 
             streaming_snapshot_payload = dict(self.streaming_snapshots)
 
+            historical_snapshots = tuple(dict(entry) for entry in task_snapshot_history)
+            combined_snapshots = historical_snapshots + supervisor_snapshots
+
             return OperationalBackboneResult(
                 ingest_results=dict(ingest_results),
                 frames=dict(frames),
@@ -607,7 +736,7 @@ class OperationalBackbonePipeline:
                 belief_snapshot=belief_snapshot,
                 understanding_decision=understanding_decision,
                 ingest_error=ingest_error,
-                task_snapshots=supervisor_snapshots,
+                task_snapshots=combined_snapshots,
                 streaming_snapshots=streaming_snapshot_payload,
             )
         finally:

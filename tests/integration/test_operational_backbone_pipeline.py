@@ -233,6 +233,15 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
     integrated = snapshot["integrated_signal"]
     assert float(getattr(integrated, "confidence")) >= 0.0
 
+    assert result.task_snapshots, "expected supervised task snapshots for ingest run"
+    ingest_snapshots = [
+        entry
+        for entry in result.task_snapshots
+        if entry.get("name") == "operational.backbone.ingest"
+    ]
+    assert ingest_snapshots, "operational ingest task should be supervised"
+    assert ingest_snapshots[-1].get("state") in {"finished", "failed"}
+
     assert result.ingest_error is None
     assert not event_bus.is_running()
 
@@ -292,6 +301,10 @@ async def test_operational_backbone_pipeline_understanding_failover(
         assert result.belief_state is not None
         assert result.regime_signal is not None
         assert result.understanding_decision is not None
+        assert result.task_snapshots
+        assert any(
+            entry.get("name") == "operational.backbone.ingest" for entry in result.task_snapshots
+        )
 
         monkeypatch.setattr(
             manager,
@@ -318,6 +331,10 @@ async def test_operational_backbone_pipeline_understanding_failover(
         assert "daily_bars" in result_failover.frames
         assert not result_failover.frames["daily_bars"].empty
         assert result_failover.understanding_decision is not None
+        assert any(
+            entry.get("name") == "operational.backbone.ingest"
+            for entry in result_failover.task_snapshots
+        )
     finally:
         await pipeline.shutdown()
         cache.metrics(reset=True)

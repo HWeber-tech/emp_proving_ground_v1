@@ -176,6 +176,10 @@ async def test_operational_backbone_service_ingest_cycle(tmp_path) -> None:
     assert connectivity is not None
     assert connectivity.timescale is True
     assert connectivity.kafka is True
+    assert result.task_snapshots
+    assert any(
+        entry.get("name") == "operational.backbone.ingest" for entry in result.task_snapshots
+    )
 
 
 @pytest.mark.asyncio()
@@ -202,7 +206,7 @@ async def test_operational_backbone_service_streaming(tmp_path) -> None:
 
     try:
         await service.ensure_streaming()
-        await service.ingest_once(
+        result = await service.ingest_once(
             request,
             fetch_daily=lambda symbols, lookback: _daily_frame(base),
             fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
@@ -212,6 +216,10 @@ async def test_operational_backbone_service_streaming(tmp_path) -> None:
         await asyncio.wait_for(event_signal.wait(), timeout=1.0)
         assert received
         assert service.streaming_active is True
+        assert any(
+            entry.get("name") == "operational.backbone.ingest"
+            for entry in result.task_snapshots
+        )
     finally:
         await service.stop_streaming()
         event_bus.unsubscribe(subscription)

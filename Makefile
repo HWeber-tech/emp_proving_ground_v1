@@ -92,6 +92,8 @@ docs-check:
 # Runtime convenience entrypoints
 # ------------------------------------------------------------------------
 RUN_ARGS ?=
+LEDGER_PATH ?= artifacts/governance/policy_ledger.json
+PHENOTYPE_DIR ?= artifacts/policies
 
 .PHONY: run-paper
 run-paper:
@@ -116,6 +118,21 @@ run-sim:
 		--summary-path "$(SIM_SUMMARY)" \
 		--diary-path "$(SIM_DIARY)" \
 		--duckdb-path "$(SIM_DUCKDB)" $(SIM_EXTRA_ARGS)
+
+.PHONY: rebuild-policy
+rebuild-policy:
+	@if [ -z "$(HASH)" ]; then \
+		echo "HASH variable is required, e.g. make rebuild-policy HASH=alpha.policy"; \
+		exit 1; \
+	fi
+	@echo "Rebuilding policy phenotype for $(HASH)"
+	python3 -m tools.governance.rebuild_policy \
+		--ledger "$(LEDGER_PATH)" \
+		--policy "$(HASH)" \
+		--phenotype-dir "$(PHENOTYPE_DIR)" \
+		--output "$(PHENOTYPE_DIR)/summary.json" \
+		--indent 2
+	@echo "Phenotype bundles available under $(PHENOTYPE_DIR)"
 
 .PHONY: nightly-replay
 nightly-replay:

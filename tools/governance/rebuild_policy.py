@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from src.config.risk.risk_config import RiskConfig
 from src.governance.policy_changelog import (
@@ -23,6 +24,8 @@ except ImportError:  # pragma: no cover - fallback for 3.10 runtimes
     UTC = timezone.utc  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
+
+_SAFE_FILENAME_PATTERN = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -44,6 +47,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional JSON file providing the baseline RiskConfig overrides.",
     )
     parser.add_argument(
+        "--policy",
+        help=(
+            "Optional policy selector. Matches policy_id, metadata.policy_hash, "
+            "or metadata.manifest_hash entries."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         help="Optional destination for the rebuilt policy payload (prints to stdout when omitted).",
@@ -60,6 +70,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Runbook URL to embed in the governance changelog output. "
             f"Defaults to {DEFAULT_POLICY_PROMOTION_RUNBOOK}."
+        ),
+    )
+    parser.add_argument(
+        "--phenotype-dir",
+        type=Path,
+        help=(
+            "Directory to write per-policy phenotype bundles (one JSON file per policy)."
         ),
     )
     parser.add_argument(
@@ -100,6 +117,58 @@ def _emit_markdown(content: str, output: Path) -> None:
     output.write_text(text, encoding="utf-8")
 
 
+def _matches_selector(artifact: "PolicyRebuildArtifact", selector: str) -> bool:
+    if artifact.policy_id == selector:
+        return True
+    metadata = artifact.metadata or {}
+    for key in ("policy_hash", "manifest_hash", "phenotype_hash"):
+        value = metadata.get(key)
+        if isinstance(value, str) and value == selector:
+            return True
+    if len(selector) >= 6 and artifact.policy_id.endswith(selector):
+        return True
+    return False
+
+
+def _filter_artifacts(
+    artifacts: Sequence["PolicyRebuildArtifact"],
+    selector: str | None,
+) -> tuple["PolicyRebuildArtifact", ...]:
+    if selector is None:
+        return tuple(artifacts)
+    trimmed = selector.strip()
+    if not trimmed:
+        return tuple(artifacts)
+    matches = tuple(artifact for artifact in artifacts if _matches_selector(artifact, trimmed))
+    if not matches:
+        raise LookupError(f"No policy rebuild artifacts matched selector: {trimmed}")
+    return matches
+
+
+def _sanitise_filename(value: str) -> str:
+    cleaned = _SAFE_FILENAME_PATTERN.sub("_", value.strip())
+    cleaned = cleaned.strip("._") or "policy"
+    return cleaned
+
+
+def _write_phenotypes(
+    artifacts: Iterable["PolicyRebuildArtifact"],
+    directory: Path,
+    *,
+    indent: int,
+) -> tuple[Path, ...]:
+    directory.mkdir(parents=True, exist_ok=True)
+    paths: list[Path] = []
+    for artifact in artifacts:
+        filename = f"{_sanitise_filename(artifact.policy_id)}.json"
+        destination = directory / filename
+        payload = artifact.as_dict()
+        text = json.dumps(payload, indent=indent, sort_keys=True) + "\n"
+        destination.write_text(text, encoding="utf-8")
+        paths.append(destination)
+    return tuple(paths)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -118,15 +187,36 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     artifacts = rebuild_policy_artifacts(store, base_config=base_config)
+    try:
+        selected_artifacts = _filter_artifacts(artifacts, args.policy)
+    except LookupError as exc:
+        logger.error("%s", exc)
+        return 1
     governance_snapshot = build_policy_governance_workflow(store)
 
     payload = {
         "generated_at": datetime.now(tz=UTC).isoformat(),
         "ledger_path": str(args.ledger),
-        "policy_count": len(artifacts),
-        "policies": {artifact.policy_id: artifact.as_dict() for artifact in artifacts},
+        "policy_count": len(selected_artifacts),
+        "policies": {
+            artifact.policy_id: artifact.as_dict() for artifact in selected_artifacts
+        },
         "governance_workflow": governance_snapshot.as_dict(),
     }
+
+    phenotype_paths: tuple[Path, ...] = ()
+    if args.phenotype_dir is not None:
+        try:
+            phenotype_paths = _write_phenotypes(
+                selected_artifacts,
+                args.phenotype_dir,
+                indent=args.indent,
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.error("Failed to write phenotype bundles: %s", exc)
+            return 1
+    if phenotype_paths:
+        payload["phenotype_paths"] = [str(path) for path in phenotype_paths]
 
     try:
         _emit(payload, args.output, indent=args.indent)

@@ -212,6 +212,9 @@ class Phase3IntelligenceOrchestrator:
             "red_team_findings": [],
             "specialized_predators": [],
             "portfolio_evolution": None,
+            # canonical naming is understanding-centric; keep legacy key for
+            # callers that still look for "competitive_intelligence".
+            "competitive_understanding": None,
             "competitive_intelligence": None,
         }
 
@@ -249,11 +252,12 @@ class Phase3IntelligenceOrchestrator:
             "detail": "Portfolio evolution surface retired during dead-code cleanup",
         }
 
-        # 7. Competitive intelligence
-        competitive_analysis = await self.competitive_intelligence.analyze_competitive_landscape(
-            market_data, {"market_share": 0.15, "win_rate": 0.65}
+        # 7. Competitive understanding
+        competitive_report = await self.competitive_intelligence.identify_competitors(
+            market_data
         )
-        results["competitive_intelligence"] = competitive_analysis
+        results["competitive_understanding"] = competitive_report
+        results["competitive_intelligence"] = competitive_report
 
         return results
 
@@ -266,6 +270,8 @@ class Phase3IntelligenceOrchestrator:
         assert self.specialized_evolution is not None
         assert self.competitive_intelligence is not None
 
+        competitive_stats = await self.competitive_intelligence.get_intelligence_stats()
+
         return {
             "sentient_engine": self.sentient_engine.get_status(),
             "predictive_modeler": self.predictive_modeler.get_status(),
@@ -276,7 +282,8 @@ class Phase3IntelligenceOrchestrator:
                 "status": "removed",
                 "detail": "Legacy portfolio evolution facade retired",
             },
-            "competitive_intelligence": self.competitive_intelligence.get_intelligence_summary(),
+            "competitive_understanding": competitive_stats,
+            "competitive_intelligence": competitive_stats,
         }
 
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+import math
+
 from emp.core import findings_memory
 
 
@@ -60,3 +62,30 @@ def test_time_to_candidate_stats(tmp_path):
     assert len(stats.breaches) == 1
     assert stats.breaches[0].id == fid_slow
     assert pytest.approx(stats.breaches[0].hours, rel=1e-4) == 42.0
+
+
+def test_nearest_novelty_excludes_current_row(tmp_path):
+    db_path = tmp_path / "experiments.sqlite"
+    conn = findings_memory.connect(db_path)
+
+    params_a = {"alpha": 1}
+    art_a = findings_memory.compute_params_artifacts(params_a)
+    novelty_a = findings_memory.nearest_novelty(conn, params_a, artefacts=art_a)
+    fid_a = findings_memory.add_idea(conn, params_a, novelty_a, artefacts=art_a).id
+
+    params_b = {"alpha": 2}
+    art_b = findings_memory.compute_params_artifacts(params_b)
+    novelty_b = findings_memory.nearest_novelty(conn, params_b, artefacts=art_b)
+    result_b = findings_memory.add_idea(conn, params_b, novelty_b, artefacts=art_b)
+
+    row = conn.execute("SELECT novelty FROM findings WHERE id = ?", (result_b.id,)).fetchone()
+    stored_novelty = float(row["novelty"])
+
+    recomputed = findings_memory.nearest_novelty(
+        conn,
+        params_b,
+        artefacts=art_b,
+        exclude_id=result_b.id,
+    )
+
+    assert math.isclose(recomputed, stored_novelty, rel_tol=1e-6)

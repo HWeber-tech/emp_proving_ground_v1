@@ -288,8 +288,17 @@ def nearest_novelty(
     *,
     artefacts: ParamsArtifacts | None = None,
     window: int = 5000,
+    exclude_id: int | None = None,
 ) -> float:
-    """Compute novelty score relative to prior ideas in the database."""
+    """Compute novelty score relative to prior ideas in the database.
+
+    Args:
+        conn: Open SQLite connection.
+        params: Parameter dictionary describing the idea.
+        artefacts: Optional precomputed parameter artefacts.
+        window: Number of historical rows to inspect.
+        exclude_id: Optional finding identifier to omit from the comparison.
+    """
 
     artefacts = artefacts or compute_params_artifacts(params)
     _backfill_missing_artifacts(conn)
@@ -306,6 +315,9 @@ def nearest_novelty(
     candidate_vec = artefacts.params_vec
     min_distance: float | None = None
     for row in cursor.fetchall():
+        row_id = int(row["id"])
+        if exclude_id is not None and row_id == int(exclude_id):
+            continue
         params_vec_json = row["params_vec"]
         if not params_vec_json:
             continue

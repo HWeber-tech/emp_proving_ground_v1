@@ -66,6 +66,31 @@ or `--db-path` to point at an alternate experimentation database. Breaching IDs
 are listed with their stage and timestamps so you can dive back into the
 corresponding findings or diary notes.
 
+## Scheduler automation
+
+Run the scheduler CLI to process any pending ideas straight from the findings
+database and evaluate screened candidates without preparing a bespoke ideas
+file:
+
+```bash
+python -m emp.cli.emp_cycle_scheduler --db-path data/experiments.sqlite --baseline-json data/baseline.json
+```
+
+The scheduler performs three steps:
+- Screen `stage=idea` rows, applying the same quick-evaluation threshold used by
+  the main experimentation cycle (`--quick-threshold`). Notes such as
+  `scheduler:auto` and optional metadata (seed/git SHA) are appended once a row
+  is touched.
+- Promote the highest-ranked screened candidate via UCB-lite (`--ucb-c`) and
+  run the full backtest with the configured timeout (`--full-timeout-secs`).
+- Persist updated baselines whenever the candidate clears the progress gates
+  (`--kpi`, `--kpi-threshold`, `--risk-max-dd`, `--kpi-secondary`).
+
+Use `--max-quick` and `--max-full` to bound the amount of work per invocation
+and `--dry-run` to inspect the queue without mutating the database. Pairing the
+CLI with a cron entry (e.g., hourly) keeps the time-to-candidate SLA within the
+24-hour target without manual babysitting.
+
 ## Timeouts, metadata, and failure notes
 
 * `--full-timeout-secs` (default: 1200s) bounds the full backtest duration. Timeouts and exceptions mark the idea as `tested` with a `full_eval_error:<reason>` note instead of aborting the cycle.

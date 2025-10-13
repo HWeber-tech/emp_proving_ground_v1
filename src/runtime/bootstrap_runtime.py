@@ -338,6 +338,10 @@ class BootstrapRuntime:
             "telemetry": telemetry,
             "evolution_cycle_interval": self._evolution_cycle_interval,
         }
+        try:
+            status["pipeline_observability"] = self.trading_stack.describe_pipeline_observability()
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug("Failed to capture pipeline observability snapshot", exc_info=True)
         if self._paper_broker_summary:
             status["paper_broker"] = dict(self._paper_broker_summary)
         vision_summary = (

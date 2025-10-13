@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -28,6 +29,7 @@ from src.orchestration.enhanced_understanding_engine import (
     ContextualFusionEngine,
     Synthesis,
 )
+from src.orchestration.pipeline_metrics import PipelineLatencyMonitor
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.trading_manager import TradingManager, TradeIntentOutcome
 from src.thinking.adaptation.policy_router import PolicyDecision
@@ -48,6 +50,7 @@ class SensorySnapshot:
     market_data: MarketData
     synthesis: Synthesis
     generated_at: datetime = field(default_factory=datetime.utcnow)
+    latencies: Mapping[str, float] | None = None
 
 
 class BootstrapSensoryPipeline:
@@ -76,11 +79,23 @@ class BootstrapSensoryPipeline:
         as_of: datetime | None = None,
         allow_stale: bool = True,
     ) -> SensorySnapshot:
+        ingest_start = time.perf_counter()
         market_data = await self.fabric.fetch_latest(
             symbol, as_of=as_of, allow_stale=allow_stale, use_cache=False
         )
+        ingest_latency = time.perf_counter() - ingest_start
+        signal_start = time.perf_counter()
         synthesis = await self.fusion_engine.analyze_market_understanding(market_data)
-        snapshot = SensorySnapshot(symbol=symbol, market_data=market_data, synthesis=synthesis)
+        signal_latency = time.perf_counter() - signal_start
+        snapshot = SensorySnapshot(
+            symbol=symbol,
+            market_data=market_data,
+            synthesis=synthesis,
+            latencies={
+                "ingest": ingest_latency,
+                "signal": signal_latency,
+            },
+        )
         self.history.setdefault(symbol, []).append(snapshot)
 
         self._record_audit_entry(symbol, synthesis)
@@ -177,6 +192,7 @@ class BootstrapTradingStack:
         self.control_center = control_center
         self._diary_store = diary_store
         self._release_router = release_router
+        self._latency_monitor = PipelineLatencyMonitor()
 
         if liquidity_prober is not None:
 
@@ -194,95 +210,145 @@ class BootstrapTradingStack:
 
             self.pipeline.register_listener(_record)
 
+    def describe_pipeline_observability(self) -> Mapping[str, Any]:
+        """Return heartbeat and latency percentiles for the bootstrap pipeline."""
+
+        snapshot = self._latency_monitor.snapshot()
+        latency_payload = {stage: dict(metrics) for stage, metrics in snapshot.latency.items()}
+        return {
+            "heartbeat": dict(snapshot.heartbeat),
+            "latency": latency_payload,
+        }
+
+    @property
+    def pipeline_latency_monitor(self) -> PipelineLatencyMonitor:
+        """Expose the underlying latency monitor for advanced integrations."""
+
+        return self._latency_monitor
+
     async def evaluate_tick(self, symbol: str, *, as_of: datetime | None = None) -> dict[str, Any]:
-        snapshot = await self.pipeline.process_tick(symbol, as_of=as_of)
-        unified_score = float(snapshot.synthesis.unified_score)
+        tick_timestamp = datetime.now(timezone.utc)
+        latency_metrics: dict[str, float] = {}
+        order_attempted = False
 
-        side: Optional[str] = None
-        if unified_score >= self.buy_threshold:
-            side = "BUY"
-        elif unified_score <= -self.sell_threshold:
-            side = "SELL"
+        try:
+            snapshot = await self.pipeline.process_tick(symbol, as_of=as_of)
+            if isinstance(snapshot.latencies, Mapping):
+                for stage, value in snapshot.latencies.items():
+                    if value is None:
+                        continue
+                    try:
+                        latency_metrics[str(stage)] = float(value)
+                    except (TypeError, ValueError):
+                        continue
 
-        if side is None:
-            skip_result: dict[str, object | None] = {
-                "snapshot": snapshot,
-                "intent": None,
-                "decision": None,
-                "status": "skipped",
+            unified_score = float(snapshot.synthesis.unified_score)
+
+            side: Optional[str] = None
+            if unified_score >= self.buy_threshold:
+                side = "BUY"
+            elif unified_score <= -self.sell_threshold:
+                side = "SELL"
+
+            if side is None:
+                skip_result: dict[str, object | None] = {
+                    "snapshot": snapshot,
+                    "intent": None,
+                    "decision": None,
+                    "status": "skipped",
+                }
+                self.decisions.append(skip_result)
+                self._notify_control_center(snapshot, skip_result)
+                return skip_result
+
+            order_prepare_start = time.perf_counter()
+            market_price = float(
+                getattr(snapshot.market_data, "close", snapshot.market_data.mid_price)
+            )
+            intent = PaperTradeIntent(
+                strategy_id=self.strategy_id,
+                symbol=symbol,
+                side=side,
+                quantity=self.requested_quantity,
+                price=market_price,
+                confidence=float(snapshot.synthesis.confidence),
+            )
+            intent.metadata.setdefault("stop_loss_pct", self.stop_loss_pct)
+            understanding_snapshot = {
+                "unified_score": unified_score,
+                "confidence": float(snapshot.synthesis.confidence),
+                "narrative": snapshot.synthesis.dominant_narrative.value,
             }
-            self.decisions.append(skip_result)
-            self._notify_control_center(snapshot, skip_result)
-            return skip_result
+            intent.metadata.setdefault("understanding_snapshot", understanding_snapshot)
+            if isinstance(intent.metadata, MutableMapping):
+                intent.metadata.pop("intelligence_snapshot", None)
+            latency_metrics["order"] = time.perf_counter() - order_prepare_start
 
-        market_price = float(getattr(snapshot.market_data, "close", snapshot.market_data.mid_price))
-        intent = PaperTradeIntent(
-            strategy_id=self.strategy_id,
-            symbol=symbol,
-            side=side,
-            quantity=self.requested_quantity,
-            price=market_price,
-            confidence=float(snapshot.synthesis.confidence),
-        )
-        intent.metadata.setdefault("stop_loss_pct", self.stop_loss_pct)
-        understanding_snapshot = {
-            "unified_score": unified_score,
-            "confidence": float(snapshot.synthesis.confidence),
-            "narrative": snapshot.synthesis.dominant_narrative.value,
-        }
-        intent.metadata.setdefault("understanding_snapshot", understanding_snapshot)
-        # Remove legacy terminology to keep downstream tooling aligned with the
-        # understanding-first namespace. Older keys are dropped rather than
-        # duplicated so consumers do not accidentally depend on deprecated
-        # aliases.
-        if isinstance(intent.metadata, MutableMapping):
-            intent.metadata.pop("intelligence_snapshot", None)
+            ack_start = time.perf_counter()
+            order_attempted = True
+            try:
+                trade_outcome = await self.trading_manager.on_trade_intent(intent)
+            finally:
+                latency_metrics["ack"] = time.perf_counter() - ack_start
 
-        trade_outcome = await self.trading_manager.on_trade_intent(intent)
-        decision = self.trading_manager.risk_gateway.get_last_decision()
+            decision = self.trading_manager.risk_gateway.get_last_decision()
 
-        outcome_payload: Mapping[str, Any] | None = None
-        status = "submitted"
-        if isinstance(trade_outcome, TradeIntentOutcome):
-            outcome_payload = trade_outcome.as_dict()
-            outcome_status = outcome_payload.get("status")
-            if isinstance(outcome_status, str) and outcome_status.strip():
-                status = outcome_status.strip()
-            else:
-                status = trade_outcome.status
+            outcome_payload: Mapping[str, Any] | None = None
+            status = "submitted"
+            if isinstance(trade_outcome, TradeIntentOutcome):
+                outcome_payload = trade_outcome.as_dict()
+                outcome_status = outcome_payload.get("status")
+                if isinstance(outcome_status, str) and outcome_status.strip():
+                    status = outcome_status.strip()
+                else:
+                    status = trade_outcome.status
 
-        liquidity_summary = None
-        if isinstance(decision, Mapping):
-            for check in decision.get("checks", []):
-                if isinstance(check, Mapping) and check.get("name") == "liquidity_probe":
-                    liquidity_summary = check.get("summary")
-                    break
+            liquidity_summary = None
+            if isinstance(decision, Mapping):
+                for check in decision.get("checks", []):
+                    if isinstance(check, Mapping) and check.get("name") == "liquidity_probe":
+                        liquidity_summary = check.get("summary")
+                        break
 
-        result_payload: dict[str, object | None] = {
-            "snapshot": snapshot,
-            "intent": intent,
-            "decision": decision,
-            "status": status,
-            "liquidity_summary": liquidity_summary,
-        }
-        if outcome_payload is not None:
-            result_payload["trade_outcome"] = outcome_payload
-            throttle_fragment = outcome_payload.get("throttle")
-            if isinstance(throttle_fragment, Mapping):
-                result_payload["throttle"] = throttle_fragment
-            outcome_metadata = outcome_payload.get("metadata")
-            if isinstance(outcome_metadata, Mapping):
-                result_payload["trade_metadata"] = outcome_metadata
-        self.decisions.append(result_payload)
-        self._notify_control_center(snapshot, result_payload)
-        self._record_decision_diary(
-            snapshot,
-            intent,
-            decision,
-            liquidity_summary,
-            trade_outcome,
-        )
-        return result_payload
+            result_payload: dict[str, object | None] = {
+                "snapshot": snapshot,
+                "intent": intent,
+                "decision": decision,
+                "status": status,
+                "liquidity_summary": liquidity_summary,
+            }
+            if outcome_payload is not None:
+                result_payload["trade_outcome"] = outcome_payload
+                throttle_fragment = outcome_payload.get("throttle")
+                if isinstance(throttle_fragment, Mapping):
+                    result_payload["throttle"] = throttle_fragment
+                outcome_metadata = outcome_payload.get("metadata")
+                if isinstance(outcome_metadata, Mapping):
+                    result_payload["trade_metadata"] = outcome_metadata
+
+            self.decisions.append(result_payload)
+            self._notify_control_center(snapshot, result_payload)
+            self._record_decision_diary(
+                snapshot,
+                intent,
+                decision,
+                liquidity_summary,
+                trade_outcome,
+            )
+            return result_payload
+        finally:
+            total_latency = sum(
+                value
+                for value in latency_metrics.values()
+                if isinstance(value, (int, float)) and value >= 0.0
+            )
+            if total_latency > 0:
+                latency_metrics.setdefault("total", total_latency)
+            self._latency_monitor.observe_tick(
+                latency_metrics,
+                timestamp=tick_timestamp,
+                order_attempted=order_attempted,
+            )
 
     def set_release_router(
         self, router: ReleaseAwareExecutionRouter | None

@@ -164,6 +164,9 @@ async def test_bootstrap_runtime_build_and_run() -> None:
         assert status["telemetry"]["equity"] >= 0
         assert status["telemetry"]["last_decision"] is not None
         assert status["evolution_cycle_interval"] >= 1
+        pipeline_observability = status.get("pipeline_observability")
+        assert pipeline_observability is not None
+        assert pipeline_observability["heartbeat"]["ticks"] >= 1
         evolution_overview = status["telemetry"].get("evolution")
         assert isinstance(evolution_overview, Mapping)
         adaptive_runs = evolution_overview.get("adaptive_runs") if isinstance(evolution_overview, Mapping) else None

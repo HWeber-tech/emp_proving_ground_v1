@@ -100,6 +100,9 @@ async def test_bootstrap_pipeline_generates_snapshots() -> None:
     snapshot = await pipeline.process_tick("EURUSD")
     assert snapshot.symbol == "EURUSD"
     assert isinstance(snapshot.synthesis.unified_score, float)
+    assert snapshot.latencies is not None
+    assert snapshot.latencies["ingest"] > 0.0
+    assert snapshot.latencies["signal"] > 0.0
     assert pipeline.history["EURUSD"]
     audit = pipeline.audit_trail(limit=1)
     assert audit
@@ -163,6 +166,14 @@ async def test_bootstrap_trading_stack_executes_trade() -> None:
     intent_metadata = getattr(result["intent"], "metadata", {})
     assert "understanding_snapshot" in intent_metadata
     assert "intelligence_snapshot" not in intent_metadata
+
+    observability = stack.describe_pipeline_observability()
+    heartbeat = observability["heartbeat"]
+    assert heartbeat["ticks"] >= 2
+    latency = observability["latency"]
+    assert latency["ingest"]["samples"] >= 2
+    assert latency["ack"]["samples"] >= 1
+    assert latency["ack"]["p50"] is not None
 
 
 @pytest.mark.asyncio()
@@ -266,7 +277,7 @@ async def test_decision_diary_records_trade_throttle_note(tmp_path: Any) -> None
     entries = diary_store.entries()
     assert len(entries) >= 2
     throttled_entry = entries[-1]
-    assert any("Throttled" in note for note in throttled_entry.notes)
+    assert any("throttle" in note.lower() for note in throttled_entry.notes)
 
     throttle_snapshot = throttled_entry.outcomes.get("throttle")
     assert isinstance(throttle_snapshot, Mapping)

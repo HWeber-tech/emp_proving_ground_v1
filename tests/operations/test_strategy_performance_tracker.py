@@ -4,6 +4,7 @@ import pytest
 
 from src.operations import (
     LoopKpiMetrics,
+    aggregate_fast_weight_metadata,
     StrategyPerformanceReport,
     StrategyPerformanceTracker,
 )
@@ -219,3 +220,85 @@ def test_tracker_markdown_contains_headline_sections() -> None:
     assert "**Strategy KPIs**" in markdown
     assert "**Portfolio totals**" in markdown
     assert "**ROI posture**" in markdown
+
+
+def test_aggregate_fast_weight_metadata_rolls_up_events() -> None:
+    events = [
+        {
+            "metadata": {
+                "fast_weight": {
+                    "enabled": True,
+                    "metrics": {
+                        "total": 5,
+                        "active": 2,
+                        "dormant": 3,
+                        "inhibitory": 1,
+                        "suppressed_inhibitory": 0,
+                        "active_percentage": 40.0,
+                        "sparsity": 0.6,
+                        "max_multiplier": 1.5,
+                        "min_multiplier": 0.9,
+                    },
+                    "summary": {
+                        "momentum": {
+                            "current_multiplier": 1.5,
+                            "previous_multiplier": 1.3,
+                            "feature_value": 0.85,
+                        }
+                    },
+                }
+            }
+        },
+        {
+            "metadata": {
+                "fast_weight": {
+                    "enabled": False,
+                    "metrics": {
+                        "total": 5,
+                        "active": 1,
+                        "dormant": 4,
+                        "inhibitory": 0,
+                        "suppressed_inhibitory": 1,
+                        "active_percentage": 20.0,
+                        "sparsity": 0.8,
+                        "max_multiplier": 1.3,
+                        "min_multiplier": 0.7,
+                    },
+                    "summary": {
+                        "momentum": {
+                            "current_multiplier": 1.3,
+                            "previous_multiplier": 1.6,
+                            "feature_value": 0.8,
+                        },
+                        "mean_reversion": {
+                            "current_multiplier": 0.95,
+                            "previous_multiplier": 1.05,
+                        },
+                    },
+                }
+            }
+        },
+    ]
+
+    rollup = aggregate_fast_weight_metadata(events)
+
+    toggle_counts = rollup.get("toggle_counts", {})
+    assert toggle_counts.get("enabled") == 1
+    assert toggle_counts.get("disabled") == 1
+
+    metrics = rollup.get("metrics", {})
+    assert metrics.get("active_mean") == pytest.approx(1.5)
+    assert metrics.get("sparsity_mean") == pytest.approx(0.7)
+    assert metrics.get("max_multiplier") == pytest.approx(1.5)
+    assert metrics.get("min_multiplier") == pytest.approx(0.7)
+
+    adapters = rollup.get("hebbian_adapters", {})
+    momentum = adapters.get("momentum")
+    assert momentum is not None
+    assert momentum.get("samples") == 2
+    assert momentum.get("current_multiplier_mean") == pytest.approx((1.5 + 1.3) / 2)
+    assert momentum.get("feature_value_mean") == pytest.approx((0.85 + 0.8) / 2)
+
+    mean_reversion = adapters.get("mean_reversion")
+    assert mean_reversion is not None
+    assert mean_reversion.get("samples") == 1

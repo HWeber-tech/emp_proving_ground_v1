@@ -149,6 +149,12 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert result.loop_result.policy_id == "alpha.live"
     assert result.trade_metadata["notional"] == pytest.approx(25_000 * 1.2345)
     assert result.trade_intent["metadata"]["regime"] == result.regime_signal.regime_state.regime
+    fast_weight_metadata = result.trade_metadata.get("fast_weight")
+    assert isinstance(fast_weight_metadata, dict)
+    assert fast_weight_metadata.get("enabled") is True
+    assert "metrics" in fast_weight_metadata
+    intent_fast_weight = trading_manager.intents[0]["metadata"].get("fast_weight")
+    assert intent_fast_weight == fast_weight_metadata
     assert diary_store.entries(), "expected decision diary entry to be recorded"
     assert result.trade_outcome is not None
     assert result.trade_outcome.status == "executed"

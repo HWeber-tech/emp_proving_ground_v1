@@ -601,6 +601,74 @@ class _StrategyAccumulator:
         return payload
 
 
+def aggregate_fast_weight_metadata(
+    events: Iterable[Mapping[str, Any]] | None,
+) -> Mapping[str, Any]:
+    """Summarise fast-weight telemetry embedded in experiment events."""
+
+    if not events:
+        return {}
+
+    toggle_counts: Counter[str] = Counter()
+    telemetry = _FastWeightTelemetryAccumulator()
+    adapters: MutableMapping[str, _HebbianAdapterAccumulator] = {}
+
+    for event in events:
+        if not isinstance(event, Mapping):
+            continue
+        metadata = event.get("metadata")
+        if not isinstance(metadata, Mapping):
+            continue
+        payload = metadata.get("fast_weight")
+        if not isinstance(payload, Mapping):
+            continue
+
+        enabled = payload.get("enabled")
+        if enabled is True:
+            toggle_counts["enabled"] += 1
+        elif enabled is False:
+            toggle_counts["disabled"] += 1
+        else:
+            toggle_counts["unknown"] += 1
+
+        metrics_payload = payload.get("metrics")
+        if isinstance(metrics_payload, Mapping):
+            telemetry.add_from_mapping(metrics_payload)
+
+        summary_payload = payload.get("summary")
+        if isinstance(summary_payload, Mapping):
+            for adapter_id, adapter_summary in summary_payload.items():
+                if not isinstance(adapter_summary, Mapping):
+                    continue
+                adapter_key = str(adapter_id)
+                accumulator = adapters.setdefault(
+                    adapter_key,
+                    _HebbianAdapterAccumulator(adapter_id=adapter_key),
+                )
+                accumulator.add(adapter_summary)
+
+    result: dict[str, Any] = {}
+    if toggle_counts:
+        result["toggle_counts"] = {
+            bucket: int(count) for bucket, count in toggle_counts.items() if count
+        }
+
+    metrics_summary = telemetry.summary()
+    if metrics_summary:
+        result["metrics"] = dict(metrics_summary)
+
+    if adapters:
+        adapter_payload: dict[str, Any] = {}
+        for adapter_id, accumulator in adapters.items():
+            summary = accumulator.summary()
+            if summary:
+                adapter_payload[adapter_id] = dict(summary)
+        if adapter_payload:
+            result["hebbian_adapters"] = adapter_payload
+
+    return result
+
+
 class StrategyPerformanceTracker:
     """Collects per-strategy KPIs and exports daily reports."""
 
@@ -881,5 +949,6 @@ __all__ = [
     "LoopKpiMetrics",
     "StrategyPerformanceAggregates",
     "StrategyPerformanceReport",
+    "aggregate_fast_weight_metadata",
     "StrategyPerformanceTracker",
 ]

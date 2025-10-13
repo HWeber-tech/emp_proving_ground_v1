@@ -316,6 +316,12 @@ class AlphaTradeLoopOrchestrator:
 
         reflection = self._reflection_builder.build(window=reflection_window)
 
+        fast_weight_summary = {
+            adapter_id: dict(summary)
+            for adapter_id, summary in decision_bundle.fast_weight_summary.items()
+        }
+        fast_weight_metrics = dict(decision_bundle.fast_weight_metrics)
+
         metadata: MutableMapping[str, Any] = {
             "policy_id": resolved_policy_id,
             "release_stage": stage.value,
@@ -328,6 +334,14 @@ class AlphaTradeLoopOrchestrator:
                 "policy": stage_sources["policy"].value,
                 "tactic": stage_sources["tactic"].value,
             },
+        }
+        fast_weight_enabled = belief_snapshot.fast_weights_enabled
+        enabled_value = fast_weight_enabled if isinstance(fast_weight_enabled, bool) else None
+        metadata["fast_weight"] = {
+            "enabled": enabled_value,
+            "metrics": fast_weight_metrics,
+            "summary": fast_weight_summary,
+            "applied_adapters": list(decision_bundle.applied_adapters),
         }
         if adaptation_summary is not None:
             metadata["evolution"] = adaptation_summary

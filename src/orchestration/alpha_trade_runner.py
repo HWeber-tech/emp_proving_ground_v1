@@ -148,13 +148,29 @@ class AlphaTradeLoopRunner:
             extra_metadata=extra_metadata,
         )
 
-        intent_payload = trade_plan.intent
+        fast_weight_metadata = self._build_fast_weight_metadata(
+            loop_result.decision_bundle,
+            belief_snapshot,
+        )
+
+        trade_metadata = dict(trade_plan.metadata or {})
+        if "fast_weight" not in trade_metadata:
+            trade_metadata["fast_weight"] = dict(fast_weight_metadata)
+
+        intent_payload = None
+        if trade_plan.intent is not None:
+            raw_intent = dict(trade_plan.intent)
+            metadata_payload = dict(raw_intent.get("metadata", {}))
+            if "fast_weight" not in metadata_payload:
+                metadata_payload["fast_weight"] = dict(fast_weight_metadata)
+            raw_intent["metadata"] = metadata_payload
+            intent_payload = raw_intent
         if intent_payload is None:
             intent_payload = self._build_trade_intent_from_decision(
                 loop_result.decision,
                 belief_state,
                 regime_signal,
-                trade_plan.metadata,
+                trade_metadata,
                 trade_overrides,
             )
 
@@ -183,11 +199,19 @@ class AlphaTradeLoopRunner:
                     metadata=MappingProxyType(merged_loop_metadata),
                 )
 
+        if loop_result.metadata.get("trade_metadata") != trade_metadata:
+            merged_loop_metadata = dict(loop_result.metadata)
+            merged_loop_metadata["trade_metadata"] = dict(trade_metadata)
+            loop_result = replace(
+                loop_result,
+                metadata=MappingProxyType(merged_loop_metadata),
+            )
+
         return AlphaTradeRunResult(
             belief_state=belief_state,
             regime_signal=regime_signal,
             loop_result=loop_result,
-            trade_metadata=dict(trade_plan.metadata or {}),
+            trade_metadata=dict(trade_metadata),
             trade_intent=dict(intent_payload) if intent_payload is not None else None,
             trade_outcome=trade_outcome,
         )
@@ -308,6 +332,25 @@ class AlphaTradeLoopRunner:
             if value:
                 return str(value)
         return None
+
+    @staticmethod
+    def _build_fast_weight_metadata(
+        decision_bundle: UnderstandingDecision,
+        belief_snapshot: BeliefSnapshot,
+    ) -> Mapping[str, Any]:
+        summary_payload = {
+            adapter_id: dict(summary)
+            for adapter_id, summary in decision_bundle.fast_weight_summary.items()
+        }
+        metrics_payload = dict(decision_bundle.fast_weight_metrics)
+        enabled_flag = belief_snapshot.fast_weights_enabled
+        enabled_value = enabled_flag if isinstance(enabled_flag, bool) else None
+        return {
+            "enabled": enabled_value,
+            "metrics": metrics_payload,
+            "summary": summary_payload,
+            "applied_adapters": list(decision_bundle.applied_adapters),
+        }
 
     @staticmethod
     def _build_trade_intent_from_decision(

@@ -908,6 +908,7 @@ class TradingManager:
             base_symbol = self._extract_symbol(event)
             base_confidence = self._extract_confidence(event)
             side_hint = self._extract_side(event)
+            fast_weight_metadata = self._extract_fast_weight_metadata(event)
 
             portfolio_state = cast(Any, self.portfolio_monitor).get_state()
 
@@ -976,6 +977,7 @@ class TradingManager:
                     notional=notional_for_event,
                     metadata=metadata_payload,
                     decision=None,
+                    fast_weight=fast_weight_metadata,
                 )
                 drift_event_status = "forced_paper"
                 drift_notional_value = notional_for_event
@@ -1056,6 +1058,7 @@ class TradingManager:
                         notional=notional,
                         metadata=metadata_payload,
                         decision=self._get_last_risk_decision(),
+                        fast_weight=fast_weight_metadata,
                     )
                     log_reason = human_reason or reason
                     logger.warning("Throttled trade intent %s: %s", event_id, log_reason)
@@ -1148,6 +1151,7 @@ class TradingManager:
                                     notional=notional,
                                     metadata=throttle_scaling_metadata,
                                     decision=self._get_last_risk_decision(),
+                                    fast_weight=fast_weight_metadata,
                                 )
                                 logger.info(
                                     "Applied trade throttle multiplier %.4f to %s; quantity %.6f → %.6f",
@@ -1202,6 +1206,7 @@ class TradingManager:
                             notional=notional,
                             metadata=block_metadata,
                             decision=decision,
+                            fast_weight=fast_weight_metadata,
                         )
                         drift_event_status = "execution_blocked"
                         drift_confidence_value = confidence
@@ -1288,6 +1293,7 @@ class TradingManager:
                                 notional=notional,
                                 metadata=failure_metadata,
                                 decision=decision,
+                                fast_weight=fast_weight_metadata,
                             )
                             drift_event_status = "execution_error"
                             drift_confidence_value = confidence
@@ -1359,6 +1365,7 @@ class TradingManager:
                                 notional=notional,
                                 metadata=success_metadata,
                                 decision=decision,
+                                fast_weight=fast_weight_metadata,
                             )
                             drift_event_status = "executed"
                             drift_confidence_value = confidence
@@ -1420,6 +1427,7 @@ class TradingManager:
                                 notional=notional,
                                 metadata=fallback_metadata,
                                 decision=decision,
+                                fast_weight=fast_weight_metadata,
                             )
                             drift_event_status = "execution_failed"
                             drift_confidence_value = confidence
@@ -1463,6 +1471,7 @@ class TradingManager:
                     confidence=base_confidence,
                     metadata=rejection_metadata or None,
                     decision=decision,
+                    fast_weight=fast_weight_metadata,
                 )
                 drift_event_status = "risk_rejected"
                 drift_confidence_value = base_confidence
@@ -1601,6 +1610,7 @@ class TradingManager:
                     notional=drift_notional_value,
                     metadata=metadata_payload,
                     decision=self._get_last_risk_decision(),
+                    fast_weight=fast_weight_metadata,
                 )
             resource_snapshot = self._resource_monitor.sample()
             self._execution_stats["resource_usage"] = resource_snapshot
@@ -1780,6 +1790,7 @@ class TradingManager:
         notional: float | None = None,
         metadata: Mapping[str, Any] | None = None,
         decision: Mapping[str, Any] | None = None,
+        fast_weight: Mapping[str, Any] | None = None,
     ) -> None:
         entry: dict[str, Any] = {
             "event_id": event_id,
@@ -1794,12 +1805,17 @@ class TradingManager:
             entry["confidence"] = confidence
         if notional is not None:
             entry["notional"] = float(notional)
+        cleaned_metadata: dict[str, Any] = {}
         if metadata and isinstance(metadata, Mapping):
-            cleaned = {
+            cleaned_metadata = {
                 key: value for key, value in dict(metadata).items() if value not in (None, "")
             }
-            if cleaned:
-                entry["metadata"] = cleaned
+        if fast_weight and isinstance(fast_weight, Mapping):
+            if not cleaned_metadata:
+                cleaned_metadata = {}
+            cleaned_metadata["fast_weight"] = dict(fast_weight)
+        if cleaned_metadata:
+            entry["metadata"] = cleaned_metadata
         if decision and isinstance(decision, Mapping):
             entry["decision"] = dict(decision)
         self._experiment_events.appendleft(entry)
@@ -3157,6 +3173,27 @@ class TradingManager:
     @staticmethod
     def _coerce_float(value: Any) -> float | None:
         return coerce_float(value)
+
+    @staticmethod
+    def _extract_fast_weight_metadata(intent: Any) -> Mapping[str, Any] | None:
+        def _from_mapping(candidate: Mapping[str, Any]) -> Mapping[str, Any] | None:
+            payload = candidate.get("fast_weight")
+            if isinstance(payload, Mapping):
+                return dict(payload)
+            return None
+
+        metadata = getattr(intent, "metadata", None)
+        if isinstance(metadata, Mapping):
+            extracted = _from_mapping(metadata)
+            if extracted is not None:
+                return extracted
+
+        if isinstance(intent, Mapping):
+            extracted = _from_mapping(intent)
+            if extracted is not None:
+                return extracted
+
+        return None
 
     async def _emit_risk_interface_snapshot(self) -> None:
         """Resolve and publish the trading risk interface summary."""

@@ -1565,11 +1565,56 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
                     "status": "executed",
                     "confidence": 0.9,
                     "notional": 12_000.0,
+                    "metadata": {
+                        "fast_weight": {
+                            "enabled": True,
+                            "metrics": {
+                                "total": 5,
+                                "active": 2,
+                                "dormant": 3,
+                                "inhibitory": 1,
+                                "suppressed_inhibitory": 0,
+                                "active_percentage": 40.0,
+                                "sparsity": 0.6,
+                                "max_multiplier": 1.4,
+                                "min_multiplier": 0.85,
+                            },
+                            "summary": {
+                                "momentum": {
+                                    "current_multiplier": 1.4,
+                                    "previous_multiplier": 1.2,
+                                    "feature_value": 0.82,
+                                }
+                            },
+                        }
+                    },
                 },
                 {
                     "event_id": "exp-2",
                     "status": "rejected",
-                    "metadata": {"reason": "low_confidence"},
+                    "metadata": {
+                        "reason": "low_confidence",
+                        "fast_weight": {
+                            "enabled": False,
+                            "metrics": {
+                                "total": 5,
+                                "active": 1,
+                                "dormant": 4,
+                                "inhibitory": 0,
+                                "suppressed_inhibitory": 1,
+                                "active_percentage": 20.0,
+                                "sparsity": 0.8,
+                                "max_multiplier": 1.25,
+                                "min_multiplier": 0.7,
+                            },
+                            "summary": {
+                                "momentum": {
+                                    "current_multiplier": 1.25,
+                                    "previous_multiplier": 1.4,
+                                }
+                            },
+                        },
+                    },
                 },
             ]
             self._risk_config = RiskConfig()
@@ -1682,6 +1727,9 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
     assert incident_snapshot.status is IncidentResponseStatus.ok
     assert strategy_snapshot.totals.roi_status == "tracking"
     assert strategy_snapshot.strategies
+    fast_weight_meta = strategy_snapshot.metadata.get("fast_weight")
+    assert fast_weight_meta is not None
+    assert fast_weight_meta.get("toggle_counts", {}).get("enabled") == 1
 
 
 @pytest.mark.asyncio()

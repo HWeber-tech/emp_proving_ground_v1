@@ -254,6 +254,7 @@ from src.operations.strategy_performance import (
     format_strategy_performance_markdown,
     publish_strategy_performance_snapshot,
 )
+from src.operations.strategy_performance_tracker import aggregate_fast_weight_metadata
 from src.operations.professional_readiness import (
     ProfessionalReadinessSnapshot,
     evaluate_professional_readiness,
@@ -4629,6 +4630,9 @@ def build_professional_runtime_application(
                         if kyc_summary is not None:
                             experiment_metadata.setdefault("kyc", {})
                             experiment_metadata["kyc"] = dict(kyc_summary)
+                        fast_weight_rollup = aggregate_fast_weight_metadata(experiment_events)
+                        if fast_weight_rollup:
+                            experiment_metadata["fast_weight"] = fast_weight_rollup
                         experiment_snapshot = evaluate_evolution_experiments(
                             experiment_events,
                             roi_snapshot=roi_snapshot,

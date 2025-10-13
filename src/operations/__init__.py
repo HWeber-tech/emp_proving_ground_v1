@@ -131,6 +131,7 @@ _EXPORTS = {
     'StrategyPerformanceStatus': ('src.operations.strategy_performance', 'StrategyPerformanceStatus'),
     'StrategyPerformanceTotals': ('src.operations.strategy_performance', 'StrategyPerformanceTotals'),
     'StrategyPerformanceTracker': ('src.operations.strategy_performance_tracker', 'StrategyPerformanceTracker'),
+    'aggregate_fast_weight_metadata': ('src.operations.strategy_performance_tracker', 'aggregate_fast_weight_metadata'),
     'StructuredLogRecord': ('src.operations.dry_run_audit', 'StructuredLogRecord'),
     'SystemValidationCheck': ('src.operations.system_validation', 'SystemValidationCheck'),
     'SystemValidationHistoryEntry': ('src.operations.system_validation', 'SystemValidationHistoryEntry'),

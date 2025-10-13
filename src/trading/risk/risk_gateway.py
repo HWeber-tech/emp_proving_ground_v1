@@ -35,7 +35,7 @@ from src.data_foundation.config.execution_config import (
     ExecutionRiskLimits,
     load_execution_config,
 )
-from src.core.event_bus import EventBus
+from src.core.event_bus import EventBus, Event
 from src.trading.execution.execution_model import (
     ExecContext,
     estimate_commission_bps,
@@ -51,6 +51,7 @@ from .policy_telemetry import (
 )
 from .risk_api import RISK_API_RUNBOOK, merge_risk_references, summarise_risk_config
 from .risk_policy import RiskPolicy, RiskPolicyDecision
+from .guardrail_incidents import GuardrailIncident, extract_guardrail_incident
 
 try:  # pragma: no cover - metrics optional in certain runtimes
     from src.operational import metrics as operational_metrics
@@ -222,6 +223,13 @@ class RiskGateway:
             "rejected": 0,
             "last_decision": None,
         }
+        self.telemetry.update(
+            {
+                "guardrail_near_misses": 0,
+                "guardrail_violations": 0,
+                "last_guardrail_incident": None,
+            }
+        )
         self._last_policy_decision: RiskPolicyDecision | None = None
         self._last_policy_snapshot: RiskPolicyEvaluationSnapshot | None = None
         self._risk_config: RiskConfig | None = risk_config
@@ -230,6 +238,7 @@ class RiskGateway:
         self._policy_violation_runbook = (
             policy_violation_runbook or RISK_POLICY_VIOLATION_RUNBOOK
         )
+        self._last_guardrail_incident: GuardrailIncident | None = None
 
         self._confidence_limit_pct: float = 1.0
         self._max_leverage_limit: float = 0.0
@@ -445,6 +454,8 @@ class RiskGateway:
             decision_payload = self._augment_with_risk_reference(decision)
             self.telemetry["approved"] += 1
             self.telemetry["last_decision"] = decision_payload
+            incident = self._record_guardrail_incident(decision_payload)
+            await self._maybe_publish_guardrail_incident(incident)
             return intent
 
         except Exception as exc:  # pragma: no cover - defensive logging path
@@ -490,6 +501,11 @@ class RiskGateway:
         """Expose the last :class:`RiskPolicyEvaluationSnapshot`, if available."""
 
         return self._last_policy_snapshot
+
+    def get_last_guardrail_incident(self) -> GuardrailIncident | None:
+        """Return the most recent guardrail incident, if one was recorded."""
+
+        return self._last_guardrail_incident
 
     def apply_risk_config(
         self,
@@ -692,7 +708,9 @@ class RiskGateway:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _reject(self, decision: Mapping[str, Any]) -> None:
+    def _reject(
+        self, decision: Mapping[str, Any]
+    ) -> tuple[Mapping[str, Any], GuardrailIncident | None]:
         decision_payload = self._augment_with_risk_reference(decision)
         self.telemetry["rejected"] += 1
         self.telemetry["last_decision"] = decision_payload
@@ -705,13 +723,15 @@ class RiskGateway:
             except Exception:  # pragma: no cover - metrics layer optional
                 logger.debug("Failed to emit pre-trade denial metric", exc_info=True)
         logger.info("RiskGateway rejected trade: %s", decision_payload)
-        return None
+        incident = self._record_guardrail_incident(decision_payload)
+        return decision_payload, incident
 
     async def _reject_and_maybe_publish(self, decision: Mapping[str, Any]) -> None:
         """Record a rejection and emit policy telemetry when applicable."""
 
-        self._reject(decision)
+        _, incident = self._reject(decision)
         await self._maybe_publish_policy_violation()
+        await self._maybe_publish_guardrail_incident(incident)
 
     async def _maybe_publish_policy_violation(self) -> None:
         """Publish a policy violation alert when the last snapshot failed."""
@@ -754,6 +774,47 @@ class RiskGateway:
             )
         except Exception:  # pragma: no cover - event bus optional/diagnostic
             logger.debug("Failed to publish policy violation telemetry", exc_info=True)
+
+    def _record_guardrail_incident(
+        self, decision_payload: Mapping[str, Any]
+    ) -> GuardrailIncident | None:
+        incident = extract_guardrail_incident(decision_payload)
+        if incident is None:
+            return None
+
+        key = "guardrail_violations" if incident.severity == "violation" else "guardrail_near_misses"
+        try:
+            current = int(self.telemetry.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            current = 0
+        self.telemetry[key] = current + 1
+
+        incident_payload = incident.as_dict()
+        self.telemetry["last_guardrail_incident"] = incident_payload
+        self._last_guardrail_incident = incident
+
+        log_extra = {"incident": incident_payload}
+        if incident.severity == "violation":
+            logger.error("Risk guardrail violation captured", extra=log_extra)
+        else:
+            logger.warning("Risk guardrail near miss captured", extra=log_extra)
+        return incident
+
+    async def _maybe_publish_guardrail_incident(
+        self, incident: GuardrailIncident | None
+    ) -> None:
+        if incident is None or self.event_bus is None:
+            return
+        try:
+            payload = incident.as_dict()
+            event = Event(
+                type="telemetry.risk.guardrail",
+                payload=payload,
+                source="risk_gateway",
+            )
+            await self.event_bus.publish(event)
+        except Exception:  # pragma: no cover - telemetry guards only
+            logger.debug("Failed to publish guardrail incident telemetry", exc_info=True)
 
     def _risk_reference_base(self) -> dict[str, object]:
         if self._risk_reference_cache is None:

@@ -102,6 +102,8 @@ async def test_risk_gateway_rejects_when_drawdown_exceeded(
         risk_policy=policy,
     )
 
+    portfolio_monitor.portfolio["cash"] = 20000.0
+    portfolio_monitor.portfolio["equity"] = 50000.0
     portfolio_monitor.portfolio["current_daily_drawdown"] = 0.0
     state = portfolio_monitor.get_state()
     state["current_daily_drawdown"] = 0.12
@@ -119,6 +121,11 @@ async def test_risk_gateway_rejects_when_drawdown_exceeded(
     assert isinstance(summary, Mapping)
     assert summary["max_risk_per_trade_pct"] == pytest.approx(0.02)
     assert gateway.get_last_policy_decision() is None
+    incident = gateway.get_last_guardrail_incident()
+    assert incident is not None
+    assert incident.severity == "violation"
+    assert gateway.telemetry["guardrail_violations"] == 1
+    assert gateway.telemetry["guardrail_near_misses"] == 0
 
 
 @pytest.mark.asyncio()
@@ -205,6 +212,59 @@ async def test_risk_gateway_liquidity_probe_uses_portfolio_price(
     assert len(price_levels) == 5
     assert any(level != 0.0 for level in price_levels)
     assert price_levels[2] == pytest.approx(1.2345, rel=1e-6)
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_records_guardrail_near_miss(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    risk_config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.1"),
+        max_total_exposure_pct=Decimal("1.0"),
+        max_leverage=Decimal("10.0"),
+        max_drawdown_pct=Decimal("0.9"),
+        min_position_size=1,
+        mandatory_stop_loss=False,
+    )
+
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        max_daily_drawdown=0.95,
+        risk_config=risk_config,
+        risk_policy=None,
+    )
+    gateway._execution_config = ExecutionConfig(
+        limits=ExecutionRiskLimits(
+            max_slippage_bps=50.0,
+            max_total_cost_bps=50.0,
+            max_notional_pct_of_equity=1.0,
+        )
+    )
+
+    portfolio_monitor.portfolio["cash"] = 10_000.0
+    portfolio_monitor.portfolio["equity"] = 10_000.0
+    portfolio_monitor.portfolio["current_daily_drawdown"] = 0.0
+
+    intent = Intent("EURUSD", Decimal("7600"))
+    intent.price = Decimal("1.0")
+    intent.confidence = 0.95
+    intent.metadata["stop_loss_pct"] = 0.01
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 10_000.0
+    state["current_daily_drawdown"] = 0.0
+
+    validated = await gateway.validate_trade_intent(intent, state)
+
+    assert validated is intent
+    incident = gateway.get_last_guardrail_incident()
+    assert incident is not None
+    assert incident.severity == "near_miss"
+    assert gateway.telemetry["guardrail_near_misses"] == 1
+    assert gateway.telemetry["guardrail_violations"] == 0
 
 
 @pytest.mark.asyncio()

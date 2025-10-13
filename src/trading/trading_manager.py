@@ -6,7 +6,7 @@ import time
 from collections import deque
 from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from numbers import Integral
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence, cast
@@ -542,6 +542,10 @@ class TradingManager:
         self._order_attribution_samples = 0
         self._order_attribution_with_context = 0
         self._attribution_warning_emitted = False
+        self._last_guardrail_incident_id: str | None = None
+        self._risk_guardrail_block_until: datetime | None = None
+        self._guardrail_near_miss_cooldown: float = 15.0
+        self._guardrail_violation_cooldown: float = 300.0
 
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
@@ -572,6 +576,10 @@ class TradingManager:
             "throttle_history_size": 0,
             "orders_with_attribution": 0,
             "attribution_coverage": 0.0,
+            "guardrail_near_misses": 0,
+            "guardrail_violations": 0,
+            "last_guardrail_incident": None,
+            "guardrail_block_until": None,
         }
         self._refresh_throughput_snapshot()
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
@@ -963,6 +971,16 @@ class TradingManager:
             side_hint = self._extract_side(event)
             fast_weight_metadata = self._extract_fast_weight_metadata(event)
 
+            block_outcome = self._check_guardrail_block(
+                event_id=event_id,
+                strategy_id=strategy_id,
+                symbol=base_symbol,
+                confidence=base_confidence,
+                fast_weight=fast_weight_metadata,
+            )
+            if block_outcome is not None:
+                return block_outcome
+
             portfolio_state = cast(Any, self.portfolio_monitor).get_state()
 
             try:
@@ -1052,6 +1070,7 @@ class TradingManager:
             validated_intent = await self.risk_gateway.validate_trade_intent(
                 intent=event, portfolio_state=portfolio_state
             )
+            self._handle_guardrail_incident()
 
             if validated_intent:
                 if gate_decision_payload is not None:
@@ -1866,6 +1885,53 @@ class TradingManager:
         self._last_drift_gate_decision = decision
         return decision
 
+    def _check_guardrail_block(
+        self,
+        *,
+        event_id: str,
+        strategy_id: str | None,
+        symbol: str | None,
+        confidence: float | None,
+        fast_weight: Mapping[str, Any] | None,
+    ) -> TradeIntentOutcome | None:
+        block_until = self._risk_guardrail_block_until
+        if block_until is None:
+            return None
+
+        now = datetime.now(tz=timezone.utc)
+        if now >= block_until:
+            self._risk_guardrail_block_until = None
+            self._execution_stats["guardrail_block_until"] = None
+            return None
+
+        remaining = max((block_until - now).total_seconds(), 0.0)
+        metadata_payload: dict[str, Any] = {
+            "reason": "risk_guardrail_cooldown",
+            "remaining_seconds": remaining,
+            "block_until": block_until.isoformat(),
+        }
+        logger.warning(
+            "Risk guardrail cooldown active (%.1f s remaining); blocking trade intent %s",
+            remaining,
+            event_id,
+        )
+        self._record_experiment_event(
+            event_id=event_id,
+            status="risk_guardrail_blocked",
+            strategy_id=strategy_id,
+            symbol=symbol,
+            confidence=confidence,
+            metadata=metadata_payload,
+            decision=self._get_last_risk_decision(),
+            fast_weight=fast_weight,
+        )
+        return TradeIntentOutcome(
+            status="blocked",
+            executed=False,
+            throttle=self.get_trade_throttle_snapshot(),
+            metadata=metadata_payload,
+        )
+
     def _record_experiment_event(
         self,
         *,
@@ -1931,6 +1997,104 @@ class TradingManager:
         self._throttle_history.append(entry)
         self._execution_stats["last_throttle_event"] = entry
         self._execution_stats["throttle_history_size"] = len(self._throttle_history)
+
+    def _handle_guardrail_incident(self) -> None:
+        try:
+            incident = self.risk_gateway.get_last_guardrail_incident()
+        except Exception:  # pragma: no cover - defensive guard
+            return
+        if incident is None or incident.incident_id == self._last_guardrail_incident_id:
+            return
+
+        self._last_guardrail_incident_id = incident.incident_id
+        payload = incident.as_dict()
+
+        key = (
+            "guardrail_violations"
+            if incident.severity == "violation"
+            else "guardrail_near_misses"
+        )
+        self._execution_stats[key] = coerce_int(
+            self._execution_stats.get(key),
+            default=0,
+        ) + 1
+        self._execution_stats["last_guardrail_incident"] = payload
+
+        if incident.severity == "violation":
+            self._extend_guardrail_block(self._guardrail_violation_cooldown)
+            logger.error("Risk guardrail violation recorded", extra={"incident": payload})
+        else:
+            logger.warning("Risk guardrail near miss recorded", extra={"incident": payload})
+
+        self._execution_stats["guardrail_block_until"] = (
+            self._risk_guardrail_block_until.isoformat()
+            if self._risk_guardrail_block_until is not None
+            else None
+        )
+
+        cooldown_duration = (
+            self._guardrail_violation_cooldown
+            if incident.severity == "violation"
+            else self._guardrail_near_miss_cooldown
+        )
+        self._apply_guardrail_cooldown(
+            incident_payload=payload,
+            duration=cooldown_duration,
+            severity=incident.severity,
+        )
+
+    def _extend_guardrail_block(self, duration_seconds: float) -> None:
+        if duration_seconds <= 0:
+            return
+        now = datetime.now(tz=timezone.utc)
+        candidate = now + timedelta(seconds=float(duration_seconds))
+        if (
+            self._risk_guardrail_block_until is None
+            or candidate > self._risk_guardrail_block_until
+        ):
+            self._risk_guardrail_block_until = candidate
+
+    def _apply_guardrail_cooldown(
+        self,
+        *,
+        incident_payload: Mapping[str, Any],
+        duration: float,
+        severity: str,
+    ) -> None:
+        if duration <= 0:
+            return
+
+        throttle = self._trade_throttle
+        message = incident_payload.get("description")
+        if not message:
+            primary = incident_payload.get("primary_check")
+            message = (
+                f"{primary} {severity.replace('_', ' ')}"
+                if primary
+                else f"risk guardrail {severity}"
+            )
+
+        if throttle is None:
+            return
+
+        try:
+            snapshot = throttle.apply_external_cooldown(
+                duration,
+                reason=f"risk_guardrail_{severity}",
+                message=str(message),
+                metadata={
+                    "incident": dict(incident_payload),
+                    "severity": severity,
+                    "duration_seconds": float(duration),
+                },
+            )
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to impose guardrail cooldown", exc_info=True)
+            return
+
+        self._update_trade_throttle_snapshot(snapshot)
+        self._execution_stats["last_throttle_event"] = f"risk_guardrail_{severity}"
+        self._execution_stats["last_throttle_cooldown"] = float(duration)
 
     def _build_throttle_history_entry(
         self,

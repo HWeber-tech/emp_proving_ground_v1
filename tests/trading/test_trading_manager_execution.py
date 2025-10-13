@@ -62,6 +62,7 @@ from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryGate
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
 from src.trading.trading_manager import TradingManager
+from src.trading.risk.guardrail_incidents import extract_guardrail_incident
 
 
 class AlwaysActiveRegistry:
@@ -143,6 +144,43 @@ class FailingExecutionEngine:
     async def process_order(self, _intent: Any) -> str:
         self.calls += 1
         raise self._error
+
+
+class _StubIncidentRiskGateway:
+    def __init__(
+        self,
+        incident_payload: Mapping[str, Any],
+        *,
+        allow_intent: bool,
+    ) -> None:
+        incident = extract_guardrail_incident(incident_payload)
+        assert incident is not None, "incident_payload must produce a guardrail incident"
+        self._incident = incident
+        self._decision = dict(incident_payload)
+        self._allow_intent = allow_intent
+
+    async def validate_trade_intent(
+        self,
+        *,
+        intent: Any,
+        portfolio_state: Mapping[str, Any] | None,
+    ) -> Any | None:
+        return intent if self._allow_intent else None
+
+    def get_last_decision(self) -> Mapping[str, Any]:
+        return self._decision
+
+    def get_last_guardrail_incident(self):
+        return self._incident
+
+    def get_last_policy_decision(self):  # pragma: no cover - unused in tests
+        return None
+
+    def get_last_policy_snapshot(self):  # pragma: no cover - unused in tests
+        return None
+
+    def get_risk_limits(self) -> Mapping[str, Any]:  # pragma: no cover - unused in tests
+        return {"limits": {}}
 
 
 class _ImmediateProbeBroker:
@@ -602,6 +640,140 @@ async def test_trading_manager_records_execution_stats(monkeypatch: pytest.Monke
 
     summary = manager.get_strategy_execution_summary()
     assert summary.get("unknown", {}).get("executed") == 1
+
+
+@pytest.mark.asyncio()
+async def test_guardrail_violation_blocks_subsequent_intents(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=False,
+        ),
+    )
+
+    violation_decision = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "status": "rejected",
+        "reason": "max_drawdown_exceeded",
+        "symbol": "EURUSD",
+        "strategy_id": "alpha",
+        "checks": [
+            {
+                "name": "risk.max_drawdown_pct",
+                "status": "violation",
+                "value": 0.12,
+                "threshold": 0.05,
+            }
+        ],
+    }
+    manager.risk_gateway = _StubIncidentRiskGateway(
+        violation_decision,
+        allow_intent=False,
+    )
+
+    first_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.10,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(first_intent, "event_id", "guardrail-violation-1")
+
+    outcome = await manager.on_trade_intent(first_intent)
+    assert outcome.status == "rejected"
+
+    stats = manager.get_execution_stats()
+    assert stats["guardrail_violations"] == 1
+    assert stats["guardrail_near_misses"] == 0
+    assert stats["guardrail_block_until"] is not None
+
+    second_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.11,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(second_intent, "event_id", "guardrail-violation-2")
+
+    blocked = await manager.on_trade_intent(second_intent)
+    assert blocked.status == "blocked"
+    assert blocked.executed is False
+
+
+@pytest.mark.asyncio()
+async def test_guardrail_near_miss_does_not_block_trading(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=False,
+        ),
+    )
+
+    near_miss_decision = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "status": "approved",
+        "symbol": "EURUSD",
+        "strategy_id": "alpha",
+        "checks": [
+            {
+                "name": "policy.max_total_exposure_pct",
+                "status": "warn",
+                "value": 45_000.0,
+                "threshold": 50_000.0,
+            }
+        ],
+    }
+    manager.risk_gateway = _StubIncidentRiskGateway(
+        near_miss_decision,
+        allow_intent=True,
+    )
+
+    primary_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.12,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(primary_intent, "event_id", "guardrail-near-miss-1")
+
+    outcome = await manager.on_trade_intent(primary_intent)
+    assert outcome.executed is True
+
+    stats = manager.get_execution_stats()
+    assert stats["guardrail_near_misses"] == 1
+    assert stats["guardrail_violations"] == 0
+    assert stats["guardrail_block_until"] is None
+
+    follow_up_intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.13,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    setattr(follow_up_intent, "event_id", "guardrail-near-miss-2")
+
+    follow_up_outcome = await manager.on_trade_intent(follow_up_intent)
+    assert follow_up_outcome.status != "blocked"
 
 
 @pytest.mark.asyncio()

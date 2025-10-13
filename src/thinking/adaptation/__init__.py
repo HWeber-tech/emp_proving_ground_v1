@@ -25,6 +25,13 @@ from .operator_constraints import (
     parse_operator_constraints,
 )
 from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
+from .operators import (
+    GenotypeOperatorResult,
+    op_add_feature,
+    op_drop_feature,
+    op_swap_execution_topology,
+    op_tighten_risk,
+)
 from .feature_toggles import (
     AdaptationFeatureToggles,
     EXPLORATION_FLAG,
@@ -69,6 +76,11 @@ __all__ = [
     "EvolutionManager",
     "ManagedStrategyConfig",
     "StrategyVariant",
+    "GenotypeOperatorResult",
+    "op_add_feature",
+    "op_drop_feature",
+    "op_swap_execution_topology",
+    "op_tighten_risk",
     "AdaptationFeatureToggles",
     "FAST_WEIGHTS_FLAG",
     "LINEAR_ATTENTION_FLAG",

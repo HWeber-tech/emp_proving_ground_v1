@@ -73,6 +73,35 @@ fresh Timescale/Redis/Kafka slices before building the report. Operators can add
 the resulting JSON files to the daily perception evidence pack referenced by the
 `perception_live_feeds` governance gate.
 
+## Live Market Feed Monitor
+
+`LiveMarketFeedMonitor` wraps the full capture flow—pulling frames from
+`RealDataManager`, normalising OHLCV columns, running live diagnostics, scoring
+feed anomalies, and optionally attaching connectivity probes—so production
+checks can run synchronously or asynchronously from a single service. The
+monitor exposes a `LiveMarketSnapshot` dataclass with helper methods for JSON
+serialisation.
+
+```python
+from src.data_integration.real_data_integration import RealDataManager
+from src.sensory.services.live_market_feed import LiveMarketFeedMonitor
+
+manager = RealDataManager.from_env()  # loads Timescale/Redis/Kafka extras
+monitor = LiveMarketFeedMonitor(manager=manager)
+
+snapshot = monitor.capture("EURUSD", interval="1m", include_connectivity=True)
+diagnostics = snapshot.diagnostics.as_dict()
+feed_health = snapshot.feed_report.as_dict()
+connectivity = snapshot.connectivity.as_dict() if snapshot.connectivity else None
+```
+
+Use `capture_async` when the `RealDataManager` provides an async getter or when
+calling from an asyncio runtime. The monitor raises `ValueError` when market
+frames are empty or missing required timestamp/price columns so production
+checklists fail fast instead of logging incomplete evidence. Regression tests
+exercise synchronous and asynchronous paths, anomaly scoring, connectivity
+capture, and JSON serialisation to keep governance artefacts deterministic.
+
 ## Acceptance Criteria
 
 * Unit tests in `tests/sensory/test_sensor_drift.py` cover drift detection,

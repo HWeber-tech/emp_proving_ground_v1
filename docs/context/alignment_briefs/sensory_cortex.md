@@ -12,8 +12,13 @@
 
 - Evolution, intelligence, execution, and strategy subsystems remain mock
   frameworks; sensory organs only recently gained the ability to ingest recorded
-  market slices via the managed data backbone and still lack continuous
-  production feeds.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/data_integration/real_data_slice.py†L95-L198】
+  market slices via the managed data backbone and still depend on institutional
+  credentials for continuous production feeds.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/data_integration/real_data_slice.py†L95-L198】
+- A new live-market feed monitor now wraps `RealDataManager` pulls, normalises
+  OHLCV frames, runs live diagnostics, scores feed anomalies, and attaches
+  connectivity probes so audits receive a single `LiveMarketSnapshot` payload;
+  synchronous and asynchronous paths plus JSON serialisation live under
+  regression coverage and a refreshed runbook section for operators.【F:src/sensory/services/live_market_feed.py†L37-L334】【F:tests/sensory/test_live_market_feed.py†L1-L134】【F:docs/runbooks/sensor_drift_monitoring.md†L76-L103】
 - Dead-code and dependency audits list sensory modules among unused paths,
   underscoring the lack of executable coverage.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Technical debt priorities call out async hazards and namespace drift that block

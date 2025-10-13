@@ -199,6 +199,11 @@ so rehearsal workloads are registered and cancelled cleanly, adds
 and records the supervised roster whenever pipeline results are generated; guardrail
 tests assert the supervisor list surfaces in both output formats and that the CLI
 invokes `cancel_all()` during shutdown.【F:tools/data_ingest/run_operational_backbone.py†L400-L520】【F:src/data_foundation/pipelines/operational_backbone.py†L120-L566】【F:tests/tools/test_run_operational_backbone.py†L71-L150】
+Connectivity probes now flow through the same result payload: the pipeline
+captures `RealDataManager.connectivity_report()` and the CLI renders a
+`connectivity_report` block in JSON/Markdown so reviewers see Timescale/Redis/Kafka
+status alongside ingest metrics, with regression tests covering probe wiring and
+rendered summaries.【F:src/data_foundation/pipelines/operational_backbone.py†L513-L749】【F:tools/data_ingest/run_operational_backbone.py†L401-L482】【F:tests/tools/test_run_live_shadow.py†L200-L260】
 Set `KAFKA_INGEST_ENABLE_STREAMING=false` when rehearsing without a Kafka
 broker; the institutional provisioner will still publish ingest telemetry and
 surface topic metadata, but the supervised bridge remains idle so local runs

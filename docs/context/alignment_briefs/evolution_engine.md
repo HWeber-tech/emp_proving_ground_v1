@@ -40,6 +40,7 @@
   the canonical ecosystem surfaces instead of reviving the stub.【F:src/intelligence/portfolio_evolution.py:1】【F:tests/thinking/test_portfolio_evolution_security.py:1】
 - Coordinate with risk and data-backbone tracks so adaptive loops inherit
   trustworthy inputs and enforcement.【F:docs/technical_debt_assessment.md†L58-L72】
+- Progress: Experimentation scheduler CLI now drains `stage=idea` rows through quick screening, UCB-lite promotion, and bounded quick/full budgets while stamping baselines and metadata so replay candidates progress without bespoke notebooks under pytest coverage.【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:emp/cli/_emp_cycle_common.py†L1-L216】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】
 
 ### Next (30–90 days)
 

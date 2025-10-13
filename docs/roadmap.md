@@ -37,7 +37,7 @@
 - [ ] `[obs]` Graph diagnostics nightly job: degree hist, modularity, coreâ€“periphery (thresholds set).
 
 **Acceptance (DoD)**
-- [ ] `[sim]` **Determinism**: Replay same tape + seeds â‡’ identical diary & PnL.
+- [x] `[sim]` **Determinism**: Replay same tape + seeds â‡’ identical diary & PnL. _Progress: Paper replay determinism now seeds the runtime via `seed_runtime`, replays the bootstrap simulation twice against the same tape, and asserts identical decision diaries and performance snapshots so reproducibility becomes a hard gate under pytest coverage.【F:src/runtime/determinism.py†L1-L64】【F:src/runtime/paper_simulation.py†L1-L219】【F:tests/runtime/test_replay_determinism.py†L1-L174】_
 - [x] `[adapt]` **Regimeâ€‘aware routing**: regime flip â‡’ topology switch within N ms; proven in diary. _Progress: PolicyRouter enforces topology switches on regime changes, tracks switch latency, and reflection summaries capture the transition under dedicated pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L520】【F:tests/thinking/test_policy_router.py†L60-L152】_
 - [ ] `[reflect]` **Drift throttle**: injected alpha decay â‡’ sentry fires within 1 decision step; theory packet written.
 - [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms). _Progress: AlphaTradeLoopRunner now attaches belief/probe attribution payloads to trade metadata and decision diaries, while TradingManager records `orders_with_attribution` and `attribution_coverage` stats and warns when coverage slips below the 90% target under guardrail tests for executed intents.【F:src/orchestration/alpha_trade_runner.py†L168-L234】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
@@ -55,7 +55,7 @@
 **Search & Selection**
 - [ ] `[adapt]` **Tournament selection** over **regime grid** (multiâ€‘regime fitness table).
 - [ ] `[adapt]` **Novelty archive** (genotype signature + probe vector; novelty score).
-- [ ] `[sim]` **Compute scheduler** for candidate replays (budgeted batches, fairâ€‘share across instruments).
+- [ ] `[sim]` **Compute scheduler** for candidate replays (budgeted batches, fairâ€‘share across instruments). _Progress: The `emp_cycle_scheduler` CLI drains idea queues through quick-screening, UCB-lite promotion, and `--max-quick`/`--max-full` budgets while persisting baselines and metadata so replay candidates progress without bespoke scripts under regression coverage.【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:emp/cli/_emp_cycle_common.py†L1-L216】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】_
 
 **Budgeted, Safe Exploration**
 - [ ] `[adapt]` **Global exploration budget** (â‰¤ X% flow, mutate every K decisions) enforced in router.
@@ -71,14 +71,14 @@
 - [ ] `[sim]` Spawn â†’ score â†’ **promote** a **new topology** (not just parameter tweak) via ledger gates.
 - [ ] `[risk]` **0** invariant violations during exploration; freeze triggers on violations/drift immediately.
 - [x] `[obs]` Evolution KPIs live: timeâ€‘toâ€‘candidate, promotion rate, budget usage, rollback latency. _Progress: `evaluate_evolution_kpis` fuses experimentation turnaround, ledger promotions, exploration budget, and rollback latency into Prometheus-backed gauges that feed the observability dashboard’s Evolution KPIs panel with regression coverage locking both the KPI snapshot and rendered panel wiring.【F:src/operations/evolution_kpis.py†L1-L740】【F:src/operational/metrics.py†L182-L296】【F:src/operations/observability_dashboard.py†L569-L720】【F:tests/operations/test_evolution_kpis.py†L1-L120】【F:tests/operations/test_observability_dashboard.py†L399-L527】_
-- [ ] `[adapt]` p50/p99 decision latency **not worse** than M1 baseline.
+- [x] `[adapt]` p50/p99 decision latency **not worse** than M1 baseline. _Progress: Decision latency guard now ships the captured M1 baseline JSON, evaluates pipeline latency snapshots with a 5% tolerance inside the bootstrap stack, and regression tests block percentile regressions before they leave CI.【F:docs/performance/performance_baseline.md†L142-L156】【F:src/orchestration/decision_latency_guard.py†L1-L125】【F:src/orchestration/bootstrap_stack.py†L219-L228】【F:tests/orchestration/test_decision_latency_guard.py†L1-L38】【F:tests/current/test_bootstrap_stack.py†L174-L176】_
 
 ---
 
 ## M3 â€” Governed Reflection Feedback (Weeks 5â€“8)
 
 **Deliverables**
-- [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers). _Progress: RIMSuggestion schema now requires a `trace` payload with non-empty code/config/batch hashes and diary slices, and TRM runner/application tests assert every suggestion emits the trace object end-to-end so governance queues preserve evidence pointers.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L123】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】_
+- [x] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers). _Progress: RIMSuggestion now mandates `affected_regimes` and structured `evidence` blocks, TRM post-processing backfills regime provenance and diary sources, and runner/application tests prove the enriched payload survives governance ingestion end to end.【F:interfaces/rim_types.json†L183-L225】【F:src/reflection/trm/postprocess.py†L122-L200】【F:docs/api/reflection_intelligence_module.md†L99-L146】【F:tests/reflection/test_trm_runner.py†L124-L150】【F:tests/reflection/test_trm_application.py†L103-L142】_
 - [x] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available. _Progress: Auto-apply guard now loads thresholds from `config/reflection/rim.config.example.yml`, evaluates uplift, risk hits, and budget utilisation inside `TRMRunner`, and surfaces evaluations in the governance queue and digest with regression coverage documenting rejection reasons.【F:config/reflection/rim.config.example.yml†L13-L24】【F:src/reflection/trm/config.py†L44-L169】【F:src/reflection/trm/runner.py†L138-L213】【F:tests/reflection/test_trm_runner.py†L70-L150】_
 - [x] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded). _Progress: The shadow runner now enforces the governance gate, writes skip digests, and stamps auto-apply decisions into the queue/markdown artifacts, with regression coverage ensuring nightly RIM runs stage approved changes without bypassing safeguards.【F:tools/rim_shadow_run.py†L160-L222】【F:src/reflection/trm/governance.py†L19-L247】【F:tests/tools/test_rim_shadow_run.py†L44-L139】【F:tests/reflection/test_trm_governance.py†L16-L126】_
 - [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs. _Progress: Ledger releases now surface metadata/policy deltas alongside staged approvals so governance packets inherit the recorded reviewers and auto-applied changes in the exported posture snapshot.【F:src/governance/policy_ledger.py†L572-L595】_
@@ -142,7 +142,7 @@
 
 ## Success Metrics (Northâ€‘Star KPIs)
 
-- [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a CLI reports average/median/p90 turnaround and breach details so the experimentation loop can track adherence in real time under regression coverage.【F:emp/core/findings_memory.py†L1-L460】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L86】_
+- [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a metrics CLI reports average/median/p90 turnaround plus breach details, while the new scheduler CLI quick-screens ideas, applies UCB-lite promotion with bounded `--max-quick`/`--max-full` budgets, and stamps evidence notes so candidates enter replay within the 24 h envelope under regression coverage.【F:emp/core/findings_memory.py†L1-L332】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L94】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】_
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates. _Progress: Strategy registry now bootstraps a config-driven PromotionGuard that enforces stage requirements, ledger/diary paths, and regime coverage, with tests proving missing regimes block approvals until coverage is recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】_
 - [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned. _Progress: Risk guardrail incidents now start a force-paper cooldown, snapshot remaining time and reason into execution stats, propagate `risk_guardrail` blocks onto intents, and trigger release routing to keep near misses on paper, with regression coverage proving the forced routes and telemetry payloads.【F:src/trading/trading_manager.py†L546-L590】【F:src/trading/trading_manager.py†L2011-L2219】【F:src/trading/execution/release_router.py†L433-L547】【F:tests/trading/test_trading_manager_execution.py†L730-L872】_
 - [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Execution stats now surface attribution coverage metrics and end-to-end tests assert executed trades retain the enriched payload, enabling governance dashboards to track the 90% target quantitatively.【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-13T15:45:02Z
+
+### Last 4 commits
+- 6a15f7e3 refactor(docs): tune 10 files (2025-10-13)
+- 49731560 docs(docs): add 7 files (2025-10-13)
+- 4be44d7b feat(artifacts): add 45 files (2025-10-13)
+- 25a7ab80 feat(docs): add 6 files (2025-10-13)
 
 ## Automation updates — 2025-10-13T14:05:18Z
 

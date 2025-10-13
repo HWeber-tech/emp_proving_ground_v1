@@ -77,6 +77,14 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    JSON for at-a-glance health monitoring. Stack traces printed to stdout or
    embedded in structured payloads are now auto-classified as FAIL incidents so
    latent exceptions surface even when emitted at INFO level.【F:src/operations/final_dry_run.py†L1206-L1321】【F:tests/operations/test_final_dry_run.py†L383-L401】
+   Resource usage is sampled automatically every minute; adjust the cadence with
+   `--resource-sample-interval-minutes` or disable sampling entirely with
+   `--no-resource-monitor`. Configure thresholds via `--max-cpu-percent`,
+   `--max-memory-mb`, or `--max-memory-percent` (severity controlled by
+   `--resource-violation-severity`) to surface WARN/FAIL incidents when long
+   runs drift into unhealthy CPU or memory regimes. Peak usage snapshots and the
+   latest sample are embedded in the summary metadata and review packets for the
+   wrap-up briefing.【F:src/operations/final_dry_run.py†L985-L1181】【F:tests/operations/test_final_dry_run.py†L420-L478】
    Add `--live-gap-alert-minutes N` to surface a WARN (or FAIL with
    `--live-gap-alert-severity fail`) incident whenever the runtime becomes
    silent for `N` minutes. Tighten post-run expectations by supplying

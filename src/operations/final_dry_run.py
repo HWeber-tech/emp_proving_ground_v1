@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import gzip
 import json
+import math
 import os
 import signal
 from asyncio.subprocess import PIPE, Process
@@ -22,6 +23,7 @@ from src.operations.dry_run_audit import (
     humanise_timedelta,
 )
 from src.runtime.task_supervisor import TaskSupervisor
+from src.trading.execution.resource_monitor import ResourceUsageMonitor
 
 __all__ = [
     "FinalDryRunConfig",
@@ -70,6 +72,11 @@ class FinalDryRunConfig:
     evidence_initial_grace: timedelta = timedelta(minutes=15)
     compress_logs: bool = False
     log_rotate_interval: timedelta | None = None
+    resource_sample_interval: timedelta | None = timedelta(minutes=1)
+    resource_max_cpu_percent: float | None = None
+    resource_max_memory_mb: float | None = None
+    resource_max_memory_percent: float | None = None
+    resource_violation_severity: DryRunStatus = DryRunStatus.fail
 
     def __post_init__(self) -> None:
         if not self.command:
@@ -200,6 +207,49 @@ class FinalDryRunConfig:
                     "log_rotate_interval must be positive when provided"
                 )
             object.__setattr__(self, "log_rotate_interval", rotate_interval)
+
+        sample_interval = self.resource_sample_interval
+        if sample_interval is not None:
+            if sample_interval <= timedelta(0):
+                raise ValueError(
+                    "resource_sample_interval must be positive when provided"
+                )
+            object.__setattr__(self, "resource_sample_interval", sample_interval)
+
+        def _validate_non_negative(name: str, value: float | None) -> float | None:
+            if value is None:
+                return None
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative when provided")
+            return value
+
+        cpu_limit = _validate_non_negative(
+            "resource_max_cpu_percent",
+            self.resource_max_cpu_percent,
+        )
+        memory_mb_limit = _validate_non_negative(
+            "resource_max_memory_mb",
+            self.resource_max_memory_mb,
+        )
+        memory_percent_limit = _validate_non_negative(
+            "resource_max_memory_percent",
+            self.resource_max_memory_percent,
+        )
+        object.__setattr__(self, "resource_max_cpu_percent", cpu_limit)
+        object.__setattr__(self, "resource_max_memory_mb", memory_mb_limit)
+        object.__setattr__(self, "resource_max_memory_percent", memory_percent_limit)
+
+        try:
+            severity = DryRunStatus(self.resource_violation_severity)
+        except ValueError as exc:  # pragma: no cover - defensive guard
+            raise ValueError(
+                "resource_violation_severity must map to a DryRunStatus value"
+            ) from exc
+        if severity not in {DryRunStatus.warn, DryRunStatus.fail}:
+            raise ValueError(
+                "resource_violation_severity must be either 'warn' or 'fail'"
+            )
+        object.__setattr__(self, "resource_violation_severity", severity)
 
 
 @dataclass(slots=True, frozen=True)
@@ -433,6 +483,275 @@ async def _append_incident(
     return True
 
 
+def _coerce_float(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        result = float(value)
+        if math.isnan(result):
+            return None
+        return result
+    if isinstance(value, str):
+        try:
+            result = float(value.strip())
+        except ValueError:
+            return None
+        if math.isnan(result):
+            return None
+        return result
+    return None
+
+
+@dataclass(slots=True)
+class _ResourceMonitorMetrics:
+    """Track resource usage extrema observed during the dry run."""
+
+    samples: int = 0
+    peak_cpu_percent: float | None = None
+    peak_cpu_timestamp: str | None = None
+    peak_memory_mb: float | None = None
+    peak_memory_mb_timestamp: str | None = None
+    peak_memory_percent: float | None = None
+    peak_memory_percent_timestamp: str | None = None
+    last_sample: Mapping[str, Any] | None = None
+
+    def record(self, sample: Mapping[str, Any]) -> None:
+        timestamp_value = str(sample.get("timestamp") or "").strip() or None
+        cpu_percent = _coerce_float(sample.get("cpu_percent"))
+        memory_mb = _coerce_float(sample.get("memory_mb"))
+        memory_percent = _coerce_float(sample.get("memory_percent"))
+
+        self.samples += 1
+        self.last_sample = {
+            "timestamp": timestamp_value,
+            "cpu_percent": cpu_percent,
+            "memory_mb": memory_mb,
+            "memory_percent": memory_percent,
+        }
+
+        if cpu_percent is not None:
+            if self.peak_cpu_percent is None or cpu_percent > self.peak_cpu_percent:
+                self.peak_cpu_percent = cpu_percent
+                self.peak_cpu_timestamp = timestamp_value
+
+        if memory_mb is not None:
+            if self.peak_memory_mb is None or memory_mb > self.peak_memory_mb:
+                self.peak_memory_mb = memory_mb
+                self.peak_memory_mb_timestamp = timestamp_value
+
+        if memory_percent is not None:
+            if (
+                self.peak_memory_percent is None
+                or memory_percent > self.peak_memory_percent
+            ):
+                self.peak_memory_percent = memory_percent
+                self.peak_memory_percent_timestamp = timestamp_value
+
+    def as_metadata(
+        self,
+        *,
+        enabled: bool,
+        reason: str | None,
+        interval_seconds: float | None,
+        severity: DryRunStatus | None,
+        thresholds: Mapping[str, float | None],
+    ) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "enabled": enabled,
+        }
+        if reason:
+            payload["reason"] = reason
+        if interval_seconds is not None:
+            payload["interval_seconds"] = interval_seconds
+        if severity is not None:
+            payload["violation_severity"] = severity.value
+
+        threshold_payload = {
+            key: value for key, value in thresholds.items() if value is not None
+        }
+        if threshold_payload:
+            payload["thresholds"] = threshold_payload
+
+        payload["samples"] = self.samples
+        if self.samples <= 0:
+            return payload
+
+        if self.peak_cpu_percent is not None:
+            payload["peak_cpu_percent"] = self.peak_cpu_percent
+            if self.peak_cpu_timestamp:
+                payload["peak_cpu_percent_timestamp"] = self.peak_cpu_timestamp
+        if self.peak_memory_mb is not None:
+            payload["peak_memory_mb"] = self.peak_memory_mb
+            if self.peak_memory_mb_timestamp:
+                payload["peak_memory_mb_timestamp"] = self.peak_memory_mb_timestamp
+        if self.peak_memory_percent is not None:
+            payload["peak_memory_percent"] = self.peak_memory_percent
+            if self.peak_memory_percent_timestamp:
+                payload["peak_memory_percent_timestamp"] = (
+                    self.peak_memory_percent_timestamp
+                )
+        if self.last_sample is not None:
+            payload["last_sample"] = dict(self.last_sample)
+        return payload
+
+
+def _create_resource_monitor(process_pid: int) -> ResourceUsageMonitor | None:
+    try:
+        import psutil  # type: ignore  # noqa: WPS433 (module import inside function)
+    except Exception:  # pragma: no cover - optional dependency missing
+        return None
+
+    try:
+        ps_process = psutil.Process(process_pid)
+    except Exception:  # pragma: no cover - process lookup failure
+        return None
+
+    try:
+        return ResourceUsageMonitor(process=ps_process)
+    except Exception:  # pragma: no cover - monitor initialisation failure
+        return None
+
+
+async def _run_resource_monitor(
+    *,
+    monitor: ResourceUsageMonitor,
+    process: Process,
+    interval: timedelta,
+    metrics: _ResourceMonitorMetrics,
+    max_cpu_percent: float | None,
+    max_memory_mb: float | None,
+    max_memory_percent: float | None,
+    severity: DryRunStatus,
+    incidents: list[HarnessIncident],
+    incident_keys: set[tuple[str, ...]],
+    incident_lock: asyncio.Lock,
+    progress_reporter: "_ProgressReporter | None",
+) -> None:
+    interval_seconds = max(interval.total_seconds(), 0.05)
+    # Prime psutil's cpu_percent estimation without recording the initial zero
+    with contextlib.suppress(Exception):
+        await asyncio.to_thread(monitor.sample)
+
+    cpu_reported = max_cpu_percent is None
+    memory_mb_reported = max_memory_mb is None
+    memory_percent_reported = max_memory_percent is None
+
+    try:
+        while True:
+            sample: Mapping[str, Any] | None
+            try:
+                sample = await asyncio.to_thread(monitor.sample)
+            except Exception:  # pragma: no cover - defensive guard
+                break
+
+            if sample is None or not sample:
+                if process.returncode is not None:
+                    break
+                await asyncio.sleep(interval_seconds)
+                continue
+
+            metrics.record(sample)
+
+            last_sample = metrics.last_sample or {}
+            cpu_percent = last_sample.get("cpu_percent")
+            memory_mb = last_sample.get("memory_mb")
+            memory_percent = last_sample.get("memory_percent")
+            observed_at = last_sample.get("timestamp")
+
+            if (
+                not cpu_reported
+                and cpu_percent is not None
+                and max_cpu_percent is not None
+                and cpu_percent > max_cpu_percent
+            ):
+                incident = HarnessIncident(
+                    severity=severity,
+                    occurred_at=datetime.now(tz=UTC),
+                    message=(
+                        "Resource usage exceeded CPU threshold "
+                        f"({cpu_percent:.2f}% > {max_cpu_percent:.2f}%)."
+                    ),
+                    metadata={
+                        "observed_cpu_percent": cpu_percent,
+                        "threshold_cpu_percent": max_cpu_percent,
+                        "observed_at": observed_at,
+                    },
+                )
+                recorded = await _append_incident(
+                    incident=incident,
+                    key=("resource_monitor", "cpu", severity.value),
+                    incidents=incidents,
+                    incident_keys=incident_keys,
+                    lock=incident_lock,
+                    progress_reporter=progress_reporter,
+                )
+                if recorded:
+                    cpu_reported = True
+
+            if (
+                not memory_mb_reported
+                and memory_mb is not None
+                and max_memory_mb is not None
+                and memory_mb > max_memory_mb
+            ):
+                incident = HarnessIncident(
+                    severity=severity,
+                    occurred_at=datetime.now(tz=UTC),
+                    message=(
+                        "Resource usage exceeded memory threshold "
+                        f"({memory_mb:.2f} MiB > {max_memory_mb:.2f} MiB)."
+                    ),
+                    metadata={
+                        "observed_memory_mb": memory_mb,
+                        "threshold_memory_mb": max_memory_mb,
+                        "observed_at": observed_at,
+                    },
+                )
+                recorded = await _append_incident(
+                    incident=incident,
+                    key=("resource_monitor", "memory_mb", severity.value),
+                    incidents=incidents,
+                    incident_keys=incident_keys,
+                    lock=incident_lock,
+                    progress_reporter=progress_reporter,
+                )
+                if recorded:
+                    memory_mb_reported = True
+
+            if (
+                not memory_percent_reported
+                and memory_percent is not None
+                and max_memory_percent is not None
+                and memory_percent > max_memory_percent
+            ):
+                incident = HarnessIncident(
+                    severity=severity,
+                    occurred_at=datetime.now(tz=UTC),
+                    message=(
+                        "Resource usage exceeded memory percent threshold "
+                        f"({memory_percent:.2f}% > {max_memory_percent:.2f}%)."
+                    ),
+                    metadata={
+                        "observed_memory_percent": memory_percent,
+                        "threshold_memory_percent": max_memory_percent,
+                        "observed_at": observed_at,
+                    },
+                )
+                recorded = await _append_incident(
+                    incident=incident,
+                    key=("resource_monitor", "memory_percent", severity.value),
+                    incidents=incidents,
+                    incident_keys=incident_keys,
+                    lock=incident_lock,
+                    progress_reporter=progress_reporter,
+                )
+                if recorded:
+                    memory_percent_reported = True
+
+            if process.returncode is not None:
+                break
+
+            await asyncio.sleep(interval_seconds)
+    except asyncio.CancelledError:
+        raise
 _PROGRESS_SEVERITY_ORDER: Mapping[DryRunStatus, int] = {
     DryRunStatus.fail: 3,
     DryRunStatus.warn: 2,
@@ -851,6 +1170,13 @@ async def perform_final_dry_run(
 
     stats = _LogStats()
 
+    resource_metrics = _ResourceMonitorMetrics()
+    resource_monitor: ResourceUsageMonitor | None = None
+    resource_task: asyncio.Task[None] | None = None
+    resource_enabled = False
+    resource_reason: str | None = None
+    resource_interval_seconds: float | None = None
+
     env = None
     if config.environment is not None:
         env = os.environ.copy()
@@ -866,6 +1192,22 @@ async def perform_final_dry_run(
     except Exception as exc:  # pragma: no cover - defensive guard
         sink.close()
         raise RuntimeError(f"Failed to launch dry run command: {exc}") from exc
+
+    resource_thresholds: Mapping[str, float | None] = {
+        "cpu_percent": config.resource_max_cpu_percent,
+        "memory_mb": config.resource_max_memory_mb,
+        "memory_percent": config.resource_max_memory_percent,
+    }
+
+    if config.resource_sample_interval is None:
+        resource_reason = "disabled_by_config"
+    else:
+        resource_interval_seconds = config.resource_sample_interval.total_seconds()
+        resource_monitor = _create_resource_monitor(process.pid)
+        if resource_monitor is None:
+            resource_reason = "monitor_unavailable"
+        else:
+            resource_reason = None
 
     progress_reporter: _ProgressReporter | None = None
     progress_task: asyncio.Task[None] | None = None
@@ -994,6 +1336,34 @@ async def perform_final_dry_run(
         supervisor = TaskSupervisor(namespace="operations.final_dry_run")
         owns_supervisor = True
 
+    if resource_monitor is not None and config.resource_sample_interval is not None:
+        resource_enabled = True
+        resource_task = supervisor.create(
+            _run_resource_monitor(
+                monitor=resource_monitor,
+                process=process,
+                interval=config.resource_sample_interval,
+                metrics=resource_metrics,
+                max_cpu_percent=config.resource_max_cpu_percent,
+                max_memory_mb=config.resource_max_memory_mb,
+                max_memory_percent=config.resource_max_memory_percent,
+                severity=config.resource_violation_severity,
+                incidents=incidents,
+                incident_keys=incident_keys,
+                incident_lock=incident_lock,
+                progress_reporter=progress_reporter,
+            ),
+            name="dry-run-resource-monitor",
+            metadata={
+                "component": "operations.final_dry_run.resource_monitor",
+                "interval_seconds": config.resource_sample_interval.total_seconds(),
+                "severity": config.resource_violation_severity.value,
+                "threshold_cpu_percent": config.resource_max_cpu_percent,
+                "threshold_memory_mb": config.resource_max_memory_mb,
+                "threshold_memory_percent": config.resource_max_memory_percent,
+            },
+        )
+
     pump_tasks = [
         supervisor.create(
             _pump_stream(process.stdout, "stdout", progress_reporter, gap_monitor),
@@ -1106,6 +1476,11 @@ async def perform_final_dry_run(
         with contextlib.suppress(asyncio.CancelledError):
             await gap_monitor_task
 
+    if resource_task is not None:
+        resource_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await resource_task
+
     if owns_supervisor:
         await supervisor.cancel_all()
 
@@ -1142,6 +1517,16 @@ async def perform_final_dry_run(
 
     stats_snapshot = await stats.snapshot()
 
+    resource_metadata = resource_metrics.as_metadata(
+        enabled=resource_enabled,
+        reason=resource_reason,
+        interval_seconds=resource_interval_seconds,
+        severity=(
+            config.resource_violation_severity if resource_enabled else None
+        ),
+        thresholds=resource_thresholds,
+    )
+
     metadata: dict[str, Any] = {
         "command": list(config.command),
         "started_at": started_at.astimezone(UTC).isoformat(),
@@ -1161,6 +1546,7 @@ async def perform_final_dry_run(
     metadata["raw_log_paths"] = [path.as_posix() for path in raw_paths]
     if progress_path_value is not None:
         metadata["progress_path"] = str(progress_path_value)
+    metadata["resource_monitor"] = resource_metadata
     metadata.update(config.metadata)
 
     summary = evaluate_dry_run(

@@ -288,6 +288,47 @@ def _load_notes(paths: Iterable[Path]) -> list[str]:
     is_flag=True,
     help="Compress structured and raw log outputs (writes .gz files).",
 )
+@click.option(
+    "--resource-sample-interval-minutes",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help=(
+        "Interval in minutes between resource usage samples "
+        "(set to 0 to disable monitoring)."
+    ),
+)
+@click.option(
+    "--max-cpu-percent",
+    type=float,
+    help=(
+        "Trigger a resource incident when CPU utilisation exceeds this percent."
+    ),
+)
+@click.option(
+    "--max-memory-mb",
+    type=float,
+    help="Trigger a resource incident when RSS memory exceeds this many MiB.",
+)
+@click.option(
+    "--max-memory-percent",
+    type=float,
+    help=(
+        "Trigger a resource incident when memory percentage exceeds this threshold."
+    ),
+)
+@click.option(
+    "--resource-violation-severity",
+    type=click.Choice([DryRunStatus.warn.value, DryRunStatus.fail.value]),
+    default=DryRunStatus.fail.value,
+    show_default=True,
+    help="Severity recorded when resource thresholds are breached.",
+)
+@click.option(
+    "--no-resource-monitor",
+    is_flag=True,
+    help="Disable resource usage monitoring during the run.",
+)
 @click.argument("command", nargs=-1)
 def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     *,
@@ -334,6 +375,12 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     review_include_sign_off: bool,
     log_rotate_hours: float | None,
     compress_logs: bool,
+    resource_sample_interval_minutes: float,
+    max_cpu_percent: float | None,
+    max_memory_mb: float | None,
+    max_memory_percent: float | None,
+    resource_violation_severity: str,
+    no_resource_monitor: bool,
     command: Sequence[str],
 ) -> None:
     """Run the AlphaTrade runtime under the final dry run harness."""
@@ -428,6 +475,13 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         else None
     )
 
+    resource_sample_interval = None
+    if not no_resource_monitor and resource_sample_interval_minutes > 0.0:
+        resource_sample_interval = timedelta(
+            minutes=resource_sample_interval_minutes
+        )
+    resource_severity = DryRunStatus(resource_violation_severity)
+
     config = FinalDryRunConfig(
         command=command,
         duration=duration,
@@ -458,6 +512,11 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         evidence_initial_grace=evidence_initial_grace,
         compress_logs=compress_logs,
         log_rotate_interval=log_rotate_interval,
+        resource_sample_interval=resource_sample_interval,
+        resource_max_cpu_percent=max_cpu_percent,
+        resource_max_memory_mb=max_memory_mb,
+        resource_max_memory_percent=max_memory_percent,
+        resource_violation_severity=resource_severity,
     )
 
     workflow = run_final_dry_run_workflow(

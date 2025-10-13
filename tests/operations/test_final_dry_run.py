@@ -412,6 +412,97 @@ def test_final_dry_run_monitor_can_be_disabled(tmp_path):
     assert not result.incidents
 
 
+def test_final_dry_run_resource_monitor_records_metrics(tmp_path, monkeypatch):
+    class _FakeMonitor:
+        def __init__(self) -> None:
+            self._index = 0
+            self._samples = [
+                {
+                    "timestamp": "2024-01-01T00:00:00Z",
+                    "cpu_percent": 10.0,
+                    "memory_mb": 256.0,
+                    "memory_percent": 10.0,
+                },
+                {
+                    "timestamp": "2024-01-01T00:00:01Z",
+                    "cpu_percent": 92.5,
+                    "memory_mb": 512.0,
+                    "memory_percent": 40.0,
+                },
+            ]
+
+        def sample(self) -> dict[str, object]:
+            sample = self._samples[min(self._index, len(self._samples) - 1)]
+            self._index += 1
+            return sample
+
+    monkeypatch.setattr(
+        "src.operations.final_dry_run._create_resource_monitor",
+        lambda pid: _FakeMonitor(),
+    )
+
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.8),
+        required_duration=timedelta(seconds=0.6),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.5,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        resource_sample_interval=timedelta(seconds=0.05),
+        resource_max_cpu_percent=50.0,
+        resource_violation_severity=DryRunStatus.warn,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert any(
+        incident.severity is DryRunStatus.warn
+        and "Resource usage exceeded CPU threshold" in incident.message
+        for incident in result.incidents
+    )
+
+    resource_meta = result.summary.metadata.get("resource_monitor")
+    assert resource_meta is not None
+    assert resource_meta.get("enabled") is True
+    assert resource_meta.get("samples", 0) >= 1
+    assert resource_meta.get("peak_cpu_percent") == pytest.approx(92.5)
+    assert resource_meta.get("violation_severity") == DryRunStatus.warn.value
+    last_sample = resource_meta.get("last_sample")
+    assert isinstance(last_sample, dict)
+    assert last_sample.get("cpu_percent") == pytest.approx(92.5)
+
+
+def test_final_dry_run_resource_monitor_notes_unavailable(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "src.operations.final_dry_run._create_resource_monitor",
+        lambda pid: None,
+    )
+
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.6),
+        required_duration=timedelta(seconds=0.5),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.5,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        resource_sample_interval=timedelta(seconds=0.1),
+        resource_max_cpu_percent=75.0,
+    )
+
+    result = run_final_dry_run(config)
+
+    resource_meta = result.summary.metadata.get("resource_monitor")
+    assert resource_meta is not None
+    assert resource_meta.get("enabled") is False
+    assert resource_meta.get("reason") == "monitor_unavailable"
+    assert resource_meta.get("samples") == 0
+    assert not any(
+        "Resource usage" in incident.message for incident in result.incidents
+    )
+
+
 def test_final_dry_run_can_compress_logs(tmp_path):
     config = FinalDryRunConfig(
         command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],

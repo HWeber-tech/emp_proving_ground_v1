@@ -174,6 +174,45 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Compress structured and raw logs (writes .gz files).",
     )
     parser.add_argument(
+        "--resource-sample-interval-minutes",
+        type=float,
+        default=1.0,
+        help=(
+            "Interval in minutes between resource usage samples (set to 0 to disable)."
+        ),
+    )
+    parser.add_argument(
+        "--resource-max-cpu-percent",
+        type=float,
+        default=None,
+        help="Trigger a resource incident when CPU utilisation exceeds this percent.",
+    )
+    parser.add_argument(
+        "--resource-max-memory-mb",
+        type=float,
+        default=None,
+        help="Trigger a resource incident when RSS memory exceeds this many MiB.",
+    )
+    parser.add_argument(
+        "--resource-max-memory-percent",
+        type=float,
+        default=None,
+        help=(
+            "Trigger a resource incident when memory percentage exceeds this threshold."
+        ),
+    )
+    parser.add_argument(
+        "--resource-violation-severity",
+        choices=[DryRunStatus.warn.value, DryRunStatus.fail.value],
+        default=DryRunStatus.fail.value,
+        help="Severity recorded when resource thresholds are breached.",
+    )
+    parser.add_argument(
+        "--no-resource-monitor",
+        action="store_true",
+        help="Disable resource usage monitoring during the run.",
+    )
+    parser.add_argument(
         "--skip-diary-evidence",
         action="store_true",
         help="Do not require decision diary evidence for sign-off.",
@@ -449,6 +488,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         live_gap_alert = _timedelta_from_minutes(args.live_gap_alert_minutes)
         live_gap_severity = DryRunStatus(args.live_gap_alert_severity)
         log_rotate_interval = _timedelta_from_hours(args.log_rotate_hours)
+        resource_interval = None
+        if (
+            not args.no_resource_monitor
+            and args.resource_sample_interval_minutes > 0
+        ):
+            resource_interval = _timedelta_from_minutes(
+                args.resource_sample_interval_minutes
+            )
+        resource_severity = DryRunStatus(args.resource_violation_severity)
     except ValueError as exc:
         parser.error(str(exc))
 
@@ -481,6 +529,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         live_gap_severity=live_gap_severity,
         compress_logs=args.compress_logs,
         log_rotate_interval=log_rotate_interval,
+        resource_sample_interval=resource_interval,
+        resource_max_cpu_percent=args.resource_max_cpu_percent,
+        resource_max_memory_mb=args.resource_max_memory_mb,
+        resource_max_memory_percent=args.resource_max_memory_percent,
+        resource_violation_severity=resource_severity,
     )
 
     workflow = run_final_dry_run_workflow(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Mapping
 
 import pytest
 
@@ -14,7 +15,13 @@ from src.thinking.adaptation.evolution_manager import (
     ParameterMutation,
     StrategyVariant,
 )
-from src.thinking.adaptation.policy_router import PolicyDecision, PolicyRouter, PolicyTactic
+from src.thinking.adaptation.operator_constraints import OperatorConstraint
+from src.thinking.adaptation.policy_router import (
+    PolicyDecision,
+    PolicyRouter,
+    PolicyTactic,
+    RegimeState,
+)
 from src.trading.strategies.catalog_loader import (
     BaselineDefinition,
     StrategyCatalog,
@@ -33,6 +40,19 @@ def _decision(tactic_id: str) -> PolicyDecision:
         reflection_summary={},
         weight_breakdown={},
         decision_timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
+
+
+def _regime_state(
+    regime: str = "neutral",
+    confidence: float = 0.6,
+    features: Mapping[str, float] | None = None,
+) -> RegimeState:
+    return RegimeState(
+        regime=regime,
+        confidence=confidence,
+        features=dict(features or {}),
+        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
     )
 
 
@@ -79,6 +99,7 @@ def test_evolution_manager_registers_variant_on_losses() -> None:
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_pnl": -25.0},
+            regime_state=_regime_state(),
         )
 
     assert isinstance(result, EvolutionAdaptationResult)
@@ -117,6 +138,7 @@ def test_evolution_manager_respects_feature_flag() -> None:
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_pnl": -5.0},
+            regime_state=_regime_state(),
         )
 
     assert result is None
@@ -142,6 +164,7 @@ def test_evolution_manager_ignores_non_paper_stage() -> None:
             decision=decision,
             stage=PolicyLedgerStage.PILOT,
             outcomes={"paper_pnl": -12.0},
+            regime_state=_regime_state(),
         )
 
     assert result is None
@@ -214,6 +237,7 @@ def test_evolution_manager_registers_catalogue_variant() -> None:
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_pnl": -25.0},
             metadata={"scenario": "losing-streak"},
+            regime_state=_regime_state(),
         )
 
     assert isinstance(result, EvolutionAdaptationResult)
@@ -276,6 +300,7 @@ def test_evolution_manager_applies_parameter_mutation() -> None:
             decision=decision,
             stage=PolicyLedgerStage.PAPER,
             outcomes={"paper_return": -0.02},
+            regime_state=_regime_state(),
         )
 
     assert isinstance(result, EvolutionAdaptationResult)
@@ -293,3 +318,130 @@ def test_evolution_manager_applies_parameter_mutation() -> None:
     payload = result.as_dict()
     actions = payload["actions"]
     assert any(action["action"] == "register_variant" and action["tactic_id"] == mutated_id for action in actions)
+
+
+def test_evolution_manager_records_constraint_violation_on_regime() -> None:
+    router = PolicyRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="momentum_core",
+            base_weight=1.0,
+            parameters={"mode": "base"},
+        )
+    )
+
+    variant = StrategyVariant(
+        variant_id="momentum_core_trial",
+        tactic=PolicyTactic(
+            tactic_id="momentum_core_trial",
+            base_weight=0.8,
+            parameters={"mode": "trial"},
+        ),
+        base_tactic_id="momentum_core",
+        rationale="Trial variant",
+    )
+
+    constraints = OperatorConstraint(
+        name="paper-bull-only",
+        operations=("register_variant",),
+        allowed_stages=(PolicyLedgerStage.PAPER,),
+        allowed_regimes=("bull",),
+        reason="regime_not_permitted",
+    )
+
+    manager = EvolutionManager(
+        policy_router=router,
+        strategies=(
+            ManagedStrategyConfig(
+                base_tactic_id="momentum_core",
+                fallback_variants=(variant,),
+                degrade_multiplier=0.0,
+                operator_constraints=(constraints,),
+            ),
+        ),
+        window_size=2,
+        win_rate_threshold=0.5,
+        feature_flags=EvolutionFeatureFlags(env={"EVOLUTION_ENABLE_ADAPTIVE_RUNS": "1"}),
+    )
+
+    decision = _decision("momentum_core")
+    result: EvolutionAdaptationResult | None = None
+    for _ in range(2):
+        result = manager.observe_iteration(
+            decision=decision,
+            stage=PolicyLedgerStage.PAPER,
+            outcomes={"paper_pnl": -10.0},
+            regime_state=_regime_state(regime="bear"),
+        )
+
+    assert isinstance(result, EvolutionAdaptationResult)
+    tactics = router.tactics()
+    assert "momentum_core_trial" not in tactics
+    constraint_meta = result.metadata.get("operator_constraints")
+    assert constraint_meta is not None
+    assert constraint_meta[0]["reason"] == "regime_not_permitted"
+    blocked_actions = [action for action in result.actions if action["action"] == "operator_constraint_blocked"]
+    assert blocked_actions
+    assert blocked_actions[0]["reason"] == "regime_not_permitted"
+
+
+def test_evolution_manager_parameter_bounds_constraint() -> None:
+    router = PolicyRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="mean_rev_core",
+            base_weight=1.0,
+            parameters={"lookback": 20.0, "zscore_entry": 1.0},
+            description="Mean reversion baseline",
+        )
+    )
+
+    constraints = OperatorConstraint(
+        name="lookback-range",
+        operations=("register_variant",),
+        parameter_bounds={"lookback": {"minimum": 10.0, "maximum": 25.0}},
+    )
+
+    manager = EvolutionManager(
+        policy_router=router,
+        strategies=(
+            ManagedStrategyConfig(
+                base_tactic_id="mean_rev_core",
+                degrade_multiplier=0.5,
+                parameter_mutations=(
+                    ParameterMutation(
+                        parameter="lookback",
+                        scale=1.6,
+                        suffix="lookback_up",
+                        rationale="Expand lookback",
+                    ),
+                ),
+                operator_constraints=(constraints,),
+            ),
+        ),
+        window_size=2,
+        win_rate_threshold=0.5,
+        feature_flags=EvolutionFeatureFlags(env={"EVOLUTION_ENABLE_ADAPTIVE_RUNS": "1"}),
+    )
+
+    decision = _decision("mean_rev_core")
+    result: EvolutionAdaptationResult | None = None
+    for _ in range(2):
+        result = manager.observe_iteration(
+            decision=decision,
+            stage=PolicyLedgerStage.PAPER,
+            outcomes={"paper_return": -0.03},
+            regime_state=_regime_state(),
+        )
+
+    assert isinstance(result, EvolutionAdaptationResult)
+    tactics = router.tactics()
+    assert router.tactics()["mean_rev_core"].base_weight == pytest.approx(0.5)
+    assert all(not key.startswith("mean_rev_core__mut") for key in tactics)
+    blocked_actions = [action for action in result.actions if action["action"] == "operator_constraint_blocked"]
+    assert blocked_actions
+    degrade_actions = [action for action in result.actions if action["action"] == "degrade_base"]
+    assert degrade_actions
+    constraint_meta = result.metadata.get("operator_constraints")
+    assert constraint_meta is not None
+    assert constraint_meta[0]["details"]["parameters"]["lookback"]["value"] == pytest.approx(32.0)

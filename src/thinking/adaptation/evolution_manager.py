@@ -19,12 +19,19 @@ import logging
 from collections import deque
 from dataclasses import dataclass, field, replace
 from numbers import Real
-from typing import Callable, Deque, Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, Callable, Deque, Iterable, Mapping, MutableMapping, Sequence
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.governance.policy_ledger import PolicyLedgerStage
 from src.trading.strategies.catalog_loader import StrategyCatalog, load_strategy_catalog
-from src.thinking.adaptation.policy_router import PolicyDecision, PolicyRouter, PolicyTactic
+from src.thinking.adaptation.operator_constraints import (
+    OperatorConstraint,
+    OperatorConstraintSet,
+    OperatorConstraintViolation,
+    OperatorContext,
+    parse_operator_constraints,
+)
+from src.thinking.adaptation.policy_router import PolicyDecision, PolicyRouter, PolicyTactic, RegimeState
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +87,13 @@ class ManagedStrategyConfig:
     degrade_multiplier: float = 0.6
     catalogue_variants: Sequence[CatalogueVariantRequest] = ()
     parameter_mutations: Sequence[ParameterMutation] = ()
+    operator_constraints: (
+        OperatorConstraintSet
+        | Sequence[OperatorConstraint]
+        | Mapping[str, Any]
+        | OperatorConstraint
+        | None
+    ) = None
 
 
 @dataclass(slots=True)
@@ -89,6 +103,7 @@ class _ManagedStrategyState:
     trial_queue: Deque[StrategyVariant]
     introduced_variants: MutableMapping[str, StrategyVariant]
     mutation_index: int = 0
+    constraints: OperatorConstraintSet | None = None
 
     def record(self, win: bool) -> None:
         self.outcomes.append(1 if win else 0)
@@ -165,12 +180,48 @@ class EvolutionManager:
                     variant = self._build_catalogue_variant(base_id, request)
                     if variant is not None:
                         trial_variants.append(variant)
+            constraint_set = self._resolve_constraints(config.operator_constraints)
             self._states[base_id] = _ManagedStrategyState(
                 config=config,
                 outcomes=deque(maxlen=window_size),
                 trial_queue=deque(trial_variants),
                 introduced_variants={},
+                constraints=constraint_set,
             )
+
+    @staticmethod
+    def _resolve_constraints(
+        source: OperatorConstraintSet
+        | Sequence[OperatorConstraint]
+        | Mapping[str, Any]
+        | OperatorConstraint
+        | None,
+    ) -> OperatorConstraintSet | None:
+        if source is None:
+            return None
+        if isinstance(source, OperatorConstraintSet):
+            return source
+        if isinstance(source, OperatorConstraint):
+            return OperatorConstraintSet((source,))
+        if isinstance(source, Mapping):
+            return parse_operator_constraints(source)
+        if isinstance(source, Sequence) and not isinstance(source, (str, bytes, bytearray)):
+            constraints: list[OperatorConstraint] = []
+            for item in source:
+                if isinstance(item, OperatorConstraint):
+                    constraints.append(item)
+                elif isinstance(item, Mapping):
+                    constraints.append(OperatorConstraint(**dict(item)))
+                else:
+                    raise TypeError(
+                        "Operator constraints sequence must contain mappings or OperatorConstraint instances",
+                    )
+            if not constraints:
+                return None
+            return OperatorConstraintSet(tuple(constraints))
+        raise TypeError(
+            f"Unsupported operator_constraints payload type: {type(source)!r}",
+        )
 
     def observe_iteration(
         self,
@@ -179,6 +230,7 @@ class EvolutionManager:
         stage: PolicyLedgerStage,
         outcomes: Mapping[str, object] | None,
         metadata: Mapping[str, object] | None = None,
+        regime_state: RegimeState | None = None,
     ) -> EvolutionAdaptationResult | None:
         """Process a decision diary outcome produced by the AlphaTrade loop."""
 
@@ -209,13 +261,15 @@ class EvolutionManager:
             win_rate,
             self._win_rate_threshold,
         )
-        actions = self._run_adaptation(
+        actions, violations = self._run_adaptation(
             decision.tactic_id,
             state,
             metadata=metadata,
+            stage=stage,
+            regime_state=regime_state,
         )
         state.outcomes.clear()
-        if not actions:
+        if not actions and not violations:
             return None
 
         summary_metadata: dict[str, object] = {
@@ -224,10 +278,26 @@ class EvolutionManager:
         }
         if metadata:
             summary_metadata.update({str(key): value for key, value in metadata.items()})
+        if violations:
+            summary_metadata["operator_constraints"] = [
+                violation.as_dict() for violation in violations
+            ]
+
+        result_actions: list[Mapping[str, object]] = list(actions)
+        if violations:
+            for violation in violations:
+                entry: dict[str, object] = {
+                    "action": "operator_constraint_blocked",
+                    "operation": violation.operation,
+                    "reason": violation.reason,
+                }
+                if violation.details:
+                    entry["details"] = dict(violation.details)
+                result_actions.append(entry)
 
         return EvolutionAdaptationResult(
             base_tactic_id=decision.tactic_id,
-            actions=tuple(actions),
+            actions=tuple(result_actions),
             win_rate=float(win_rate),
             observations=observations,
             metadata=summary_metadata,
@@ -239,30 +309,144 @@ class EvolutionManager:
         state: _ManagedStrategyState,
         *,
         metadata: Mapping[str, object] | None,
-    ) -> list[Mapping[str, object]]:
+        stage: PolicyLedgerStage,
+        regime_state: RegimeState | None,
+    ) -> tuple[list[Mapping[str, object]], list[OperatorConstraintViolation]]:
         actions: list[Mapping[str, object]] = []
+        violations: list[OperatorConstraintViolation] = []
+        constraints = state.constraints
+
         variant = state.next_variant()
         if variant is not None:
-            registered = self._register_variant(variant, metadata=metadata)
-            if registered is not None:
-                actions.append(registered)
-            degraded = self._degrade_base(tactic_id, state.config.degrade_multiplier)
-            if degraded is not None:
-                actions.append(degraded)
-            return actions
+            allowed, variant_violations = self._constraints_allow(
+                constraints=constraints,
+                operation="register_variant",
+                stage=stage,
+                regime_state=regime_state,
+                parameters=variant.tactic.parameters,
+                metadata={
+                    "variant_id": variant.variant_id,
+                    "base_tactic_id": variant.base_tactic_id,
+                },
+            )
+            if not allowed:
+                state.introduced_variants.pop(variant.variant_id, None)
+                state.trial_queue.appendleft(variant)
+                self._log_constraint_violations(tactic_id, variant_violations)
+                violations.extend(variant_violations)
+            else:
+                registered = self._register_variant(variant, metadata=metadata)
+                if registered is not None:
+                    actions.append(registered)
+            degrade_action, degrade_violations = self._degrade_base(
+                tactic_id,
+                state.config.degrade_multiplier,
+                constraints=constraints,
+                stage=stage,
+                regime_state=regime_state,
+            )
+            if degrade_action is not None:
+                actions.append(degrade_action)
+            if degrade_violations:
+                self._log_constraint_violations(tactic_id, degrade_violations)
+                violations.extend(degrade_violations)
+            return actions, violations
+
         mutation_variant = self._build_mutation_variant(tactic_id, state)
         if mutation_variant is not None:
-            registered = self._register_variant(mutation_variant, metadata=metadata)
-            if registered is not None:
-                actions.append(registered)
-            degraded = self._degrade_base(tactic_id, state.config.degrade_multiplier)
-            if degraded is not None:
-                actions.append(degraded)
-            return actions
-        degraded = self._degrade_base(tactic_id, state.config.degrade_multiplier)
-        if degraded is not None:
-            actions.append(degraded)
-        return actions
+            allowed, mutation_violations = self._constraints_allow(
+                constraints=constraints,
+                operation="register_variant",
+                stage=stage,
+                regime_state=regime_state,
+                parameters=mutation_variant.tactic.parameters,
+                metadata={
+                    "variant_id": mutation_variant.variant_id,
+                    "base_tactic_id": mutation_variant.base_tactic_id,
+                },
+            )
+            if not allowed:
+                state.introduced_variants.pop(mutation_variant.variant_id, None)
+                self._log_constraint_violations(tactic_id, mutation_violations)
+                violations.extend(mutation_violations)
+            else:
+                registered = self._register_variant(mutation_variant, metadata=metadata)
+                if registered is not None:
+                    actions.append(registered)
+            degrade_action, degrade_violations = self._degrade_base(
+                tactic_id,
+                state.config.degrade_multiplier,
+                constraints=constraints,
+                stage=stage,
+                regime_state=regime_state,
+            )
+            if degrade_action is not None:
+                actions.append(degrade_action)
+            if degrade_violations:
+                self._log_constraint_violations(tactic_id, degrade_violations)
+                violations.extend(degrade_violations)
+            return actions, violations
+
+        degrade_action, degrade_violations = self._degrade_base(
+            tactic_id,
+            state.config.degrade_multiplier,
+            constraints=constraints,
+            stage=stage,
+            regime_state=regime_state,
+        )
+        if degrade_action is not None:
+            actions.append(degrade_action)
+        if degrade_violations:
+            self._log_constraint_violations(tactic_id, degrade_violations)
+            violations.extend(degrade_violations)
+        return actions, violations
+
+    @staticmethod
+    def _log_constraint_violations(
+        tactic_id: str,
+        violations: Sequence[OperatorConstraintViolation],
+    ) -> None:
+        for violation in violations:
+            logger.info(
+                "Operator constraint blocked %s for tactic %s: %s",
+                violation.operation,
+                tactic_id,
+                violation.as_dict(),
+            )
+
+    def _constraints_allow(
+        self,
+        *,
+        constraints: OperatorConstraintSet | None,
+        operation: str,
+        stage: PolicyLedgerStage,
+        regime_state: RegimeState | None,
+        parameters: Mapping[str, Any] | None,
+        metadata: Mapping[str, Any] | None,
+    ) -> tuple[bool, tuple[OperatorConstraintViolation, ...]]:
+        if constraints is None:
+            return True, ()
+        features: Mapping[str, float]
+        confidence: float | None
+        regime: str | None
+        if regime_state is None:
+            features = {}
+            confidence = None
+            regime = None
+        else:
+            features = dict(regime_state.features or {})
+            confidence = regime_state.confidence
+            regime = regime_state.regime
+        context = OperatorContext(
+            operation=operation,
+            stage=stage,
+            regime=regime,
+            regime_confidence=confidence,
+            regime_features=features,
+            parameters=dict(parameters or {}),
+            metadata=dict(metadata or {}),
+        )
+        return constraints.validate(context)
 
     def _register_variant(
         self,
@@ -321,17 +505,43 @@ class EvolutionManager:
             return replace(tactic, tags=tags)
         return replace(tactic, exploration=True, tags=tags)
 
-    def _degrade_base(self, tactic_id: str, multiplier: float) -> Mapping[str, object] | None:
+    def _degrade_base(
+        self,
+        tactic_id: str,
+        multiplier: float,
+        *,
+        constraints: OperatorConstraintSet | None,
+        stage: PolicyLedgerStage,
+        regime_state: RegimeState | None,
+    ) -> tuple[Mapping[str, object] | None, tuple[OperatorConstraintViolation, ...]]:
         if multiplier <= 0:
-            return None
+            return None, ()
+
         tactics = self._router.tactics()
         base = tactics.get(tactic_id)
         if base is None:
             logger.debug("Cannot degrade missing tactic %s", tactic_id)
-            return None
+            return None, ()
+
         new_weight = max(0.0, base.base_weight * multiplier)
         if new_weight == base.base_weight:
-            return None
+            return None, ()
+
+        allowed, violations = self._constraints_allow(
+            constraints=constraints,
+            operation="degrade_base",
+            stage=stage,
+            regime_state=regime_state,
+            parameters={
+                "original_weight": base.base_weight,
+                "target_weight": new_weight,
+                "multiplier": multiplier,
+            },
+            metadata={"tactic_id": tactic_id},
+        )
+        if not allowed:
+            return None, violations
+
         updated = replace(base, base_weight=new_weight)
         self._router.update_tactic(updated)
         logger.info(
@@ -340,13 +550,16 @@ class EvolutionManager:
             base.base_weight,
             new_weight,
         )
-        return {
-            "action": "degrade_base",
-            "tactic_id": tactic_id,
-            "from_weight": float(base.base_weight),
-            "to_weight": float(new_weight),
-            "multiplier": float(multiplier),
-        }
+        return (
+            {
+                "action": "degrade_base",
+                "tactic_id": tactic_id,
+                "from_weight": float(base.base_weight),
+                "to_weight": float(new_weight),
+                "multiplier": float(multiplier),
+            },
+            (),
+        )
 
     def _build_catalogue_variant(
         self,

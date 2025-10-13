@@ -16,6 +16,13 @@ from .fast_weights import (
     build_fast_weight_controller,
     parse_fast_weight_constraints,
 )
+from .operator_constraints import (
+    OperatorContext,
+    OperatorConstraint,
+    OperatorConstraintSet,
+    OperatorConstraintViolation,
+    parse_operator_constraints,
+)
 from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
 from .feature_toggles import (
     AdaptationFeatureToggles,
@@ -52,6 +59,11 @@ __all__ = [
     "FastWeightResult",
     "build_fast_weight_controller",
     "parse_fast_weight_constraints",
+    "OperatorContext",
+    "OperatorConstraint",
+    "OperatorConstraintSet",
+    "OperatorConstraintViolation",
+    "parse_operator_constraints",
     "EvolutionManager",
     "ManagedStrategyConfig",
     "StrategyVariant",

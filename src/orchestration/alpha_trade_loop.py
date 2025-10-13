@@ -658,6 +658,7 @@ class AlphaTradeLoopOrchestrator:
                     "diary_entry_id": diary_entry.entry_id,
                     "policy_id": resolved_policy_id,
                 },
+                regime_state=belief_snapshot.regime_state,
             )
             if adaptation_result is not None:
                 adaptation_summary = adaptation_result.as_dict()

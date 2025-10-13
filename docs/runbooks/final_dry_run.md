@@ -144,6 +144,16 @@ Progress snapshots default to every 5 minutes; adjust with `--progress-interval-
 1. Upload the JSON summary, raw logs, decision diary, and performance report to the governance evidence bucket.
 2. If the CLI exits with WARN or FAIL, inspect `harness_incidents` and the log summary sections to identify gaps (duration, uptime, log errors).
 3. For WARN status accepted under `--allow-warnings`, file follow-up tickets and document risk sign-offs per governance policy.
+4. Generate wrap-up minutes and backlog entries straight from the harness bundle:
+   ```sh
+   tools/operations/final_dry_run_wrap_up.py \
+     artifacts/final_dry_run/<run>/summary.json \
+     --output-json artifacts/final_dry_run/<run>/wrap_up.json \
+     --output-markdown artifacts/final_dry_run/<run>/wrap_up.md
+   ```
+   The helper inspects log incidents, diary issues, sign-off findings, and review objectives,
+   then lifts everything into a single backlog list so WARN items are captured alongside
+   FAIL blockers, optionally escalating warnings when governance demands perfection.【F:src/operations/final_dry_run_wrap_up.py†L1-L353】【F:tools/operations/final_dry_run_wrap_up.py†L1-L134】
 
 ## Regression coverage
 Automated tests under `tests/operations/test_final_dry_run.py` simulate both a successful multi-heartbeat run and an early termination to guard against regressions in the harness or audit workflow.

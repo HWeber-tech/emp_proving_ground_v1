@@ -38,6 +38,7 @@ from src.data_foundation.ingest.timescale_pipeline import (
     TimescaleBackbonePlan,
 )
 from src.data_foundation.pipelines.operational_backbone import OperationalBackbonePipeline
+from src.data_foundation.pipelines.backbone_service import OperationalBackboneService
 
 from tools.data_ingest.run_operational_backbone import (
     OperationalIngestRequest,
@@ -221,6 +222,20 @@ def _scheduler_metadata(duration: float) -> Mapping[str, object]:
     }
 
 
+def _build_service(
+    manager: Any,
+    pipeline: OperationalBackbonePipeline,
+) -> OperationalBackboneService:
+    """Construct the managed service wrapper for live-shadow runs."""
+
+    return OperationalBackboneService(
+        manager,
+        pipeline,
+        owns_manager=True,
+        owns_pipeline=True,
+    )
+
+
 async def _run_live_shadow(args: argparse.Namespace) -> dict[str, Any]:
     config = _ensure_backbone_mode(_load_system_config(args))
     request = _build_request(config, args)
@@ -237,19 +252,21 @@ async def _run_live_shadow(args: argparse.Namespace) -> dict[str, Any]:
     )
     event_bus = _build_event_bus()
     pipeline = _build_pipeline(manager=manager, event_bus=event_bus, config=config)
+    service = _build_service(manager, pipeline)
 
-    initial_result = await pipeline.execute(request)
+    initial_result = await service.ingest_once(request)
 
     scheduler = None
     scheduler_state: Mapping[str, object] | None = None
     streaming_snapshots: Mapping[str, Mapping[str, Any]] = {}
     streaming_task = None
+    task_snapshots: list[Mapping[str, object]] = []
     duration = max(float(args.duration or 0.0), 0.0)
 
     start_ts = time.perf_counter()
     try:
         if args.stream:
-            streaming_task = await pipeline.start_streaming(
+            streaming_task = await service.ensure_streaming(
                 metadata={"origin": "live_shadow_cli"}
             )
 
@@ -258,9 +275,11 @@ async def _run_live_shadow(args: argparse.Namespace) -> dict[str, Any]:
             schedule = IngestSchedule(
                 interval_seconds=float(args.interval or DEFAULT_INTERVAL_SECONDS),
                 jitter_seconds=float(args.jitter or DEFAULT_JITTER_SECONDS),
-                max_failures=int(args.max_failures if args.max_failures is not None else DEFAULT_MAX_FAILURES),
+                max_failures=int(
+                    args.max_failures if args.max_failures is not None else DEFAULT_MAX_FAILURES
+                ),
             )
-            scheduler = manager.start_ingest_scheduler(
+            scheduler = await service.start_scheduler(
                 plan_factory,
                 schedule,
                 metadata=_scheduler_metadata(duration),
@@ -271,22 +290,25 @@ async def _run_live_shadow(args: argparse.Namespace) -> dict[str, Any]:
                 raise
         else:
             await asyncio.sleep(0)
+
+        task_snapshots = [dict(snapshot) for snapshot in service.task_snapshots()]
     finally:
         elapsed = time.perf_counter() - start_ts
-        streaming_snapshots = pipeline.streaming_snapshots if args.stream else {}
-        cache_metrics = manager.cache_metrics(reset=False)
-        connectivity = manager.connectivity_report().as_dict()
+        streaming_snapshots = (
+            service.streaming_snapshots() if args.stream else {}
+        )
+        cache_metrics = service.cache_metrics(reset=False)
+        connectivity = service.connectivity_report().as_dict()
         if scheduler is not None:
             scheduler_state = scheduler.state().as_dict()
-            await manager.stop_ingest_scheduler()
+            await service.stop_scheduler()
         else:
             scheduler_state = None
 
         if streaming_task is not None:
-            await pipeline.stop_streaming()
+            await service.stop_streaming()
 
-        await pipeline.shutdown()
-        await manager.shutdown()
+        await service.shutdown()
 
     initial_payload = _result_payload(
         config=config,
@@ -301,11 +323,15 @@ async def _run_live_shadow(args: argparse.Namespace) -> dict[str, Any]:
         "scheduler": scheduler_state,
         "streaming": {
             "enabled": bool(args.stream),
-            "snapshots": {symbol: dict(snapshot) for symbol, snapshot in streaming_snapshots.items()},
+            "snapshots": {
+                symbol: dict(snapshot) for symbol, snapshot in streaming_snapshots.items()
+            },
         },
         "connections": dict(_connection_metadata(config)),
         "duration_seconds": elapsed,
     }
+    if task_snapshots:
+        summary["task_snapshots"] = task_snapshots
     return summary
 
 

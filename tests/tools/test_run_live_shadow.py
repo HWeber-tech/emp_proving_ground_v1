@@ -108,6 +108,54 @@ class _DummyPipeline:
         self.shutdown_called = True
 
 
+class _DummyService:
+    def __init__(self, manager: _DummyManager, pipeline: _DummyPipeline) -> None:
+        self.manager = manager
+        self.pipeline = pipeline
+        self.scheduler_handle: _DummyScheduler | None = None
+        self.streaming_task = object()
+        self.shutdown_called = False
+
+    async def ingest_once(self, request, *, poll_consumer: bool = True):
+        return await self.pipeline.execute(request, poll_consumer=poll_consumer)
+
+    async def ensure_streaming(self, *, metadata=None, task_name=None):
+        await self.pipeline.start_streaming(metadata=metadata)
+        return self.streaming_task
+
+    async def start_scheduler(self, plan_factory, schedule, *, metadata=None, task_supervisor=None):
+        self.scheduler_handle = self.manager.start_ingest_scheduler(
+            plan_factory,
+            schedule,
+            metadata=metadata,
+        )
+        return self.scheduler_handle
+
+    async def stop_scheduler(self) -> None:
+        await self.manager.stop_ingest_scheduler()
+        self.scheduler_handle = None
+
+    async def stop_streaming(self) -> None:
+        await self.pipeline.stop_streaming()
+
+    def cache_metrics(self, *, reset: bool = False) -> dict[str, int]:
+        return self.manager.cache_metrics(reset=reset)
+
+    def connectivity_report(self) -> _DummyConnectivity:
+        return self.manager.connectivity_report()
+
+    def streaming_snapshots(self) -> dict[str, dict[str, object]]:
+        return dict(self.pipeline.streaming_snapshots)
+
+    def task_snapshots(self):  # pragma: no cover - not exercised in stub
+        return ()
+
+    async def shutdown(self) -> None:
+        await self.pipeline.shutdown()
+        await self.manager.shutdown()
+        self.shutdown_called = True
+
+
 @pytest.fixture()
 def _live_shadow_context(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     config = SystemConfig(
@@ -156,6 +204,7 @@ def _live_shadow_context(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
 
     manager = _DummyManager()
     pipeline = _DummyPipeline(backbone_result)
+    service = _DummyService(manager, pipeline)
 
     def _load_config(_args):
         return config
@@ -168,8 +217,14 @@ def _live_shadow_context(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr(cli, "_build_manager", _build_manager)
     monkeypatch.setattr(cli, "_build_event_bus", lambda: object())
     monkeypatch.setattr(cli, "_build_pipeline", lambda **_: pipeline)
+    monkeypatch.setattr(cli, "_build_service", lambda manager, pipeline: service)
 
-    context = SimpleNamespace(config=config, manager=manager, pipeline=pipeline)
+    context = SimpleNamespace(
+        config=config,
+        manager=manager,
+        pipeline=pipeline,
+        service=service,
+    )
     return context
 
 
@@ -186,6 +241,12 @@ def test_live_shadow_cli_json(
     assert payload["streaming"]["enabled"] is True
     assert "EURUSD" in payload["streaming"]["snapshots"]
     assert payload["connections"]["timescale_url"] == "sqlite:///:memory:"
+    assert _live_shadow_context.pipeline.stream_metadata == {"origin": "live_shadow_cli"}
+    assert _live_shadow_context.pipeline.streaming_started is False
+    assert _live_shadow_context.pipeline.stop_streaming_called is True
+    assert _live_shadow_context.pipeline.shutdown_called is True
+    assert _live_shadow_context.manager.shutdown_called is True
+    assert _live_shadow_context.service.shutdown_called is True
 
 
 def test_live_shadow_cli_require_connectors(

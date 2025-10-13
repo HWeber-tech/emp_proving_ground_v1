@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Mapping, MutableMapping, Sequence
 
+from src.core.coercion import coerce_float
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.operations.sensory_drift import DriftSeverity
 from ._risk_context import (
@@ -443,8 +444,10 @@ class ReleaseAwareExecutionRouter:
         self,
         metadata: Mapping[str, Any] | None,
     ) -> tuple[bool, str | None, DriftSeverity | None]:
-        guardrail_reason = self._counterfactual_guardrail_reason(metadata)
-        guardrail_force = guardrail_reason is not None
+        counterfactual_reason = self._counterfactual_guardrail_reason(metadata)
+        risk_guardrail_force, risk_guardrail_reason = self._risk_guardrail_force(metadata)
+        guardrail_force = bool(counterfactual_reason) or risk_guardrail_force
+        guardrail_reason = counterfactual_reason or risk_guardrail_reason
 
         if not metadata:
             if guardrail_force:
@@ -512,6 +515,35 @@ class ReleaseAwareExecutionRouter:
             reason = candidate.get("reason") or "counterfactual_guardrail_breach"
             return str(reason)
         return None
+
+    @staticmethod
+    def _risk_guardrail_force(
+        metadata: Mapping[str, Any] | None,
+    ) -> tuple[bool, str | None]:
+        if not metadata:
+            return False, None
+        guardrails_payload = metadata.get("guardrails")
+        if not isinstance(guardrails_payload, Mapping):
+            return False, None
+        risk_payload = guardrails_payload.get("risk_guardrail")
+        if not isinstance(risk_payload, Mapping):
+            return False, None
+
+        force_flag = risk_payload.get("force_paper")
+        if not isinstance(force_flag, bool):
+            active_flag = risk_payload.get("active")
+            force_flag = bool(active_flag)
+        if not force_flag:
+            return False, None
+
+        remaining_seconds = coerce_float(risk_payload.get("remaining_seconds"))
+        if remaining_seconds is not None and remaining_seconds <= 0:
+            return False, None
+
+        reason = risk_payload.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            reason = "risk_guardrail_active"
+        return True, str(reason)
 
     @staticmethod
     def _stage_force_reason(

@@ -762,6 +762,14 @@ async def test_guardrail_near_miss_does_not_block_trading(
     assert stats["guardrail_near_misses"] == 1
     assert stats["guardrail_violations"] == 0
     assert stats["guardrail_block_until"] is None
+    guardrail_force = stats.get("guardrail_force")
+    assert isinstance(guardrail_force, dict)
+    assert guardrail_force.get("reason") == "risk_guardrail_near_miss"
+    assert guardrail_force.get("force_paper") is True
+
+    intent_metadata = getattr(primary_intent, "metadata", None)
+    assert isinstance(intent_metadata, dict)
+    assert intent_metadata.get("guardrails", {}).get("risk_guardrail")
 
     follow_up_intent = ConfidenceIntent(
         symbol="EURUSD",
@@ -775,6 +783,93 @@ async def test_guardrail_near_miss_does_not_block_trading(
     follow_up_outcome = await manager.on_trade_intent(follow_up_intent)
     assert follow_up_outcome.status != "blocked"
 
+
+@pytest.mark.asyncio()
+async def test_guardrail_near_miss_forces_paper_release(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("ops", "risk"),
+        evidence_id="diary:123",
+    )
+
+    paper_engine = RecordingExecutionEngine()
+    live_engine = RecordingExecutionEngine()
+    bus = RecordingBus()
+
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=paper_engine,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=False,
+        ),
+        release_manager=release_manager,
+    )
+    router = manager.configure_release_execution(live_engine=live_engine)
+    assert isinstance(router, ReleaseAwareExecutionRouter)
+
+    near_miss_decision = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "status": "approved",
+        "symbol": "EURUSD",
+        "strategy_id": "alpha",
+        "checks": [
+            {
+                "name": "policy.max_total_exposure_pct",
+                "status": "warn",
+                "value": 45_000.0,
+                "threshold": 50_000.0,
+            }
+        ],
+    }
+    manager.risk_gateway = _StubIncidentRiskGateway(
+        near_miss_decision,
+        allow_intent=True,
+    )
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.215,
+        confidence=0.92,
+        strategy_id="alpha",
+    )
+    setattr(intent, "event_id", "guardrail-near-miss-release")
+
+    await manager.on_trade_intent(intent)
+
+    assert paper_engine.calls == 1
+    assert live_engine.calls == 0
+
+    last_route = manager.get_last_release_route()
+    assert last_route is not None
+    assert last_route.get("forced_route") == "paper"
+    assert last_route.get("forced_reason") == "risk_guardrail_near_miss"
+
+    intent_metadata = getattr(intent, "metadata", None)
+    assert isinstance(intent_metadata, dict)
+    guardrail_block = intent_metadata.get("guardrails", {}).get("risk_guardrail")
+    assert isinstance(guardrail_block, dict)
+    assert guardrail_block.get("reason") == "risk_guardrail_near_miss"
+    assert guardrail_block.get("force_paper") is True
+    assert intent_metadata.get("release_execution_forced") == "risk_guardrail_near_miss"
+
+    stats = manager.get_execution_stats()
+    guardrail_force = stats.get("guardrail_force")
+    assert isinstance(guardrail_force, dict)
+    assert guardrail_force.get("reason") == "risk_guardrail_near_miss"
 
 @pytest.mark.asyncio()
 async def test_trading_manager_records_experiment_events_and_rejections(

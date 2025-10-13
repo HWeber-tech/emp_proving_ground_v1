@@ -546,6 +546,10 @@ class TradingManager:
         self._risk_guardrail_block_until: datetime | None = None
         self._guardrail_near_miss_cooldown: float = 15.0
         self._guardrail_violation_cooldown: float = 300.0
+        self._guardrail_force_started_at: datetime | None = None
+        self._guardrail_force_paper_until: datetime | None = None
+        self._guardrail_force_reason: str | None = None
+        self._guardrail_force_incident: Mapping[str, Any] | None = None
 
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
@@ -580,6 +584,9 @@ class TradingManager:
             "guardrail_violations": 0,
             "last_guardrail_incident": None,
             "guardrail_block_until": None,
+            "guardrail_force": None,
+            "guardrail_force_reason": None,
+            "guardrail_force_paper_until": None,
         }
         self._refresh_throughput_snapshot()
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
@@ -983,6 +990,8 @@ class TradingManager:
 
             portfolio_state = cast(Any, self.portfolio_monitor).get_state()
 
+            self._attach_guardrail_metadata(event)
+
             try:
                 initial_quantity = self._extract_quantity(event)
                 initial_price = self._extract_price(event, portfolio_state)
@@ -1073,6 +1082,7 @@ class TradingManager:
             self._handle_guardrail_incident()
 
             if validated_intent:
+                self._attach_guardrail_metadata(validated_intent)
                 if gate_decision_payload is not None:
                     self._attach_drift_gate_metadata(validated_intent, gate_decision_payload)
                 logger.info(
@@ -2020,6 +2030,22 @@ class TradingManager:
         ) + 1
         self._execution_stats["last_guardrail_incident"] = payload
 
+        now = datetime.now(tz=timezone.utc)
+        cooldown_duration = (
+            self._guardrail_violation_cooldown
+            if incident.severity == "violation"
+            else self._guardrail_near_miss_cooldown
+        )
+        if cooldown_duration > 0:
+            self._guardrail_force_started_at = now
+            self._guardrail_force_paper_until = now + timedelta(seconds=float(cooldown_duration))
+        else:
+            self._guardrail_force_started_at = None
+            self._guardrail_force_paper_until = None
+        self._guardrail_force_reason = f"risk_guardrail_{incident.severity}"
+        self._guardrail_force_incident = payload
+        self._guardrail_force_snapshot()
+
         if incident.severity == "violation":
             self._extend_guardrail_block(self._guardrail_violation_cooldown)
             logger.error("Risk guardrail violation recorded", extra={"incident": payload})
@@ -2032,11 +2058,6 @@ class TradingManager:
             else None
         )
 
-        cooldown_duration = (
-            self._guardrail_violation_cooldown
-            if incident.severity == "violation"
-            else self._guardrail_near_miss_cooldown
-        )
         self._apply_guardrail_cooldown(
             incident_payload=payload,
             duration=cooldown_duration,
@@ -2095,6 +2116,106 @@ class TradingManager:
         self._update_trade_throttle_snapshot(snapshot)
         self._execution_stats["last_throttle_event"] = f"risk_guardrail_{severity}"
         self._execution_stats["last_throttle_cooldown"] = float(duration)
+
+    def _clear_guardrail_force(self) -> None:
+        self._guardrail_force_started_at = None
+        self._guardrail_force_paper_until = None
+        self._guardrail_force_reason = None
+        self._guardrail_force_incident = None
+        self._execution_stats["guardrail_force"] = None
+        self._execution_stats["guardrail_force_reason"] = None
+        self._execution_stats["guardrail_force_paper_until"] = None
+
+    def _guardrail_force_snapshot(self) -> Mapping[str, Any] | None:
+        expires_at = self._guardrail_force_paper_until
+        if expires_at is None:
+            self._clear_guardrail_force()
+            return None
+
+        now = datetime.now(tz=timezone.utc)
+        remaining = (expires_at - now).total_seconds()
+        if remaining <= 0:
+            self._clear_guardrail_force()
+            return None
+        remaining = max(remaining, 0.0)
+
+        incident_payload = (
+            dict(self._guardrail_force_incident)
+            if isinstance(self._guardrail_force_incident, MappingABC)
+            else None
+        )
+
+        snapshot: dict[str, Any] = {
+            "active": True,
+            "force_paper": True,
+            "reason": self._guardrail_force_reason or "risk_guardrail",
+            "remaining_seconds": remaining,
+            "expires_at": expires_at.isoformat(),
+        }
+        if self._guardrail_force_started_at is not None:
+            snapshot["started_at"] = self._guardrail_force_started_at.isoformat()
+        if incident_payload is not None:
+            snapshot["incident"] = incident_payload
+            severity = incident_payload.get("severity")
+            if severity:
+                snapshot["severity"] = severity
+            incident_id = incident_payload.get("incident_id")
+            if incident_id:
+                snapshot["incident_id"] = incident_id
+
+        self._execution_stats["guardrail_force"] = snapshot
+        self._execution_stats["guardrail_force_reason"] = snapshot["reason"]
+        self._execution_stats["guardrail_force_paper_until"] = snapshot["expires_at"]
+        return snapshot
+
+    @staticmethod
+    def _ensure_mutable_metadata(intent: Any) -> MutableMappingABC[str, Any] | None:
+        metadata: MutableMappingABC[str, Any] | None = None
+        if isinstance(intent, MutableMappingABC):
+            meta_candidate = intent.get("metadata")
+            if isinstance(meta_candidate, MutableMappingABC):
+                metadata = meta_candidate
+            else:
+                metadata = {}
+                intent["metadata"] = metadata
+        else:
+            meta_candidate = getattr(intent, "metadata", None)
+            if isinstance(meta_candidate, MutableMappingABC):
+                metadata = meta_candidate
+            elif meta_candidate is None:
+                metadata = {}
+                try:
+                    setattr(intent, "metadata", metadata)
+                except Exception:  # pragma: no cover - best effort mutation guard
+                    metadata = None
+            elif isinstance(meta_candidate, MappingABC):
+                metadata = dict(meta_candidate)
+                try:
+                    setattr(intent, "metadata", metadata)
+                except Exception:  # pragma: no cover - best effort mutation guard
+                    metadata = None
+        return metadata
+
+    def _attach_guardrail_metadata(self, intent: Any) -> None:
+        snapshot = self._guardrail_force_snapshot()
+        if snapshot is None:
+            return
+
+        metadata = self._ensure_mutable_metadata(intent)
+        if metadata is None:
+            return
+
+        guardrails_block = metadata.get("guardrails")
+        if isinstance(guardrails_block, MutableMappingABC):
+            guardrails_map = guardrails_block
+        elif isinstance(guardrails_block, MappingABC):
+            guardrails_map = dict(guardrails_block)
+            metadata["guardrails"] = guardrails_map
+        else:
+            guardrails_map = {}
+            metadata["guardrails"] = guardrails_map
+
+        guardrails_map["risk_guardrail"] = dict(snapshot)
 
     def _build_throttle_history_entry(
         self,
@@ -2493,6 +2614,7 @@ class TradingManager:
         """Return execution telemetry derived from the configured engine."""
 
         self._refresh_throughput_snapshot()
+        self._guardrail_force_snapshot()
         stats: dict[str, object] = dict(self._execution_stats)
         samples = coerce_int(stats.get("latency_samples"), default=0)
         total_latency = coerce_float(stats.get("total_latency_ms"), default=0.0)

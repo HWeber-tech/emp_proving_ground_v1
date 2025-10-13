@@ -48,6 +48,31 @@ JSON payload for dashboards or post-mortem analysis.
 4. Combine with the existing structured logging pipeline so drift events inherit
    correlation identifiers and show up in the OpenTelemetry stack.
 
+## Live Diagnostics Helper
+
+For deeper live-feed analysis, use the diagnostics module introduced in
+`src/sensory/monitoring/live_diagnostics.py`. It replays market data through the
+`RealSensoryOrgan`, captures anomaly posture, drift telemetry, and WHY sensor
+quality, and returns a typed `LiveSensoryDiagnostics` payload ready for JSON
+storage or Markdown evidence.
+
+```python
+from src.sensory.monitoring import build_live_sensory_diagnostics
+from src.sensory.real_sensory_organ import RealSensoryOrgan, SensoryDriftConfig
+
+organ = RealSensoryOrgan(
+    drift_config=SensoryDriftConfig(baseline_window=20, evaluation_window=8),
+)
+diagnostics = build_live_sensory_diagnostics(live_frame, organ=organ)
+report = diagnostics.as_dict()
+```
+
+When institutional credentials are available, call
+`build_live_sensory_diagnostics_from_manager` with a `RealDataManager` to fetch
+fresh Timescale/Redis/Kafka slices before building the report. Operators can add
+the resulting JSON files to the daily perception evidence pack referenced by the
+`perception_live_feeds` governance gate.
+
 ## Acceptance Criteria
 
 * Unit tests in `tests/sensory/test_sensor_drift.py` cover drift detection,

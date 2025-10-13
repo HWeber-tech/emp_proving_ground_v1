@@ -46,6 +46,10 @@
   runtime or fallback buses, and serialises per-dimension metadata plus numeric
   telemetry so responders and downstream metrics inherit audit-ready payloads
   under pytest coverage.【F:src/sensory/real_sensory_organ.py†L41-L520】【F:src/sensory/real_sensory_organ.py†L429-L495】【F:src/sensory/lineage_publisher.py†L1-L193】【F:tests/sensory/test_real_sensory_organ.py†L96-L183】【F:tests/sensory/test_real_sensory_organ.py†L113-L166】【F:tests/sensory/test_lineage.py†L85-L145】 Fallback signals delivered by the fused organ now clone per-dimension `quality` and `lineage` metadata into snapshots/metrics so diaries retain audit context and lineage publishing still fires when upstream sensors return empty frames.【src/sensory/real_sensory_organ.py:137】【src/sensory/real_sensory_organ.py:493】【tests/sensory/test_real_sensory_organ.py:113】
+- Live diagnostics helper replays live frames through the fused organ, exports
+  anomaly posture, drift telemetry, and WHY quality explanations for governance
+  evidence packs, and ships with regression coverage to keep the reports
+  deterministic.【F:src/sensory/monitoring/live_diagnostics.py†L1-L223】【F:tests/sensory/test_live_diagnostics.py†L1-L126】
 - Executable HOW/ANOMALY sensory organs now wrap the canonical sensors, normalise
   market frames or sequences, maintain calibrated windows, and emit structured
   lineage/telemetry payloads under guardrail regression coverage, though they

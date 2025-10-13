@@ -20,11 +20,28 @@ the following keys:
 | `avg_lag_ms` | Average delay between ingest timestamp and processing start. |
 | `max_lag_ms` | Maximum ingest delay detected. |
 | `throughput_per_min` | Approximate processed intents per minute across the window. |
-| `throttle_retry_in_seconds` | Countdown until the trade throttle allows another order (``None`` when no throttle is active). |
+| `throttle_active` | Whether a throttle gate is currently restricting orders. |
+| `throttle_state` | Throttle posture (`rate_limited`, `cooldown`, `min_interval`, etc.). |
+| `throttle_reason` | Short code describing why throttling occurred (when supplied by the throttle). |
+| `throttle_message` | Human-readable throttle explanation for dashboards/runbooks. |
+| `throttle_retry_in_seconds` | Countdown until the throttle allows another order (``None`` when inactive). |
+| `throttle_retry_at` | ISO-8601 timestamp for the next allowed order (when available). |
+| `throttle_remaining_trades` | Remaining trade credits in the active window. |
+| `throttle_max_trades` | Maximum trade credits allocated to the active window. |
+| `throttle_window_utilisation` | Current utilisation percentage of the active rate window. |
+| `throttle_scope` | Metadata describing the scope (e.g. strategy) that triggered throttling. |
+| `throttle_scope_key` | Normalised scope identifier list for programmatic routing. |
 
 The monitor accepts ingestion timestamps from `ingested_at`, `created_at`,
 `timestamp`, or `ts` attributes on trade intents. Timestamps may be aware
 `datetime` objects, Unix epoch numbers, or ISO-8601 strings.
+
+`TradingManager` rebuilds this snapshot every time throttle posture changes, so
+the throughput payload always mirrors the most recent retry timers and scope
+metadata without callers needing to interrogate the throttle directly.【F:src/trading/trading_manager.py†L521-L839】【F:src/trading/trading_manager.py†L1433-L1450】
+Regression coverage asserts throttled runs surface the enriched payload while
+disabling the throttle clears the guardrail fields, keeping dashboards and
+evidence packs in sync with real posture.【F:tests/trading/test_trading_manager_execution.py†L2092-L2160】
 
 Execution stats additionally expose aggregate backlog counters so operators can
 prove that bursts remain under control:

@@ -77,6 +77,7 @@
   provisioner, which now exposes drill metadata from configuration and captures
   the workflow in updated runbooks so operators can rehearse recoveries using a
   consistent source of truth.【F:src/data_foundation/ingest/institutional_vertical.py†L160-L239】【F:docs/operations/timescale_failover_drills.md†L1-L27】
+- Progress: Operational backbone caches the latest successful market and macro frames, reusing them when Timescale fetches raise so supervised ingest runs keep sensory and belief feeds populated while upstream services recover; warnings differentiate fallback reuse from empty data to aid incident triage.【F:src/data_foundation/pipelines/operational_backbone.py†L187-L377】
 - Aggregate operational readiness into a single severity snapshot that merges
   system validation, incident response, drift, and ingest SLO posture, emits
   Markdown summaries, evaluates gate decisions with blocking/warn thresholds,

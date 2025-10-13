@@ -85,6 +85,12 @@ class _TelemetryBroker(_StubBroker):
         return {key: value for key, value in self._last_submission.items()}
 
 
+class _FailingTelemetryBroker(_TelemetryBroker):
+    async def place_market_order(self, symbol: str, side: str, quantity: float) -> str:
+        await super().place_market_order(symbol, side, quantity)
+        raise RuntimeError("simulated broker rejection")
+
+
 class _FailingBroker:
     async def place_market_order(self, _symbol: str, _side: str, _quantity: float) -> None:
         await asyncio.sleep(0)
@@ -337,10 +343,38 @@ async def test_paper_broker_adapter_captures_broker_submission_metadata() -> Non
     last_order = adapter.describe_last_order()
     assert last_order is not None
     submission = last_order.get("broker_submission")
-    if submission is not None:
-        assert isinstance(submission, Mapping)
-        assert submission.get("response", {}).get("order_id") == "BROKER-777"
-        assert submission.get("request", {}).get("symbol") == "USDJPY"
+    assert submission is not None
+    assert isinstance(submission, Mapping)
+    assert submission.get("response", {}).get("order_id") == "BROKER-777"
+    assert submission.get("request", {}).get("symbol") == "USDJPY"
+
+
+@pytest.mark.asyncio
+async def test_paper_broker_adapter_failure_includes_submission_snapshot() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _FailingTelemetryBroker(order_id="BROKER-999")
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+        order_timeout=None,
+    )
+
+    with pytest.raises(PaperBrokerError):
+        await adapter.process_order(
+            {
+                "symbol": "GBPUSD",
+                "side": "SELL",
+                "quantity": 2.5,
+            }
+        )
+
+    error_snapshot = adapter.describe_last_error()
+    assert error_snapshot is not None
+    submission = error_snapshot.get("broker_submission")
+    assert submission is not None
+    assert submission.get("request", {}).get("symbol") == "GBPUSD"
+    assert submission.get("response", {}).get("order_id") == "BROKER-999"
 
 
 @pytest.mark.asyncio

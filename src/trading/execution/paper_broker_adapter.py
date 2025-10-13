@@ -495,8 +495,8 @@ class PaperBrokerExecutionAdapter:
             except Exception:  # pragma: no cover - diagnostics only
                 logger.debug("Broker submission accessor '%s' failed", name, exc_info=True)
                 continue
-                if isinstance(submission, Mapping):
-                    return {str(key): value for key, value in submission.items()}
+            if isinstance(submission, Mapping):
+                return {str(key): value for key, value in submission.items()}
         return None
 
     def _reset_failover_state(self) -> None:

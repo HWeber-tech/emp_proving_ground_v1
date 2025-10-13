@@ -163,3 +163,11 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-13T11:06:11Z
+
+### Last 4 commits
+- 32b677c4 feat(governance): add 5 files (2025-10-13)
+- 2d8a1991 test(.github): add 4 files (2025-10-13)
+- 5418dc81 refactor(orchestration): tune 6 files (2025-10-13)
+- 63e00e25 docs(docs): tune 4 files (2025-10-13)

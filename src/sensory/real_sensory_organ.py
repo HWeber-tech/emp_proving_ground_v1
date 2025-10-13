@@ -278,7 +278,44 @@ class RealSensoryOrgan:
         for signal in signals:
             if isinstance(signal, SensorSignal):
                 return signal
-        return SensorSignal(signal_type=dimension, value={"strength": 0.0}, confidence=0.0)
+        timestamp = datetime.now(timezone.utc)
+        reason = "missing_signal"
+        quality = {
+            "source": "sensory.real_organ",
+            "timestamp": timestamp.isoformat(),
+            "confidence": 0.0,
+            "strength": 0.0,
+            "reason": reason,
+        }
+        lineage = build_lineage_record(
+            dimension,
+            "sensory.real_organ",
+            inputs={"signals": 0},
+            outputs={"strength": 0.0, "confidence": 0.0},
+            telemetry={},
+            metadata={"mode": "fallback", "reason": reason},
+        )
+        metadata: dict[str, object] = {
+            "source": "sensory.real_organ",
+            "fallback": True,
+            "reason": reason,
+            "quality": quality,
+            "lineage": lineage.as_dict(),
+        }
+        value: dict[str, object] = {
+            "strength": 0.0,
+            "confidence": 0.0,
+            "fallback": True,
+            "reason": reason,
+        }
+        return SensorSignal(
+            signal_type=dimension,
+            value=value,
+            confidence=0.0,
+            metadata=metadata,
+            lineage=lineage,
+            timestamp=timestamp,
+        )
 
     def _resolve_symbol(self, symbol: str | None, frame: pd.DataFrame) -> str:
         if symbol:

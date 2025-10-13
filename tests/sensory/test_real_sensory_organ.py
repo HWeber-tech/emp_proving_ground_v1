@@ -271,3 +271,28 @@ def test_real_sensory_organ_falls_back_to_global_bus() -> None:
     assert event_type == "telemetry.sensory.snapshot"
     assert source == "sensory.real_organ"
     assert payload["symbol"] == "EURUSD"
+
+
+def test_real_sensory_organ_fallback_signal_includes_quality_and_lineage() -> None:
+    class _EmptySensor:
+        def process(self, *_args, **_kwargs):  # type: ignore[override]
+            return []
+
+    organ = RealSensoryOrgan(what_sensor=_EmptySensor())
+
+    snapshot = organ.observe(None)
+
+    what_dimension = snapshot["dimensions"]["WHAT"]
+    metadata = what_dimension["metadata"]
+    quality = metadata["quality"]
+    assert quality["source"] == "sensory.real_organ"
+    assert quality["reason"] == "missing_signal"
+    assert isinstance(quality["timestamp"], str)
+
+    lineage = metadata["lineage"]
+    assert lineage["dimension"] == "WHAT"
+    assert lineage["metadata"]["reason"] == "missing_signal"
+
+    value = what_dimension["value"]
+    assert value["fallback"] is True
+    assert value["reason"] == "missing_signal"

@@ -79,12 +79,12 @@
 
 **Deliverables**
 - [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers).
-- [ ] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available.
+- [ ] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available. _Progress: Auto-approved TRM queue entries now flow into the ledger metadata with approvals and threshold overrides recorded per suggestion so reviewers see applied deltas without manual reconciliation.【F:src/reflection/trm/application.py†L17-L159】【F:src/governance/policy_ledger.py†L572-L595】_
 - [x] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded). _Progress: The shadow runner now enforces the governance gate, writes skip digests, and stamps auto-apply decisions into the queue/markdown artifacts, with regression coverage ensuring nightly RIM runs stage approved changes without bypassing safeguards.【F:tools/rim_shadow_run.py†L160-L222】【F:src/reflection/trm/governance.py†L19-L247】【F:tests/tools/test_rim_shadow_run.py†L44-L139】【F:tests/reflection/test_trm_governance.py†L16-L126】_
-- [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs.
+- [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs. _Progress: Ledger releases now surface metadata/policy deltas alongside staged approvals so governance packets inherit the recorded reviewers and auto-applied changes in the exported posture snapshot.【F:src/governance/policy_ledger.py†L572-L595】_
 
 **Acceptance (DoD)**
-- [ ] `[sim]` At least **one** RIMâ€‘driven change applied via governance rule in sim/paper. _Progress: Auto-apply governance now promotes qualifying TRM suggestions directly in the queue/digest artifacts under test coverage, paving the way for paper-run promotion drills.【F:src/reflection/trm/governance.py†L94-L247】【F:tests/reflection/test_trm_governance.py†L16-L126】_
+- [x] `[sim]` At least **one** RIMâ€‘driven change applied via governance rule in sim/paper. _Progress: Paper runtime now ingests auto-applied TRM queue entries, tags the ledger with `rim-auto` approvals, persists threshold deltas, and exposes the metadata in release posture exports with regression coverage across the helper and paper simulation flow.【F:src/reflection/trm/application.py†L17-L159】【F:tests/reflection/test_trm_application.py†L49-L100】【F:src/runtime/predator_app.py†L2557-L2585】【F:tests/runtime/test_paper_trading_simulation_runner.py†L191-L278】_
 - [ ] `[reflect]` Every proposal traceable (input diary slice, code hash, config hash).
 - [ ] `[risk]` No autoâ€‘applied proposal can bypass invariants or budget constraints.
 
@@ -93,7 +93,7 @@
 ## M4 â€” Paper 24/7 & Observability (Weeks 6â€“10)
 
 **Deliverables**
-- [ ] `[ops]` Containerized runtime (Docker) + deployment profile (dev/paper); health checks.
+- [x] `[ops]` Containerized runtime (Docker) + deployment profile (dev/paper); health checks. _Progress: Docker profiles now package the production runtime with Timescale/Redis/Kafka dependencies, proactive health checks, shared env overlays, and matching SystemConfig presets under regression coverage and updated setup docs so operators can launch dev or paper stacks with one compose command.【F:docker/runtime/docker-compose.dev.yml†L1-L136】【F:config/deployment/runtime_paper.yaml†L1-L38】【F:docs/development/setup.md†L62-L93】【F:tests/governance/test_system_config_runtime_profiles.py†L1-L57】_
 - [ ] `[core]` Live market data ingest configured (API keys, symbols, session calendars).
 - [ ] `[sim]` **Paper broker** connector smokeâ€‘tested; failover & reconnect logic. _Progress: Paper trading simulation reports persist aggregated order summaries with side/symbol splits and broker failover snapshots so operators inherit audit-ready context, locked by regression coverage.【F:src/runtime/paper_simulation.py†L339-L367】【F:tests/runtime/test_paper_trading_simulation_runner.py†L132-L188】【F:tests/integration/test_paper_trading_simulation.py†L394-L429】_
 - [ ] `[obs]` Monitoring: dashboards (latency, throughput, P&L swings, memory); alerts on tail spikes and drift.
@@ -102,7 +102,7 @@
 **Acceptance (DoD)**
 - [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, and persists summaries for governance review via the runtime CLI with pytest coverage for breach detection and exports.【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】【F:src/runtime/cli.py†L1-L220】_
 - [ ] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics.
-- [ ] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback).
+- [x] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback). _Progress: Dedicated validator CLI now executes kill-switch, nightly replay, and trade rollback drills, writes evidence packs, and is paired with a refreshed runbook and regression coverage so incident rehearsals consistently capture pass/fail artifacts.【F:tools/operations/incident_playbook_validation.py†L44-L255】【F:docs/operations/runbooks/incident_playbook_validation.md†L1-L66】【F:tests/tools/test_incident_playbook_validation.py†L9-L48】_
 
 ---
 
@@ -164,10 +164,10 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-13T11:06:11Z
+## Automation updates — 2025-10-13T11:22:48Z
 
 ### Last 4 commits
-- 32b677c4 feat(governance): add 5 files (2025-10-13)
-- 2d8a1991 test(.github): add 4 files (2025-10-13)
-- 5418dc81 refactor(orchestration): tune 6 files (2025-10-13)
-- 63e00e25 docs(docs): tune 4 files (2025-10-13)
+- f8559f7d docs(docs): add 1 file (2025-10-13)
+- efdba913 feat(governance): add 5 files (2025-10-13)
+- 692276c2 docs(config): add 9 files (2025-10-13)
+- 69b0fd68 docs(docs): add 5 files (2025-10-13)

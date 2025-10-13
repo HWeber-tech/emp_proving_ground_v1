@@ -140,6 +140,11 @@
   kill-switch, nightly replay, and trade throttle rollback drills, persists a
   JSON evidence pack, and links into the refreshed runbook so operators can drop
   the artifacts straight into the context pack.【F:tools/operations/incident_playbook_validation.py†L208】【F:docs/operations/runbooks/incident_playbook_validation.md†L1】【F:docs/operations/runbooks/incident_playbook_validation.md†L31】【F:tests/tools/test_incident_playbook_validation.py†L9】
+- Progress: Containerised runtime profiles now live under `docker/runtime/`, wiring
+  the production image to Timescale, Redis, and Kafka with compose health checks,
+  shared env overlays, and mirrored SystemConfig presets; setup docs capture the
+  launch commands so operators can stand up dev or paper stacks with a single
+  compose invocation for roadmap drills.【F:docker/runtime/docker-compose.dev.yml†L1-L136】【F:docker/runtime/env.common†L1-L31】【F:config/deployment/runtime_dev.yaml†L1-L37】【F:docs/development/setup.md†L62-L93】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so
   failures surface promptly.
 

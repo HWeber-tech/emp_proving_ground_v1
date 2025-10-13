@@ -187,6 +187,14 @@
   governance workflow snapshots under pytest coverage so compliance reviews can
   trace AlphaTrade tactics from ledger to runtime enforcement without manual
   reconciliation.【F:src/governance/policy_ledger.py†L1-L200】【F:src/governance/policy_rebuilder.py†L1-L141】【F:tools/governance/rebuild_policy.py†L1-L112】【F:tests/governance/test_policy_ledger.py†L33-L181】【F:tests/tools/test_rebuild_policy_cli.py†L11-L41】
+- Progress: Promotion gate runbook now captures the ledger/diary thresholds,
+  governance approvals, and CLI sequence for advancing capital tiers so review
+  boards inherit a deterministic checklist aligned with the graduation helpers
+  and release metadata exports.【F:docs/operations/promotion_gate.md†L1-L98】【F:tools/governance/alpha_trade_graduation.py†L34-L282】【F:src/governance/policy_ledger.py†L572-L595】
+- Progress: TRM auto-apply pipeline records queue metadata, approvals, and
+  threshold overrides directly in the ledger during runtime startup, with paper
+  simulations asserting the release posture exposes applied suggestion IDs so
+  automated governance changes remain auditable.【F:src/reflection/trm/application.py†L17-L159】【F:src/runtime/predator_app.py†L2557-L2585】【F:tests/reflection/test_trm_application.py†L49-L100】【F:tests/runtime/test_paper_trading_simulation_runner.py†L191-L278】
 - Progress: Adaptive governance gate now consumes replay harness results, builds evidence IDs/metadata, and applies promotion or demotion transitions through the policy ledger while maintaining audit trails and optional approvals; regression coverage drives positive, negative, and maintain scenarios so replay cadences deliver ledger-ready compliance evidence without manual edits.【F:src/governance/adaptive_gate.py†L15-L101】【F:src/thinking/adaptation/replay_harness.py†L1-L274】【F:tests/thinking/test_adaptive_replay_harness.py†L88-L173】
 - Progress: Governance review gates now codify roadmap sign-off criteria in YAML with owners and evidence artifacts, expose a typed registry that renders compliance workflow snapshots, and provide CLI/runbook workflows for verdict capture so governance cadences carry structured evidence alongside the policy ledger.【F:config/governance/review_gates.yaml†L1-L84】【F:src/governance/review_gates.py†L1-L199】【F:tools/governance/review_gates.py†L1-L200】【F:docs/runbooks/governance_review_gates.md†L1-L60】【F:tests/governance/test_review_gates.py†L45-L101】【F:tests/tools/test_review_gates_cli.py†L30-L102】
 - Progress: Ledger persistence now acquires filesystem locks, swaps atomic temp files, and surfaces JSONL/Markdown promotion artifacts through the CLI helpers with concurrency regression coverage so concurrent operators cannot clobber governance state.【F:src/governance/policy_ledger.py†L260-L374】【F:tools/governance/_promotion_helpers.py†L13-L108】【F:tools/governance/promote_policy.py†L122-L335】【F:tests/governance/test_policy_ledger_locking.py†L11-L53】【F:tests/tools/test_promote_policy_cli.py†L1-L180】

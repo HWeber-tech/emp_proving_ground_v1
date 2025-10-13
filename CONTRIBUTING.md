@@ -11,16 +11,12 @@ Three run profiles map to the roadmap acceptance gates. The environment variable
 - Prerequisites: optional local DuckDB file (`data/tier0.duckdb`) seeded via recorded fixtures. No Redis, Timescale, or Kafka needed.
 - Recommended command:
   ```sh
-  export RUN_MODE=mock
-  export EMP_ENVIRONMENT=demo
-  export EMP_TIER=tier_0
-  export DATA_BACKBONE_MODE=bootstrap
-  export DECISION_DIARY_PATH=artifacts/diaries/sim.jsonl
-  mkdir -p artifacts/diaries
-  python -m src.runtime.cli run --skip-ingest --timeout 180 --no-trading
+  make run-sim
   ```
+  The target wires the bootstrap runtime with ingest disabled, trading disabled, and a capped tick budget so the deterministic loop completes quickly while exporting a decision diary and `artifacts/sim/summary.json` evidence bundle.
 - Notes:
-  - `--no-trading` keeps the workload deterministic when you only care about the perception and adaptation loop.
+  - Override defaults with `SIM_TIMEOUT=<seconds>`, `SIM_MAX_TICKS=<n>`, `SIM_SYMBOLS=EURUSD,GBPUSD`, or `SIM_EXTRA_ARGS="--enable-trading"` when you need different postures.
+  - The wrapper writes the diary to `artifacts/diaries/sim.jsonl`; point to another path with `SIM_DIARY=<path>`.
   - Add `FAST_WEIGHT_EXCITATORY_ONLY=true` or other `FAST_WEIGHT_*` extras when you need to exercise sparsity guardrails (see `docs/context/examples/understanding_router.md`).
   - The CLI summary (`python -m src.runtime.cli summary --json --no-trading`) is a fast pre-flight check for CI jobs that only assert config sanity.
 

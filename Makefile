@@ -19,6 +19,7 @@ help:
 	@echo "  dmypy-stop            - Stop dmypy"
 	@echo "  type-explicit-any-dry - Dry-run explicit Any rewriter (prints diffs)"
 	@echo "  type-explicit-any-apply - Apply explicit Any fixes in-place (types only)"
+	@echo "  run-sim               - Run deterministic bootstrap simulation (summary + diary)"
 
 .PHONY: mypy
 mypy:
@@ -94,3 +95,23 @@ RUN_ARGS ?=
 .PHONY: run-paper
 run-paper:
 	python -m src.runtime.cli paper-run $(RUN_ARGS)
+
+SIM_TIMEOUT ?= 15
+SIM_TICK_INTERVAL ?= 0.5
+SIM_MAX_TICKS ?= 120
+SIM_SYMBOLS ?= EURUSD
+SIM_SUMMARY ?= artifacts/sim/summary.json
+SIM_DIARY ?= artifacts/diaries/sim.jsonl
+SIM_DUCKDB ?= data/tier0.duckdb
+SIM_EXTRA_ARGS ?=
+
+.PHONY: run-sim
+run-sim:
+	python3 tools/runtime/run_simulation.py \
+		--timeout $(SIM_TIMEOUT) \
+		--tick-interval $(SIM_TICK_INTERVAL) \
+		--max-ticks $(SIM_MAX_TICKS) \
+		--symbols "$(SIM_SYMBOLS)" \
+		--summary-path "$(SIM_SUMMARY)" \
+		--diary-path "$(SIM_DIARY)" \
+		--duckdb-path "$(SIM_DUCKDB)" $(SIM_EXTRA_ARGS)

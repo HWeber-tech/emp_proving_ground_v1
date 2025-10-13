@@ -84,8 +84,9 @@ real data feeds.【F:docs/development/remediation_plan.md†L92-L167】
 compliance enforcement are hollow, async entrypoints remain partially migrated,
 and deprecated exports still leak into runtime consumers. Event bus shutdown now
 runs under the task supervisor with explicit metadata and the final dry run
-harness rotates structured/raw logs for multi-day rehearsals, but deterministic
-risk controls are still required before expanding pilots.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/core/_event_bus_impl.py†L501-L590】【F:src/operations/final_dry_run.py†L307-L405】【F:emp/cli/final_dry_run.py†L335-L487】
+harness rotates structured/raw logs, emits typed progress snapshots, and ships a
+watch CLI so operations can monitor multi-day rehearsals live, but deterministic
+risk controls are still required before expanding pilots.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/core/_event_bus_impl.py†L501-L590】【F:src/operations/final_dry_run.py†L307-L405】【F:src/operations/final_dry_run_progress.py†L15-L210】【F:tools/operations/final_dry_run_watch.py†L21-L176】【F:tests/operations/test_final_dry_run_progress.py†L12-L120】
 *Next checkpoint:* Finish the runtime builder rollout, adopt supervised tasks,
 enforce risk policies, and retire deprecated facades before expanding broker
 coverage.【F:docs/technical_debt_assessment.md†L33-L101】【F:docs/development/remediation_plan.md†L34-L167】

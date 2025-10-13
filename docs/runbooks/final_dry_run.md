@@ -120,6 +120,12 @@ The JSON summary contains the dry run audit (`summary`) plus the sign-off report
 
 Progress snapshots default to every 5 minutes; adjust with `--progress-interval-minutes` or disable by setting it to `0` when invoking the CLI. Each snapshot includes cumulative log stats (per-stream and per-level counts, first/last timestamps), the harness status/phase, elapsed runtime, optional incidents, plus any computed summary or sign-off verdict once available. On shutdown the harness writes a final snapshot that locks in the exit code and sign-off decision so reviewers can audit the full run without tailing live logs.
 
+### Watching progress snapshots in real time
+
+- Use `tools/operations/final_dry_run_watch.py --progress artifacts/final_dry_run/<run>/progress.json` to render the latest snapshot on demand. The watcher normalises the JSON payload, prints status/severity, elapsed and countdown timers, evidence requirements, and the top incidents with metadata. Pass `--once` to emit a single report, or keep it running to poll (default every 30s) while de-duplicating unchanged snapshots.【F:tools/operations/final_dry_run_watch.py†L21-L176】
+- Supply `--exit-when-complete` to terminate once the snapshot reports PASS/WARN/FAIL. Combine with `--treat-warn-as-error` when WARN should exit with status 1. Missing files, JSON errors, and validation failures surface on stderr with a non-zero exit code, matching the harness semantics.【F:src/operations/final_dry_run_progress.py†L85-L210】【F:tests/operations/test_final_dry_run_progress.py†L12-L120】
+- Adjust `--max-incidents`, `--no-incidents`, `--skip-summary`, or `--skip-sign-off` when operators want a condensed view for dashboards. Because the watcher reuses the parser/formatter, CLI output stays consistent with the review packets and audited countdown logic.【F:src/operations/final_dry_run_progress.py†L127-L307】
+
 ## Sign-off criteria mapping
 - **Duration**: enforced via `--duration-hours` / `--required-duration-hours` (default 72h)
 - **Uptime ratio**: calculated from structured logs; set with `--minimum-uptime-ratio`

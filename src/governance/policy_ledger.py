@@ -130,8 +130,10 @@ class PolicyLedgerRecord:
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
         timestamp: datetime | None = None,
+        allow_regression: bool = False,
     ) -> "PolicyLedgerRecord":
-        _validate_stage_progress(self.stage, stage)
+        if not allow_regression:
+            _validate_stage_progress(self.stage, stage)
         applied_timestamp = timestamp or datetime.now(tz=UTC)
         delta = self.policy_delta if policy_delta is None else _coerce_policy_delta(policy_delta)
         evidence = _normalise_evidence_id(evidence_id) or self.evidence_id
@@ -413,6 +415,7 @@ class PolicyLedgerStore:
         threshold_overrides: Mapping[str, float | str] | None = None,
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        allow_regression: bool = False,
     ) -> PolicyLedgerRecord:
         approvals_tuple = _normalise_approvals(approvals)
         evidence = _normalise_evidence_id(evidence_id)
@@ -436,6 +439,7 @@ class PolicyLedgerStore:
                     policy_delta=delta,
                     metadata=metadata,
                     timestamp=timestamp,
+                    allow_regression=allow_regression,
                 )
             else:
                 history_entry: MutableMapping[str, Any] = {
@@ -587,7 +591,7 @@ class LedgerReleaseManager:
             payload["audit_enforced"] = record.stage != stage
         return payload
 
-    def promote(
+    def _apply_stage(
         self,
         *,
         policy_id: str,
@@ -598,6 +602,8 @@ class LedgerReleaseManager:
         threshold_overrides: Mapping[str, float | str] | None = None,
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        allow_regression: bool,
+        log_action: str,
     ) -> PolicyLedgerRecord:
         stage_value = PolicyLedgerStage.from_value(stage)
         evidence = _normalise_evidence_id(evidence_id)
@@ -611,6 +617,9 @@ class LedgerReleaseManager:
                     )
             except Exception as exc:
                 raise ValueError(f"Failed to validate DecisionDiary evidence: {exc}") from exc
+
+        prior_record = self._store.get(policy_id)
+        prior_stage = prior_record.stage if prior_record is not None else None
         record = self._store.upsert(
             policy_id=policy_id,
             tactic_id=tactic_id,
@@ -620,16 +629,82 @@ class LedgerReleaseManager:
             threshold_overrides=threshold_overrides,
             policy_delta=policy_delta,
             metadata=metadata,
+            allow_regression=allow_regression,
         )
+
+        resolved_action = log_action
+        if prior_stage is not None:
+            prior_order = _STAGE_ORDER.get(prior_stage, -1)
+            new_order = _STAGE_ORDER.get(record.stage, -1)
+            if new_order > prior_order:
+                resolved_action = "promotion"
+            elif new_order < prior_order:
+                resolved_action = "demotion"
+
         logger.info(
-            "Policy ledger promotion applied",
+            "Policy ledger %s applied",
+            resolved_action,
             extra={
                 "policy_id": policy_id,
-                "stage": stage_value.value,
+                "stage": record.stage.value,
                 "approvals": list(record.approvals),
+                "evidence_id": record.evidence_id,
+                "prior_stage": prior_stage.value if prior_stage else None,
+                "allow_regression": allow_regression,
             },
         )
         return record
+
+    def promote(
+        self,
+        *,
+        policy_id: str,
+        tactic_id: str,
+        stage: PolicyLedgerStage | str,
+        approvals: Iterable[str] = (),
+        evidence_id: str | None = None,
+        threshold_overrides: Mapping[str, float | str] | None = None,
+        policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> PolicyLedgerRecord:
+        return self._apply_stage(
+            policy_id=policy_id,
+            tactic_id=tactic_id,
+            stage=stage,
+            approvals=approvals,
+            evidence_id=evidence_id,
+            threshold_overrides=threshold_overrides,
+            policy_delta=policy_delta,
+            metadata=metadata,
+            allow_regression=False,
+            log_action="promotion",
+        )
+
+    def apply_stage_transition(
+        self,
+        *,
+        policy_id: str,
+        tactic_id: str,
+        stage: PolicyLedgerStage | str,
+        approvals: Iterable[str] = (),
+        evidence_id: str | None = None,
+        threshold_overrides: Mapping[str, float | str] | None = None,
+        policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        allow_regression: bool = False,
+    ) -> PolicyLedgerRecord:
+        return self._apply_stage(
+            policy_id=policy_id,
+            tactic_id=tactic_id,
+            stage=stage,
+            approvals=approvals,
+            evidence_id=evidence_id,
+            threshold_overrides=threshold_overrides,
+            policy_delta=policy_delta,
+            metadata=metadata,
+            allow_regression=allow_regression,
+            log_action="transition",
+        )
 
 
 def build_policy_governance_workflow(

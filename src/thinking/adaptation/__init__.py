@@ -17,6 +17,12 @@ from .fast_weights import (
     parse_fast_weight_constraints,
 )
 from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
+from .replay_harness import (
+    StageDecision,
+    StageThresholds,
+    TacticEvaluationResult,
+    TacticReplayHarness,
+)
 
 __all__ = [
     "PolicyReflectionArtifacts",
@@ -35,4 +41,8 @@ __all__ = [
     "EvolutionManager",
     "ManagedStrategyConfig",
     "StrategyVariant",
+    "StageDecision",
+    "StageThresholds",
+    "TacticEvaluationResult",
+    "TacticReplayHarness",
 ]

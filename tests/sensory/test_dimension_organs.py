@@ -6,6 +6,8 @@ from typing import Any, Mapping, Sequence
 
 import pytest
 
+from src.sensory.enhanced.how_dimension import InstitutionalUnderstandingEngine
+from src.sensory.how.how_sensor import HowSensor
 from src.sensory.organs.dimensions import (
     AnomalySensoryOrgan,
     HowSensoryOrgan,
@@ -123,6 +125,65 @@ async def test_how_sensory_organ_emits_lineage_and_telemetry() -> None:
     assert isinstance(lineage, dict)
     assert lineage.get("dimension") == "HOW"
     assert lineage.get("metadata", {}).get("mode") == "market_data"
+
+
+@pytest.mark.asyncio
+async def test_how_sensory_organ_discriminates_market_bias() -> None:
+    engine = InstitutionalUnderstandingEngine(random_source=lambda: 0.0)
+    sensor = HowSensor(engine=engine)
+    organ = HowSensoryOrgan(sensor=sensor)
+    timestamp = datetime(2024, 1, 5, 9, tzinfo=timezone.utc)
+
+    bullish_payload = {
+        "timestamp": timestamp,
+        "symbol": "EURUSD",
+        "open": 1.101,
+        "high": 1.106,
+        "low": 1.099,
+        "close": 1.105,
+        "volume": 4_800.0,
+        "volatility": 0.0006,
+        "bid": 1.1048,
+        "ask": 1.1051,
+        "spread": 0.0003,
+        "depth": 18_500.0,
+        "order_imbalance": 0.4,
+        "data_quality": 0.96,
+    }
+
+    bearish_payload = {
+        "timestamp": timestamp,
+        "symbol": "EURUSD",
+        "open": 1.101,
+        "high": 1.100,
+        "low": 1.090,
+        "close": 1.092,
+        "volume": 80.0,
+        "volatility": 0.12,
+        "bid": 1.0900,
+        "ask": 1.0975,
+        "spread": 0.012,
+        "depth": 120.0,
+        "order_imbalance": -3.2,
+        "data_quality": 0.55,
+    }
+
+    bullish_reading = await organ.process(bullish_payload)
+    bearish_reading = await organ.process(bearish_payload)
+
+    bullish_strength = bullish_reading.data["signal_strength"]
+    bearish_strength = bearish_reading.data["signal_strength"]
+
+    assert bullish_strength > 0.2
+    assert bearish_strength < -0.2
+    assert bullish_strength > bearish_strength
+
+    bullish_quality = bullish_reading.metadata.get("quality")
+    bearish_quality = bearish_reading.metadata.get("quality")
+    assert isinstance(bullish_quality, Mapping)
+    assert isinstance(bearish_quality, Mapping)
+    assert bullish_quality.get("source") == "sensory.how"
+    assert bearish_quality.get("source") == "sensory.how"
 
 
 @pytest.mark.asyncio

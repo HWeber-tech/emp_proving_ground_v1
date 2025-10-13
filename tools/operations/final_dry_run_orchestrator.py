@@ -12,6 +12,7 @@ from typing import Iterable, MutableMapping, Sequence
 from src.operations.dry_run_audit import DryRunStatus
 from src.operations.final_dry_run import FinalDryRunConfig
 from src.operations.final_dry_run_review import parse_objective_spec
+from src.operations.final_dry_run_wrap_up import build_wrap_up_report
 from src.operations.final_dry_run_workflow import run_final_dry_run_workflow
 
 
@@ -306,6 +307,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional path for the review brief in Markdown format (default: run_dir/review.md).",
     )
     parser.add_argument(
+        "--no-wrap-up",
+        action="store_true",
+        help="Skip generating wrap-up minutes/backlog artefacts.",
+    )
+    parser.add_argument(
+        "--wrap-up-json",
+        type=Path,
+        help="Optional path for the wrap-up JSON report (default: run_dir/wrap_up.json).",
+    )
+    parser.add_argument(
+        "--wrap-up-markdown",
+        type=Path,
+        help="Optional path for the wrap-up Markdown minutes (default: run_dir/wrap_up.md).",
+    )
+    parser.add_argument(
+        "--wrap-up-duration-tolerance-minutes",
+        type=float,
+        default=5.0,
+        help=(
+            "Allowance (minutes) to accept shortfalls on the required duration before "
+            "flagging the wrap-up as a failure (default: 5)."
+        ),
+    )
+    parser.add_argument(
+        "--wrap-up-treat-warn-as-failure",
+        action="store_true",
+        help="Escalate WARN severities to FAIL when computing the wrap-up status.",
+    )
+    parser.add_argument(
         "--no-packet",
         action="store_true",
         help="Skip building an evidence packet directory/archive.",
@@ -405,6 +435,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     review_markdown_path = args.review_markdown or default_review_md
     review_json_path = args.review_json or default_review_json
 
+    wrap_up_enabled = not args.no_wrap_up
+    wrap_up_json_path = args.wrap_up_json or (run_dir / "wrap_up.json")
+    wrap_up_markdown_path = args.wrap_up_markdown or (run_dir / "wrap_up.md")
+
     packet_dir = None
     packet_archive = None
     if not args.no_packet:
@@ -497,6 +531,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.resource_sample_interval_minutes
             )
         resource_severity = DryRunStatus(args.resource_violation_severity)
+        wrap_up_tolerance = _timedelta_from_minutes(
+            args.wrap_up_duration_tolerance_minutes,
+            allow_zero=True,
+        )
     except ValueError as exc:
         parser.error(str(exc))
 
@@ -551,12 +589,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     summary_payload: MutableMapping[str, object] = {
         "status": result.status.value,
+        "generated_at": result.ended_at.astimezone(UTC).isoformat(),
         "summary": result.summary.as_dict(),
         "command": list(result.config.command),
         "run_directory": run_dir.as_posix(),
         "log_directory": log_dir.as_posix(),
         "progress_path": str(result.progress_path) if result.progress_path else None,
         "incidents": [incident.as_dict() for incident in result.incidents],
+        "metadata": dict(metadata),
+        "started_at": result.started_at.astimezone(UTC).isoformat(),
+        "ended_at": result.ended_at.astimezone(UTC).isoformat(),
+        "duration_seconds": result.duration.total_seconds(),
     }
     if result.sign_off is not None:
         summary_payload["sign_off"] = result.sign_off.as_dict()
@@ -564,6 +607,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         summary_payload["review"] = workflow.review.as_dict()
     if workflow.evidence_packet is not None:
         summary_payload["evidence_packet"] = workflow.evidence_packet.as_dict()
+
+    wrap_up_report = None
+    if wrap_up_enabled:
+        wrap_up_report = build_wrap_up_report(
+            summary_payload,
+            required_duration=result.config.required_duration,
+            duration_tolerance=wrap_up_tolerance or timedelta(minutes=0),
+            treat_warn_as_failure=args.wrap_up_treat_warn_as_failure,
+        )
+        summary_payload["wrap_up"] = wrap_up_report.as_dict()
 
     summary_json.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
 
@@ -589,6 +642,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_summary=args.review_include_summary,
                 include_sign_off=args.review_include_sign_off,
             ),
+            encoding="utf-8",
+        )
+
+    if wrap_up_report is not None:
+        wrap_up_json_path.parent.mkdir(parents=True, exist_ok=True)
+        wrap_up_json_path.write_text(
+            json.dumps(wrap_up_report.as_dict(), indent=2),
+            encoding="utf-8",
+        )
+        wrap_up_markdown_path.parent.mkdir(parents=True, exist_ok=True)
+        wrap_up_markdown_path.write_text(
+            wrap_up_report.to_markdown(),
             encoding="utf-8",
         )
 
@@ -619,6 +684,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  Evidence packet archive: {workflow.evidence_packet.archive_path}")
     else:
         print("  Evidence packet generation skipped.")
+    if wrap_up_report is not None:
+        print(f"  Wrap-up status: {wrap_up_report.status.value.upper()}")
+        print(f"  Wrap-up JSON: {wrap_up_json_path}")
+        print(f"  Wrap-up Markdown: {wrap_up_markdown_path}")
+    else:
+        print("  Wrap-up generation skipped.")
 
     if result.status is DryRunStatus.fail:
         return 2

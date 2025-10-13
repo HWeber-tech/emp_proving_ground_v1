@@ -147,6 +147,8 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
     summary_md = run_dir / "summary.md"
     review_json = run_dir / "review.json"
     review_md = run_dir / "review.md"
+    wrap_up_json = run_dir / "wrap_up.json"
+    wrap_up_md = run_dir / "wrap_up.md"
     log_dir = run_dir / "logs"
     packet_dir = run_dir / "packet"
     packet_archive = run_dir / "packet.tar.gz"
@@ -155,6 +157,8 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
     assert summary_md.exists()
     assert review_json.exists()
     assert review_md.exists()
+    assert wrap_up_json.exists()
+    assert wrap_up_md.exists()
     assert log_dir.exists()
     assert any(log_dir.glob("final_dry_run_*.jsonl"))
 
@@ -163,11 +167,17 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
     assert payload["summary"]["status"] == "pass"
     assert payload["review"]["status"] == "pass"
     assert payload["summary"]["metadata"]["run_label"] == "UAT rehearsal"
+    assert payload["wrap_up"]["status"] == "pass"
 
     review_payload = json.loads(review_json.read_text(encoding="utf-8"))
     assert review_payload["status"] == "pass"
     assert review_payload["objectives"][0]["name"] == "governance"
     assert review_payload["attendees"] == ["Ops Lead"]
+
+    wrap_payload = json.loads(wrap_up_json.read_text(encoding="utf-8"))
+    assert wrap_payload["status"] == "pass"
+    assert wrap_payload["backlog_items"] == []
+    assert wrap_payload["incidents"] == []
 
     diary_path = run_dir / "decision_diary.jsonl"
     performance_path = run_dir / "performance_metrics.json"
@@ -178,3 +188,47 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
         summary_manifest = packet_dir / "manifest.json"
         assert summary_manifest.exists()
         assert packet_archive.exists()
+
+
+def test_orchestrator_skip_wrap_up(tmp_path, capsys):
+    output_root = tmp_path / "runs"
+    args = [
+        "--output-root",
+        str(output_root),
+        "--duration-hours",
+        "0.0005",
+        "--required-duration-hours",
+        "0.0002",
+        "--minimum-uptime-ratio",
+        "0.1",
+        "--progress-interval-minutes",
+        "0.0004",
+        "--evidence-initial-grace-minutes",
+        "0.0",
+        "--no-wrap-up",
+        "--",
+        sys.executable,
+        "-c",
+        _RUNTIME_SCRIPT,
+    ]
+
+    exit_code = orchestrator.main(args)
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "Wrap-up generation skipped." in captured.out
+
+    run_dirs = list(output_root.iterdir())
+    assert len(run_dirs) == 1
+    run_dir = run_dirs[0]
+
+    summary_json = run_dir / "summary.json"
+    wrap_up_json = run_dir / "wrap_up.json"
+    wrap_up_md = run_dir / "wrap_up.md"
+
+    assert summary_json.exists()
+    assert not wrap_up_json.exists()
+    assert not wrap_up_md.exists()
+
+    payload = json.loads(summary_json.read_text(encoding="utf-8"))
+    assert "wrap_up" not in payload

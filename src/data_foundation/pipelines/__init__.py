@@ -5,6 +5,7 @@ from .operational_backbone import (
     OperationalBackboneResult,
     OperationalIngestRequest,
 )
+from .backbone_service import OperationalBackboneService
 from .pricing_pipeline import (
     CallablePricingVendor,
     PricingPipeline,
@@ -17,6 +18,7 @@ __all__ = [
     "OperationalBackbonePipeline",
     "OperationalBackboneResult",
     "OperationalIngestRequest",
+    "OperationalBackboneService",
     "CallablePricingVendor",
     "PricingPipeline",
     "PricingPipelineConfig",

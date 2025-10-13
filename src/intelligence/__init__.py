@@ -212,10 +212,7 @@ class Phase3IntelligenceOrchestrator:
             "red_team_findings": [],
             "specialized_predators": [],
             "portfolio_evolution": None,
-            # canonical naming is understanding-centric; keep legacy key for
-            # callers that still look for "competitive_intelligence".
             "competitive_understanding": None,
-            "competitive_intelligence": None,
         }
 
         # 1. Sentient adaptation
@@ -257,7 +254,6 @@ class Phase3IntelligenceOrchestrator:
             market_data
         )
         results["competitive_understanding"] = competitive_report
-        results["competitive_intelligence"] = competitive_report
 
         return results
 
@@ -283,7 +279,6 @@ class Phase3IntelligenceOrchestrator:
                 "detail": "Legacy portfolio evolution facade retired",
             },
             "competitive_understanding": competitive_stats,
-            "competitive_intelligence": competitive_stats,
         }
 
 

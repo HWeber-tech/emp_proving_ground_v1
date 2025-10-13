@@ -79,8 +79,8 @@ async def test_phase3_orchestrator_routes_competitive_understanding():
     result = await orchestrator.run_intelligence_cycle(market_data, [strategy])
 
     assert result["competitive_understanding"] == {"understanding_id": "comp-123", "signals": 2}
-    assert result["competitive_intelligence"] is result["competitive_understanding"]
+    assert "competitive_intelligence" not in result
 
     status = await orchestrator.get_phase3_status()
     assert status["competitive_understanding"] == {"total_understanding_cycles": 42}
-    assert status["competitive_intelligence"] is status["competitive_understanding"]
+    assert "competitive_intelligence" not in status

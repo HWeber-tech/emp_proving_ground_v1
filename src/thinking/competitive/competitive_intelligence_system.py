@@ -1027,19 +1027,7 @@ class CompetitiveIntelligenceSystem:
                 ),
                 "last_understanding": now_iso,
             }
-            legacy_stats = {
-                "total_intelligence_cycles": cycle_count,
-                "total_signatures_detected": total_signatures,
-                "total_competitors_analyzed": total_competitors,
-                "total_counter_strategies_developed": total_counters,
-                "average_signatures_per_cycle": base_stats[
-                    "average_understanding_signatures_per_cycle"
-                ],
-                "last_intelligence": now_iso,
-            }
-
-            combined: dict[str, object] = {**base_stats, **legacy_stats}
-            return combined
+            return base_stats
 
         except Exception as e:
             logger.error(f"Error getting understanding stats: {e}")
@@ -1050,12 +1038,6 @@ class CompetitiveIntelligenceSystem:
                 "total_understanding_counter_strategies_developed": 0,
                 "average_understanding_signatures_per_cycle": 0,
                 "last_understanding": None,
-                "total_intelligence_cycles": 0,
-                "total_signatures_detected": 0,
-                "total_competitors_analyzed": 0,
-                "total_counter_strategies_developed": 0,
-                "average_signatures_per_cycle": 0,
-                "last_intelligence": None,
             }
 
     async def get_intelligence_stats(self) -> dict[str, object]:

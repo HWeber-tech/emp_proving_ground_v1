@@ -65,7 +65,10 @@ telemetry before declaring parity.【F:docs/development/remediation_plan.md†L3
 evolution pipelines, and catalogue integrations still ship as placeholders with
 `NotImplementedError` paths and thin heuristics; the new integrated sensory organ
 fuses WHY/WHAT/WHEN/HOW/ANOMALY signals with lineage and telemetry yet still
-relies on synthetic feeds until institutional ingest lands.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/sensory/real_sensory_organ.py†L20-L208】【F:src/sensory/real_sensory_organ.py†L210-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】
+relies on synthetic feeds until institutional ingest lands. Fresh regression
+coverage now proves the enhanced HOW organ discriminates bullish versus bearish
+flows through the institutional engine wiring, but market validation remains
+blocked on live ingest.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/sensory/real_sensory_organ.py†L20-L336】【F:tests/sensory/test_real_sensory_organ.py†L1-L107】【F:tests/sensory/test_dimension_organs.py†L130-L186】
 *Next checkpoint:* Replace scaffolding with executable organs, wire lineage
 telemetry, and complete the evolution engine so strategies can mutate against
 real data feeds.【F:docs/development/remediation_plan.md†L92-L167】
@@ -79,7 +82,10 @@ real data feeds.【F:docs/development/remediation_plan.md†L92-L167】
 *Status:* Attention
 *Summary:* The order lifecycle mirrors the encyclopedia chapters, yet risk and
 compliance enforcement are hollow, async entrypoints remain partially migrated,
- and deprecated exports still leak into runtime consumers.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+and deprecated exports still leak into runtime consumers. Event bus shutdown now
+runs under the task supervisor with explicit metadata and the final dry run
+harness rotates structured/raw logs for multi-day rehearsals, but deterministic
+risk controls are still required before expanding pilots.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/core/_event_bus_impl.py†L501-L590】【F:src/operations/final_dry_run.py†L307-L405】【F:emp/cli/final_dry_run.py†L335-L487】
 *Next checkpoint:* Finish the runtime builder rollout, adopt supervised tasks,
 enforce risk policies, and retire deprecated facades before expanding broker
 coverage.【F:docs/technical_debt_assessment.md†L33-L101】【F:docs/development/remediation_plan.md†L34-L167】

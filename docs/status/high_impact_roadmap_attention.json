@@ -1,9 +1,9 @@
 {
   "portfolio": {
     "total_streams": 3,
-    "ready": 3,
-    "attention_needed": 0,
-    "all_ready": true
+    "ready": 0,
+    "attention_needed": 3,
+    "all_ready": false
   },
   "streams": [],
   "missing_requirements": {}

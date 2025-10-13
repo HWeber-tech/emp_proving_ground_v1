@@ -179,6 +179,17 @@ Guardrail suites assert the scopes list populates when throttles block, the
 baseline helper includes the snapshots, and both surfaces clear the list once
 throttling is disabled.【F:tests/trading/test_trade_throttle.py†L171-L210】【F:tests/trading/test_trading_manager_execution.py†L2092-L2138】【F:tests/trading/test_trading_manager_execution.py†L2648-L2666】
 
+### Countdown telemetry & capacity summaries
+
+Throttle snapshots now emit `remaining_trades`, `max_trades`,
+`window_utilisation`, `retry_in_seconds`, and `window_reset_*` metadata so ops
+dashboards and Markdown reports can surface capacity posture and cooldown timers
+without inspecting raw decision diaries. The execution and performance health
+reports render these fields—showing "Capacity: X / Y trades remaining",
+utilisation percentages, retry countdowns, and the next reset timestamp—while
+tests lock the formatting and scope metadata (`scope` and `scope_key`) that
+accompany the timers for governance review packs.【F:src/trading/execution/performance_report.py†L112-L146】【F:src/trading/execution/performance_report.py†L210-L342】【F:tests/trading/execution/test_performance_report.py†L13-L165】
+
 ### Minimum spacing guardrails
 
 The throttle also enforces a configurable minimum interval between trades via

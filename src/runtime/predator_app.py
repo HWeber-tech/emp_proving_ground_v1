@@ -188,6 +188,7 @@ from src.runtime.task_supervisor import TaskSupervisor
 
 if TYPE_CHECKING:  # pragma: no cover - typing helpers only
     from src.runtime.runtime_builder import RuntimeApplication
+    from src.reflection.trm.runner import TRMRunResult
 from src.risk.telemetry import format_risk_markdown
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -303,6 +304,7 @@ class ProfessionalPredatorApp:
         self._last_compliance_workflow_snapshot: ComplianceWorkflowSnapshot | None = None
         self._last_regulatory_snapshot: RegulatoryTelemetrySnapshot | None = None
         self._last_governance_report: GovernanceReport | None = None
+        self._last_reflection_trm_run: dict[str, Any] | None = None
         self._last_security_snapshot: SecurityPostureSnapshot | None = None
         self._last_incident_response_snapshot: IncidentResponseSnapshot | None = None
         self._last_cache_snapshot: CacheHealthSnapshot | None = None
@@ -486,6 +488,32 @@ class ProfessionalPredatorApp:
         """Store the latest governance compliance report."""
 
         self._last_governance_report = report
+
+    def record_reflection_trm_run(
+        self,
+        result: "TRMRunResult",
+        *,
+        metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        """Record the most recent TRM governance emission for runtime summaries."""
+
+        payload: dict[str, object | None] = {
+            "suggestions": int(result.suggestions_count),
+            "runtime_seconds": float(result.runtime_seconds),
+            "run_id": result.run_id,
+            "skipped_reason": result.skipped_reason,
+            "artifact_path": str(result.suggestions_path) if result.suggestions_path else None,
+        }
+
+        if metadata:
+            for key, value in metadata.items():
+                normalised_key = str(key)
+                if isinstance(value, Path):
+                    payload[normalised_key] = str(value)
+                else:
+                    payload[normalised_key] = value
+
+        self._last_reflection_trm_run = payload
 
     def record_security_snapshot(self, snapshot: SecurityPostureSnapshot) -> None:
         """Store the most recent security posture snapshot."""
@@ -1455,6 +1483,9 @@ class ProfessionalPredatorApp:
             if markdown:
                 governance_payload["markdown"] = markdown
             summary_payload["governance_report"] = governance_payload
+
+        if self._last_reflection_trm_run is not None:
+            summary_payload["reflection_trm"] = dict(self._last_reflection_trm_run)
 
         if self._last_security_snapshot is not None:
             security_snapshot = self._last_security_snapshot

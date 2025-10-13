@@ -69,6 +69,8 @@ from src.runtime.runtime_builder import (
     _configure_drift_monitor,
     _merge_task_snapshots,
 )
+from src.reflection.trm.config import ModelConfig, RIMRuntimeConfig, RuntimeConfigBundle, TelemetryConfig
+from src.reflection.trm.runner import TRMRunResult
 
 
 @pytest.mark.asyncio()
@@ -2127,6 +2129,133 @@ async def test_builder_configures_governance_cadence(monkeypatch, tmp_path):
         assert len(stub_runner.run_calls) == runs_after_shutdown
         assert not hasattr(runtime_app, "_governance_cadence_runner")
     finally:
+        await app.shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_builder_configures_rim_runtime(monkeypatch, tmp_path):
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_HEALTHCHECK_ENABLED": "0",
+            "RIM_RUNTIME_ENABLED": "true",
+            "RIM_RUNTIME_INTERVAL_SECONDS": "120",
+            "RIM_RUNTIME_RUN_ON_START": "1",
+            "RIM_RUNTIME_CONFIG_PATH": str(tmp_path / "configs" / "rim.config.yml"),
+            "RIM_RUNTIME_MODEL_PATH": str(tmp_path / "models" / "rim-model.json"),
+        },
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+
+    diaries_dir = tmp_path / "artifacts" / "diaries"
+    diaries_dir.mkdir(parents=True, exist_ok=True)
+    runtime_config = RIMRuntimeConfig(
+        diaries_dir=diaries_dir,
+        diary_glob="diaries-*.jsonl",
+        window_minutes=60,
+        min_entries=1,
+        suggestion_cap=3,
+        confidence_floor=0.5,
+        publish_channel=f"file://{tmp_path / 'artifacts' / 'suggestions'}",
+        telemetry=TelemetryConfig(log_dir=tmp_path / "logs"),
+        model=ModelConfig(path=None, temperature=1.0),
+        lock_path=tmp_path / "locks" / "rim.lock",
+        governance_queue_path=tmp_path / "governance" / "queue.jsonl",
+        governance_digest_path=tmp_path / "governance" / "digest.json",
+        governance_markdown_path=tmp_path / "governance" / "digest.md",
+    )
+    bundle = RuntimeConfigBundle(
+        config=runtime_config,
+        config_hash="config-hash",
+        source_path=tmp_path / "rim.config.yml",
+    )
+
+    config_calls: list[object] = []
+
+    def _fake_load_runtime_config(path=None):
+        config_calls.append(path)
+        return bundle
+
+    monkeypatch.setattr(runtime_builder_module, "load_runtime_config", _fake_load_runtime_config)
+
+    class _DummyModel:
+        def __init__(self, path) -> None:
+            self.path = path
+            self.model_hash = "dummy-model"
+
+        @classmethod
+        def load(cls, path, temperature):
+            instance = cls(path)
+            instance.temperature = temperature
+            return instance
+
+    monkeypatch.setattr(runtime_builder_module, "TRMModel", _DummyModel)
+
+    run_invoked = asyncio.Event()
+
+    class _DummyRunner:
+        instances: list["_DummyRunner"] = []
+
+        def __init__(self, config, model, config_hash):
+            self.config = config
+            self.model = model
+            self.config_hash = config_hash
+            self.run_calls = 0
+            _DummyRunner.instances.append(self)
+
+        def run(self) -> TRMRunResult:
+            self.run_calls += 1
+            run_invoked.set()
+            return TRMRunResult(
+                suggestions_path=tmp_path / "artifacts" / "rim.jsonl",
+                suggestions_count=2,
+                runtime_seconds=0.25,
+                run_id="rim-run-001",
+            )
+
+    monkeypatch.setattr(runtime_builder_module, "TRMRunner", _DummyRunner)
+
+    runtime_app = build_professional_runtime_application(
+        app,
+        skip_ingest=True,
+        symbols_csv="EURUSD",
+        duckdb_path=str(tmp_path / "tier0.duckdb"),
+    )
+
+    try:
+        workloads = [workload for workload in runtime_app.auxiliary if workload.name == "reflection-trm-runner"]
+        assert workloads, "Expected reflection TRM workload to be registered"
+        workload = workloads[0]
+        assert workload.metadata.get("workload_kind") == "reflection_trm"
+        assert workload.metadata.get("config_path") == str(tmp_path / "configs" / "rim.config.yml")
+
+        task = asyncio.create_task(workload.factory())
+        try:
+            await asyncio.wait_for(run_invoked.wait(), timeout=1.0)
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        assert _DummyRunner.instances, "TRM runner should be instantiated"
+        assert _DummyRunner.instances[0].run_calls >= 1
+        assert config_calls, "runtime builder should load TRM configuration"
+        assert str(config_calls[0]) == str(tmp_path / "configs" / "rim.config.yml")
+
+        summary = app.summary()
+        trm_summary = summary.get("reflection_trm")
+        assert trm_summary is not None
+        assert trm_summary["suggestions"] == 2
+        assert trm_summary["run_id"] == "rim-run-001"
+        assert trm_summary["model_hash"] == "dummy-model"
+        assert trm_summary["status"] == "completed"
+        assert trm_summary["config_path"] == str(bundle.source_path)
+        assert trm_summary["artifact_path"].endswith("rim.jsonl")
+    finally:
+        await runtime_app.shutdown()
         await app.shutdown()
 @pytest.mark.asyncio()
 async def test_runtime_application_ingest_failure_restarts_and_trading_continues(

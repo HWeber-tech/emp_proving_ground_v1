@@ -15,6 +15,12 @@
 4. With `enable_governance_gate: true` the runner also appends suggestions (with queue metadata) to `governance.queue_path` and writes JSON/Markdown digests under the configured governance paths, making the queue ready for policy reviewers without a shadow-mode handoff.【F:src/reflection/trm/governance.py†L17-L218】【F:src/reflection/trm/runner.py†L72-L153】
 5. Telemetry logs append to `TelemetryConfig.log_dir`; confirm a new `rim-<date>.log` entry is written and contains runtime milliseconds, entry counts, and the resolved hashes. The regression suite validates encoder feature sets and schema compliance—run `pytest tests/reflection/test_trm_runner.py -q` after config updates to ensure outputs stay aligned.【F:tests/reflection/test_trm_runner.py†L24-L91】
 
+## Runtime Integration
+
+- Set `RIM_RUNTIME_ENABLED=true` in `SystemConfig.extras` to have `build_professional_runtime_application` supervise the production TRM runner under the shared task supervisor; failures are logged and retried automatically.
+- The runtime loader honours `RIM_RUNTIME_CONFIG_PATH` (falls back to the bundled example) and `RIM_RUNTIME_MODEL_PATH` for weight overrides on each iteration so refreshed bundles take effect without restarts.
+- Control cadence with `RIM_RUNTIME_INTERVAL_SECONDS` (minimum 60 seconds) and optionally run immediately at startup with `RIM_RUNTIME_RUN_ON_START=1`. Every execution records a `reflection_trm` block in the runtime summary with `run_id`, suggestion counts, and the published artifact path to streamline governance reviews.
+
 ## Sanity Checks
 
 - **Encoder Output:** Enable debug logging (`RIM_DEBUG=1 make rim-shadow`) to log encoded feature shapes and batch counts.

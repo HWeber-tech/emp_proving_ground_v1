@@ -199,6 +199,8 @@ from src.operations.regulatory_telemetry import (
     evaluate_regulatory_telemetry,
     publish_regulatory_telemetry,
 )
+from src.reflection.trm import TRMRunner, load_runtime_config
+from src.reflection.trm.model import TRMModel
 from src.operations.governance_cadence import (
     build_governance_cadence_runner_from_config,
 )
@@ -3169,6 +3171,184 @@ def _configure_drift_monitor(
     )
 
 
+def _configure_reflection_trm_runtime(
+    runtime_app: RuntimeApplication,
+    app: ProfessionalPredatorApp,
+    tracer: RuntimeTracer,
+    extras: Mapping[str, object],
+) -> None:
+    """Register the production TRM runner as a supervised auxiliary workload."""
+
+    enabled = _coerce_bool(extras.get("RIM_RUNTIME_ENABLED"), False)
+    if not enabled:
+        logger.debug("Reflection TRM runtime disabled via configuration flag")
+        return
+
+    interval_seconds = _coerce_float(extras.get("RIM_RUNTIME_INTERVAL_SECONDS"), 3600.0)
+    if interval_seconds < 60.0:
+        interval_seconds = 60.0
+    run_on_start = _coerce_bool(extras.get("RIM_RUNTIME_RUN_ON_START"), True)
+    debug_logging = _coerce_bool(extras.get("RIM_RUNTIME_DEBUG_LOGS"), False)
+
+    config_hint = extras.get("RIM_RUNTIME_CONFIG_PATH")
+    config_path = Path(str(config_hint)).expanduser() if config_hint else None
+    model_hint = extras.get("RIM_RUNTIME_MODEL_PATH")
+    model_override = Path(str(model_hint)).expanduser() if model_hint else None
+
+    default_hang_timeout = max(interval_seconds * 4.0, interval_seconds + 120.0)
+    hang_timeout = _resolve_workload_hang_timeout(
+        extras,
+        component="rim_runtime",
+        default_timeout=default_hang_timeout,
+    )
+
+    workload_metadata = {
+        "interval_seconds": interval_seconds,
+        "run_on_start": run_on_start,
+        "config_path": str(config_path) if config_path else None,
+        "model_override": str(model_override) if model_override else None,
+        "workload_kind": "reflection_trm",
+        "supervised_components": ("reflection_trm", "governance"),
+    }
+
+    record_trm_result = getattr(app, "record_reflection_trm_run", None)
+
+    async def _run_reflection_trm() -> None:
+        logger.info(
+            "🪞 Reflection TRM runtime active (interval=%ss, config=%s)",
+            interval_seconds,
+            workload_metadata["config_path"] or "<default>",
+        )
+        delay = 0.0 if run_on_start else interval_seconds
+        try:
+            while True:
+                try:
+                    if delay > 0:
+                        await asyncio.sleep(delay)
+                    else:
+                        await asyncio.sleep(0)
+                except asyncio.CancelledError:
+                    raise
+                delay = interval_seconds
+
+                try:
+                    bundle = load_runtime_config(config_path)
+                except FileNotFoundError:
+                    logger.warning(
+                        "TRM runtime config not found; skipping iteration",
+                        extra={"rim.runtime.config_path": str(config_path) if config_path else None},
+                    )
+                    continue
+                except Exception:
+                    logger.exception("Failed to load TRM runtime configuration")
+                    continue
+
+                config = bundle.config
+                if model_override is not None:
+                    config.model.path = model_override
+
+                try:
+                    model = TRMModel.load(config.model.path, temperature=config.model.temperature)
+                except Exception:
+                    logger.exception(
+                        "Failed to load TRM model weights",
+                        extra={
+                            "rim.runtime.model_path": str(config.model.path) if config.model.path else None,
+                        },
+                    )
+                    continue
+
+                runner = TRMRunner(config, model, config_hash=bundle.config_hash)
+
+                span_metadata = {
+                    "config_path": str(bundle.source_path),
+                    "model_hash": getattr(model, "model_hash", "unknown"),
+                    "interval_seconds": interval_seconds,
+                }
+
+                with tracer.operation_span(
+                    name="runtime.reflection_trm",
+                    metadata=span_metadata,
+                ) as span:
+                    try:
+                        result = runner.run()
+                    except Exception:
+                        if span is not None and hasattr(span, "set_attribute"):
+                            span.set_attribute("runtime.reflection_trm.status", "error")
+                        logger.exception("TRM runtime execution failed")
+                        continue
+                    else:
+                        if span is not None and hasattr(span, "set_attribute"):
+                            span.set_attribute("runtime.reflection_trm.status", "completed")
+                            if result.run_id:
+                                span.set_attribute("runtime.reflection_trm.run_id", result.run_id)
+                            span.set_attribute(
+                                "runtime.reflection_trm.suggestions",
+                                int(result.suggestions_count),
+                            )
+
+                record_metadata: dict[str, object] = {
+                    "config_path": str(bundle.source_path),
+                    "model_hash": getattr(model, "model_hash", "unknown"),
+                    "interval_seconds": interval_seconds,
+                    "model_path": str(config.model.path) if config.model.path else None,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+                if model_override is not None:
+                    record_metadata["model_override"] = str(model_override)
+
+                if result.suggestions_path is not None:
+                    record_metadata["artifact_path"] = str(result.suggestions_path)
+
+                if result.skipped_reason:
+                    record_metadata["status"] = "skipped"
+                    logger.info(
+                        "🪞 TRM run skipped (reason=%s)",
+                        result.skipped_reason,
+                        extra={"rim.runtime.config_path": record_metadata["config_path"]},
+                    )
+                else:
+                    record_metadata["status"] = "completed"
+                    logger.info(
+                        "🪞 TRM emitted %d suggestions in %.3fs",
+                        result.suggestions_count,
+                        result.runtime_seconds,
+                        extra={
+                            "rim.runtime.artifact": record_metadata.get("artifact_path"),
+                            "rim.runtime.run_id": result.run_id,
+                        },
+                    )
+
+                if debug_logging:
+                    logger.debug(
+                        "TRM runtime metadata",
+                        extra={"rim.runtime": record_metadata},
+                    )
+
+                if callable(record_trm_result):
+                    try:
+                        record_trm_result(result, metadata=record_metadata)
+                    except Exception:  # pragma: no cover - diagnostics only
+                        logger.debug(
+                            "Failed to record TRM runtime result on application",
+                            exc_info=True,
+                        )
+        finally:
+            logger.info("🪞 Reflection TRM runtime stopped")
+
+    restart_backoff = max(10.0, min(interval_seconds, 300.0))
+    runtime_app.add_auxiliary_workload(
+        RuntimeWorkload(
+            name="reflection-trm-runner",
+            factory=_run_reflection_trm,
+            description="Production TRM governance publication loop",
+            metadata=workload_metadata,
+            restart_policy=WorkloadRestartPolicy(max_restarts=None, backoff_seconds=restart_backoff),
+            hang_timeout=hang_timeout,
+        )
+    )
+
+
 def _configure_governance_cadence(
     runtime_app: RuntimeApplication,
     app: ProfessionalPredatorApp,
@@ -4626,6 +4806,7 @@ def build_professional_runtime_application(
 
     extras = app.config.extras or {}
     _configure_drift_monitor(runtime_app, app, runtime_tracer, extras)
+    _configure_reflection_trm_runtime(runtime_app, app, runtime_tracer, extras)
     _configure_governance_cadence(runtime_app, app, runtime_tracer, extras)
     health_enabled = _coerce_bool(extras.get("RUNTIME_HEALTHCHECK_ENABLED", True), True)
     if health_enabled:

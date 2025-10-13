@@ -938,6 +938,51 @@ async def test_runtime_builder_ingest_failure_keeps_trading_running(
             await runtime_app.shutdown()
         await app.shutdown()
 
+
+@pytest.mark.asyncio()
+async def test_runtime_builder_service_registry_exposes_core_workloads(tmp_path) -> None:
+    cfg = SystemConfig().with_updated(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.bootstrap,
+        extras={"BOOTSTRAP_SYMBOLS": "EURUSD"},
+    )
+
+    app = await build_professional_predator_app(config=cfg)
+    runtime_app: RuntimeApplication | None = None
+
+    try:
+        await app.start()
+        runtime_app = build_professional_runtime_application(
+            app,
+            skip_ingest=False,
+            symbols_csv="EURUSD",
+            duckdb_path=str(tmp_path / "tier0.duckdb"),
+        )
+
+        summary = runtime_app.summary()
+        services = summary.get("services")
+        assert isinstance(services, Mapping)
+
+        data_backbone = services.get("data_backbone")
+        assert data_backbone, "expected data_backbone service entry"
+        assert data_backbone[0].get("name") == runtime_app.ingestion.name
+
+        understanding = services.get("understanding_loop")
+        assert understanding, "expected understanding_loop service entry"
+        assert understanding[0].get("name") == runtime_app.trading.name
+
+        drift_entries = services.get("drift_monitor")
+        assert drift_entries, "expected drift_monitor service entry"
+        assert any(
+            isinstance(entry.get("metadata"), Mapping)
+            and entry["metadata"].get("workload_kind") == "drift_monitor"
+            for entry in drift_entries
+        )
+    finally:
+        if runtime_app is not None:
+            await runtime_app.shutdown()
+        await app.shutdown()
+
 @pytest.mark.asyncio()
 async def test_builder_requires_trading_manager(tmp_path):
     cfg = SystemConfig().with_updated(

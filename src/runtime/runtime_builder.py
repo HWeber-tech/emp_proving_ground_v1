@@ -1279,10 +1279,21 @@ class RuntimeApplication:
                 payload["tasks"] = tuple(workload_snapshots)
             return payload
 
+        ingestion_payload = _pack(self.ingestion)
+        trading_payload = _pack(self.trading)
+
+        auxiliary_entries: list[tuple[RuntimeWorkload, Mapping[str, object]]] = []
+        for workload in self._auxiliary_workloads:
+            payload = _pack(workload)
+            if payload is not None:
+                auxiliary_entries.append((workload, payload))
+
+        auxiliary_payloads = tuple(payload for _, payload in auxiliary_entries)
+
         summary: MutableMapping[str, object] = {
-            "ingestion": _pack(self.ingestion),
-            "trading": _pack(self.trading),
-            "auxiliary": tuple(filter(None, (_pack(workload) for workload in self._auxiliary_workloads))),
+            "ingestion": ingestion_payload,
+            "trading": trading_payload,
+            "auxiliary": auxiliary_payloads,
             "shutdown_callbacks": len(self.shutdown_callbacks),
             "startup_callbacks": len(self.startup_callbacks),
             "workload_states": dict(self._workload_states),
@@ -1296,6 +1307,89 @@ class RuntimeApplication:
         if snapshots:
             supervisor_details["tasks"] = tuple(snapshots)
         summary["task_supervisor"] = supervisor_details
+
+        service_registry: dict[str, list[dict[str, object]]] = {}
+
+        def _register_service(
+            workload: RuntimeWorkload | None,
+            payload: Mapping[str, object] | None,
+            default_kind: str,
+        ) -> None:
+            if workload is None or payload is None:
+                return
+
+            metadata_obj = payload.get("metadata") if isinstance(payload, Mapping) else None
+            if isinstance(metadata_obj, Mapping):
+                metadata = dict(metadata_obj)
+            elif workload.metadata:
+                metadata = dict(workload.metadata)
+            else:
+                metadata = {}
+
+            service_kind = metadata.get("workload_kind")
+            if not isinstance(service_kind, str) or not service_kind.strip():
+                service_kind = default_kind
+
+            entry: dict[str, object] = {
+                "name": workload.name,
+                "description": workload.description,
+            }
+
+            state_value = payload.get("state") if isinstance(payload, Mapping) else None
+            if state_value is not None:
+                entry["state"] = state_value
+
+            if metadata:
+                entry["metadata"] = metadata
+
+            restart_policy_payload = (
+                payload.get("restart_policy") if isinstance(payload, Mapping) else None
+            )
+            if restart_policy_payload is None and workload.restart_policy is not None:
+                restart_policy_payload = {
+                    "max_restarts": workload.restart_policy.max_restarts,
+                    "backoff_seconds": workload.restart_policy.backoff_seconds,
+                }
+            if isinstance(restart_policy_payload, Mapping) and restart_policy_payload:
+                entry["restart_policy"] = dict(restart_policy_payload)
+
+            timeout_value = None
+            if isinstance(payload, Mapping):
+                timeout_value = payload.get("hang_timeout_seconds")
+            if timeout_value is None and workload.hang_timeout is not None:
+                timeout_value = workload.hang_timeout
+            if timeout_value is not None:
+                entry["hang_timeout_seconds"] = timeout_value
+
+            if isinstance(payload, Mapping):
+                tasks_payload = payload.get("tasks")
+                if tasks_payload:
+                    entry["tasks"] = tuple(tasks_payload)
+
+            service_registry.setdefault(service_kind, []).append(entry)
+
+        if self.ingestion is not None and ingestion_payload is not None:
+            _register_service(self.ingestion, ingestion_payload, default_kind="data_backbone")
+        if self.trading is not None and trading_payload is not None:
+            _register_service(
+                self.trading,
+                trading_payload,
+                default_kind="understanding_loop",
+            )
+        for workload, payload in auxiliary_entries:
+            metadata_obj = payload.get("metadata") if isinstance(payload, Mapping) else None
+            if isinstance(metadata_obj, Mapping) and metadata_obj.get("workload_kind"):
+                default_kind = str(metadata_obj.get("workload_kind"))
+            elif workload.metadata and "workload_kind" in workload.metadata:
+                default_kind = str(workload.metadata.get("workload_kind"))
+            else:
+                default_kind = workload.name
+            _register_service(workload, payload, default_kind=default_kind)
+
+        if service_registry:
+            summary["services"] = {
+                kind: tuple(entries) for kind, entries in service_registry.items()
+            }
 
         return summary
 

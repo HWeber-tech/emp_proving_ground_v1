@@ -225,6 +225,7 @@
   warnings, and promotions so dashboards and SLOs can track enforcement posture;
   guardrail suites cover gauge fallbacks, throttle snapshots, and dashboard
   wiring.【F:src/operational/metrics.py†L160-L360】【F:src/understanding/metrics.py†L1-L65】【F:tests/operational/test_metrics.py†L310-L360】【F:tests/understanding/test_understanding_metrics.py†L62-L125】【F:tests/operations/test_observability_dashboard.py†L297-L420】
+- Progress: Grafana and Prometheus provisioning now lives in-repo with dashboard JSON, datasource wiring, SLO alert rules, and an operations drill, and pytest guards lock the panels/alerts so observability evidence stays reproducible without manual Grafana edits.【F:config/grafana/dashboards/json/emp_observability.json†L1-L200】【F:config/prometheus/emp_rules.yml†L1-L65】【F:docs/operations/prometheus_grafana.md†L1-L26】【F:tests/config/test_grafana_dashboard.py†L1-L45】【F:tests/config/test_prometheus_monitoring.py†L1-L50】
 - Progress: Trade throttle instrumentation now streams rolling throughput,
   latency, and backlog metrics via the shared `ThroughputMonitor`, exposes the
   snapshot through `TradingManager.get_execution_stats()`, and pairs it with

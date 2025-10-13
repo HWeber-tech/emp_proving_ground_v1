@@ -79,7 +79,7 @@
 
 **Deliverables**
 - [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers).
-- [ ] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available. _Progress: Auto-approved TRM queue entries now flow into the ledger metadata with approvals and threshold overrides recorded per suggestion so reviewers see applied deltas without manual reconciliation.【F:src/reflection/trm/application.py†L17-L159】【F:src/governance/policy_ledger.py†L572-L595】_
+- [x] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available. _Progress: Auto-apply guard now loads thresholds from `config/reflection/rim.config.example.yml`, evaluates uplift, risk hits, and budget utilisation inside `TRMRunner`, and surfaces evaluations in the governance queue and digest with regression coverage documenting rejection reasons.【F:config/reflection/rim.config.example.yml†L13-L24】【F:src/reflection/trm/config.py†L44-L169】【F:src/reflection/trm/runner.py†L138-L213】【F:tests/reflection/test_trm_runner.py†L70-L150】_
 - [x] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded). _Progress: The shadow runner now enforces the governance gate, writes skip digests, and stamps auto-apply decisions into the queue/markdown artifacts, with regression coverage ensuring nightly RIM runs stage approved changes without bypassing safeguards.【F:tools/rim_shadow_run.py†L160-L222】【F:src/reflection/trm/governance.py†L19-L247】【F:tests/tools/test_rim_shadow_run.py†L44-L139】【F:tests/reflection/test_trm_governance.py†L16-L126】_
 - [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs. _Progress: Ledger releases now surface metadata/policy deltas alongside staged approvals so governance packets inherit the recorded reviewers and auto-applied changes in the exported posture snapshot.【F:src/governance/policy_ledger.py†L572-L595】_
 
@@ -130,11 +130,11 @@
 
 ## Backlog / Niceâ€‘toâ€‘Haves
 
-- [ ] `[adapt]` (Âµ+Î») evolution mode in addition to tournament selection.
+- [x] `[adapt]` (Âµ+Î») evolution mode in addition to tournament selection. _Progress: EvolutionConfig now exposes a `mu_plus_lambda` mode with survivor retention, configurable offspring counts, and fitness-safe parent sampling, and the regression suite locks survivor preservation plus invalid config guards.【F:src/core/evolution/engine.py†L45-L320】【F:tests/current/test_evolution_engine_basic.py†L1-L58】_
 - [x] `[adapt]` `op_mix_strategies` (ensembles) with stability penalties (switching frictions). _Progress: The new strategy mixer operator blends scored tactics with friction, decay, and bounds enforcement, exports typed dataclasses, and ships regression coverage for score prioritisation, friction decay, and max-share enforcement so ensemble evolution can progress beyond the backlog stub.【F:src/evolution/mutation/strategy_mixer.py†L1-L200】【F:tests/evolution/test_strategy_mix_operator.py†L1-L118】_
 - [ ] `[reflect]` Counterfactual explainers per trade (why not alternative topology).
 - [ ] `[core]` HMMâ€‘based RegimeFSM v2; learned transition priors.
-- [ ] `[obs]` Prometheus/Grafana (or cloud) monitoring; SLO alerting as code.
+- [x] `[obs]` Prometheus/Grafana (or cloud) monitoring; SLO alerting as code. _Progress: Prometheus rule files, Grafana provisioning, and the operations runbook now live in-repo with tests guarding alert coverage and dashboard wiring so SLO panels and alerts stay reproducible.【F:config/prometheus/emp_rules.yml†L1-L65】【F:config/grafana/dashboards/json/emp_observability.json†L1-L200】【F:docs/operations/prometheus_grafana.md†L1-L26】【F:tests/config/test_prometheus_monitoring.py†L1-L50】【F:tests/config/test_grafana_dashboard.py†L1-L45】_
 - [ ] `[ops]` K8s deployment (dev/paper); sealed secrets; autoscaling for replay jobs.
 - [ ] `[docs]` Whitepaper v1 (architecture + governance + empirical results).
 
@@ -143,7 +143,7 @@
 ## Success Metrics (Northâ€‘Star KPIs)
 
 - [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a CLI reports average/median/p90 turnaround and breach details so the experimentation loop can track adherence in real time under regression coverage.【F:emp/core/findings_memory.py†L1-L460】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L86】_
-- [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates.
+- [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates. _Progress: Strategy registry now bootstraps a config-driven PromotionGuard that enforces stage requirements, ledger/diary paths, and regime coverage, with tests proving missing regimes block approvals until coverage is recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】_
 - [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned.
 - [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Execution stats now surface attribution coverage metrics and end-to-end tests assert executed trades retain the enriched payload, enabling governance dashboards to track the 90% target quantitatively.【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [ ] **Operator leverage**: experiments/week/person â†‘ without quality loss.
@@ -179,3 +179,11 @@
 - 312b9232 refactor(thinking): tune 5 files (2025-10-13)
 - fed47619 feat(Makefile): add 5 files (2025-10-13)
 - 0a519aab test(Makefile): tune 3 files (2025-10-13)
+
+## Automation updates — 2025-10-13T12:54:17Z
+
+### Last 4 commits
+- e17202c6 refactor(core): tune 3 files (2025-10-13)
+- 6eb10cb5 feat(config): add 3 files (2025-10-13)
+- a17ab5f1 refactor(config): tune 5 files (2025-10-13)
+- 13547774 docs(config): add 8 files (2025-10-13)

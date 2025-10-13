@@ -23,4 +23,4 @@ Alerts fire when the status gauges exported by the SLO helpers report warning (`
 - `tests/config/test_prometheus_monitoring.py` ensures the rule file stays wired into Prometheus and that all expected SLO alerts are present.
 - `tests/config/test_grafana_dashboard.py` guards the Grafana dashboard structure, data source UID, and metric queries so automated formatting does not drop the key panels.
 
-This completes the roadmap checkpoint "Prometheus/Grafana (or cloud) monitoring; SLO alerting as code" without mutating the roadmap document itself.
+This completes the roadmap checkpoint "Prometheus/Grafana (or cloud) monitoring; SLO alerting as code" with dashboards, alerting, and runbook evidence tracked in-repo.

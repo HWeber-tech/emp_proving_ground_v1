@@ -71,6 +71,7 @@ class TaskSupervisor:
         self._installed_loop: AbstractEventLoop | None = None
         self._original_task_factory: Callable[..., asyncio.Task[Any]] | None = None
         self._loop_factory_metadata: Mapping[str, Any] | None = None
+        self._task_counter: int = 0
 
     @property
     def active_tasks(self) -> tuple[asyncio.Task[Any], ...]:
@@ -217,6 +218,9 @@ class TaskSupervisor:
             if not should_wrap:
                 restart_callback = None
 
+        if name is None:
+            name = self._generate_task_name()
+
         task: asyncio.Task[_T] = asyncio.create_task(managed_coro, name=name)
         record = self._register(
             task,
@@ -356,6 +360,7 @@ class TaskSupervisor:
                 record.metadata = merged
             return task
 
+        self._maybe_assign_default_name(task)
         self._register(task, metadata)
         return task
 
@@ -505,3 +510,33 @@ class TaskSupervisor:
             except Exception:  # pragma: no cover - defensive
                 return None
         return None
+
+    def _generate_task_name(self) -> str:
+        self._task_counter += 1
+        namespace = self._namespace or "task"
+        return f"{namespace}-task-{self._task_counter:05d}"
+
+    def _maybe_assign_default_name(self, task: asyncio.Task[Any]) -> None:
+        current_name = self._task_name(task)
+        if not self._should_replace_task_name(current_name):
+            return
+
+        new_name = self._generate_task_name()
+        setter = getattr(task, "set_name", None)
+        if callable(setter):
+            try:
+                setter(new_name)
+            except Exception:  # pragma: no cover - defensive best effort
+                self._logger.debug(
+                    "Failed to assign generated task name", exc_info=True
+                )
+
+    @staticmethod
+    def _should_replace_task_name(name: str | None) -> bool:
+        if not name:
+            return True
+        if not isinstance(name, str):
+            return True
+        if name.startswith("Task-") and name[5:].isdigit():
+            return True
+        return False

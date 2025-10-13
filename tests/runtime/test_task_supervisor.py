@@ -85,6 +85,51 @@ async def test_supervisor_tracks_external_tasks_and_metadata() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_supervisor_auto_names_tasks_without_name() -> None:
+    supervisor = TaskSupervisor(namespace="auto")
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _workload() -> None:
+        started.set()
+        await release.wait()
+
+    task = supervisor.create(_workload())
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+
+    snapshots = supervisor.describe()
+    assert snapshots, "expected auto-generated task snapshot"
+    auto_name = snapshots[0]["name"]
+    assert isinstance(auto_name, str) and auto_name.startswith("auto-task-")
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
+async def test_supervisor_assigns_name_when_tracking_default_named_task() -> None:
+    supervisor = TaskSupervisor(namespace="auto-track")
+    release = asyncio.Event()
+
+    async def _external() -> None:
+        await release.wait()
+
+    task = asyncio.create_task(_external())  # default event-loop naming (Task-*)
+    supervisor.track(task)
+    await asyncio.sleep(0)
+
+    snapshots = supervisor.describe()
+    assert snapshots
+    generated_name = snapshots[0]["name"]
+    assert isinstance(generated_name, str) and generated_name.startswith("auto-track-task-")
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1.0)
+    await supervisor.cancel_all()
+
+
+@pytest.mark.asyncio()
 async def test_supervisor_failure_does_not_cancel_other_tasks(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

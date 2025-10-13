@@ -59,6 +59,39 @@ available. When the stack is running they perform a Timescale table round-trip,
 a Redis ping/set/get cycle, and a Kafka produce/consume loop against
 `localhost:9094`.
 
+## Containerised runtime profiles
+
+The roadmap's container milestone ships with two docker-compose profiles in
+`docker/runtime/docker-compose.dev.yml`. They build the production runtime image
+and wire it to the Timescale, Redis, and Kafka services above with health
+checks mapped to the runtime's `/health` endpoint.
+
+```bash
+cd docker/runtime
+# bring up the paper profile (ports: 18081->8000)
+docker compose --profile paper up runtime-paper
+# or launch the developer mock profile (ports: 18080->8000)
+docker compose --profile dev up runtime-dev
+```
+
+Both services read shared defaults from `docker/runtime/env.common` and overlay
+profile-specific overrides from either `env.dev` or `env.paper`. The resolved
+settings are mirrored in the SystemConfig presets under
+`config/deployment/runtime_dev.yaml` and `config/deployment/runtime_paper.yaml`
+so operators can load the same profile outside of Docker.
+
+Once the stack is healthy, hit the containerised health endpoint to confirm the
+runtime builder started the `RuntimeHealthServer` correctly:
+
+```bash
+curl -fsS http://localhost:18081/health | jq '.status'
+```
+
+Switch the port to `18080` when checking the developer profile. The JSON payload
+includes FIX connectivity, market-data freshness, and telemetry exporter status,
+staying consistent with the runtime health tests in
+`tests/runtime/test_healthcheck.py`.
+
 ## Formatting expectations
 
 Ruff owns both linting and formatting. The formatter now runs repo-wide, so run

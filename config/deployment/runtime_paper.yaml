@@ -1,0 +1,38 @@
+# Paper-trading container profile for the Professional Predator runtime.
+system_config:
+  run_mode: paper
+  environment: demo
+  tier: tier_1
+  connection_protocol: paper
+  data_backbone_mode: institutional
+  extras:
+    PYTHONUNBUFFERED: '1'
+    PYTHONPATH: /app
+    TIMESCALEDB_URL: postgresql+psycopg2://emp_user:emp_password@timescale:5432/emp_db
+    TIMESCALEDB_APP: emp-paper-runtime
+    TIMESCALEDB_STATEMENT_TIMEOUT_MS: '15000'
+    TIMESCALE_SYMBOLS: EURUSD,GBPUSD,USDJPY
+    TIMESCALE_ENABLE_INTRADAY: 'true'
+    TIMESCALE_INTRADAY_LOOKBACK_DAYS: '5'
+    TIMESCALE_LOOKBACK_DAYS: '90'
+    REDIS_URL: redis://redis:6379/0
+    REDIS_CLIENT_NAME: emp-paper-runtime
+    REDIS_TTL_SECONDS: '900'
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    KAFKA_CLIENT_ID: emp-paper-runtime
+    KAFKA_INGEST_DEFAULT_TOPIC: telemetry.ingest
+    KAFKA_INGEST_CONSUMER_TOPICS: telemetry.ingest
+    KAFKA_INGEST_HEALTH_TOPIC: telemetry.ingest.health
+    KAFKA_INGEST_METRICS_TOPIC: telemetry.ingest.metrics
+    KAFKA_INGEST_QUALITY_TOPIC: telemetry.ingest.quality
+    RUNTIME_HEALTHCHECK_ENABLED: 'true'
+    RUNTIME_HEALTHCHECK_HOST: 0.0.0.0
+    RUNTIME_HEALTHCHECK_PORT: '8000'
+    RUNTIME_HEALTHCHECK_PATH: /health
+    RUNTIME_HEALTHCHECK_INGEST_WARN_SECONDS: '900'
+    RUNTIME_HEALTHCHECK_INGEST_FAIL_SECONDS: '1800'
+    RUNTIME_HEALTHCHECK_DECISION_WARN_SECONDS: '180'
+    RUNTIME_HEALTHCHECK_DECISION_FAIL_SECONDS: '600'
+    RUNTIME_LOG_LEVEL: INFO
+    RUNTIME_LOG_STRUCTURED: 'true'
+    RUNTIME_LOG_CONTEXT: '{"deployment":"paper-container"}'

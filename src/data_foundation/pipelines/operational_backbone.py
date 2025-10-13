@@ -187,6 +187,8 @@ class OperationalBackbonePipeline:
         self._sensory_snapshot_callback = sensory_snapshot_callback
         self._streaming_subscriptions: list[SubscriptionHandle] | None = None
         self._streaming_snapshots: dict[str, Mapping[str, Any]] = {}
+        # Retain the most recent successful frames so failover runs can reuse them
+        self._fallback_frames: dict[str, pd.DataFrame] = {}
         self._shutdown_manager_on_close = bool(shutdown_manager_on_close)
         if sensory_topic is None:
             topic_name: str | None = "telemetry.sensory.snapshot" if self._sensory_organ is not None else None
@@ -256,19 +258,45 @@ class OperationalBackbonePipeline:
                 interval: str | None,
                 period: str | None,
             ) -> pd.DataFrame:
-                frame = await asyncio.to_thread(
-                    self._manager.fetch_data,
-                    symbol,
-                    period=period,
-                    interval=interval,
-                )
-                if not frame.empty:
-                    await asyncio.to_thread(
+                try:
+                    frame = await asyncio.to_thread(
                         self._manager.fetch_data,
                         symbol,
                         period=period,
                         interval=interval,
                     )
+                except Exception as exc:
+                    fallback = self._fallback_frames.get(dimension)
+                    if fallback is not None and not fallback.empty:
+                        logger.warning(
+                            "Operational backbone fetch failed for %s; reusing fallback frame",  # noqa: G004
+                            dimension,
+                            exc_info=True,
+                        )
+                        frame = fallback.copy(deep=True)
+                    else:
+                        logger.error(
+                            "Operational backbone fetch failed for %s and no fallback is available",  # noqa: G004
+                            dimension,
+                            exc_info=True,
+                        )
+                        frame = pd.DataFrame()
+                else:
+                    if not frame.empty:
+                        self._fallback_frames[dimension] = frame.copy(deep=True)
+                        try:
+                            await asyncio.to_thread(
+                                self._manager.fetch_data,
+                                symbol,
+                                period=period,
+                                interval=interval,
+                            )
+                        except Exception:  # pragma: no cover - cache warm failures are non-fatal
+                            logger.debug(
+                                "Operational backbone warm fetch failed for %s",  # noqa: G004
+                                dimension,
+                                exc_info=True,
+                            )
                 frames[dimension] = frame
                 return frame
 
@@ -321,12 +349,30 @@ class OperationalBackbonePipeline:
             macro_calendars = request.macro_calendars()
 
             async def _fetch_macro_events() -> pd.DataFrame:
-                frame = await asyncio.to_thread(
-                    self._manager.fetch_macro_events,
-                    calendars=macro_calendars or None,
-                    start=macro_start,
-                    end=macro_end,
-                )
+                try:
+                    frame = await asyncio.to_thread(
+                        self._manager.fetch_macro_events,
+                        calendars=macro_calendars or None,
+                        start=macro_start,
+                        end=macro_end,
+                    )
+                except Exception as exc:
+                    fallback = self._fallback_frames.get("macro_events")
+                    if fallback is not None and not fallback.empty:
+                        logger.warning(
+                            "Operational backbone macro fetch failed; reusing fallback frame",
+                            exc_info=True,
+                        )
+                        frame = fallback.copy(deep=True)
+                    else:
+                        logger.error(
+                            "Operational backbone macro fetch failed and no fallback is available",
+                            exc_info=True,
+                        )
+                        frame = pd.DataFrame()
+                else:
+                    if not frame.empty:
+                        self._fallback_frames["macro_events"] = frame.copy(deep=True)
                 frames["macro_events"] = frame
                 return frame
 

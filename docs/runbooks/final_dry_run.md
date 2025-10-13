@@ -50,7 +50,9 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    runs from ballooning disk usage; the structured (`.jsonl.gz`) and raw (`.log.gz`)
    artefacts remain compatible with the audit tooling. The same log pump feeds cumulative
    per-stream and per-level counters that surface in the progress snapshot
-   JSON for at-a-glance health monitoring.
+   JSON for at-a-glance health monitoring. Stack traces printed to stdout or
+   embedded in structured payloads are now auto-classified as FAIL incidents so
+   latent exceptions surface even when emitted at INFO level.【F:src/operations/final_dry_run.py†L1206-L1321】【F:tests/operations/test_final_dry_run.py†L383-L401】
    Add `--live-gap-alert-minutes N` to surface a WARN (or FAIL with
    `--live-gap-alert-severity fail`) incident whenever the runtime becomes
    silent for `N` minutes. Tighten post-run expectations by supplying

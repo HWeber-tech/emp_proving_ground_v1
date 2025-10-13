@@ -232,6 +232,9 @@ to the next trade credit. The instrumentation clamps negative deltas to zero so
 reporting remains stable near the boundary, and regression coverage asserts both
 UTC scheduling and utilisation maths across rate-limit, cooldown, and minimum
 spacing scenarios.【F:src/trading/execution/trade_throttle.py†L204-L312】【F:tests/trading/test_trade_throttle.py†L15-L205】
+Reason strings now preserve fractional window sizes and messages format the
+exact countdown (`max_1_trades_per_2.5s` → “2.5 seconds”), preventing loss of
+precision when governance dials sub-second throttles.【F:src/trading/execution/trade_throttle.py†L123-L712】【F:tests/trading/test_trade_throttle.py†L113-L148】
 
 ### Runtime configuration extras
 

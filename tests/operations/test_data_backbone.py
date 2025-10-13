@@ -45,6 +45,11 @@ from src.operations.data_backbone import (
     BackboneStatus,
     evaluate_data_backbone_readiness,
 )
+from src.operations.retention import (
+    DataRetentionSnapshot,
+    RetentionComponentSnapshot,
+    RetentionStatus,
+)
 from src.data_foundation.batch.spark_export import (
     SparkExportFormat,
     SparkExportJobResult,
@@ -214,6 +219,19 @@ async def test_evaluate_data_backbone_readiness_combines_signals(tmp_path) -> No
         retention_days=7,
         issues=tuple(),
     )
+    retention_snapshot = DataRetentionSnapshot(
+        status=RetentionStatus.ok,
+        generated_at=generated,
+        components=(
+            RetentionComponentSnapshot(
+                name="market_data.daily_bars",
+                status=RetentionStatus.ok,
+                summary="retention window 60d",
+                metadata={"observed_days": 60},
+            ),
+        ),
+        metadata={"policies": 1},
+    )
 
     spark_snapshot = SparkExportSnapshot(
         generated_at=generated,
@@ -298,6 +316,7 @@ async def test_evaluate_data_backbone_readiness_combines_signals(tmp_path) -> No
         failover_decision=failover_decision,
         recovery_recommendation=recovery_recommendation,
         backup_snapshot=backup_snapshot,
+        retention_snapshot=retention_snapshot,
         context=context,
         metadata={"test": True},
         spark_snapshot=spark_snapshot,
@@ -311,6 +330,10 @@ async def test_evaluate_data_backbone_readiness_combines_signals(tmp_path) -> No
     assert components["ingest_health"].status is BackboneStatus.ok
     kafka_metadata = components["kafka_streaming"].metadata
     assert kafka_metadata["topics"] == ["telemetry.ingest"]
+    assert "retention" in components
+    retention_component = components["retention"]
+    assert retention_component.status is BackboneStatus.ok
+    assert retention_component.metadata["status"] == RetentionStatus.ok.value
     if "redis_cache" in components:
         assert components["redis_cache"].metadata.get("namespace") == cache.policy.namespace
     else:

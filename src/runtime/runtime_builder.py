@@ -2691,6 +2691,7 @@ async def _execute_timescale_ingest(
         failover_decision=failover_decision,
         recovery_recommendation=last_recovery_recommendation,
         backup_snapshot=backup_snapshot,
+        retention_snapshot=retention_snapshot,
         context=backbone_context,
         metadata=telemetry_metadata,
         spark_snapshot=spark_snapshot,

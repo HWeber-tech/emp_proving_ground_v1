@@ -31,6 +31,7 @@ from src.data_foundation.ingest.scheduler_telemetry import (
     IngestSchedulerStatus,
 )
 from src.operations.backup import BackupReadinessSnapshot, BackupStatus
+from src.operations.retention import DataRetentionSnapshot, RetentionStatus
 from src.operations.spark_stress import SparkStressSnapshot, SparkStressStatus
 
 
@@ -242,6 +243,14 @@ def _spark_stress_status_to_backbone(status: SparkStressStatus) -> BackboneStatu
     return BackboneStatus.fail
 
 
+def _retention_status_to_backbone(status: RetentionStatus) -> BackboneStatus:
+    if status is RetentionStatus.ok:
+        return BackboneStatus.ok
+    if status is RetentionStatus.warn:
+        return BackboneStatus.warn
+    return BackboneStatus.fail
+
+
 def evaluate_data_backbone_validation(
     *,
     ingest_config: InstitutionalIngestConfig,
@@ -398,6 +407,7 @@ def evaluate_data_backbone_readiness(
     failover_decision: IngestFailoverDecision | None = None,
     recovery_recommendation: IngestRecoveryRecommendation | None = None,
     backup_snapshot: BackupReadinessSnapshot | None = None,
+    retention_snapshot: DataRetentionSnapshot | None = None,
     context: BackboneRuntimeContext | None = None,
     metadata: Mapping[str, object] | None = None,
     spark_snapshot: SparkExportSnapshot | None = None,
@@ -616,6 +626,25 @@ def evaluate_data_backbone_readiness(
         components.append(backup_component)
         overall = _combine_status(overall, backup_component.status)
 
+    if retention_snapshot is not None:
+        retention_status = _retention_status_to_backbone(retention_snapshot.status)
+        datasets = [component.as_dict() for component in retention_snapshot.components]
+        retention_metadata: dict[str, object] = {
+            "generated_at": retention_snapshot.generated_at.isoformat(),
+            "status": retention_snapshot.status.value,
+            "datasets": datasets,
+        }
+        if retention_snapshot.metadata:
+            retention_metadata["metadata"] = dict(retention_snapshot.metadata)
+        retention_component = BackboneComponentSnapshot(
+            name="retention",
+            status=retention_status,
+            summary=f"retention {retention_snapshot.status.value}",
+            metadata=retention_metadata,
+        )
+        components.append(retention_component)
+        overall = _combine_status(overall, retention_component.status)
+
     if context.redis_expected:
         if context.redis_configured:
             summary = f"Redis active ({context.redis_backing or 'redis'})"
@@ -698,6 +727,8 @@ def evaluate_data_backbone_readiness(
         combined_metadata["scheduler"] = scheduler_metadata
     if task_metadata is not None:
         combined_metadata["task_supervision"] = dict(task_metadata)
+    if retention_snapshot is not None:
+        combined_metadata["retention"] = retention_snapshot.as_dict()
 
     return DataBackboneReadinessSnapshot(
         status=overall,

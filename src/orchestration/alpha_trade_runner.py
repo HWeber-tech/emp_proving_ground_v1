@@ -33,6 +33,7 @@ from src.orchestration.alpha_trade_loop import (
     AlphaTradeLoopOrchestrator,
     AlphaTradeLoopResult,
 )
+from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.understanding.belief import BeliefEmitter, BeliefState, RegimeFSM, RegimeSignal
 from src.understanding.router import BeliefSnapshot, UnderstandingRouter
 
@@ -90,6 +91,7 @@ class AlphaTradeLoopRunner:
         understanding_router: UnderstandingRouter,
         publish_regime_signal: bool = False,
         trade_builder: TradeBuilder | None = None,
+        feature_toggles: AdaptationFeatureToggles | None = None,
     ) -> None:
         self._belief_emitter = belief_emitter
         self._regime_fsm = regime_fsm
@@ -98,6 +100,7 @@ class AlphaTradeLoopRunner:
         self._understanding_router = understanding_router
         self._publish_regime_signal = publish_regime_signal
         self._trade_builder = trade_builder or self._default_trade_builder
+        self._feature_toggles = feature_toggles or AdaptationFeatureToggles()
 
     async def process(
         self,
@@ -117,15 +120,25 @@ class AlphaTradeLoopRunner:
         else:
             regime_signal = self._regime_fsm.classify(belief_state)
 
-        feature_flags = None
-        flags_candidate = sensory_snapshot.get("feature_flags") if isinstance(sensory_snapshot, Mapping) else None
+        snapshot_flags = None
+        flags_candidate = (
+            sensory_snapshot.get("feature_flags") if isinstance(sensory_snapshot, Mapping) else None
+        )
         if isinstance(flags_candidate, Mapping):
-            feature_flags = {str(key): bool(value) for key, value in flags_candidate.items()}
+            snapshot_flags = {str(key): bool(value) for key, value in flags_candidate.items()}
 
-        fast_weights_enabled = True
+        feature_flags = self._feature_toggles.merge_flags(snapshot_flags)
+        if not feature_flags:
+            feature_flags = None
+
+        fast_weights_enabled_hint: bool | None = None
         fast_flag = sensory_snapshot.get("fast_weights_enabled") if isinstance(sensory_snapshot, Mapping) else None
         if isinstance(fast_flag, bool):
-            fast_weights_enabled = fast_flag
+            fast_weights_enabled_hint = fast_flag
+
+        fast_weights_enabled = self._feature_toggles.resolve_fast_weights_enabled(
+            fast_weights_enabled_hint
+        )
 
         belief_snapshot = BeliefSnapshot(
             belief_id=belief_state.belief_id,

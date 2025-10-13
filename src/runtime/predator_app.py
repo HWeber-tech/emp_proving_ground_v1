@@ -85,6 +85,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStore,
 )
 from src.understanding import DecisionDiaryStore, ProbeRegistry
+from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager, SystemConfigProtocol
 from src.operations.backup import BackupReadinessSnapshot, format_backup_markdown
@@ -270,6 +271,7 @@ class ProfessionalPredatorApp:
         strategy_registry: StrategyRegistry | None = None,
         task_supervisor: TaskSupervisor | None = None,
         runtime_tracer: RuntimeTracer | None = None,
+        feature_toggles: AdaptationFeatureToggles | None = None,
     ) -> None:
         self.config = config
         self.event_bus = event_bus
@@ -283,6 +285,7 @@ class ProfessionalPredatorApp:
         self.execution_journal = execution_journal
         self.strategy_registry = strategy_registry
         self._runtime_tracer: RuntimeTracer = runtime_tracer or NullRuntimeTracer()
+        self.feature_toggles = feature_toggles or AdaptationFeatureToggles.from_system_config(config)
 
         self._logger = logging.getLogger(__name__)
         self._cleanup_callbacks: list[CleanupCallback] = []
@@ -2091,11 +2094,24 @@ def _build_evolution_config(extras: Mapping[str, str]) -> EvolutionConfig:
     return EvolutionConfig(**config_kwargs)
 
 
-def _build_evolution_feature_flags(extras: Mapping[str, str]) -> EvolutionFeatureFlags:
+def _build_evolution_feature_flags(
+    extras: Mapping[str, str],
+    *,
+    feature_toggles: AdaptationFeatureToggles | None = None,
+) -> EvolutionFeatureFlags:
     flag_value = extras.get(ADAPTIVE_RUNS_FLAG)
-    if flag_value is None:
+    toggle_value = feature_toggles.exploration if feature_toggles is not None else None
+
+    if flag_value is None and toggle_value is None:
         return EvolutionFeatureFlags()
-    overlay = ChainMap({ADAPTIVE_RUNS_FLAG: flag_value}, os.environ)
+
+    resolved_value: str
+    if flag_value is not None:
+        resolved_value = str(flag_value)
+    else:
+        resolved_value = "1" if toggle_value else "0"
+
+    overlay = ChainMap({ADAPTIVE_RUNS_FLAG: resolved_value}, os.environ)
     return EvolutionFeatureFlags(env=overlay)
 
 
@@ -2104,6 +2120,7 @@ def _build_evolution_orchestrator(
     *,
     event_bus: EventBus,
     strategy_registry: StrategyRegistry | None,
+    feature_toggles: AdaptationFeatureToggles | None = None,
 ) -> EvolutionCycleOrchestrator | None:
     extras = config.extras or {}
     enabled_hint = _parse_optional_bool_flag(extras.get("EVOLUTION_ORCHESTRATOR_ENABLED"))
@@ -2117,7 +2134,7 @@ def _build_evolution_orchestrator(
     except Exception:  # pragma: no cover - defensive guard
         logger.debug("Failed to pre-seed evolution population", exc_info=True)
 
-    feature_flags = _build_evolution_feature_flags(extras)
+    feature_flags = _build_evolution_feature_flags(extras, feature_toggles=feature_toggles)
     adaptive_override = _parse_optional_bool_flag(extras.get("EVOLUTION_ADAPTIVE_RUNS_OVERRIDE"))
     evaluator = _bootstrap_evolution_evaluator()
 
@@ -2588,6 +2605,7 @@ def _build_bootstrap_runtime(
         config,
         event_bus=bus,
         strategy_registry=strategy_registry,
+        feature_toggles=feature_toggles,
     )
 
     evolution_interval = _extra_int(extras, "EVOLUTION_CYCLE_INTERVAL", 5) or 5
@@ -2759,6 +2777,7 @@ async def build_professional_predator_app(
     """Assemble a ProfessionalPredatorApp with all mandatory dependencies."""
 
     cfg = config or SystemConfig.from_env()
+    feature_toggles = AdaptationFeatureToggles.from_system_config(cfg)
     extras_mapping = cfg.extras or {}
     tracing_settings = parse_opentelemetry_settings(extras_mapping)
     event_bus_tracer = configure_event_bus_tracer(tracing_settings)
@@ -2824,6 +2843,7 @@ async def build_professional_predator_app(
             strategy_registry=registry,
             task_supervisor=task_supervisor,
             runtime_tracer=runtime_tracer,
+            feature_toggles=feature_toggles,
         )
         dropcopy_listener = FixDropcopyReconciler(
             event_bus=bus,
@@ -2893,6 +2913,7 @@ async def build_professional_predator_app(
             strategy_registry=registry,
             task_supervisor=task_supervisor,
             runtime_tracer=runtime_tracer,
+            feature_toggles=feature_toggles,
         )
         for cleanup in runtime_cleanups:
             app.add_cleanup_callback(cleanup)

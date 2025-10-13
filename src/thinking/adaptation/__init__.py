@@ -17,6 +17,12 @@ from .fast_weights import (
     parse_fast_weight_constraints,
 )
 from .evolution_manager import EvolutionManager, ManagedStrategyConfig, StrategyVariant
+from .feature_toggles import (
+    AdaptationFeatureToggles,
+    EXPLORATION_FLAG,
+    FAST_WEIGHTS_FLAG,
+    LINEAR_ATTENTION_FLAG,
+)
 from .replay_harness import (
     StageDecision,
     StageThresholds,
@@ -41,6 +47,10 @@ __all__ = [
     "EvolutionManager",
     "ManagedStrategyConfig",
     "StrategyVariant",
+    "AdaptationFeatureToggles",
+    "FAST_WEIGHTS_FLAG",
+    "LINEAR_ATTENTION_FLAG",
+    "EXPLORATION_FLAG",
     "StageDecision",
     "StageThresholds",
     "TacticEvaluationResult",

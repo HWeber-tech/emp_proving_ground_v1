@@ -14,6 +14,7 @@ from src.trading.trading_manager import TradeIntentOutcome
 from src.understanding.belief import BeliefBuffer, BeliefEmitter, RegimeFSM
 from src.understanding.decision_diary import DecisionDiaryStore
 from src.understanding.router import UnderstandingRouter
+from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.thinking.adaptation.policy_router import PolicyRouter, PolicyTactic
 
 
@@ -84,6 +85,7 @@ def _build_runner(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
     trading_manager,
+    feature_toggles: AdaptationFeatureToggles | None = None,
 ) -> tuple[AlphaTradeLoopRunner, DecisionDiaryStore]:
     buffer = BeliefBuffer(belief_id="alpha-belief")
     belief_emitter = BeliefEmitter(
@@ -142,6 +144,7 @@ def _build_runner(
         orchestrator=orchestrator,
         trading_manager=trading_manager,
         understanding_router=understanding_router,
+        feature_toggles=feature_toggles,
     )
 
     return runner, diary_store
@@ -259,3 +262,37 @@ async def test_alpha_trade_loop_runner_records_throttle_metadata(
     assert isinstance(throttle_summary, dict)
     assert throttle_summary.get("state") == "rate_limited"
     assert result.trade_metadata.get("performance_health") == performance_health
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_honours_fast_weight_toggle(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+    toggles = AdaptationFeatureToggles(fast_weights=False)
+    runner, _ = _build_runner(
+        monkeypatch,
+        tmp_path,
+        trading_manager,
+        feature_toggles=toggles,
+    )
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    result = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    fast_weight_metadata = result.trade_metadata["fast_weight"]
+    assert fast_weight_metadata["enabled"] is False

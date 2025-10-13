@@ -51,6 +51,7 @@ from src.governance.system_config import (  # noqa: E402
 from src.sensory.real_sensory_organ import RealSensoryOrgan  # noqa: E402
 from src.core.event_bus import EventBus  # noqa: E402  (import after sys.path mutation)
 from src.runtime.task_supervisor import TaskSupervisor  # noqa: E402
+from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles  # noqa: E402
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -299,6 +300,8 @@ def _build_pipeline(
             event_bus=event_bus,
         )
 
+    feature_toggles = AdaptationFeatureToggles.from_system_config(config)
+
     return OperationalBackbonePipeline(
         manager=manager,
         event_bus=event_bus,
@@ -306,6 +309,7 @@ def _build_pipeline(
         sensory_organ=RealSensoryOrgan(),
         task_supervisor=task_supervisor,
         record_ingest_history=True,
+        feature_toggles=feature_toggles,
     )
 
 

@@ -32,6 +32,7 @@ from src.data_integration.real_data_integration import (
 )
 from src.governance.system_config import DataBackboneMode, SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
+from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.understanding.belief import BeliefState, RegimeSignal
 from src.understanding.live_belief_manager import LiveBeliefManager
 from src.understanding.router import BeliefSnapshot, UnderstandingDecision, UnderstandingRouter
@@ -172,6 +173,7 @@ class OperationalBackbonePipeline:
         sensory_topic: str | None = None,
         record_ingest_history: bool = False,
         ingest_journal_factory: Callable[[], TimescaleIngestJournal] | None = None,
+        feature_toggles: AdaptationFeatureToggles | None = None,
     ) -> None:
         if kafka_consumer is not None and kafka_consumer_factory is not None:
             raise ValueError("Provide either kafka_consumer or kafka_consumer_factory, not both")
@@ -206,6 +208,7 @@ class OperationalBackbonePipeline:
         # Retain the most recent successful frames so failover runs can reuse them
         self._fallback_frames: dict[str, pd.DataFrame] = {}
         self._shutdown_manager_on_close = bool(shutdown_manager_on_close)
+        self._feature_toggles = feature_toggles or AdaptationFeatureToggles()
         if sensory_topic is None:
             topic_name: str | None = "telemetry.sensory.snapshot" if self._sensory_organ is not None else None
         else:
@@ -635,19 +638,27 @@ class OperationalBackbonePipeline:
                         and belief_state is not None
                         and regime_signal is not None
                     ):
-                        feature_flags: Mapping[str, bool] | None = None
+                        snapshot_flags: Mapping[str, bool] | None = None
                         metadata = sensory_snapshot.get("metadata") if isinstance(sensory_snapshot, Mapping) else None
                         if isinstance(metadata, Mapping):
                             flags = metadata.get("feature_flags")
                             if isinstance(flags, Mapping):
-                                feature_flags = {
+                                snapshot_flags = {
                                     str(key): bool(value) for key, value in flags.items()
                                 }
-                        fast_weights_enabled = True
+                        fast_hint: bool | None = None
                         if isinstance(metadata, Mapping):
                             fast_flag = metadata.get("fast_weights_enabled")
                             if isinstance(fast_flag, bool):
-                                fast_weights_enabled = fast_flag
+                                fast_hint = fast_flag
+
+                        feature_flags = self._feature_toggles.merge_flags(snapshot_flags)
+                        if not feature_flags:
+                            feature_flags = None
+
+                        fast_weights_enabled = self._feature_toggles.resolve_fast_weights_enabled(
+                            fast_hint
+                        )
                         belief_snapshot = BeliefSnapshot(
                             belief_id=belief_state.belief_id,
                             regime_state=regime_signal.regime_state,

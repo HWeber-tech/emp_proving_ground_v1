@@ -2474,6 +2474,7 @@ def _build_bootstrap_runtime(
     connectors: Mapping[str, MarketDataConnector] | None = None,
     strategy_registry: StrategyRegistry | None = None,
     task_supervisor: TaskSupervisor | None = None,
+    feature_toggles: AdaptationFeatureToggles | None = None,
 ) -> tuple[BootstrapRuntime, list[CleanupCallback]]:
     extras = config.extras or {}
     symbols = _extra_symbols(extras, "BOOTSTRAP_SYMBOLS") or ["EURUSD"]
@@ -2898,6 +2899,7 @@ async def build_professional_predator_app(
             connectors=connector_map or None,
             strategy_registry=registry,
             task_supervisor=task_supervisor,
+            feature_toggles=feature_toggles,
         )
         app = ProfessionalPredatorApp(
             config=cfg,

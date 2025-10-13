@@ -367,3 +367,37 @@ def test_trade_throttle_rollback_restores_capacity() -> None:
     reopened = throttle.evaluate(now=base + timedelta(seconds=6), metadata=metadata)
     assert reopened.allowed is True
     assert reopened.snapshot["state"] == "open"
+
+
+def test_trade_throttle_external_cooldown_blocks_and_expires() -> None:
+    config = TradeThrottleConfig(
+        name="backlog_guard",
+        max_trades=5,
+        window_seconds=120.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+    assert throttle.evaluate(now=base).allowed is True
+
+    cooldown_snapshot = throttle.apply_external_cooldown(
+        30.0,
+        reason="backlog_cooldown",
+        message="Throttled: backlog cooldown active",
+        metadata={"lag_ms": 1250.0, "threshold_ms": 250.0},
+        now=base + timedelta(seconds=2),
+    )
+    assert cooldown_snapshot["state"] == "cooldown"
+    cooldown_meta = cooldown_snapshot.get("metadata", {})
+    assert cooldown_meta.get("cooldown_reason") == "backlog_cooldown"
+    context = cooldown_meta.get("cooldown_context", {})
+    assert context.get("lag_ms") == pytest.approx(1250.0)
+
+    blocked = throttle.evaluate(now=base + timedelta(seconds=3))
+    assert blocked.allowed is False
+    assert blocked.reason == "backlog_cooldown"
+    blocked_meta = blocked.snapshot.get("metadata", {})
+    assert blocked_meta.get("cooldown_reason") == "backlog_cooldown"
+
+    resumed = throttle.evaluate(now=base + timedelta(seconds=40))
+    assert resumed.allowed is True

@@ -123,6 +123,7 @@ class ConfidenceIntent:
     price: float
     confidence: float
     strategy_id: str = "alpha"
+    created_at: datetime | None = None
 
 
 class RecordingExecutionEngine:
@@ -2165,6 +2166,76 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     throttled_logs = [record for record in caplog.records if "Throttled trade intent" in record.getMessage()]
     assert throttled_logs, "expected throttle warning log to be emitted"
     assert any("too many trades" in record.getMessage() for record in throttled_logs)
+
+
+@pytest.mark.asyncio()
+async def test_backlog_breach_enforces_throttle_cooldown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 5, "window_seconds": 120.0},
+        backlog_cooldown_seconds=30.0,
+    )
+    engine = RecordingExecutionEngine()
+    manager.execution_engine = engine
+
+    def _intent_with_lag() -> ConfidenceIntent:
+        created = datetime.now(tz=timezone.utc) - timedelta(seconds=1.5)
+        return ConfidenceIntent(
+            symbol="EURUSD",
+            quantity=1.0,
+            price=1.2345,
+            confidence=0.9,
+            strategy_id="alpha",
+            created_at=created,
+        )
+
+    first_intent = _intent_with_lag()
+    validate_mock: AsyncMock = AsyncMock(side_effect=[first_intent, _intent_with_lag()])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    await manager.on_trade_intent(first_intent)
+    assert engine.calls == 1
+
+    second_intent = _intent_with_lag()
+    await manager.on_trade_intent(second_intent)
+
+    assert engine.calls == 1, "Second intent should be throttled by backlog cooldown"
+    stats = manager.get_execution_stats()
+    assert stats.get("throttle_blocks", 0) >= 1
+    throughput_snapshot = stats.get("throughput")
+    assert isinstance(throughput_snapshot, Mapping)
+    assert throughput_snapshot.get("throttle_reason") == "backlog_cooldown"
+    assert throughput_snapshot.get("throttle_state") == "cooldown"
+    throttle_snapshot = stats.get("trade_throttle")
+    assert isinstance(throttle_snapshot, Mapping)
+    assert throttle_snapshot.get("state") == "cooldown"
+    metadata = throttle_snapshot.get("metadata", {})
+    assert metadata.get("cooldown_reason") == "backlog_cooldown"
+    cooldown_context = metadata.get("cooldown_context", {})
+    assert cooldown_context.get("lag_ms") is not None
+
+    events = manager.get_experiment_events()
+    assert any(event["status"] == "throttled" for event in events)
+    throttled_metadata = next(
+        event["metadata"]
+        for event in events
+        if event["status"] == "throttled"
+    )
+    assert throttled_metadata.get("reason") == "backlog_cooldown"
+    assert throttled_metadata.get("message")
 
 
 @pytest.mark.asyncio()

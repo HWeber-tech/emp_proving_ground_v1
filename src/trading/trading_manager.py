@@ -389,6 +389,7 @@ class TradingManager:
         backlog_threshold_ms: float | None = None,
         backlog_window: int | None = None,
         resource_monitor: ResourceUsageMonitor | None = None,
+        backlog_cooldown_seconds: float | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -409,6 +410,7 @@ class TradingManager:
             backlog_threshold_ms: Override for backlog lag threshold in milliseconds
             backlog_window: Rolling window size for backlog tracking (if tracker not provided)
             resource_monitor: Optional resource monitor instance to reuse across managers
+            backlog_cooldown_seconds: Optional cooldown duration applied after backlog breaches
         """
         if throughput_monitor is not None and throughput_window is not None:
             raise ValueError(
@@ -424,6 +426,11 @@ class TradingManager:
             raise TypeError("throughput_window must be an integer when provided")
         if backlog_window is not None and not isinstance(backlog_window, Integral):
             raise TypeError("backlog_window must be an integer when provided")
+        if (
+            backlog_cooldown_seconds is not None
+            and float(backlog_cooldown_seconds) < 0.0
+        ):
+            raise ValueError("backlog_cooldown_seconds must be non-negative")
 
         self.event_bus = event_bus
         self.strategy_registry = strategy_registry
@@ -526,6 +533,11 @@ class TradingManager:
         self._backlog_tracker = backlog_instance
 
         self._resource_monitor = resource_monitor or ResourceUsageMonitor()
+        self._backlog_cooldown_seconds = (
+            float(backlog_cooldown_seconds)
+            if backlog_cooldown_seconds is not None
+            else 0.0
+        )
 
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
@@ -547,6 +559,7 @@ class TradingManager:
             "last_throttle_multiplier": None,
             "throttle_retry_at": None,
             "throttle_retry_in_seconds": None,
+            "last_throttle_cooldown": None,
         }
         self._refresh_throughput_snapshot()
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
@@ -1537,6 +1550,38 @@ class TradingManager:
                     "threshold_ms": float(backlog_observation.threshold_ms),
                     "breach_timestamp": breach_timestamp,
                 }
+                cooldown_snapshot: Mapping[str, Any] | None = None
+                if (
+                    self._trade_throttle is not None
+                    and self._backlog_cooldown_seconds > 0.0
+                ):
+                    try:
+                        cooldown_snapshot = self._trade_throttle.apply_external_cooldown(
+                            self._backlog_cooldown_seconds,
+                            reason="backlog_cooldown",
+                            message=(
+                                "Throttled: backlog cooldown active after lag "
+                                f"{float(backlog_observation.lag_ms):.2f} ms"
+                            ),
+                            metadata={
+                                "lag_ms": float(backlog_observation.lag_ms),
+                                "threshold_ms": float(backlog_observation.threshold_ms),
+                            },
+                        )
+                    except Exception:  # pragma: no cover - defensive guard
+                        logger.debug(
+                            "Failed to impose backlog throttle cooldown", exc_info=True
+                        )
+                        cooldown_snapshot = None
+                    else:
+                        self._update_trade_throttle_snapshot(cooldown_snapshot)
+                        metadata_payload["throttle_cooldown_seconds"] = float(
+                            self._backlog_cooldown_seconds
+                        )
+                        metadata_payload["throttle_cooldown_applied"] = True
+                        self._execution_stats["last_throttle_cooldown"] = breach_timestamp
+                if cooldown_snapshot is None:
+                    metadata_payload["throttle_cooldown_applied"] = False
                 if isinstance(backlog_snapshot, Mapping):
                     metadata_payload["backlog"] = dict(backlog_snapshot)
                 logger.warning(
@@ -1545,6 +1590,8 @@ class TradingManager:
                     backlog_observation.lag_ms,
                     backlog_observation.threshold_ms,
                 )
+                if cooldown_snapshot is not None:
+                    metadata_payload["throttle"] = dict(cooldown_snapshot)
                 self._record_experiment_event(
                     event_id=f"{event_id}-backlog",
                     status="backlog_breach",

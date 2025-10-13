@@ -132,10 +132,19 @@ class TradeThrottle:
         last_trade: datetime | None = None
         scope_descriptor: Mapping[str, Any] | None = None
 
+    @dataclass(frozen=True)
+    class _ExternalCooldown:
+        reason: str
+        message: str | None = None
+        metadata: Mapping[str, Any] | None = None
+
     def __init__(self, config: TradeThrottleConfig) -> None:
         self._config = config
         self._states: dict[tuple[str, ...], TradeThrottle._ThrottleState] = {}
         self._scope_snapshots: dict[tuple[str, ...], Mapping[str, Any]] = {}
+        self._external_cooldowns: dict[
+            tuple[str, ...], TradeThrottle._ExternalCooldown
+        ] = {}
         initial_snapshot = self._initial_snapshot()
         self._last_snapshot: Mapping[str, Any] = initial_snapshot
         if not self._config.scope_fields:
@@ -188,13 +197,18 @@ class TradeThrottle:
         retry_at: datetime | None = None
         message: str | None = None
         retry_in_seconds: float | None = None
+        cooldown_payload = self._external_cooldowns.get(scope_key)
 
         if state.cooldown_until is not None and moment < state.cooldown_until:
             allowed = False
             active = True
             throttle_state = "cooldown"
             retry_at = state.cooldown_until
-            reason = "cooldown_active"
+            if cooldown_payload is not None:
+                reason = cooldown_payload.reason
+                message = cooldown_payload.message
+            else:
+                reason = "cooldown_active"
         elif self._min_spacing_violation(state, moment):
             allowed = False
             active = True
@@ -253,6 +267,9 @@ class TradeThrottle:
             window_reset_at=window_reset_at,
             window_reset_in_seconds=window_reset_in_seconds,
             retry_in_seconds=retry_in_seconds,
+            cooldown_metadata=(
+                cooldown_payload.metadata if cooldown_payload is not None else None
+            ),
         )
         self._last_snapshot = snapshot
         self._scope_snapshots[scope_key] = snapshot
@@ -361,10 +378,16 @@ class TradeThrottle:
         active = False
         retry_at: datetime | None = None
         retry_in_seconds: float | None = None
+        message: str | None = None
+        cooldown_payload = self._external_cooldowns.get(scope_key)
 
         if cooldown_until is not None and moment < cooldown_until:
             throttle_state = "cooldown"
-            reason = "cooldown_active"
+            if cooldown_payload is not None:
+                reason = cooldown_payload.reason
+                message = cooldown_payload.message
+            else:
+                reason = "cooldown_active"
             active = True
             retry_at = cooldown_until
             retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
@@ -390,7 +413,7 @@ class TradeThrottle:
             reason=reason,
             retry_at=retry_at,
             metadata=metadata_context,
-            message=self._format_reason(reason, retry_at),
+            message=message or self._format_reason(reason, retry_at),
             scope_key=scope_key,
             scope_descriptor=scope_descriptor,
             recent_trades=recent_trades,
@@ -399,6 +422,9 @@ class TradeThrottle:
             window_reset_at=window_reset_at,
             window_reset_in_seconds=window_reset_in_seconds,
             retry_in_seconds=retry_in_seconds,
+            cooldown_metadata=(
+                cooldown_payload.metadata if cooldown_payload is not None else None
+            ),
         )
 
         if scope_key == self._GLOBAL_SCOPE:
@@ -408,6 +434,76 @@ class TradeThrottle:
         else:
             self._scope_snapshots.pop(scope_key, None)
 
+        if cooldown_until is None and scope_key in self._external_cooldowns:
+            self._external_cooldowns.pop(scope_key, None)
+
+        return snapshot
+
+    def apply_external_cooldown(
+        self,
+        duration_seconds: float,
+        *,
+        reason: str = "external_cooldown",
+        message: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        scope_metadata: Mapping[str, Any] | None = None,
+        now: datetime | None = None,
+    ) -> Mapping[str, Any]:
+        """Impose a cooldown window without consuming trade credits."""
+
+        if duration_seconds <= 0.0:
+            raise ValueError("duration_seconds must be positive")
+
+        moment = self._coerce_timestamp(now)
+        scope_key, scope_descriptor = self._resolve_scope(scope_metadata)
+        state = self._get_state(scope_key)
+        if scope_descriptor:
+            state.scope_descriptor = MappingProxyType(dict(scope_descriptor))
+        elif self._config.scope_fields:
+            state.scope_descriptor = MappingProxyType(
+                {field: None for field in self._config.scope_fields}
+            )
+        else:
+            state.scope_descriptor = None
+
+        cooldown_until = moment + timedelta(seconds=float(duration_seconds))
+        state.cooldown_until = cooldown_until
+
+        metadata_payload: Mapping[str, Any] | None
+        if metadata is None:
+            metadata_payload = None
+        elif isinstance(metadata, Mapping):
+            metadata_payload = MappingProxyType(dict(metadata))
+        else:
+            metadata_payload = MappingProxyType(dict(metadata))  # type: ignore[arg-type]
+
+        self._external_cooldowns[scope_key] = TradeThrottle._ExternalCooldown(
+            reason=reason,
+            message=message,
+            metadata=metadata_payload,
+        )
+
+        retry_in_seconds = max((cooldown_until - moment).total_seconds(), 0.0)
+        snapshot = self._build_snapshot(
+            state="cooldown",
+            active=True,
+            reason=reason,
+            retry_at=cooldown_until,
+            metadata=scope_metadata,
+            message=message or self._format_reason(reason, cooldown_until),
+            scope_key=scope_key,
+            scope_descriptor=state.scope_descriptor,
+            recent_trades=len(state.timestamps),
+            cooldown_until=cooldown_until,
+            moment=moment,
+            window_reset_at=None,
+            window_reset_in_seconds=None,
+            retry_in_seconds=retry_in_seconds,
+            cooldown_metadata=metadata_payload,
+        )
+
+        self._last_snapshot = snapshot
+        self._scope_snapshots[scope_key] = snapshot
         return snapshot
 
     def _initial_snapshot(self) -> Mapping[str, Any]:
@@ -447,6 +543,7 @@ class TradeThrottle:
         window_reset_at: datetime | None,
         window_reset_in_seconds: float | None,
         retry_in_seconds: float | None,
+        cooldown_metadata: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         remaining_trades = max(self._config.max_trades - int(recent_trades), 0)
 
@@ -474,6 +571,8 @@ class TradeThrottle:
             meta_payload["cooldown_until"] = cooldown_until.astimezone(UTC).isoformat()
         if metadata:
             meta_payload["context"] = dict(metadata)
+        if cooldown_metadata is not None:
+            meta_payload["cooldown_context"] = dict(cooldown_metadata)
         utilisation = recent_trades / float(self._config.max_trades)
         utilisation = min(max(utilisation, 0.0), 1.0)
         meta_payload["window_utilisation"] = utilisation
@@ -501,6 +600,8 @@ class TradeThrottle:
             snapshot["multiplier"] = float(self._config.multiplier)
         if reason:
             snapshot["reason"] = reason
+            if isinstance(reason, str) and "cooldown" in reason:
+                meta_payload["cooldown_reason"] = reason
         if message:
             snapshot["message"] = message
         return MappingProxyType(snapshot)
@@ -594,6 +695,7 @@ class TradeThrottle:
             timestamps.popleft()
         if state.cooldown_until is not None and moment >= state.cooldown_until:
             state.cooldown_until = None
+            self._external_cooldowns.pop(scope_key, None)
         return self._cleanup_scope_if_idle(scope_key, state, moment, window)
 
     def _cleanup_scope_if_idle(
@@ -662,6 +764,9 @@ class TradeThrottle:
             scope_meta = metadata_copy.get("scope")
             if isinstance(scope_meta, Mapping):
                 metadata_copy["scope"] = dict(scope_meta)
+            cooldown_meta = metadata_copy.get("cooldown_context")
+            if isinstance(cooldown_meta, Mapping):
+                metadata_copy["cooldown_context"] = dict(cooldown_meta)
             payload["metadata"] = metadata_copy
         scope_key = payload.get("scope_key")
         if isinstance(scope_key, list):
@@ -676,6 +781,12 @@ class TradeThrottle:
                 iso_retry = retry_at.astimezone(UTC).isoformat()
                 return f"Throttle cooldown active until {iso_retry}"
             return "Throttle cooldown active"
+
+        if reason == "backlog_cooldown":
+            if retry_at is not None:
+                iso_retry = retry_at.astimezone(UTC).isoformat()
+                return f"Throttled: backlog cooldown active until {iso_retry}"
+            return "Throttled: backlog cooldown active"
 
         match = self._RATE_LIMIT_REASON.match(reason)
         if match:

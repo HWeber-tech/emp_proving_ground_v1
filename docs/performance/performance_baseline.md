@@ -138,3 +138,19 @@ dedicated `get_trade_throttle_scope_snapshots()` helper on the trading manager
 returns the same per-scope payloads used in the baseline so observability
 tooling can reuse the snapshots without rerunning the collection
 routine.【F:src/trading/trading_manager.py†L542-L569】【F:src/trading/trading_manager.py†L2614-L2619】【F:src/trading/execution/performance_baseline.py†L52-L74】【F:tests/trading/test_trading_manager_execution.py†L2860-L2923】
+
+## Decision latency baseline
+
+The M1 bootstrap replay harness captured a decision latency baseline and
+persisted it as `docs/performance/decision_latency_baseline.json` with
+`p50=0.0859s`, `p99=0.1532s`, and 21 samples.
+
+- `BootstrapTradingStack.describe_pipeline_observability()` now includes a
+  `decision_latency` verdict computed by
+  `src/orchestration/decision_latency_guard.evaluate_decision_latency`, which
+  enforces the baseline with a 5% tolerance and requires at least 10 samples.
+- CI/acceptance tests can load the same helper to block regressions that widen
+  decision latency percentiles beyond the M1 capture.
+- To re-baseline, rerun the bootstrap replay loop, capture fresh percentiles,
+  update the JSON file, and adjust the default baseline constants if tighter
+  budgets are adopted.

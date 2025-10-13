@@ -174,6 +174,9 @@ async def test_bootstrap_trading_stack_executes_trade() -> None:
     assert latency["ingest"]["samples"] >= 2
     assert latency["ack"]["samples"] >= 1
     assert latency["ack"]["p50"] is not None
+    decision_latency = observability["decision_latency"]
+    assert decision_latency["status"] in {"pass", "warn"}
+    assert decision_latency["baseline"]["p50_s"] > 0
 
 
 @pytest.mark.asyncio()

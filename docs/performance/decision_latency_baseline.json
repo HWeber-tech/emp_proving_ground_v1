@@ -1,0 +1,12 @@
+{
+  "captured_at": "2025-10-13T15:09:26Z",
+  "environment": "bootstrap_replay",
+  "milestone": "M1",
+  "pipeline": "BootstrapTradingStack",
+  "latency_seconds": {
+    "p50": 0.0859,
+    "p99": 0.1532,
+    "samples": 21
+  },
+  "notes": "Captured via bootstrap replay harness with immediate fill adapter post-M1 implementation."
+}

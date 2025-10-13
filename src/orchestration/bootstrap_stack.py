@@ -29,6 +29,7 @@ from src.orchestration.enhanced_understanding_engine import (
     ContextualFusionEngine,
     Synthesis,
 )
+from src.orchestration.decision_latency_guard import evaluate_decision_latency
 from src.orchestration.pipeline_metrics import PipelineLatencyMonitor
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.trading_manager import TradingManager, TradeIntentOutcome
@@ -218,6 +219,7 @@ class BootstrapTradingStack:
         return {
             "heartbeat": dict(snapshot.heartbeat),
             "latency": latency_payload,
+            "decision_latency": evaluate_decision_latency(latency_payload.get("total")),
         }
 
     @property

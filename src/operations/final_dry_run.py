@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import gzip
 import json
 import os
 import signal
@@ -10,7 +11,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping, Sequence
+from typing import Any, Mapping, MutableMapping, Sequence, TextIO
 
 from src.operations.dry_run_audit import (
     DryRunSignOffReport,
@@ -67,6 +68,7 @@ class FinalDryRunConfig:
     performance_stale_fail: timedelta | None = None
     evidence_check_interval: timedelta | None = None
     evidence_initial_grace: timedelta = timedelta(minutes=15)
+    compress_logs: bool = False
 
     def __post_init__(self) -> None:
         if not self.command:
@@ -187,6 +189,8 @@ class FinalDryRunConfig:
 
         if self.evidence_initial_grace < timedelta(0):
             raise ValueError("evidence_initial_grace must be non-negative")
+
+        object.__setattr__(self, "compress_logs", bool(self.compress_logs))
 
 
 @dataclass(slots=True, frozen=True)
@@ -707,16 +711,24 @@ async def perform_final_dry_run(
 
     started_at = datetime.now(tz=UTC)
     slug = started_at.strftime("%Y%m%dT%H%M%SZ")
-    log_path = config.log_directory / f"final_dry_run_{slug}.jsonl"
-    raw_log_path = config.log_directory / f"final_dry_run_{slug}.log"
+    log_suffix = "jsonl.gz" if config.compress_logs else "jsonl"
+    raw_suffix = "log.gz" if config.compress_logs else "log"
+    log_path = config.log_directory / f"final_dry_run_{slug}.{log_suffix}"
+    raw_log_path = config.log_directory / f"final_dry_run_{slug}.{raw_suffix}"
 
     incidents: list[HarnessIncident] = []
     incident_lock = asyncio.Lock()
     incident_keys: set[tuple[str, ...]] = set()
 
     log_lock = asyncio.Lock()
-    log_file = log_path.open("w", encoding="utf-8")
-    raw_file = raw_log_path.open("w", encoding="utf-8")
+    log_file: TextIO
+    raw_file: TextIO
+    if config.compress_logs:
+        log_file = gzip.open(log_path, "wt", encoding="utf-8")
+        raw_file = gzip.open(raw_log_path, "wt", encoding="utf-8")
+    else:
+        log_file = log_path.open("w", encoding="utf-8")
+        raw_file = raw_log_path.open("w", encoding="utf-8")
 
     stats = _LogStats()
 

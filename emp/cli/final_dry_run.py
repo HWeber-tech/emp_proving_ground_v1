@@ -268,6 +268,11 @@ def _load_notes(paths: Iterable[Path]) -> list[str]:
     default=True,
     help="Toggle inclusion of the sign-off assessment in the review output.",
 )
+@click.option(
+    "--compress-logs",
+    is_flag=True,
+    help="Compress structured and raw log outputs (writes .gz files).",
+)
 @click.argument("command", nargs=-1)
 def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     *,
@@ -311,6 +316,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     no_review: bool,
     review_include_summary: bool,
     review_include_sign_off: bool,
+    compress_logs: bool,
     command: Sequence[str],
 ) -> None:
     """Run the AlphaTrade runtime under the final dry run harness."""
@@ -418,6 +424,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         performance_stale_fail=performance_stale_fail,
         evidence_check_interval=evidence_check_interval,
         evidence_initial_grace=evidence_initial_grace,
+        compress_logs=compress_logs,
     )
 
     workflow = run_final_dry_run_workflow(

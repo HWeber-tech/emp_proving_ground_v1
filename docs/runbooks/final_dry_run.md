@@ -19,6 +19,7 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
      --minimum-uptime-ratio 0.98 \
      --diary data/diaries/final_dry_run.jsonl \
      --performance artifacts/performance/final_dry_run.json \
+     --compress-logs \
      --metadata sprint=phase2 --metadata run_id=final-dry-run-2025-10-12 \
      -- python3 main.py --symbols EURUSD,GBPUSD
 
@@ -30,6 +31,7 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
      --minimum-uptime-ratio 0.98 \
      --diary data/diaries/final_dry_run.jsonl \
      --performance artifacts/performance/final_dry_run.json \
+     --compress-logs \
      --metadata sprint=phase2 --metadata run_id=final-dry-run-2025-10-12 \
      -- python3 main.py --symbols EURUSD,GBPUSD
    ```
@@ -44,7 +46,9 @@ This runbook describes how to execute the AlphaTrade final dry run in support of
    with `level=error`/`critical`/`fatal` are captured immediately as harness
    incidents so operators can react before the post-run audit finishes. Pass
    `--no-log-monitor` if the runtime emits noisy warnings that should only be
-   handled during the evidence review. The same log pump feeds cumulative
+   handled during the evidence review. Add `--compress-logs` to keep multi-day
+   runs from ballooning disk usage; the structured (`.jsonl.gz`) and raw (`.log.gz`)
+   artefacts remain compatible with the audit tooling. The same log pump feeds cumulative
    per-stream and per-level counters that surface in the progress snapshot
    JSON for at-a-glance health monitoring.
    Add `--live-gap-alert-minutes N` to surface a WARN (or FAIL with
@@ -73,8 +77,8 @@ smoke command after dependency upgrades or harness changes to catch regressions
 quickly.
 
 ## Evidence bundle
-- Structured logs: `<log-dir>/final_dry_run_<timestamp>.jsonl`
-- Raw runtime logs: `<log-dir>/final_dry_run_<timestamp>.log`
+- Structured logs: `<log-dir>/final_dry_run_<timestamp>.jsonl[.gz]`
+- Raw runtime logs: `<log-dir>/final_dry_run_<timestamp>.log[.gz]`
 - Progress telemetry: `<log-dir>/final_dry_run_<timestamp>_progress.json` (status, phase, log stream/level counts, incidents, exit code, sign-off verdict)
 - JSON summary (optional): provide `--json-report summary.json`
 - Markdown summary (optional): provide `--markdown-report summary.md`

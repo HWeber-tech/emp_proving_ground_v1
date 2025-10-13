@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import sys
 import asyncio
@@ -338,6 +339,29 @@ def test_final_dry_run_monitor_can_be_disabled(tmp_path):
     assert result.status is DryRunStatus.fail
     assert not result.incidents
 
+
+def test_final_dry_run_can_compress_logs(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.8),
+        required_duration=timedelta(seconds=0.6),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.8,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        compress_logs=True,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.log_path.suffixes[-2:] == [".jsonl", ".gz"]
+    assert result.raw_log_path.suffixes[-2:] == [".log", ".gz"]
+
+    with gzip.open(result.log_path, "rt", encoding="utf-8") as handle:
+        first_line = handle.readline().strip()
+    assert first_line, "compressed log should contain at least one line"
+    payload = json.loads(first_line)
+    assert payload["stream"] == "stdout"
 
 @pytest.mark.asyncio()
 async def test_final_dry_run_progress_updates_on_incident(tmp_path):

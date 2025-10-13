@@ -258,6 +258,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Severity assigned to live log gap incidents (default: warn).",
     )
     parser.add_argument(
+        "--compress-logs",
+        action="store_true",
+        help="Compress structured and raw log outputs (writes .gz files).",
+    )
+    parser.add_argument(
         "--review-output",
         type=Path,
         help="Write the review brief to this path (use '-' for stdout).",
@@ -449,6 +454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         performance_stale_fail=performance_stale_fail,
         evidence_check_interval=evidence_check_interval,
         evidence_initial_grace=evidence_initial_grace,
+        compress_logs=args.compress_logs,
     )
 
     workflow = run_final_dry_run_workflow(

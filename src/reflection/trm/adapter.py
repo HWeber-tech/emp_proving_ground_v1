@@ -82,6 +82,14 @@ class RIMInputAdapter:
         belief_summary = payload.get("belief_state_summary") or {}
         belief_confidence = belief_summary.get("confidence")
         belief_confidence_value = float(belief_confidence) if isinstance(belief_confidence, (int, float)) else None
+        regime_raw = belief_summary.get("regime")
+        regime_value: str | None
+        if isinstance(regime_raw, str):
+            regime_value = regime_raw.strip() or None
+        elif regime_raw is None:
+            regime_value = None
+        else:
+            regime_value = str(regime_raw)
         return DecisionDiaryEntry(
             raw=payload,
             timestamp=timestamp,
@@ -92,6 +100,7 @@ class RIMInputAdapter:
             outcome_labels=outcome_labels,
             features_digest=features_digest,
             belief_confidence=belief_confidence_value,
+            regime=regime_value,
             action=str(payload.get("action") or "unknown"),
             input_hash=str(payload.get("input_hash") or ""),
         )
@@ -110,17 +119,21 @@ class RIMInputAdapter:
         pnl = 0.0
         strategies: dict[str, int] = {}
         risk_counts: dict[str, int] = {}
+        regime_counts: dict[str, int] = {}
         for entry in entries:
             total += 1
             pnl += entry.pnl
             strategies[entry.strategy_id] = strategies.get(entry.strategy_id, 0) + 1
             for flag in entry.risk_flags:
                 risk_counts[flag] = risk_counts.get(flag, 0) + 1
+            if entry.regime:
+                regime_counts[entry.regime] = regime_counts.get(entry.regime, 0) + 1
         return {
             "total_entries": total,
             "mean_pnl": pnl / total if total else 0.0,
             "strategies": strategies,
             "risk_flags": risk_counts,
+            "regimes": regime_counts,
         }
 
 

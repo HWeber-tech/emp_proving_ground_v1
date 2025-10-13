@@ -214,6 +214,12 @@ def _build_metadata_payload(
     audit_ids = entry.get("audit_ids")
     if isinstance(audit_ids, Sequence) and audit_ids:
         payload["audit_ids"] = list(audit_ids)
+    affected_regimes = entry.get("affected_regimes")
+    if isinstance(affected_regimes, Sequence) and affected_regimes:
+        payload["affected_regimes"] = [str(regime) for regime in affected_regimes]
+    evidence_block = entry.get("evidence")
+    if isinstance(evidence_block, Mapping):
+        payload["evidence"] = json.loads(json.dumps(evidence_block))
     applied_at = governance.get("applied_at") or governance.get("enqueued_at")
     if applied_at:
         payload["applied_at"] = applied_at

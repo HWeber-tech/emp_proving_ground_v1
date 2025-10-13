@@ -59,6 +59,14 @@ def _build_queue_entry(strategy_id: str, *, suggestion_id: str, delta: float) ->
         },
         "confidence": 0.83,
         "audit_ids": ["diary-001"],
+        "affected_regimes": ["calm"],
+        "evidence": {
+            "input_hash": "batch-hash",
+            "audit_ids": ["diary-001"],
+            "target_strategy_ids": [strategy_id],
+            "window": {"start": timestamp, "end": timestamp, "minutes": 60},
+            "diary_source": "artifacts/diaries/diaries-0001.jsonl",
+        },
         "trace": trace_payload,
         "governance": {
             "queue": "reflection.trm",
@@ -122,6 +130,16 @@ def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None
     assert payload["type"] == "WEIGHT_ADJUST"
     assert payload["auto_apply"]["applied"] is True
     assert payload["payload"]["proposed_weight_delta"] == -0.07
+    assert payload.get("affected_regimes") == ["calm"]
+    evidence = payload.get("evidence")
+    assert evidence is not None
+    assert evidence.get("input_hash") == "batch-hash"
+    assert evidence.get("audit_ids") == ["diary-001"]
+    assert evidence.get("target_strategy_ids") == ["bootstrap-strategy"]
+    window = evidence.get("window")
+    assert isinstance(window, dict)
+    assert window.get("minutes") == 60
+    assert evidence.get("diary_source") == "artifacts/diaries/diaries-0001.jsonl"
     trace = payload.get("trace")
     assert trace is not None
     assert trace.get("code_hash") == "test-code"

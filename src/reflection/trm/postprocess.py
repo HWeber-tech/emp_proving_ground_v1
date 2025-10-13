@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from .config import RIMRuntimeConfig
-from .types import RIMInputBatch, StrategyEncoding, StrategyInference, TRMSuggestion
+from .types import DecisionDiaryEntry, RIMInputBatch, StrategyEncoding, StrategyInference
 
 _SCHEMA_VERSION = "rim.v1"
 _FLAG_THRESHOLD = 0.65
@@ -26,6 +26,7 @@ def build_suggestions(
 ) -> list[dict[str, object]]:
     now = dt.datetime.utcnow().replace(microsecond=0, tzinfo=dt.timezone.utc)
     lookup = {encoding.strategy_id: encoding for encoding in encodings}
+    regime_lookup = _collect_regimes(batch.entries)
     suggestions: list[dict[str, object]] = []
     for inference in sorted(inferences, key=lambda item: -item.confidence):
         if len(suggestions) >= config.suggestion_cap:
@@ -41,6 +42,7 @@ def build_suggestions(
             model_hash=model_hash,
             config_hash=config_hash,
             created_at=now,
+            regime_lookup=regime_lookup,
         )
         if suggestion is not None:
             suggestions.append(suggestion)
@@ -56,6 +58,7 @@ def _materialise_suggestion(
     model_hash: str,
     config_hash: str,
     created_at: dt.datetime,
+    regime_lookup: Mapping[str, tuple[str, ...]],
 ) -> dict[str, object] | None:
     confidence = round(float(inference.confidence), 2)
     if confidence < config.confidence_floor:
@@ -109,6 +112,13 @@ def _materialise_suggestion(
 
     audit_ids = encoding.audit_entry_hashes or (batch.input_hash,)
     suggestion_id = _build_suggestion_id(batch.input_hash, encoding.strategy_id, suggestion_type)
+    target_strategy_ids = _resolve_target_strategy_ids(suggestion_type, payload, encoding.strategy_id)
+    affected_regimes = _resolve_affected_regimes(regime_lookup, target_strategy_ids)
+    evidence_payload = _build_evidence_payload(
+        batch=batch,
+        audit_ids=audit_ids,
+        target_strategy_ids=target_strategy_ids,
+    )
     return {
         "schema_version": _SCHEMA_VERSION,
         "input_hash": batch.input_hash,
@@ -121,7 +131,87 @@ def _materialise_suggestion(
         "rationale": rationale,
         "audit_ids": list(audit_ids),
         "created_at": created_at.isoformat().replace("+00:00", "Z"),
+        "affected_regimes": list(affected_regimes),
+        "evidence": evidence_payload,
     }
+
+
+def _collect_regimes(entries: Iterable[DecisionDiaryEntry]) -> Mapping[str, tuple[str, ...]]:
+    regime_map: dict[str, list[str]] = {}
+    for entry in entries:
+        strategy_id = entry.strategy_id
+        regime_map.setdefault(strategy_id, [])
+        regime_value = entry.regime
+        if regime_value and regime_value not in regime_map[strategy_id]:
+            regime_map[strategy_id].append(regime_value)
+    return {key: tuple(values) for key, values in regime_map.items()}
+
+
+def _resolve_target_strategy_ids(
+    suggestion_type: str,
+    payload: Mapping[str, object],
+    default_strategy_id: str,
+) -> tuple[str, ...]:
+    if suggestion_type == "EXPERIMENT_PROPOSAL":
+        candidates = payload.get("strategy_candidates")
+        if isinstance(candidates, Sequence) and not isinstance(candidates, (str, bytes)):
+            deduped = _dedupe_preserve_order(str(candidate) for candidate in candidates if candidate)
+            if deduped:
+                return deduped
+    strategy_id = payload.get("strategy_id")
+    if isinstance(strategy_id, str) and strategy_id:
+        return (strategy_id,)
+    return (default_strategy_id,)
+
+
+def _resolve_affected_regimes(
+    regime_lookup: Mapping[str, tuple[str, ...]],
+    strategy_ids: Sequence[str],
+) -> tuple[str, ...]:
+    regimes: list[str] = []
+    for strategy_id in strategy_ids:
+        for regime in regime_lookup.get(strategy_id, ()):  # preserve discovery order
+            if regime not in regimes:
+                regimes.append(regime)
+    if regimes:
+        return tuple(regimes)
+    return ("unknown",)
+
+
+def _build_evidence_payload(
+    *,
+    batch: RIMInputBatch,
+    audit_ids: Sequence[str],
+    target_strategy_ids: Sequence[str],
+) -> dict[str, object]:
+    window = batch.window
+    evidence: dict[str, object] = {
+        "input_hash": batch.input_hash,
+        "audit_ids": list(audit_ids),
+        "target_strategy_ids": list(_dedupe_preserve_order(target_strategy_ids)),
+        "window": {
+            "start": _format_timestamp(window.start),
+            "end": _format_timestamp(window.end),
+            "minutes": window.minutes,
+        },
+    }
+    if batch.source_path is not None:
+        evidence["diary_source"] = str(batch.source_path)
+    return evidence
+
+
+def _format_timestamp(value: dt.datetime) -> str:
+    return value.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _dedupe_preserve_order(items: Iterable[str]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            ordered.append(item)
+    return tuple(ordered)
 
 
 def _select_experiment(encoding: StrategyEncoding) -> str:

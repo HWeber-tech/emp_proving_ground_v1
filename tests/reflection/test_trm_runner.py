@@ -121,6 +121,34 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
         if "source_path" in diary_slice:
             assert diary_slice["source_path"], "source_path should not be empty"
 
+        affected_regimes = suggestion.get("affected_regimes")
+        assert isinstance(affected_regimes, list) and affected_regimes
+        expected_regimes: set[str] = set()
+        for entry_payload in strategy_entries:
+            raw_payload = entry_payload.get("raw")
+            regime_value = entry_payload.get("regime")
+            if isinstance(raw_payload, dict):
+                regime_from_raw = raw_payload.get("belief_state_summary", {}).get("regime")
+                if regime_from_raw:
+                    regime_value = regime_from_raw
+            if isinstance(regime_value, str) and regime_value:
+                expected_regimes.add(regime_value)
+        if expected_regimes:
+            assert set(affected_regimes) == expected_regimes
+        else:
+            assert affected_regimes == ["unknown"]
+
+        evidence = suggestion.get("evidence")
+        assert isinstance(evidence, dict), "expected evidence payload"
+        assert evidence.get("input_hash") == suggestion["input_hash"]
+        assert evidence.get("audit_ids") == suggestion["audit_ids"]
+        assert evidence.get("target_strategy_ids") == trace.get("target_strategy_ids")
+        window_block = evidence.get("window")
+        assert isinstance(window_block, dict)
+        assert window_block.get("minutes") == diary_slice["window"]["minutes"]
+        if "diary_source" in evidence:
+            assert evidence["diary_source"], "diary_source should not be empty"
+
     # Telemetry log should exist
     assert telemetry_dir.exists()
     assert any(telemetry_dir.iterdir()), "expected telemetry log file"

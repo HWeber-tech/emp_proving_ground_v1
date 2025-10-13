@@ -21,6 +21,7 @@ class DecisionDiaryEntry:
     outcome_labels: tuple[str, ...]
     features_digest: Mapping[str, float]
     belief_confidence: float | None
+    regime: str | None
     action: str
     input_hash: str
 
@@ -83,6 +84,8 @@ class TRMSuggestion:
     rationale: str
     audit_ids: tuple[str, ...]
     suggestion_id: str
+    affected_regimes: tuple[str, ...]
+    evidence: Mapping[str, Any]
 
 
 __all__ = [

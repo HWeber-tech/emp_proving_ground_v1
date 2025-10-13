@@ -96,11 +96,54 @@ Response is a JSON array of `RIMSuggestion` objects as documented below.
     },
     "confidence": 0.74,
     "rationale": "Persistent drawdown with elevated volatility flags across last 24h window.",
+    "affected_regimes": ["calm", "storm"],
+    "evidence": {
+      "input_hash": "<sha256>",
+      "audit_ids": ["diary-20240325-1425"],
+      "target_strategy_ids": ["mean_rev_v2"],
+      "window": {
+        "start": "2024-03-24T00:00:00Z",
+        "end": "2024-03-25T00:00:00Z",
+        "minutes": 1440
+      },
+      "diary_source": "artifacts/diaries/diaries-0001.jsonl"
+    },
     "audit_ids": ["diary-20240325-1425"],
-    "created_at": "2024-03-25T23:59:59Z"
+    "created_at": "2024-03-25T23:59:59Z",
+    "trace": {
+      "code_hash": "<git-sha>",
+      "config_hash": "<sha256>",
+      "model_hash": "stub-trm-v0",
+      "batch_input_hash": "<sha256>",
+      "target_strategy_ids": ["mean_rev_v2"],
+      "diary_slice": {
+        "window": {
+          "start": "2024-03-24T00:00:00Z",
+          "end": "2024-03-25T00:00:00Z",
+          "minutes": 1440
+        },
+        "entry_count": 240,
+        "strategy_entry_count": 12,
+        "strategy_entries": [
+          {
+            "timestamp": "2024-03-24T09:15:00Z",
+            "strategy_id": "mean_rev_v2",
+            "instrument": "EURUSD",
+            "pnl": -150.0,
+            "action": "reduce_weight",
+            "input_hash": "diary-20240325-1425",
+            "risk_flags": ["vol_spike"],
+            "outcome_labels": ["drawdown"],
+            "raw": {"...": "..."}
+          }
+        ]
+      }
+    }
   }
 ]
 ```
+
+Fields `affected_regimes` and `evidence` summarise the regime states observed for the impacted strategies and the evidence pointers (audit IDs, diary source, batch window) required by governance reviewers, while the `trace` block preserves the full reproducibility payload.
 
 ## Governance Interoperability
 

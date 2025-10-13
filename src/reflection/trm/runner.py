@@ -392,6 +392,8 @@ def _serialise_diary_entry(entry: DecisionDiaryEntry) -> dict[str, object]:
     }
     if entry.belief_confidence is not None:
         payload["belief_confidence"] = float(entry.belief_confidence)
+    if entry.regime:
+        payload["regime"] = entry.regime
     if entry.features_digest:
         payload["features_digest"] = {
             str(key): float(value) for key, value in entry.features_digest.items()

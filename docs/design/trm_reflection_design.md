@@ -103,6 +103,8 @@ sequenceDiagram
 | `payload` | object | Type-specific recommendation body. |
 | `confidence` | number [0,1] | Model confidence. |
 | `rationale` | string | Human-readable explanation. |
+| `affected_regimes` | array[string] | Unique regime states observed across the targeted strategies. |
+| `evidence` | object | Evidence pointers (audit IDs, diary source, input hash, window, target strategy IDs). |
 | `audit_ids` | array[string] | Cross-links to diary entries. |
 | `created_at` | string (ISO-8601, UTC) | Suggestion emission time. |
 | `trace` | object | Traceability payload (input diary slice, code hash, config hash). |

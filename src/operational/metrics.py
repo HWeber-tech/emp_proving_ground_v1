@@ -182,6 +182,63 @@ _governance_promotions_total = LazyGaugeProxy(
     "Governance promotions recorded by compliance dashboard",
 )
 
+# Evolution KPI gauges
+_evolution_time_to_candidate_hours = LazyGaugeProxy(
+    "evolution_time_to_candidate_hours",
+    "Evolution time-to-candidate SLA metrics (hours) by statistic",
+    ["stat"],
+)
+_evolution_time_to_candidate_total = LazyGaugeProxy(
+    "evolution_time_to_candidate_total",
+    "Total number of findings evaluated for candidate promotion",
+)
+_evolution_time_to_candidate_breaches = LazyGaugeProxy(
+    "evolution_time_to_candidate_breaches",
+    "Count of time-to-candidate SLA breaches detected",
+)
+_evolution_promotions_total = LazyGaugeProxy(
+    "evolution_promotions_total",
+    "Total promotions applied via policy ledger",
+)
+_evolution_demotions_total = LazyGaugeProxy(
+    "evolution_demotions_total",
+    "Total demotions applied via policy ledger",
+)
+_evolution_transitions_total = LazyGaugeProxy(
+    "evolution_transitions_total",
+    "Total stage transitions processed via policy ledger",
+)
+_evolution_promotion_rate = LazyGaugeProxy(
+    "evolution_promotion_rate",
+    "Share of stage transitions that resulted in promotions",
+)
+_evolution_budget_usage = LazyGaugeProxy(
+    "evolution_budget_usage",
+    "Exploration budget utilisation metrics by statistic",
+    ["stat"],
+)
+_evolution_budget_blocked_total = LazyGaugeProxy(
+    "evolution_budget_blocked_total",
+    "Total exploration attempts blocked by budget",
+)
+_evolution_budget_forced_total = LazyGaugeProxy(
+    "evolution_budget_forced_total",
+    "Total forced exploration decisions due to budgeting",
+)
+_evolution_budget_samples_total = LazyGaugeProxy(
+    "evolution_budget_samples_total",
+    "Number of policy decisions contributing exploration budget snapshots",
+)
+_evolution_rollback_latency_hours = LazyGaugeProxy(
+    "evolution_rollback_latency_hours",
+    "Rollback latency metrics (hours) by statistic",
+    ["stat"],
+)
+_evolution_rollback_events_total = LazyGaugeProxy(
+    "evolution_rollback_events_total",
+    "Number of rollback latency samples observed",
+)
+
 
 def set_compliance_policy_breaches(value: float) -> None:
     """Record the latest count of policy breaches intercepted by compliance."""
@@ -205,6 +262,103 @@ def set_governance_promotions_total(value: float) -> None:
     """Record the latest count of governance promotions captured."""
 
     _governance_promotions_total.set(float(value))
+
+
+def set_evolution_time_to_candidate_stat(stat: str, value: float | None) -> None:
+    """Record a time-to-candidate SLA statistic in hours."""
+
+    if value is None:
+        return
+
+    safe_stat = _normalise_label(stat)
+
+    def _action() -> None:
+        _evolution_time_to_candidate_hours.labels(stat=safe_stat).set(float(value))
+
+    _call_metric("evolution_time_to_candidate_hours.set", _action)
+
+
+def set_evolution_time_to_candidate_total(count: int) -> None:
+    """Record the total number of evaluated findings for SLA tracking."""
+
+    _evolution_time_to_candidate_total.set(float(count))
+
+
+def set_evolution_time_to_candidate_breaches(value: float) -> None:
+    """Record the number of SLA breaches detected for time-to-candidate."""
+
+    _evolution_time_to_candidate_breaches.set(float(value))
+
+
+def set_evolution_promotion_counts(promotions: float, demotions: float) -> None:
+    """Record promotion and demotion totals observed in the ledger."""
+
+    _evolution_promotions_total.set(float(promotions))
+    _evolution_demotions_total.set(float(demotions))
+
+
+def set_evolution_promotion_transitions(transitions: float) -> None:
+    """Record the total number of stage transitions inspected."""
+
+    _evolution_transitions_total.set(float(transitions))
+
+
+def set_evolution_promotion_rate(rate: float) -> None:
+    """Record the share of transitions that resulted in promotions."""
+
+    _evolution_promotion_rate.set(float(rate))
+
+
+def set_evolution_budget_usage(stat: str, value: float | None) -> None:
+    """Record exploration budget usage statistics."""
+
+    if value is None:
+        return
+
+    safe_stat = _normalise_label(stat)
+
+    def _action() -> None:
+        _evolution_budget_usage.labels(stat=safe_stat).set(float(value))
+
+    _call_metric("evolution_budget_usage.set", _action)
+
+
+def set_evolution_budget_blocked(value: float) -> None:
+    """Record the number of exploration attempts blocked by budget limits."""
+
+    _evolution_budget_blocked_total.set(float(value))
+
+
+def set_evolution_budget_forced(value: float) -> None:
+    """Record the number of forced exploration decisions due to budgeting."""
+
+    _evolution_budget_forced_total.set(float(value))
+
+
+def set_evolution_budget_samples(value: float) -> None:
+    """Record how many decisions reported exploration budget snapshots."""
+
+    _evolution_budget_samples_total.set(float(value))
+
+
+def set_evolution_rollback_latency(stat: str, value: float | None) -> None:
+    """Record rollback latency statistics in hours."""
+
+    if value is None:
+        return
+
+    safe_stat = _normalise_label(stat)
+
+    def _action() -> None:
+        _evolution_rollback_latency_hours.labels(stat=safe_stat).set(float(value))
+
+    _call_metric("evolution_rollback_latency_hours.set", _action)
+
+
+def set_evolution_rollback_events(value: float) -> None:
+    """Record the number of rollback latency samples observed."""
+
+    _evolution_rollback_events_total.set(float(value))
 
 
 # FIX/MD wrappers (all non-raising)

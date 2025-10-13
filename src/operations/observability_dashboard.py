@@ -18,6 +18,7 @@ from src.operations.event_bus_health import (
     EventBusHealthSnapshot,
     EventBusHealthStatus,
 )
+from src.operations.evolution_kpis import EvolutionKpiSnapshot, EvolutionKpiStatus
 from src.operations.operational_readiness import (
     OperationalReadinessSnapshot,
     OperationalReadinessStatus,
@@ -210,6 +211,23 @@ def _map_compliance_status(value: str | None) -> DashboardStatus:
     if value in {"warn", "warning"}:
         return DashboardStatus.warn
     return DashboardStatus.ok
+
+
+def _map_evolution_status(value: EvolutionKpiStatus | str | None) -> DashboardStatus:
+    if isinstance(value, EvolutionKpiStatus):
+        resolved = value.value
+    elif value is None:
+        return DashboardStatus.warn
+    else:
+        resolved = str(value).strip().lower()
+
+    if resolved == EvolutionKpiStatus.fail.value:
+        return DashboardStatus.fail
+    if resolved in {EvolutionKpiStatus.warn.value, "warning"}:
+        return DashboardStatus.warn
+    if resolved == EvolutionKpiStatus.ok.value:
+        return DashboardStatus.ok
+    return DashboardStatus.warn
 
 
 def _event_attr(event: Any, name: str) -> Any:
@@ -490,6 +508,14 @@ def _format_currency(value: float) -> str:
     return f"{value:,.2f}"
 
 
+def _format_hours(value: object) -> str:
+    try:
+        hours = float(value)
+    except (TypeError, ValueError):
+        return "n/a"
+    return f"{hours:.1f}h"
+
+
 def _normalise_risk_result(result: Any) -> Mapping[str, Any]:
     if hasattr(result, "as_dict"):
         payload = dict(result.as_dict())  # type: ignore[call-arg]
@@ -533,6 +559,122 @@ def _first_mapping(entry: object) -> Mapping[str, Any] | None:
             if isinstance(element, Mapping):
                 return element
     return None
+
+
+def _build_evolution_panel(
+    snapshot: EvolutionKpiSnapshot | Mapping[str, Any] | None,
+) -> DashboardPanel:
+    if snapshot is None:
+        return DashboardPanel(
+            name="Evolution KPIs",
+            status=DashboardStatus.warn,
+            headline="Evolution KPI telemetry unavailable",
+            details=(
+                "Supply evolution KPI snapshots via operations.evolution_kpis "
+                "to populate the panel with live metrics.",
+            ),
+            metadata={"evolution_kpis": {"status": "missing"}},
+        )
+
+    if isinstance(snapshot, EvolutionKpiSnapshot):
+        snapshot_dict = snapshot.as_dict()
+    else:
+        snapshot_dict = dict(snapshot)
+
+    panel_status = _map_evolution_status(snapshot_dict.get("status"))
+
+    time_data = snapshot_dict.get("time_to_candidate") or {}
+    promotion_data = snapshot_dict.get("promotion") or {}
+    budget_data = snapshot_dict.get("budget") or {}
+    rollback_data = snapshot_dict.get("rollback") or {}
+
+    details: list[str] = []
+    headline_parts: list[str] = []
+
+    if time_data:
+        average = _format_hours(time_data.get("avg_hours"))
+        p90 = _format_hours(
+            time_data.get("p90_hours") or time_data.get("p90")
+        )
+        threshold = _format_hours(time_data.get("threshold_hours"))
+        sla_met = time_data.get("sla_met")
+        breaches = time_data.get("breaches")
+        breach_count = len(breaches) if isinstance(breaches, Sequence) else 0
+        headline_parts.append(f"TTC avg {average}")
+        details.append(
+            "Time-to-candidate: avg {avg}, p90 {p90}, threshold {threshold}, SLA {sla}".format(
+                avg=average,
+                p90=p90,
+                threshold=threshold,
+                sla="PASS" if sla_met else "FAIL",
+            )
+        )
+        counts_line = "Ideas evaluated {count}".format(
+            count=int(time_data.get("count", 0) or 0)
+        )
+        if breach_count:
+            counts_line += f" — breaches {breach_count}"
+        details.append(counts_line)
+
+    if promotion_data:
+        rate_value = promotion_data.get("promotion_rate")
+        rate_text = _format_percentage(rate_value)
+        promotions = int(promotion_data.get("promotions", 0) or 0)
+        transitions = int(promotion_data.get("transitions", 0) or 0)
+        demotions = int(promotion_data.get("demotions", 0) or 0)
+        headline_parts.append(f"Promotion rate {rate_text}")
+        details.append(
+            "Promotion posture: rate {rate} "
+            "({promotions}/{transitions} promotions, demotions {demotions})".format(
+                rate=rate_text,
+                promotions=promotions,
+                transitions=transitions,
+                demotions=demotions,
+            )
+        )
+
+    if budget_data:
+        avg_usage = _format_percentage(budget_data.get("average_usage_ratio"))
+        max_usage = _format_percentage(budget_data.get("max_usage_ratio"))
+        blocked = int(budget_data.get("blocked_attempts", 0) or 0)
+        forced = int(budget_data.get("forced_decisions", 0) or 0)
+        headline_parts.append(f"Budget max {max_usage}")
+        details.append(
+            "Exploration budget: avg usage {avg}, max {max}, blocked {blocked}, forced {forced}".format(
+                avg=avg_usage,
+                max=max_usage,
+                blocked=blocked,
+                forced=forced,
+            )
+        )
+
+    if rollback_data:
+        samples = int(rollback_data.get("samples", 0) or 0)
+        if samples:
+            median = _format_hours(rollback_data.get("median_hours"))
+            max_latency = _format_hours(rollback_data.get("max_hours"))
+            headline_parts.append(f"Rollback median {median}")
+            details.append(
+                f"Rollback latency: median {median}, max {max_latency}, samples {samples}"
+            )
+        else:
+            details.append("Rollback latency: no samples recorded")
+
+    if not details:
+        details.append(
+            "No evolution KPI metrics supplied; export operations.evolution_kpis.EvolutionKpiSnapshot."
+        )
+        panel_status = _map_evolution_status(None)
+
+    headline = " | ".join(headline_parts) if headline_parts else "Evolution KPI snapshot"
+
+    return DashboardPanel(
+        name="Evolution KPIs",
+        status=panel_status,
+        headline=headline,
+        details=tuple(details),
+        metadata={"evolution_kpis": snapshot_dict},
+    )
 
 
 def _build_policy_reflection_panel(
@@ -824,6 +966,7 @@ def build_observability_dashboard(
     loop_results: Sequence["AlphaTradeLoopResult"] | None = None,
     compliance_events: Sequence["ComplianceEvent"] | None = None,
     compliance_slo_snapshot: OperationalSLOSnapshot | None = None,
+    evolution_kpis: EvolutionKpiSnapshot | Mapping[str, Any] | None = None,
     event_bus_snapshot: EventBusHealthSnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
@@ -964,6 +1107,7 @@ def build_observability_dashboard(
             generated_at=generated_at,
         )
     )
+    panels.append(_build_evolution_panel(evolution_kpis))
 
     if event_bus_snapshot is not None or slo_snapshot is not None:
         latency_status = DashboardStatus.ok

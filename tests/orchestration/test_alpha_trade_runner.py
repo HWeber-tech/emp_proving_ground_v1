@@ -81,6 +81,32 @@ class _ThrottleTradingManager:
         }
 
 
+class _RiskRejectTradingManager:
+    def __init__(self) -> None:
+        self.intents: list[dict[str, object]] = []
+        self._outcome = TradeIntentOutcome(
+            status="rejected",
+            executed=False,
+            metadata={"reason": "policy_violation"},
+        )
+
+    async def on_trade_intent(self, event: dict[str, object]) -> TradeIntentOutcome:
+        self.intents.append(dict(event))
+        return self._outcome
+
+    def assess_performance_health(self) -> dict[str, object]:
+        return {
+            "healthy": True,
+            "throughput": {"healthy": True},
+            "backlog": {"healthy": True, "evaluated": False},
+            "resource": {
+                "healthy": True,
+                "status": "not_configured",
+                "sample": {},
+            },
+        }
+
+
 def _build_runner(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -296,3 +322,127 @@ async def test_alpha_trade_runner_honours_fast_weight_toggle(monkeypatch, tmp_pa
 
     fast_weight_metadata = result.trade_metadata["fast_weight"]
     assert fast_weight_metadata["enabled"] is False
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_freezes_on_risk_rejection(monkeypatch, tmp_path) -> None:
+    trading_manager = _RiskRejectTradingManager()
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+    policy_router = runner._understanding_router.policy_router
+    release_manager = runner._orchestrator._release_manager
+    release_manager._store.upsert(
+        policy_id="alpha.live",
+        tactic_id="alpha.live",
+        stage=PolicyLedgerStage.EXPERIMENT,
+        approvals=(),
+        evidence_id="dd-alpha-live",
+        allow_regression=True,
+    )
+    policy_router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha.explore",
+            base_weight=1.5,
+            regime_bias={"balanced": 1.0},
+            exploration=True,
+            parameters={
+                "symbol": "EURUSD",
+                "side": "buy",
+                "size": 25_000,
+                "price": 1.2345,
+            },
+        )
+    )
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    assert policy_router.exploration_freeze_active() is True
+
+    follow_up = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    freeze_state = policy_router.exploration_freeze_state()
+    assert freeze_state.get("active") is True
+    assert freeze_state.get("reason") in {"policy_violation", "risk_rejected"}
+    assert follow_up.loop_result.decision.tactic_id == "alpha.live"
+    metadata = follow_up.loop_result.decision.exploration_metadata
+    assert metadata.get("selected_is_exploration") is False
+    blocked = metadata.get("blocked_candidates", [])
+    assert any(item.get("reason") == "frozen" for item in blocked)
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_releases_freeze_after_safe_iteration(
+    monkeypatch, tmp_path
+) -> None:
+    trading_manager = _RiskRejectTradingManager()
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+    policy_router = runner._understanding_router.policy_router
+    policy_router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha.explore",
+            base_weight=1.5,
+            regime_bias={"balanced": 1.0},
+            exploration=True,
+            parameters={
+                "symbol": "EURUSD",
+                "side": "buy",
+                "size": 25_000,
+                "price": 1.2345,
+            },
+        )
+    )
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    assert policy_router.exploration_freeze_active() is True
+
+    runner._trading_manager = _FakeTradingManager()
+    runner._exploration_release_threshold = 1
+
+    recovery = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    assert policy_router.exploration_freeze_active() is False
+    state = policy_router.exploration_freeze_state()
+    assert state.get("release_reason") == "stability_recovered"
+    assert state.get("release_metadata", {}).get("safe_iterations") == 1

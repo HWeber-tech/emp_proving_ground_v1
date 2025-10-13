@@ -29,6 +29,7 @@ import logging
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, MutableMapping, Sequence
 
+from src.operations.sensory_drift import DriftSeverity
 from src.orchestration.alpha_trade_loop import (
     AlphaTradeLoopOrchestrator,
     AlphaTradeLoopResult,
@@ -81,6 +82,15 @@ TradeBuilder = Callable[
 class AlphaTradeLoopRunner:
     """Run a full AlphaTrade loop iteration and forward the trade intent."""
 
+    _DEFAULT_EXPLORATION_RELEASE_THRESHOLD = 3
+    _RISK_REJECTION_STATUS = "rejected"
+    _SEVERITY_ORDER = {
+        "critical": 3,
+        "alert": 2,
+        "warn": 1,
+        "info": 0,
+    }
+
     def __init__(
         self,
         *,
@@ -101,6 +111,9 @@ class AlphaTradeLoopRunner:
         self._publish_regime_signal = publish_regime_signal
         self._trade_builder = trade_builder or self._default_trade_builder
         self._feature_toggles = feature_toggles or AdaptationFeatureToggles()
+        self._exploration_safe_streak = 0
+        self._exploration_release_threshold = self._DEFAULT_EXPLORATION_RELEASE_THRESHOLD
+        self._last_freeze_reason: str | None = None
 
     async def process(
         self,
@@ -258,6 +271,11 @@ class AlphaTradeLoopRunner:
                 metadata=MappingProxyType(merged_loop_metadata),
             )
 
+        self._handle_exploration_freeze(
+            loop_result=loop_result,
+            trade_outcome=trade_outcome,
+        )
+
         return AlphaTradeRunResult(
             belief_state=belief_state,
             regime_signal=regime_signal,
@@ -348,6 +366,136 @@ class AlphaTradeLoopRunner:
             "explanation": explanation,
         }
         return attribution
+
+    def _handle_exploration_freeze(
+        self,
+        *,
+        loop_result: AlphaTradeLoopResult,
+        trade_outcome: "TradeIntentOutcome | None",
+    ) -> None:
+        """Apply or release exploration freezes based on loop outcomes."""
+
+        policy_router = self._understanding_router.policy_router
+
+        drift_trigger_metadata: dict[str, object] | None = None
+        drift_decision = loop_result.drift_decision
+        freeze_triggers: list[dict[str, object]] = []
+        if drift_decision is not None:
+            drift_snapshot = drift_decision.as_dict()
+            drift_trigger_metadata = {"drift_decision": dict(drift_snapshot)}
+            severity = drift_decision.severity
+            drift_severity_value = severity.value if isinstance(severity, DriftSeverity) else None
+            stage_gate = False
+            reason_text = drift_decision.reason or ""
+            if isinstance(reason_text, str) and reason_text.startswith("release_stage_"):
+                stage_gate = True
+            if (
+                severity in (DriftSeverity.warn, DriftSeverity.alert)
+                or not drift_decision.allowed
+                or (drift_decision.force_paper and not stage_gate)
+            ):
+                reason = drift_decision.reason or f"drift_{drift_severity_value or 'unknown'}"
+                freeze_triggers.append(
+                    {
+                        "reason": reason,
+                        "triggered_by": "drift_sentry",
+                        "severity": drift_severity_value or "warn",
+                        "metadata": drift_trigger_metadata,
+                    }
+                )
+
+        risk_trigger_metadata: dict[str, object] | None = None
+        if trade_outcome is not None:
+            status = str(getattr(trade_outcome, "status", "")).lower()
+            if status == self._RISK_REJECTION_STATUS:
+                outcome_payload = trade_outcome.as_dict()
+                risk_trigger_metadata = {"trade_outcome": dict(outcome_payload)}
+                raw_reason = None
+                metadata = getattr(trade_outcome, "metadata", None)
+                if isinstance(metadata, Mapping):
+                    raw_reason = metadata.get("reason")
+                reason_text = str(raw_reason).strip() if raw_reason else "risk_rejected"
+                freeze_triggers.append(
+                    {
+                        "reason": reason_text,
+                        "triggered_by": "risk_gateway",
+                        "severity": "critical",
+                        "metadata": risk_trigger_metadata,
+                    }
+                )
+
+        if freeze_triggers:
+            def _severity_rank(entry: Mapping[str, object]) -> int:
+                label = str(entry.get("severity") or "info").lower()
+                return self._SEVERITY_ORDER.get(label, 0)
+
+            primary = max(freeze_triggers, key=_severity_rank)
+            freeze_metadata: dict[str, object] = {
+                "triggers": [
+                    {
+                        "reason": trigger.get("reason"),
+                        "triggered_by": trigger.get("triggered_by"),
+                        "severity": trigger.get("severity"),
+                        "metadata": (
+                            dict(trigger_metadata)
+                            if isinstance((trigger_metadata := trigger.get("metadata")), Mapping)
+                            else {}
+                        ),
+                    }
+                    for trigger in freeze_triggers
+                ]
+            }
+            policy_router.freeze_exploration(
+                reason=str(primary.get("reason") or "exploration_freeze"),
+                triggered_by=str(primary.get("triggered_by") or "unknown"),
+                severity=str(primary.get("severity")) if primary.get("severity") else None,
+                metadata=freeze_metadata,
+            )
+            self._exploration_safe_streak = 0
+            self._last_freeze_reason = str(primary.get("reason") or "exploration_freeze")
+            return
+
+        if not policy_router.exploration_freeze_active():
+            self._exploration_safe_streak = 0
+            return
+
+        drift_safe = True
+        if drift_decision is not None:
+            severity = drift_decision.severity
+            stage_gate = False
+            reason_text = drift_decision.reason or ""
+            if isinstance(reason_text, str) and reason_text.startswith("release_stage_"):
+                stage_gate = True
+            drift_safe = (
+                severity is DriftSeverity.normal
+                and drift_decision.allowed
+                and (not drift_decision.force_paper or stage_gate)
+            )
+
+        trade_safe = bool(trade_outcome and getattr(trade_outcome, "executed", False))
+
+        stage_gate = False
+        if drift_decision is not None:
+            reason_text = drift_decision.reason or ""
+            if isinstance(reason_text, str) and reason_text.startswith("release_stage_"):
+                stage_gate = True
+
+        if drift_safe and trade_safe:
+            self._exploration_safe_streak += 1
+        else:
+            self._exploration_safe_streak = 0
+
+        if self._exploration_safe_streak >= self._exploration_release_threshold:
+            policy_router.release_exploration(
+                reason="stability_recovered",
+                metadata={
+                    "safe_iterations": self._exploration_safe_streak,
+                    "last_freeze_reason": self._last_freeze_reason,
+                    "stage_gate": stage_gate,
+                },
+            )
+            self._exploration_safe_streak = 0
+            self._last_freeze_reason = None
 
     def _default_trade_builder(
         self,

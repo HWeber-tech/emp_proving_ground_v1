@@ -310,6 +310,45 @@ class ExplorationBudget:
         }
 
 
+@dataclass
+class ExplorationFreezeState:
+    """Runtime bookkeeping for exploration freeze interventions."""
+
+    active: bool = False
+    reason: str | None = None
+    triggered_by: str | None = None
+    severity: str | None = None
+    metadata: Mapping[str, object] = field(default_factory=dict)
+    triggered_at: datetime | None = None
+    last_updated_at: datetime | None = None
+    violation_count: int = 0
+    release_reason: str | None = None
+    released_at: datetime | None = None
+    release_metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, object]:
+        payload: dict[str, object] = {
+            "active": self.active,
+            "reason": self.reason,
+            "triggered_by": self.triggered_by,
+            "severity": self.severity,
+            "violation_count": self.violation_count,
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        if self.triggered_at is not None:
+            payload["triggered_at"] = self.triggered_at.astimezone(timezone.utc).isoformat()
+        if self.last_updated_at is not None:
+            payload["last_updated_at"] = self.last_updated_at.astimezone(timezone.utc).isoformat()
+        if self.released_at is not None:
+            payload["released_at"] = self.released_at.astimezone(timezone.utc).isoformat()
+        if self.release_reason is not None:
+            payload["release_reason"] = self.release_reason
+        if self.release_metadata:
+            payload["release_metadata"] = dict(self.release_metadata)
+        return payload
+
+
 class PolicyRouter:
     """Route tactics using fast-weight experimentation and automated reflection summaries."""
 
@@ -343,6 +382,58 @@ class PolicyRouter:
             )
         else:
             self._exploration_budget = None
+        self._exploration_freeze = ExplorationFreezeState()
+
+    def exploration_freeze_active(self) -> bool:
+        """Return ``True`` when exploration is currently frozen."""
+
+        return self._exploration_freeze.active
+
+    def exploration_freeze_state(self) -> Mapping[str, object]:
+        """Expose the current freeze state for observability surfaces."""
+
+        return self._exploration_freeze.as_dict()
+
+    def freeze_exploration(
+        self,
+        *,
+        reason: str,
+        triggered_by: str,
+        severity: str | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        """Freeze exploration tactics until explicit release."""
+
+        now = datetime.now(tz=timezone.utc)
+        payload = dict(metadata or {})
+        self._exploration_freeze.active = True
+        self._exploration_freeze.reason = reason or "unspecified"
+        self._exploration_freeze.triggered_by = triggered_by or "unknown"
+        self._exploration_freeze.severity = severity
+        self._exploration_freeze.metadata = payload
+        self._exploration_freeze.triggered_at = now
+        self._exploration_freeze.last_updated_at = now
+        self._exploration_freeze.violation_count += 1
+        self._exploration_freeze.release_reason = None
+        self._exploration_freeze.released_at = None
+        self._exploration_freeze.release_metadata = {}
+
+    def release_exploration(
+        self,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        """Lift an active exploration freeze."""
+
+        if not self._exploration_freeze.active:
+            return
+        now = datetime.now(tz=timezone.utc)
+        self._exploration_freeze.active = False
+        self._exploration_freeze.last_updated_at = now
+        self._exploration_freeze.release_reason = reason or "released"
+        self._exploration_freeze.released_at = now
+        self._exploration_freeze.release_metadata = dict(metadata or {})
 
     def register_tactic(self, tactic: PolicyTactic) -> None:
         if tactic.tactic_id in self._tactics:
@@ -516,13 +607,17 @@ class PolicyRouter:
             raise RuntimeError("no tactics available after scoring")
 
         exploration_context: dict[str, object] | None = None
+        budget_before: Mapping[str, object] | None = None
         if self._exploration_budget is not None:
             budget_before = self._exploration_budget.snapshot()
+
+        if self._exploration_budget is not None or self._exploration_freeze.active:
             working_entries, enforcement_context = self._apply_exploration_budget(
                 ranked=ranked_entries,
             )
             exploration_context = dict(enforcement_context)
-            exploration_context["budget_before"] = dict(budget_before)
+            if budget_before is not None:
+                exploration_context["budget_before"] = dict(budget_before)
         else:
             working_entries = list(ranked_entries)
 
@@ -576,9 +671,8 @@ class PolicyRouter:
             exploration_context["budget_after"] = dict(after_snapshot)
             if "budget_before" not in exploration_context:
                 exploration_context["budget_before"] = dict(after_snapshot)
+        if exploration_context is not None:
             exploration_context["selected_is_exploration"] = bool(tactic.exploration)
-        else:
-            exploration_context = None
 
         weight_breakdown = self._build_weight_breakdown(
             tactic=tactic,
@@ -1468,6 +1562,9 @@ class PolicyRouter:
                 "budget_before": dict(exploration_context.get("budget_before", {})),
                 "budget_after": dict(exploration_context.get("budget_after", {})),
             }
+            freeze_state = exploration_context.get("freeze_state")
+            if isinstance(freeze_state, Mapping):
+                summary["exploration"]["freeze_state"] = dict(freeze_state)
         return summary
 
     @staticmethod
@@ -1522,6 +1619,9 @@ class PolicyRouter:
                 "budget_before": dict(exploration_context.get("budget_before", {})),
                 "budget_after": dict(exploration_context.get("budget_after", {})),
             }
+            freeze_state = exploration_context.get("freeze_state")
+            if isinstance(freeze_state, Mapping):
+                payload["exploration"]["freeze_state"] = dict(freeze_state)
         return payload
 
     @staticmethod
@@ -1537,7 +1637,13 @@ class PolicyRouter:
             return [], {}
 
         budget = self._exploration_budget
-        if budget is None:
+        freeze_active = self._exploration_freeze.active
+        freeze_reason = self._exploration_freeze.reason
+        freeze_metadata: dict[str, object] = {}
+        if self._exploration_freeze.metadata:
+            freeze_metadata = dict(self._exploration_freeze.metadata)
+
+        if budget is None and not freeze_active:
             return list(ranked), {}
 
         allowed: list[Mapping[str, object]] = []
@@ -1546,6 +1652,21 @@ class PolicyRouter:
         for entry in ranked:
             tactic: PolicyTactic = entry["tactic"]  # type: ignore[assignment]
             if not tactic.exploration:
+                entry["exploration_budget_status"] = "allowed"
+                entry["exploration_budget_reason"] = None
+                allowed.append(entry)
+                continue
+
+            if freeze_active:
+                entry["exploration_budget_status"] = "blocked"
+                entry["exploration_budget_reason"] = "frozen"
+                entry.setdefault("exploration_freeze_reason", freeze_reason)
+                if freeze_metadata:
+                    entry.setdefault("exploration_freeze_metadata", dict(freeze_metadata))
+                blocked_details.append((entry, "frozen"))
+                continue
+
+            if budget is None:
                 entry["exploration_budget_status"] = "allowed"
                 entry["exploration_budget_reason"] = None
                 allowed.append(entry)
@@ -1563,9 +1684,14 @@ class PolicyRouter:
 
         metadata: dict[str, object] = {}
 
+        if freeze_active:
+            freeze_snapshot = self._exploration_freeze.as_dict()
+            metadata["freeze_state"] = dict(freeze_snapshot)
+
         if allowed:
-            for _, reason in blocked_details:
-                budget.record_blocked(reason)
+            if budget is not None:
+                for _, reason in blocked_details:
+                    budget.record_blocked(reason)
             ordered = allowed + [entry for entry, _ in blocked_details]
             metadata["blocked_candidates"] = [
                 {
@@ -1588,8 +1714,10 @@ class PolicyRouter:
             for entry, reason in blocked_details
         ]
         metadata["forced"] = bool(blocked_details)
-        if blocked_details:
+        if blocked_details and budget is not None:
             budget.record_forced(blocked_details[0][1])
+        if freeze_active and "freeze_state" not in metadata:
+            metadata["freeze_state"] = self._exploration_freeze.as_dict()
         return ordered, metadata
 
     def _select_regime_transition_winner(
@@ -1713,6 +1841,8 @@ class PolicyRouter:
 
 
 __all__ = [
+    "ExplorationBudget",
+    "ExplorationFreezeState",
     "PolicyDecision",
     "PolicyRouter",
     "PolicyTactic",

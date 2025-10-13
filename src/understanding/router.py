@@ -254,6 +254,43 @@ class UnderstandingRouter:
     def policy_router(self) -> PolicyRouter:
         return self._router
 
+    def exploration_freeze_active(self) -> bool:
+        """Return ``True`` when policy routing is currently frozen for exploration."""
+
+        return self._router.exploration_freeze_active()
+
+    def exploration_freeze_state(self) -> Mapping[str, object]:
+        """Expose the policy router's exploration freeze state."""
+
+        return self._router.exploration_freeze_state()
+
+    def freeze_exploration(
+        self,
+        *,
+        reason: str,
+        triggered_by: str,
+        severity: str | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        """Freeze exploration tactics on the underlying policy router."""
+
+        self._router.freeze_exploration(
+            reason=reason,
+            triggered_by=triggered_by,
+            severity=severity,
+            metadata=metadata,
+        )
+
+    def release_exploration(
+        self,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        """Release an active exploration freeze on the policy router."""
+
+        self._router.release_exploration(reason=reason, metadata=metadata)
+
     def register_tactic(self, tactic: PolicyTactic) -> None:
         self._router.register_tactic(tactic)
 

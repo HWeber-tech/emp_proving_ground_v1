@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Mapping
 
 import pytest
 
@@ -478,6 +479,52 @@ def test_exploration_budget_respects_mutation_cadence() -> None:
     follow_meta = follow_up.exploration_metadata
     assert follow_meta["selected_is_exploration"] is True
     assert follow_meta["budget_after"]["exploration_decisions"] == 2
+
+
+def test_exploration_freeze_blocks_and_releases() -> None:
+    router = PolicyRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="core",
+            base_weight=1.0,
+            regime_bias={"bull": 1.0},
+        )
+    )
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="explore",
+            base_weight=1.2,
+            regime_bias={"bull": 1.0},
+            exploration=True,
+        )
+    )
+
+    initial = router.route(_regime())
+    assert initial.tactic_id == "explore"
+
+    router.freeze_exploration(
+        reason="risk_breach",
+        triggered_by="risk_gateway",
+        severity="critical",
+        metadata={"violation": "portfolio_risk_breach"},
+    )
+
+    frozen_decision = router.route(_regime())
+    assert frozen_decision.tactic_id == "core"
+    metadata = frozen_decision.exploration_metadata
+    assert metadata.get("selected_is_exploration") is False
+    freeze_state = metadata.get("freeze_state")
+    assert isinstance(freeze_state, Mapping)
+    assert freeze_state.get("active") is True
+    blocked = metadata.get("blocked_candidates", [])
+    assert blocked and blocked[0].get("reason") == "frozen"
+
+    router.release_exploration(reason="stability_recovered")
+    recovered = router.route(_regime())
+    assert recovered.tactic_id == "explore"
+    post_state = recovered.exploration_metadata.get("freeze_state")
+    if post_state is not None:
+        assert post_state.get("active") is False
 
 
 def test_prune_experiments_removes_expired_entries() -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,31 @@ from tools.governance.promote_policy import main
 def test_promote_policy_cli_with_delta(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     ledger_path = tmp_path / "ledger.json"
     log_path = tmp_path / "promotions.jsonl"
+    diary_path = tmp_path / "diary.json"
+
+    diary_store = DecisionDiaryStore(diary_path, publish_on_record=False)
+    diary_store.record(
+        policy_id="alpha",
+        decision={
+            "tactic_id": "alpha",
+            "parameters": {},
+            "guardrails": {},
+            "rationale": "pilot-readiness",
+            "selected_weight": 1.0,
+            "experiments_applied": (),
+            "reflection_summary": {},
+            "weight_breakdown": {},
+        },
+        regime_state={
+            "regime": "balanced",
+            "confidence": 0.82,
+            "features": {},
+        },
+        outcomes={"paper_pnl": 10.5},
+        metadata={"release_stage": "paper"},
+        entry_id="dd-alpha",
+        recorded_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    )
 
     result = main(
         [
@@ -20,6 +46,8 @@ def test_promote_policy_cli_with_delta(tmp_path: Path, capsys: pytest.CaptureFix
             str(ledger_path),
             "--log-file",
             str(log_path),
+            "--diary",
+            str(diary_path),
             "--policy-id",
             "alpha",
             "--stage",
@@ -68,6 +96,20 @@ def test_promote_policy_cli_with_delta(tmp_path: Path, capsys: pytest.CaptureFix
     assert record.threshold_overrides["warn_confidence_floor"] == 0.68
     assert record.policy_delta is not None
     assert record.policy_delta.router_guardrails["requires_diary"] is True
+    assert record.metadata.get("owner") == "loop"
+
+    traceability = record.metadata.get("traceability")
+    assert traceability is not None
+    assert traceability["evidence_id"] == "dd-alpha"
+    assert traceability["stage"] == PolicyLedgerStage.PILOT.value
+    assert traceability["code_hash"]
+    assert len(traceability["config_hash"]) == 64
+    diary_slice = traceability.get("diary_slice", {})
+    assert diary_slice.get("status") == "ok"
+    assert diary_slice.get("diary_path") == diary_path.as_posix()
+    entry = diary_slice.get("entry", {})
+    assert entry.get("entry_id") == "dd-alpha"
+    assert entry.get("metadata", {}).get("release_stage") == "paper"
 
     log_lines = [json.loads(line) for line in log_path.read_text().splitlines() if line]
     assert log_lines
@@ -173,6 +215,31 @@ def test_promote_policy_cli_writes_markdown_summary(
     ledger_path = tmp_path / "ledger.json"
     log_path = tmp_path / "promotions.jsonl"
     summary_path = tmp_path / "promotion.md"
+    diary_path = tmp_path / "diary.json"
+
+    diary_store = DecisionDiaryStore(diary_path, publish_on_record=False)
+    diary_store.record(
+        policy_id="beta",
+        decision={
+            "tactic_id": "beta",
+            "parameters": {},
+            "guardrails": {},
+            "rationale": "summary",
+            "selected_weight": 1.0,
+            "experiments_applied": (),
+            "reflection_summary": {},
+            "weight_breakdown": {},
+        },
+        regime_state={
+            "regime": "balanced",
+            "confidence": 0.77,
+            "features": {},
+        },
+        outcomes={"paper_pnl": 5.0},
+        metadata={"release_stage": "paper"},
+        entry_id="dd-beta",
+        recorded_at=datetime(2024, 2, 1, tzinfo=timezone.utc),
+    )
 
     result = main(
         [
@@ -182,6 +249,8 @@ def test_promote_policy_cli_writes_markdown_summary(
             str(log_path),
             "--summary-path",
             str(summary_path),
+            "--diary",
+            str(diary_path),
             "--policy-id",
             "beta",
             "--stage",

@@ -19,6 +19,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
+from src.governance.policy_traceability import build_traceability_metadata
 from src.understanding.decision_diary import DecisionDiaryStore
 from tools.governance._promotion_helpers import build_log_entry, write_promotion_log
 
@@ -168,6 +169,8 @@ def _apply_promotions(
     *,
     release_manager: LedgerReleaseManager,
     ledger_store: PolicyLedgerStore,
+    diary_store: DecisionDiaryStore,
+    diary_path: Path,
     assessments: Sequence[PolicyGraduationAssessment],
     log_path: Path | None,
 ) -> dict[str, PolicyLedgerStage]:
@@ -190,6 +193,22 @@ def _apply_promotions(
         if blockers:
             continue
 
+        metadata_payload = dict(record.metadata)
+        metadata_snapshot = dict(metadata_payload)
+        traceability = build_traceability_metadata(
+            policy_id=policy_id,
+            tactic_id=record.tactic_id,
+            stage=recommended,
+            evidence_id=assessment.evidence_id or record.evidence_id,
+            diary_store=diary_store,
+            diary_path=diary_path,
+            threshold_overrides=record.threshold_overrides,
+            policy_delta=record.policy_delta,
+            metadata=metadata_snapshot if metadata_snapshot else None,
+        )
+        if traceability:
+            metadata_payload["traceability"] = traceability
+
         record = release_manager.promote(
             policy_id=policy_id,
             tactic_id=record.tactic_id,
@@ -198,7 +217,7 @@ def _apply_promotions(
             evidence_id=assessment.evidence_id or record.evidence_id,
             threshold_overrides=record.threshold_overrides,
             policy_delta=record.policy_delta,
-            metadata=record.metadata,
+            metadata=metadata_payload or None,
         )
         if log_path is not None:
             posture = release_manager.describe(policy_id)
@@ -247,6 +266,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             applied_promotions = _apply_promotions(
                 release_manager=release_manager,
                 ledger_store=ledger_store,
+                diary_store=diary_store,
+                diary_path=diary_path,
                 assessments=assessments,
                 log_path=log_path,
             )

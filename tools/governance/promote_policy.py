@@ -15,6 +15,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
+from src.governance.policy_traceability import build_traceability_metadata
 from src.understanding.decision_diary import DecisionDiaryStore
 from tools.governance._promotion_helpers import (
     build_log_entry,
@@ -319,6 +320,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         evidence_resolver=evidence_resolver,
     )
 
+    metadata_payload = dict(metadata) if metadata else {}
+    metadata_snapshot = dict(metadata_payload)
+    traceability = build_traceability_metadata(
+        policy_id=args.policy_id,
+        tactic_id=tactic_id,
+        stage=stage,
+        evidence_id=args.evidence_id,
+        diary_store=diary_store,
+        diary_path=args.diary,
+        threshold_overrides=threshold_overrides or None,
+        policy_delta=delta,
+        metadata=metadata_snapshot if metadata_snapshot else None,
+    )
+    if traceability:
+        metadata_payload["traceability"] = traceability
+
     try:
         record = manager.promote(
             policy_id=args.policy_id,
@@ -328,7 +345,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             evidence_id=args.evidence_id,
             threshold_overrides=threshold_overrides or None,
             policy_delta=delta,
-            metadata=metadata or None,
+            metadata=metadata_payload or None,
         )
     except Exception as exc:
         print(f"error: failed to promote policy: {exc}", file=sys.stderr)

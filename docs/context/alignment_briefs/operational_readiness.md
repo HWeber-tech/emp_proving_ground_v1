@@ -94,9 +94,11 @@
   and alerts share deterministic remediation context under regression coverage
   and updated status docs.【F:src/operations/operational_readiness.py†L113-L744】【F:tests/operations/test_operational_readiness.py†L86-L389】【F:docs/status/operational_readiness.md†L1-L140】【F:tests/runtime/test_professional_app_timescale.py†L722-L799】
   - Progress: Strategy performance tracker now computes per-strategy KPIs,
-    loop metrics, ROI posture, and Markdown summaries so readiness dashboards
-    can surface trading-loop health from one aggregation surface under pytest
-    coverage.【F:src/operations/strategy_performance_tracker.py†L1-L596】【F:tests/operations/test_strategy_performance_tracker.py†L1-L122】
+    loop metrics, ROI posture, and Markdown summaries; the latest update folds
+    fast-weight toggle counts, sparsity means, and Hebbian adapter statistics
+    into both strategy-level and aggregate metadata so readiness dashboards
+    expose adaptation health from one aggregation surface under refreshed
+    pytest coverage.【F:src/operations/strategy_performance_tracker.py†L1-L362】【F:src/operations/strategy_performance_tracker.py†L498-L620】【F:tests/operations/test_strategy_performance_tracker.py†L65-L159】
   - Progress: Final dry-run audit bundle now consolidates logs, diary flags,
     readiness posture, and KPI telemetry into a single Markdown report with
     severity roll-ups, while detecting log continuity gaps, uptime degradation,
@@ -106,6 +108,8 @@
   - Progress: Sign-off evaluation now layers minimum-duration and uptime gates on top of the audit summary, requires diary/performance evidence by default, and exposes CLI toggles so review boards can approve, warn, or fail runs with consistent criteria under regression coverage.【F:src/operations/dry_run_audit.py†L792-L835】【F:tools/operations/final_dry_run_audit.py†L21-L150】【F:tests/operations/test_dry_run_audit.py†L189-L259】
   - Progress: Sign-off guardrails now enforce configurable Sharpe-ratio floors and add a `--sign-off-min-sharpe` CLI switch so governance can demand risk-adjusted performance proof, with tests covering success, failure, and missing-metric cases.【F:src/operations/dry_run_audit.py†L323-L1072】【F:tools/operations/final_dry_run_audit.py†L100-L178】【F:tests/operations/test_dry_run_audit.py†L226-L360】
   - Progress: Diary audits now enforce per-day entry minimums with configurable severities and CLI toggles, raising explicit `coverage/daily/*` issues when journaling gaps appear so sign-off packets surface documentation lapses under regression coverage.【F:src/operations/dry_run_audit.py†L738-L947】【F:tools/operations/final_dry_run_audit.py†L21-L206】【F:tests/operations/test_dry_run_audit.py†L188-L304】
+  - Progress: Final dry-run backlog collector now distils incidents, diary gaps, performance findings, and sign-off verdicts into backlog items with JSON/Markdown outputs so WARN and FAIL follow-ups land in a single queue under dedicated CLI and pytest coverage.【F:src/operations/final_dry_run_backlog.py†L1-L355】【F:tools/operations/final_dry_run_backlog.py†L1-L214】【F:tests/operations/test_final_dry_run_backlog.py†L1-L168】
+  - Progress: Wrap-up generator reads the harness summary to produce backlog lists and minutes, enforcing duration tolerances, warn-as-fail promotion, and optional emission toggles, with the runbook documenting the workflow and regression suites locking JSON/Markdown artefacts.【F:src/operations/final_dry_run_wrap_up.py†L1-L620】【F:tools/operations/final_dry_run_wrap_up.py†L1-L209】【F:tests/operations/test_final_dry_run_wrap_up.py†L1-L187】【F:docs/runbooks/final_dry_run.md†L144-L156】
 - Progress: Default alert policy now delivers email, SMS, webhook, Slack, and
   GitHub issue transports out of the box, with regression coverage asserting
   channel fan-out for readiness, incident response, and drift sentry alerts and

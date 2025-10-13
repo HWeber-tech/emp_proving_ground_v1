@@ -252,6 +252,92 @@ async def test_operational_backbone_pipeline_full_cycle(tmp_path) -> None:
 
 
 @pytest.mark.asyncio()
+async def test_operational_backbone_pipeline_serves_cache_when_timescale_unavailable(
+    tmp_path, monkeypatch
+) -> None:
+    settings = TimescaleConnectionSettings(url=f"sqlite:///{tmp_path / 'pipeline_cache.db'}")
+    broker = InMemoryKafkaBroker()
+    manager, cache = _build_manager(settings, broker, KAFKA_TOPICS)
+    event_bus = EventBus()
+    sensory = RealSensoryOrgan()
+
+    def consumer_factory() -> KafkaIngestEventConsumer:
+        return _consumer_factory(broker, event_bus)
+
+    pipeline = OperationalBackbonePipeline(
+        manager=manager,
+        event_bus=event_bus,
+        kafka_consumer_factory=consumer_factory,
+        sensory_organ=sensory,
+        event_topics=("telemetry.ingest",),
+    )
+
+    base = datetime(2024, 5, 6, tzinfo=timezone.utc)
+    request = OperationalIngestRequest(
+        symbols=("eurusd",),
+        daily_lookback_days=2,
+        intraday_lookback_days=1,
+        intraday_interval="1m",
+    )
+
+    try:
+        result = await pipeline.execute(
+            request,
+            fetch_daily=lambda symbols, lookback: _daily_frame(base),
+            fetch_intraday=lambda symbols, lookback, interval: _intraday_frame(base),
+            poll_consumer=False,
+        )
+        assert "daily_bars" in result.ingest_results
+        assert result.kafka_events, "expected Kafka events published for ingest cycle"
+
+        window_end = base + timedelta(hours=1)
+        window_start = base - timedelta(days=2)
+        start_arg = window_start.isoformat()
+        end_arg = window_end.isoformat()
+
+        cache.metrics(reset=True)
+        warm_frame = manager.fetch_data(
+            "EURUSD",
+            interval="1d",
+            start=start_arg,
+            end=end_arg,
+        )
+        assert not warm_frame.empty
+
+        warm_metrics = cache.metrics(reset=True)
+        assert int(warm_metrics.get("misses", 0)) >= 1
+
+        fetch_called: dict[str, bool] = {"value": False}
+        original_fetch = manager._query_cache.reader.fetch_daily_bars
+
+        def _tracking_fetch(*args, **kwargs):
+            fetch_called["value"] = True
+            return original_fetch(*args, **kwargs)
+
+        monkeypatch.setattr(
+            manager._query_cache.reader,
+            "fetch_daily_bars",
+            _tracking_fetch,
+        )
+
+        cached_frame = manager.fetch_data(
+            "EURUSD",
+            interval="1d",
+            start=start_arg,
+            end=end_arg,
+        )
+        assert not cached_frame.empty
+
+        metrics = cache.metrics(reset=False)
+        assert int(metrics.get("hits", 0)) >= 1
+        assert int(metrics.get("misses", 0)) == 0
+        assert fetch_called["value"] is False
+    finally:
+        await pipeline.shutdown()
+        _flush_cache(cache)
+
+
+@pytest.mark.asyncio()
 async def test_operational_backbone_pipeline_understanding_failover(
     tmp_path, monkeypatch
 ) -> None:

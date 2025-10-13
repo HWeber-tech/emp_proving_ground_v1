@@ -37,6 +37,7 @@ from src.orchestration.alpha_trade_loop import (
 from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.understanding.belief import BeliefEmitter, BeliefState, RegimeFSM, RegimeSignal
 from src.understanding.router import BeliefSnapshot, UnderstandingRouter
+from src.trading.gating import serialise_drift_decision
 
 if TYPE_CHECKING:
     from src.trading.trading_manager import TradeIntentOutcome
@@ -51,6 +52,28 @@ def _coerce_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
 
 
 @dataclass(slots=True, frozen=True)
@@ -552,7 +575,11 @@ class AlphaTradeLoopRunner:
             return dict(existing), packet_payload
 
         multiplier = 0.5
-        applied_at = datetime.now(timezone.utc)
+        applied_at = _coerce_datetime(trade_metadata.get("timestamp"))
+        if applied_at is None and isinstance(intent_payload, Mapping):
+            applied_at = _coerce_datetime(intent_payload.get("timestamp"))
+        applied_at = applied_at or datetime.now(timezone.utc)
+        applied_iso = applied_at.astimezone(timezone.utc).isoformat()
         reason = drift_decision.reason or f"drift_{severity.value}"
 
         quantity_value = _coerce_float(trade_metadata.get("quantity"))
@@ -585,7 +612,7 @@ class AlphaTradeLoopRunner:
             "severity": severity.value,
             "reason": reason,
             "size_multiplier": multiplier,
-            "applied_at": applied_at.astimezone(timezone.utc).isoformat(),
+            "applied_at": applied_iso,
             "force_paper": drift_decision.force_paper,
         }
         if isinstance(drift_decision.requirements, Mapping):
@@ -649,15 +676,17 @@ class AlphaTradeLoopRunner:
                 }
             )
 
+        drift_snapshot = serialise_drift_decision(drift_decision, evaluated_at=applied_at)
+
         theory_packet: dict[str, Any] = {
             "summary": (
                 f"Drift sentry severity {severity.value} triggered exploration freeze and "
                 f"a {multiplier:.2f}x size multiplier"
             ),
-            "generated_at": applied_at.astimezone(timezone.utc).isoformat(),
+            "generated_at": applied_iso,
             "severity": severity.value,
             "actions": actions,
-            "drift_decision": drift_decision.as_dict(),
+            "drift_decision": drift_snapshot,
         }
         if snapshot_metadata:
             theory_packet["snapshot_metadata"] = snapshot_metadata

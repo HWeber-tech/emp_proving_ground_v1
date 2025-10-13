@@ -42,10 +42,22 @@ from src.understanding.decision_diary import DecisionDiaryStore
 logger = logging.getLogger(__name__)
 
 
-def _generate_bootstrap_series(symbols: Sequence[str]) -> Mapping[str, list[MarketData]]:
+def _normalise_anchor(anchor: datetime | None) -> datetime:
+    if anchor is None:
+        return datetime.now(timezone.utc)
+    if anchor.tzinfo is None:
+        return anchor.replace(tzinfo=timezone.utc)
+    return anchor.astimezone(timezone.utc)
+
+
+def _generate_bootstrap_series(
+    symbols: Sequence[str],
+    *,
+    anchor: datetime | None = None,
+) -> Mapping[str, list[MarketData]]:
     """Build a deterministic synthetic price series for bootstrap deployments."""
 
-    now = datetime.now(timezone.utc)
+    now = _normalise_anchor(anchor)
     series: dict[str, list[MarketData]] = {}
 
     for idx, symbol in enumerate(symbols or ("EURUSD",)):
@@ -126,6 +138,7 @@ class BootstrapRuntime:
         release_manager: LedgerReleaseManager | None = None,
         diary_store: DecisionDiaryStore | None = None,
         trade_throttle: TradeThrottleConfig | Mapping[str, object] | None = None,
+        series_anchor: datetime | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.symbols = [s.strip() for s in (symbols or ["EURUSD"]) if s and s.strip()]
@@ -153,7 +166,7 @@ class BootstrapRuntime:
             resolved_connectors.update({str(k): v for k, v in connectors.items()})
         if "historical_replay" not in resolved_connectors:
             resolved_connectors["historical_replay"] = HistoricalReplayConnector(
-                _generate_bootstrap_series(self.symbols)
+                _generate_bootstrap_series(self.symbols, anchor=series_anchor)
             )
 
         self.fabric = MarketDataFabric(resolved_connectors)

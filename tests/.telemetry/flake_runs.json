@@ -1,12 +1,20 @@
 {
-  "events": [],
+  "events": [
+    {
+      "duration": 1.8190560570219532,
+      "longrepr": "tests/runtime/test_replay_determinism.py:164: in test_paper_simulation_replay_is_deterministic\n    diaries.append(_load_diary_entries(diary_path))\ntests/runtime/test_replay_determinism.py:129: in _load_diary_entries\n    return [_normalise_diary_entry(entry) for entry in entries if isinstance(entry, Mapping)]\ntests/runtime/test_replay_determinism.py:129: in <listcomp>\n    return [_normalise_diary_entry(entry) for entry in entries if isinstance(entry, Mapping)]\nE   NameError: name 'Mapping' is not defined",
+      "nodeid": "tests/runtime/test_replay_determinism.py::test_paper_simulation_replay_is_deterministic",
+      "outcome": "failed",
+      "was_xfail": false
+    }
+  ],
   "meta": {
     "ci": false,
-    "event_count": 0,
-    "exit_status": 0,
+    "event_count": 1,
+    "exit_status": 1,
     "platform": "linux",
     "python": "3.10.12 (main, Aug 15 2025, 14:32:43) [GCC 11.4.0]",
-    "session_end": 1760361158.316507,
-    "session_start": 1760361156.9534268
+    "session_end": 1760370112.6785486,
+    "session_start": 1760370109.2324286
   }
 }

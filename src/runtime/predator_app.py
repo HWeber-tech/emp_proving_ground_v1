@@ -9,7 +9,7 @@ import logging
 import math
 import os
 from collections import ChainMap
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from pathlib import Path
 from statistics import fmean, pstdev
@@ -183,6 +183,7 @@ from src.trading.risk.risk_api import (
     resolve_trading_risk_interface,
 )
 from src.runtime.bootstrap_runtime import BootstrapRuntime
+from src.runtime.determinism import seed_runtime
 from src.orchestration.evolution_cycle import EvolutionCycleOrchestrator
 from src.runtime.fix_dropcopy import FixDropcopyReconciler
 from src.runtime.fix_pilot import FixIntegrationPilot
@@ -1770,6 +1771,25 @@ def _extra_decimal(extras: Mapping[str, str], key: str, default: Decimal) -> Dec
         return default
 
 
+def _extra_datetime(extras: Mapping[str, str], key: str) -> datetime | None:
+    raw = extras.get(key)
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        logger.debug("Invalid datetime override for %s: %r", key, raw)
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def _parse_scope_fields(raw: str | Sequence[str] | None) -> tuple[str, ...]:
     if raw is None:
         return ()
@@ -2497,11 +2517,32 @@ def _build_bootstrap_runtime(
     )
     trade_throttle_config = _resolve_trade_throttle_config(extras)
 
+    rng_seed = _extra_int(extras, "RNG_SEED", None)
+    if rng_seed is None:
+        rng_seed = _extra_int(extras, "BOOTSTRAP_RANDOM_SEED", None)
+    replay_anchor = _extra_datetime(extras, "REPLAY_TAPE_ANCHOR") or _extra_datetime(
+        extras, "BOOTSTRAP_TAPE_ANCHOR"
+    )
+
+    seed_runtime(rng_seed)
+
     release_manager: LedgerReleaseManager | None = None
     diary_store: DecisionDiaryStore | None = None
     diary_path_resolved: Path | None = None
     diary_path_hint = extras.get("DECISION_DIARY_PATH") or extras.get("DECISION_DIARY_ARTIFACT")
     probe_registry_hint = extras.get("PROBE_REGISTRY_PATH")
+    diary_clock = None
+    if replay_anchor is not None:
+        anchor_utc = replay_anchor if replay_anchor.tzinfo else replay_anchor.replace(tzinfo=timezone.utc)
+        counter = {"value": 0}
+
+        def _diary_now() -> datetime:
+            index = counter["value"]
+            counter["value"] += 1
+            return anchor_utc + timedelta(milliseconds=index)
+
+        diary_clock = _diary_now
+
     if diary_path_hint:
         diary_path = Path(str(diary_path_hint)).expanduser()
         diary_path_resolved = diary_path
@@ -2517,10 +2558,15 @@ def _build_bootstrap_runtime(
                     extra={"probe_registry_path": str(registry_path)},
                 )
         try:
+            kwargs: dict[str, Any] = {
+                "probe_registry": probe_registry,
+                "event_bus": bus,
+            }
+            if diary_clock is not None:
+                kwargs["now"] = diary_clock
             diary_store = DecisionDiaryStore(
                 diary_path,
-                probe_registry=probe_registry,
-                event_bus=bus,
+                **kwargs,
             )
         except Exception as exc:
             logger.warning(
@@ -2639,6 +2685,7 @@ def _build_bootstrap_runtime(
         diary_store=diary_store,
         task_supervisor=task_supervisor,
         trade_throttle=trade_throttle_config,
+        series_anchor=replay_anchor,
     )
     cleanup_callbacks: list[CleanupCallback] = []
 

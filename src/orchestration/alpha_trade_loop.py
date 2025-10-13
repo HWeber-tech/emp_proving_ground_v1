@@ -9,13 +9,15 @@ feeds paper-trade execution with deterministic governance metadata.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
-from enum import StrEnum
+from decimal import Decimal
+from enum import Enum, StrEnum
 from typing import Any, Mapping, MutableMapping, Sequence
-
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
 from src.operations.sensory_drift import DriftSeverity, SensoryDriftSnapshot
 from src.thinking.adaptation.policy_reflection import (
@@ -24,7 +26,7 @@ from src.thinking.adaptation.policy_reflection import (
 )
 from src.thinking.adaptation.evolution_manager import EvolutionManager
 from src.thinking.adaptation.policy_router import PolicyDecision
-from src.trading.gating import DriftSentryDecision, DriftSentryGate
+from src.trading.gating import DriftSentryDecision, DriftSentryGate, serialise_drift_decision
 from src.understanding.belief import BeliefState
 from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiaryStore
 from src.understanding.router import BeliefSnapshot, UnderstandingDecision, UnderstandingRouter
@@ -36,6 +38,164 @@ __all__ = [
     "AlphaTradeLoopResult",
     "AlphaTradeLoopOrchestrator",
 ]
+
+
+def _coerce_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    return None
+
+
+def _normalise_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _normalise_value(item)
+            for key, item in sorted(value.items(), key=lambda kv: str(kv[0]))
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_normalise_value(item) for item in value]
+    if hasattr(value, "__dataclass_fields__"):
+        try:
+            return _normalise_value(asdict(value))
+        except Exception:
+            return str(value)
+    if hasattr(value, "as_dict") and callable(value.as_dict):
+        try:
+            return _normalise_value(value.as_dict())
+        except Exception:
+            return str(value)
+    if isinstance(value, datetime):
+        reference = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return reference.astimezone(timezone.utc).isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Decimal):
+        return format(value, "f")
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return str(value)
+        return float(value)
+    return value
+
+
+def _serialise_policy_decision_for_diary(
+    decision: PolicyDecision | Mapping[str, Any],
+    *,
+    recorded_at: datetime,
+) -> Mapping[str, Any]:
+    if isinstance(decision, Mapping):
+        payload = {str(key): value for key, value in decision.items()}
+    else:
+        payload = {
+            "tactic_id": decision.tactic_id,
+            "parameters": dict(decision.parameters),
+            "selected_weight": float(decision.selected_weight),
+            "guardrails": dict(decision.guardrails),
+            "rationale": decision.rationale,
+            "experiments_applied": list(decision.experiments_applied),
+            "reflection_summary": dict(decision.reflection_summary),
+            "weight_breakdown": dict(decision.weight_breakdown),
+            "fast_weight_metrics": dict(decision.fast_weight_metrics),
+            "exploration_metadata": dict(decision.exploration_metadata),
+        }
+        timestamp = decision.decision_timestamp
+        if timestamp is not None:
+            payload["decision_timestamp"] = _coerce_datetime(timestamp)
+    resolved_timestamp = _coerce_datetime(payload.get("decision_timestamp"))
+    if resolved_timestamp is not None:
+        reference = resolved_timestamp
+    else:
+        reference = recorded_at
+    payload["decision_timestamp"] = reference.astimezone(timezone.utc).isoformat()
+    return payload
+
+
+def _resolve_recorded_at(
+    belief_state: BeliefState | Mapping[str, Any] | None,
+    belief_snapshot: BeliefSnapshot,
+) -> datetime:
+    candidates: tuple[object | None, ...] = (
+        getattr(belief_snapshot.regime_state, "timestamp", None),
+        getattr(belief_snapshot, "metadata", {}).get("generated_at")
+        if isinstance(getattr(belief_snapshot, "metadata", {}), Mapping)
+        else None,
+        belief_state.generated_at if isinstance(belief_state, BeliefState) else None,
+        belief_state.get("generated_at") if isinstance(belief_state, Mapping) else None,
+    )
+    for candidate in candidates:
+        resolved = _coerce_datetime(candidate)
+        if resolved is not None:
+            return resolved
+    return datetime.now(timezone.utc)
+
+
+def _build_diary_fingerprint(
+    *,
+    policy_id: str,
+    stage: PolicyLedgerStage,
+    decision_payload: Mapping[str, Any],
+    decision_bundle: UnderstandingDecision,
+    belief_snapshot: BeliefSnapshot,
+    belief_state: BeliefState | Mapping[str, Any] | None,
+    drift_decision: DriftSentryDecision | None,
+    metadata: Mapping[str, Any],
+    outcomes: Mapping[str, Any],
+    notes: Sequence[str] | None,
+    recorded_at: datetime,
+) -> Mapping[str, Any]:
+    decision_payload = decision_bundle.decision
+    fingerprint: dict[str, Any] = {
+        "policy_id": policy_id,
+        "stage": stage.value,
+        "recorded_at": recorded_at.astimezone(timezone.utc).isoformat(),
+        "decision": _normalise_value(decision_payload),
+        "fast_weight_summary": _normalise_value(decision_bundle.fast_weight_summary),
+        "fast_weight_metrics": _normalise_value(decision_bundle.fast_weight_metrics),
+        "belief_id": belief_snapshot.belief_id,
+        "regime_state": _normalise_value(
+            {
+                "regime": belief_snapshot.regime_state.regime,
+                "confidence": belief_snapshot.regime_state.confidence,
+                "features": dict(belief_snapshot.regime_state.features),
+            }
+        ),
+        "metadata": _normalise_value(metadata),
+        "outcomes": _normalise_value(outcomes),
+        "notes": list(notes or ()),
+    }
+    if isinstance(belief_state, BeliefState):
+        fingerprint["belief_state"] = _normalise_value(belief_state)
+    elif isinstance(belief_state, Mapping):
+        fingerprint["belief_state"] = _normalise_value(belief_state)
+    if drift_decision is not None:
+        fingerprint["drift_decision"] = _normalise_value(
+            serialise_drift_decision(drift_decision, evaluated_at=recorded_at)
+        )
+    return fingerprint
+
+
+def _deterministic_entry_id(recorded_at: datetime, fingerprint: Mapping[str, Any]) -> str:
+    serialisable = _normalise_value(fingerprint)
+    payload = json.dumps(serialisable, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.blake2b(payload.encode("utf-8"), digest_size=8).hexdigest()
+    token = recorded_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"dd-{token}-{digest}"
 
 
 class ComplianceEventType(StrEnum):
@@ -128,6 +288,7 @@ class AlphaTradeLoopOrchestrator:
         release_manager: LedgerReleaseManager,
         reflection_builder: PolicyReflectionBuilder | None = None,
         evolution_manager: EvolutionManager | None = None,
+        deterministic_mode: bool = False,
     ) -> None:
         self._router = router
         self._diary_store = diary_store
@@ -137,6 +298,7 @@ class AlphaTradeLoopOrchestrator:
             router.policy_router
         )
         self._evolution_manager = evolution_manager
+        self._deterministic_mode = deterministic_mode
         # Ensure stage-aware thresholds flow into every DriftSentry evaluation.
         self._drift_gate.attach_threshold_resolver(self._resolve_thresholds)
 
@@ -731,9 +893,25 @@ class AlphaTradeLoopOrchestrator:
         notes: Sequence[str] | None,
         extra_metadata: Mapping[str, Any] | None,
     ) -> DecisionDiaryEntry:
+        recorded_at = _resolve_recorded_at(belief_state, belief_snapshot)
+        regime_timestamp = _coerce_datetime(getattr(belief_snapshot.regime_state, "timestamp", None))
+        if regime_timestamp is not None:
+            recorded_at = regime_timestamp
+
+        decision_payload = _serialise_policy_decision_for_diary(
+            decision_bundle.decision,
+            recorded_at=recorded_at,
+        )
+        decision_timestamp = _coerce_datetime(decision_payload.get("decision_timestamp"))
+        entry_timestamp = decision_timestamp or recorded_at
+        if self._deterministic_mode:
+            try:
+                entry_timestamp = self._diary_store._now()  # type: ignore[attr-defined]
+            except Exception:
+                entry_timestamp = decision_timestamp or recorded_at
+
         metadata: MutableMapping[str, Any] = {
             "release_stage": stage.value,
-            "drift_decision": drift_decision.as_dict(),
             "thresholds": dict(thresholds),
             "applied_adapters": list(decision_bundle.applied_adapters),
             "fast_weight_summary": {
@@ -747,12 +925,54 @@ class AlphaTradeLoopOrchestrator:
         if extra_metadata:
             metadata.update({str(key): value for key, value in extra_metadata.items()})
 
+        if drift_decision is not None:
+            metadata["drift_decision"] = serialise_drift_decision(
+                drift_decision, evaluated_at=entry_timestamp
+            )
+
+        outcomes_payload = dict(outcomes or {})
+
+        if self._deterministic_mode:
+            metadata = {
+                "release_stage": stage.value,
+                "thresholds": dict(thresholds),
+                "applied_adapters": list(decision_bundle.applied_adapters),
+                "fast_weight_summary": {
+                    adapter_id: dict(summary)
+                    for adapter_id, summary in decision_bundle.fast_weight_summary.items()
+                },
+                "fast_weight_metrics": dict(decision_bundle.fast_weight_metrics),
+            }
+            if drift_decision is not None:
+                metadata["drift_decision"] = serialise_drift_decision(
+                    drift_decision, evaluated_at=entry_timestamp
+                )
+            outcomes_payload = {}
+        notes_tuple: tuple[str, ...] = tuple(str(note).strip() for note in (notes or ()) if str(note).strip())
+
+        fingerprint = _build_diary_fingerprint(
+            policy_id=policy_id,
+            stage=stage,
+            decision_payload=decision_payload,
+            decision_bundle=decision_bundle,
+            belief_snapshot=belief_snapshot,
+            belief_state=belief_state,
+            drift_decision=drift_decision,
+            metadata=metadata,
+            outcomes=outcomes_payload,
+            notes=notes_tuple,
+            recorded_at=entry_timestamp,
+        )
+        entry_id = _deterministic_entry_id(entry_timestamp, fingerprint)
+
         return self._diary_store.record(
             policy_id=policy_id,
-            decision=decision_bundle.decision,
+            decision=decision_payload,
             regime_state=belief_snapshot.regime_state,
             belief_state=belief_state,
-            outcomes=dict(outcomes or {}),
-            notes=notes,
+            outcomes=outcomes_payload,
+            notes=notes_tuple,
             metadata=metadata,
+            entry_id=entry_id,
+            recorded_at=entry_timestamp,
         )

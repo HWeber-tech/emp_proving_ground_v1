@@ -18,6 +18,7 @@ from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, S
 __all__ = [
     "DriftSentryDecision",
     "DriftSentryGate",
+    "serialise_drift_decision",
 ]
 
 
@@ -58,6 +59,24 @@ class DriftSentryDecision:
         if self.reason:
             payload["reason"] = self.reason
         return payload
+
+
+def serialise_drift_decision(
+    decision: DriftSentryDecision,
+    *,
+    evaluated_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Serialise a drift decision with an optional timestamp override."""
+
+    payload = decision.as_dict()
+    if evaluated_at is not None:
+        reference = evaluated_at
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=UTC)
+        else:
+            reference = reference.astimezone(UTC)
+        payload["evaluated_at"] = reference.isoformat()
+    return payload
 
 
 class DriftSentryGate:

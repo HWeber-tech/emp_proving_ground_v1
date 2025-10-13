@@ -1,7 +1,7 @@
 """Trading execution gating helpers."""
 
 from .adaptive_release import AdaptiveReleaseThresholds
-from .drift_sentry_gate import DriftSentryDecision, DriftSentryGate
+from .drift_sentry_gate import DriftSentryDecision, DriftSentryGate, serialise_drift_decision
 from .telemetry import (
     DriftGateEvent,
     ReleaseRouteEvent,
@@ -16,6 +16,7 @@ __all__ = [
     "DriftGateEvent",
     "DriftSentryDecision",
     "DriftSentryGate",
+    "serialise_drift_decision",
     "ReleaseRouteEvent",
     "format_drift_gate_markdown",
     "format_release_route_markdown",

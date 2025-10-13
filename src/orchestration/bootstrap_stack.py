@@ -97,6 +97,11 @@ class BootstrapSensoryPipeline:
                 "signal": signal_latency,
             },
         )
+        timestamp = getattr(market_data, "timestamp", None)
+        if isinstance(timestamp, datetime):
+            snapshot.generated_at = (
+                timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=timezone.utc)
+            )
         self.history.setdefault(symbol, []).append(snapshot)
 
         self._record_audit_entry(symbol, synthesis)

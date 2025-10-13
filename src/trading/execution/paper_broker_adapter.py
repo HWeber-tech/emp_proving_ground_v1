@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from time import perf_counter
@@ -50,6 +51,27 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _percentile(sorted_values: list[float], percentile: float) -> float | None:
+    """Compute a percentile for an already sorted latency sample window."""
+
+    if not sorted_values:
+        return None
+    percentile = max(0.0, min(100.0, float(percentile)))
+    if not math.isfinite(percentile):
+        return None
+    if len(sorted_values) == 1:
+        return float(sorted_values[0])
+    rank = (percentile / 100.0) * (len(sorted_values) - 1)
+    lower_index = math.floor(rank)
+    upper_index = math.ceil(rank)
+    lower_value = float(sorted_values[lower_index])
+    upper_value = float(sorted_values[upper_index])
+    if lower_index == upper_index:
+        return lower_value
+    weight = rank - lower_index
+    return lower_value + (upper_value - lower_value) * weight
+
+
 @dataclass
 class PaperBrokerExecutionAdapter:
     """Adapter that forwards validated intents to a paper FIX broker interface."""
@@ -70,6 +92,9 @@ class PaperBrokerExecutionAdapter:
     _latency_samples: int = field(default=0, init=False, repr=False)
     _total_latency: float = field(default=0.0, init=False, repr=False)
     _last_latency: float | None = field(default=None, init=False, repr=False)
+    _latency_history: deque[float] = field(
+        default_factory=lambda: deque(maxlen=2048), init=False, repr=False
+    )
     _order_history: deque[dict[str, object]] = field(
         default_factory=lambda: deque(maxlen=512), init=False, repr=False
     )
@@ -320,6 +345,18 @@ class PaperBrokerExecutionAdapter:
             "failure_ratio": failure_ratio,
         }
 
+        latency_window = list(self._latency_history)
+        if latency_window:
+            sorted_latencies = sorted(latency_window)
+            payload["p50_latency_s"] = _percentile(sorted_latencies, 50.0)
+            payload["p90_latency_s"] = _percentile(sorted_latencies, 90.0)
+            payload["p99_latency_s"] = _percentile(sorted_latencies, 99.0)
+        else:
+            payload["p50_latency_s"] = None
+            payload["p90_latency_s"] = None
+            payload["p99_latency_s"] = None
+        payload["latency_history_samples"] = len(latency_window)
+
         if self._first_order_time is not None:
             payload["first_order_at"] = self._first_order_time.isoformat()
         if self._last_order_time is not None:
@@ -462,6 +499,7 @@ class PaperBrokerExecutionAdapter:
         if latency is not None:
             self._latency_samples += 1
             self._total_latency += latency
+            self._latency_history.append(float(latency))
         self._last_latency = latency
 
     def _register_failure(self) -> None:

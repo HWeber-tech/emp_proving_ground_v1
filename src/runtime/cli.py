@@ -23,6 +23,11 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
 from src.governance.system_config import SystemConfig
+from src.runtime.paper_run_guardian import (
+    PaperRunConfig,
+    PaperRunStatus,
+    run_guarded_paper_session,
+)
 from src.runtime.predator_app import ProfessionalPredatorApp, build_professional_predator_app
 from src.runtime.runtime_builder import RuntimeApplication, build_professional_runtime_application
 from src.runtime.runtime_runner import run_runtime_application
@@ -76,6 +81,16 @@ def _positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError(f"Invalid integer value: {value!r}") from exc
     if parsed <= 0:
         raise argparse.ArgumentTypeError("Value must be greater than zero")
+    return parsed
+
+
+def _non_negative_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:  # pragma: no cover - argparse surfaces error message
+        raise argparse.ArgumentTypeError(f"Invalid float value: {value!r}") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("Value must be greater than or equal to zero")
     return parsed
 
 
@@ -168,6 +183,57 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional timeout applied to each cycle",
     )
     restart_parser.set_defaults(handler=_handle_restart)
+
+    paper_parser = subparsers.add_parser(
+        "paper-run",
+        help="Run the paper runtime with guardian telemetry",
+    )
+    paper_parser.add_argument(
+        "--duration-hours",
+        type=_non_negative_float,
+        default=None,
+        help="Optional duration (hours) before the guardian requests shutdown",
+    )
+    paper_parser.add_argument(
+        "--progress-interval",
+        type=_positive_float,
+        default=60.0,
+        help="Seconds between guardian progress snapshots",
+    )
+    paper_parser.add_argument(
+        "--latency-p99-max",
+        type=_positive_float,
+        default=None,
+        help="Latency p99 threshold in seconds; exceedance marks the run as degraded",
+    )
+    paper_parser.add_argument(
+        "--memory-growth-max",
+        type=_non_negative_float,
+        default=None,
+        help="Maximum allowed memory growth in MB before the run is marked degraded",
+    )
+    paper_parser.add_argument(
+        "--min-orders",
+        type=_positive_int,
+        default=0,
+        help="Minimum order count before the guardian allows shutdown",
+    )
+    paper_parser.add_argument(
+        "--allow-invariant-errors",
+        action="store_true",
+        help="Do not stop the run when risk invariant breaches are observed",
+    )
+    paper_parser.add_argument(
+        "--report-path",
+        default=None,
+        help="Path where the guardian summary JSON will be written",
+    )
+    paper_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the guardian summary as JSON to stdout",
+    )
+    paper_parser.set_defaults(handler=_handle_paper_run)
 
     return parser
 
@@ -293,6 +359,63 @@ async def _handle_restart(args: argparse.Namespace) -> int:
 
         print(f"✅ Completed cycle {index + 1}/{cycles}")
 
+    return 0
+
+
+async def _handle_paper_run(args: argparse.Namespace) -> int:
+    config = SystemConfig.from_env()
+
+    duration_seconds: float | None
+    if args.duration_hours in (None, 0):
+        duration_seconds = None
+    else:
+        duration_seconds = float(args.duration_hours) * 3600.0
+
+    report_path = Path(args.report_path).expanduser() if args.report_path else None
+
+    run_config = PaperRunConfig(
+        duration_seconds=duration_seconds,
+        progress_interval=args.progress_interval,
+        latency_p99_threshold=args.latency_p99_max,
+        memory_growth_threshold_mb=args.memory_growth_max,
+        allow_invariant_errors=args.allow_invariant_errors,
+        report_path=report_path,
+        min_orders=args.min_orders,
+    )
+
+    summary = await run_guarded_paper_session(config, run_config, logger=logger)
+
+    if args.json:
+        print(json.dumps(summary.to_dict(), indent=2, sort_keys=True))
+    else:
+        print(f"Status: {summary.status.value}")
+        runtime_seconds = summary.runtime_seconds or 0.0
+        print(f"Runtime: {runtime_seconds:.2f}s")
+        metrics = summary.metrics
+        latency_p99 = metrics.get("latency_p99_s")
+        if latency_p99 is not None:
+            print(f"Latency p99: {latency_p99:.4f}s")
+        memory_growth = metrics.get("memory_growth_mb")
+        if memory_growth is not None:
+            print(f"Memory growth: {memory_growth:.2f}MB")
+        if summary.alerts:
+            print("Alerts:")
+            for alert in summary.alerts:
+                print(f"  - {alert}")
+        if summary.stop_reasons:
+            print("Stop reasons:")
+            for reason in summary.stop_reasons:
+                print(f"  - {reason}")
+        if summary.invariant_breaches:
+            print("Invariant breaches observed: %s" % len(summary.invariant_breaches))
+
+        if report_path is not None:
+            print(f"Summary persisted to {report_path}")
+
+    if summary.status is PaperRunStatus.FAILED:
+        return 2
+    if summary.status is PaperRunStatus.DEGRADED:
+        return 1
     return 0
 
 

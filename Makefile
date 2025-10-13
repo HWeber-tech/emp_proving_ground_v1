@@ -85,3 +85,12 @@ rim-prune:
 .PHONY: docs-check
 docs-check:
 	python tools/docs_check.py
+
+# ------------------------------------------------------------------------
+# Runtime convenience entrypoints
+# ------------------------------------------------------------------------
+RUN_ARGS ?=
+
+.PHONY: run-paper
+run-paper:
+	python -m src.runtime.cli paper-run $(RUN_ARGS)

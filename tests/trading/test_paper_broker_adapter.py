@@ -166,6 +166,10 @@ async def test_paper_broker_adapter_submits_order_and_records_metadata() -> None
     assert metrics["latency_samples"] == 1
     assert metrics["avg_latency_s"] is not None
     assert metrics["avg_latency_s"] >= 0.0
+    assert metrics["p50_latency_s"] is not None
+    assert metrics["p90_latency_s"] is not None
+    assert metrics["p99_latency_s"] is not None
+    assert metrics["latency_history_samples"] == 1
     assert metrics["success_ratio"] == pytest.approx(1.0)
     assert metrics["failure_ratio"] == pytest.approx(0.0)
     assert metrics["consecutive_failures"] == 0
@@ -211,6 +215,10 @@ async def test_paper_broker_adapter_rejects_unsupported_order_type() -> None:
     assert metrics["failed_orders"] == 1
     assert metrics["latency_samples"] == 0
     assert metrics["avg_latency_s"] is None
+    assert metrics["p50_latency_s"] is None
+    assert metrics["p90_latency_s"] is None
+    assert metrics["p99_latency_s"] is None
+    assert metrics["latency_history_samples"] == 0
     assert metrics["success_ratio"] == 0.0
     assert metrics["failure_ratio"] == 1.0
     assert metrics["consecutive_failures"] == 0
@@ -293,6 +301,10 @@ async def test_paper_broker_adapter_raises_when_broker_returns_none() -> None:
     assert metrics["failed_orders"] == 1
     assert metrics["latency_samples"] == 0
     assert metrics["avg_latency_s"] is None
+    assert metrics["p50_latency_s"] is None
+    assert metrics["p90_latency_s"] is None
+    assert metrics["p99_latency_s"] is None
+    assert metrics["latency_history_samples"] == 0
     assert metrics["success_ratio"] == 0.0
     assert metrics["failure_ratio"] == 1.0
 
@@ -375,6 +387,29 @@ async def test_paper_broker_adapter_failure_includes_submission_snapshot() -> No
     assert submission is not None
     assert submission.get("request", {}).get("symbol") == "GBPUSD"
     assert submission.get("response", {}).get("order_id") == "BROKER-999"
+
+
+def test_paper_broker_adapter_reports_latency_percentiles() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _StubBroker()
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+    )
+
+    samples = [0.01, 0.05, 0.1, 0.2]
+    adapter._latency_history.extend(samples)
+    adapter._latency_samples = len(samples)
+    adapter._total_latency = sum(samples)
+    adapter._total_orders = len(samples)
+    adapter._successful_orders = len(samples)
+
+    metrics = adapter.describe_metrics()
+    assert metrics["latency_history_samples"] == len(samples)
+    assert metrics["p50_latency_s"] == pytest.approx(0.075, rel=1e-5)
+    assert metrics["p90_latency_s"] == pytest.approx(0.17, rel=1e-5)
+    assert metrics["p99_latency_s"] == pytest.approx(0.197, rel=1e-5)
 
 
 @pytest.mark.asyncio

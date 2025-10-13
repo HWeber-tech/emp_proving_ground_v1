@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal
 from numbers import Integral
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence, cast
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -539,6 +539,10 @@ class TradingManager:
             else 0.0
         )
 
+        self._order_attribution_samples = 0
+        self._order_attribution_with_context = 0
+        self._attribution_warning_emitted = False
+
         self._execution_stats: dict[str, object] = {
             "orders_submitted": 0,
             "orders_executed": 0,
@@ -566,6 +570,8 @@ class TradingManager:
             "last_throttle_cooldown": None,
             "last_throttle_event": None,
             "throttle_history_size": 0,
+            "orders_with_attribution": 0,
+            "attribution_coverage": 0.0,
         }
         self._refresh_throughput_snapshot()
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
@@ -1410,6 +1416,13 @@ class TradingManager:
                             )
                             if release_metadata:
                                 success_metadata["release_execution"] = release_metadata
+                            attribution_metadata = self._extract_attribution_metadata(
+                                validated_intent
+                            )
+                            if attribution_metadata is None:
+                                attribution_metadata = self._extract_attribution_metadata(event)
+                            if attribution_metadata:
+                                success_metadata["attribution"] = attribution_metadata
                             if release_metadata:
                                 await self._publish_release_route_event(
                                     event_id=event_id,
@@ -1436,6 +1449,12 @@ class TradingManager:
                                 executed=True,
                                 throttle=self.get_trade_throttle_snapshot(),
                                 metadata=success_metadata,
+                            )
+                            self._update_attribution_stats(
+                                raw_intent=event,
+                                validated_intent=validated_intent,
+                                outcome_metadata=success_metadata,
+                                executed=True,
                             )
                             if gate_decision is not None and not drift_event_emitted:
                                 await self._publish_drift_gate_event(
@@ -3425,6 +3444,196 @@ class TradingManager:
                 return extracted
 
         return None
+
+    @staticmethod
+    def _extract_attribution_metadata(intent: Any) -> Mapping[str, Any] | None:
+        def _from_mapping(candidate: Mapping[str, Any]) -> Mapping[str, Any] | None:
+            payload = candidate.get("attribution")
+            if not isinstance(payload, Mapping):
+                metadata_block = candidate.get("metadata")
+                if isinstance(metadata_block, Mapping):
+                    payload = metadata_block.get("attribution")
+            if not isinstance(payload, Mapping):
+                return None
+            normalised = TradingManager._normalise_attribution_payload(payload)
+            return normalised if normalised else None
+
+        metadata = getattr(intent, "metadata", None)
+        if isinstance(metadata, Mapping):
+            extracted = _from_mapping(metadata)
+            if extracted is not None:
+                return extracted
+
+        if isinstance(intent, Mapping):
+            extracted = _from_mapping(intent)
+            if extracted is not None:
+                return extracted
+
+        return None
+
+    @staticmethod
+    def _normalise_attribution_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        if not isinstance(payload, Mapping):
+            return {}
+        normalised: dict[str, Any] = {}
+
+        explanation = payload.get("explanation")
+        if isinstance(explanation, str):
+            explanation_text = explanation.strip()
+            if explanation_text:
+                normalised["explanation"] = explanation_text
+
+        diary_entry_id = payload.get("diary_entry_id")
+        if diary_entry_id:
+            normalised["diary_entry_id"] = str(diary_entry_id)
+
+        policy_id = payload.get("policy_id")
+        if policy_id:
+            normalised["policy_id"] = str(policy_id)
+
+        belief_payload = payload.get("belief")
+        if isinstance(belief_payload, Mapping):
+            belief = TradingManager._normalise_belief_payload(belief_payload)
+            if belief:
+                normalised["belief"] = belief
+
+        probes_payload = payload.get("probes")
+        probes = TradingManager._normalise_probe_list(probes_payload)
+        if probes:
+            normalised["probes"] = probes
+
+        return normalised
+
+    @staticmethod
+    def _normalise_belief_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        result: dict[str, Any] = {}
+
+        for key in ("belief_id", "symbol", "regime"):
+            value = payload.get(key)
+            if value is not None:
+                result[key] = str(value)
+
+        confidence = payload.get("confidence")
+        if confidence is not None:
+            try:
+                result["confidence"] = float(confidence)
+            except (TypeError, ValueError):
+                pass
+
+        generated_at = payload.get("generated_at")
+        if isinstance(generated_at, datetime):
+            result["generated_at"] = generated_at.astimezone(timezone.utc).isoformat()
+        elif isinstance(generated_at, str):
+            result["generated_at"] = generated_at
+
+        metadata = payload.get("metadata")
+        if isinstance(metadata, Mapping) and metadata:
+            result["metadata"] = {str(key): value for key, value in metadata.items()}
+
+        top_features = payload.get("top_features")
+        if isinstance(top_features, Sequence) and not isinstance(top_features, (str, bytes)):
+            serialised: list[dict[str, Any]] = []
+            for item in top_features:
+                if not isinstance(item, Mapping):
+                    continue
+                name = item.get("name")
+                if not name:
+                    continue
+                entry: dict[str, Any] = {"name": str(name)}
+                value = item.get("value")
+                if value is not None:
+                    try:
+                        entry["value"] = float(value)
+                    except (TypeError, ValueError):
+                        entry["value"] = value
+                serialised.append(entry)
+            if serialised:
+                result["top_features"] = serialised
+
+        return result
+
+    @staticmethod
+    def _normalise_probe_list(payload: Any) -> list[Mapping[str, Any]]:
+        probes: list[Mapping[str, Any]] = []
+        if not isinstance(payload, Sequence) or isinstance(payload, (str, bytes)):
+            return probes
+
+        for item in payload:
+            if not isinstance(item, Mapping):
+                continue
+            probe_id = item.get("probe_id")
+            if not probe_id:
+                continue
+            entry: dict[str, Any] = {
+                "probe_id": str(probe_id),
+                "status": str(item.get("status", "")),
+            }
+            for key in ("severity", "owner", "contact", "runbook"):
+                value = item.get(key)
+                if value:
+                    entry[key] = str(value)
+            notes_payload = item.get("notes")
+            if isinstance(notes_payload, Sequence) and not isinstance(notes_payload, (str, bytes)):
+                notes = [str(note).strip() for note in notes_payload if str(note).strip()]
+                if notes:
+                    entry["notes"] = notes
+            metadata_payload = item.get("metadata")
+            if isinstance(metadata_payload, Mapping) and metadata_payload:
+                entry["metadata"] = {str(key): value for key, value in metadata_payload.items()}
+            probes.append(entry)
+
+        return probes
+
+    def _update_attribution_stats(
+        self,
+        *,
+        raw_intent: Any,
+        validated_intent: Any,
+        outcome_metadata: Mapping[str, Any] | None,
+        executed: bool,
+    ) -> None:
+        if not executed:
+            return
+
+        self._order_attribution_samples += 1
+
+        attribution_payload = self._extract_attribution_metadata(validated_intent)
+        if attribution_payload is None:
+            attribution_payload = self._extract_attribution_metadata(raw_intent)
+        if attribution_payload is None and isinstance(outcome_metadata, Mapping):
+            candidate = outcome_metadata.get("attribution")
+            if isinstance(candidate, Mapping):
+                attribution_payload = self._normalise_attribution_payload(candidate)
+
+        has_attribution = bool(attribution_payload)
+        if has_attribution:
+            self._order_attribution_with_context += 1
+
+        coverage = (
+            self._order_attribution_with_context / self._order_attribution_samples
+            if self._order_attribution_samples
+            else 0.0
+        )
+        self._execution_stats["orders_with_attribution"] = self._order_attribution_with_context
+        self._execution_stats["attribution_coverage"] = round(coverage, 4)
+
+        if (
+            self._order_attribution_samples >= 10
+            and coverage < 0.9
+            and not self._attribution_warning_emitted
+        ):
+            logger.warning(
+                "Order attribution coverage %.2f%% below 90%% target",
+                coverage * 100.0,
+                extra={
+                    "orders_with_attribution": self._order_attribution_with_context,
+                    "orders_counted": self._order_attribution_samples,
+                },
+            )
+            self._attribution_warning_emitted = True
+
+        if has_attribution and coverage >= 0.9:
+            self._attribution_warning_emitted = False
 
     async def _emit_risk_interface_snapshot(self) -> None:
         """Resolve and publish the trading risk interface summary."""

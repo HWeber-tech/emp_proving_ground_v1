@@ -758,6 +758,69 @@ async def test_trading_manager_gates_on_drift(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio()
+async def test_trading_manager_tracks_order_attribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _noop(*_args, **_kwargs) -> None:
+        return None
+
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+    )
+    engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+    manager.execution_engine = engine
+
+    attribution_payload = {
+        "diary_entry_id": "dd-test",
+        "policy_id": "alpha.paper",
+        "belief": {
+            "belief_id": "belief-test",
+            "symbol": "EURUSD",
+            "regime": "balanced",
+            "confidence": 0.72,
+            "generated_at": datetime.now(tz=timezone.utc).isoformat(),
+        },
+        "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "explanation": "Test attribution coverage",
+    }
+
+    trade_event: dict[str, Any] = {
+        "strategy_id": "alpha.paper",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "quantity": 1.0,
+        "price": 1.2345,
+        "confidence": 0.9,
+        "metadata": {
+            "attribution": attribution_payload,
+        },
+    }
+
+    validate_mock: AsyncMock = AsyncMock(return_value=trade_event)
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    outcome = await manager.on_trade_intent(trade_event)
+
+    assert outcome.executed is True
+    assert outcome.metadata.get("attribution") == attribution_payload
+
+    stats = manager.get_execution_stats()
+    assert stats.get("orders_with_attribution") == 1
+    assert stats.get("attribution_coverage") == 1.0
+
+
+@pytest.mark.asyncio()
 async def test_trading_manager_records_gate_metadata_on_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

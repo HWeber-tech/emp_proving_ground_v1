@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from typing import Mapping
+
 import pytest
 
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage, PolicyLedgerStore
@@ -24,7 +26,12 @@ class _FakeTradingManager:
 
     async def on_trade_intent(self, event: dict[str, object]) -> TradeIntentOutcome:
         self.intents.append(dict(event))
-        return TradeIntentOutcome(status="executed", executed=True, metadata={})
+        metadata: Mapping[str, object] | dict[str, object]
+        metadata = {}
+        payload = event.get("metadata") if isinstance(event, dict) else None
+        if isinstance(payload, Mapping):
+            metadata = dict(payload)
+        return TradeIntentOutcome(status="executed", executed=True, metadata=dict(metadata))
 
     def assess_performance_health(self) -> dict[str, object]:
         return {
@@ -180,13 +187,24 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert "metrics" in fast_weight_metadata
     intent_fast_weight = trading_manager.intents[0]["metadata"].get("fast_weight")
     assert intent_fast_weight == fast_weight_metadata
+    attribution = result.trade_metadata.get("attribution")
+    assert isinstance(attribution, dict)
+    belief_summary = attribution.get("belief")
+    assert isinstance(belief_summary, dict)
+    assert belief_summary.get("belief_id") == result.belief_state.belief_id
+    assert attribution.get("explanation")
+    assert isinstance(attribution.get("probes"), list)
+    intent_attribution = trading_manager.intents[0]["metadata"].get("attribution")
+    assert intent_attribution == attribution
     assert diary_store.entries(), "expected decision diary entry to be recorded"
     assert result.trade_outcome is not None
     assert result.trade_outcome.status == "executed"
+    assert result.trade_outcome.metadata.get("attribution") == attribution
     entry = diary_store.entries()[0]
     trade_execution = entry.metadata.get("trade_execution")
     assert isinstance(trade_execution, dict)
     assert trade_execution["status"] == "executed"
+    assert entry.metadata.get("attribution") == attribution
     performance_health = entry.metadata.get("performance_health")
     assert isinstance(performance_health, dict)
     assert performance_health.get("healthy") is True

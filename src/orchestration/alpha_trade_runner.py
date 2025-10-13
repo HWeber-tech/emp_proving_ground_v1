@@ -38,6 +38,7 @@ from src.understanding.router import BeliefSnapshot, UnderstandingRouter
 
 if TYPE_CHECKING:
     from src.trading.trading_manager import TradeIntentOutcome
+    from src.understanding.decision_diary import DecisionDiaryEntry
 
 
 logger = logging.getLogger(__name__)
@@ -164,12 +165,22 @@ class AlphaTradeLoopRunner:
         if "fast_weight" not in trade_metadata:
             trade_metadata["fast_weight"] = dict(fast_weight_metadata)
 
+        attribution_payload = self._build_order_attribution(
+            belief_state=belief_state,
+            decision_bundle=loop_result.decision_bundle,
+            diary_entry=loop_result.diary_entry,
+        )
+        if attribution_payload:
+            trade_metadata.setdefault("attribution", attribution_payload)
+
         intent_payload = None
         if trade_plan.intent is not None:
             raw_intent = dict(trade_plan.intent)
             metadata_payload = dict(raw_intent.get("metadata", {}))
             if "fast_weight" not in metadata_payload:
                 metadata_payload["fast_weight"] = dict(fast_weight_metadata)
+            if attribution_payload and "attribution" not in metadata_payload:
+                metadata_payload["attribution"] = attribution_payload
             raw_intent["metadata"] = metadata_payload
             intent_payload = raw_intent
         if intent_payload is None:
@@ -184,6 +195,9 @@ class AlphaTradeLoopRunner:
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
+        if attribution_payload:
+            diary_annotations["attribution"] = attribution_payload
+            loop_metadata_updates["attribution"] = attribution_payload
         if intent_payload is not None:
             outcome = await self._trading_manager.on_trade_intent(intent_payload)
             trade_outcome = outcome
@@ -234,6 +248,88 @@ class AlphaTradeLoopRunner:
             trade_intent=dict(intent_payload) if intent_payload is not None else None,
             trade_outcome=trade_outcome,
         )
+
+    @staticmethod
+    def _select_top_features(
+        features: Mapping[str, Any] | None,
+        *,
+        limit: int = 4,
+    ) -> list[Mapping[str, Any]]:
+        if not isinstance(features, Mapping):
+            return []
+        ranked: list[tuple[str, float]] = []
+        for name, value in features.items():
+            try:
+                ranked.append((str(name), float(value)))
+            except (TypeError, ValueError):
+                continue
+        ranked.sort(key=lambda item: abs(item[1]), reverse=True)
+        summary: list[Mapping[str, Any]] = []
+        for name, value in ranked[:limit]:
+            summary.append({"name": name, "value": value})
+        return summary
+
+    def _build_order_attribution(
+        self,
+        *,
+        belief_state: BeliefState,
+        decision_bundle: UnderstandingDecision,
+        diary_entry: DecisionDiaryEntry,
+    ) -> Mapping[str, Any] | None:
+        regime_state = decision_bundle.belief_snapshot.regime_state
+        belief_summary: dict[str, Any] = {
+            "belief_id": belief_state.belief_id,
+            "symbol": belief_state.symbol,
+            "regime": regime_state.regime,
+            "confidence": float(regime_state.confidence),
+        }
+
+        generated_at = belief_state.generated_at
+        if isinstance(generated_at, datetime):
+            belief_summary["generated_at"] = generated_at.astimezone(timezone.utc).isoformat()
+
+        metadata = getattr(belief_state, "metadata", None)
+        if isinstance(metadata, Mapping) and metadata:
+            belief_summary["metadata"] = {str(key): value for key, value in metadata.items()}
+
+        top_features = self._select_top_features(decision_bundle.belief_snapshot.features)
+        if top_features:
+            belief_summary["top_features"] = top_features
+
+        probes_payload: list[Mapping[str, Any]] = []
+        for activation in diary_entry.probes:
+            probe_entry: dict[str, Any] = {
+                "probe_id": activation.probe_id,
+                "status": activation.status,
+            }
+            if activation.severity:
+                probe_entry["severity"] = activation.severity
+            if activation.owner:
+                probe_entry["owner"] = activation.owner
+            if activation.contact:
+                probe_entry["contact"] = activation.contact
+            if activation.runbook:
+                probe_entry["runbook"] = activation.runbook
+            if activation.notes:
+                probe_entry["notes"] = list(activation.notes)
+            if activation.metadata:
+                probe_entry["metadata"] = dict(activation.metadata)
+            probes_payload.append(probe_entry)
+
+        explanation = (decision_bundle.decision.rationale or "").strip()
+        if not explanation:
+            explanation = (
+                f"{decision_bundle.decision.tactic_id} routed under {regime_state.regime}"
+            )
+
+        attribution: dict[str, Any] = {
+            "diary_entry_id": diary_entry.entry_id,
+            "policy_id": diary_entry.policy_id,
+            "belief": belief_summary,
+            "probes": probes_payload,
+            "explanation": explanation,
+        }
+        return attribution
 
     def _default_trade_builder(
         self,

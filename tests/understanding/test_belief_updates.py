@@ -48,6 +48,7 @@ from src.sensory.lineage import build_lineage_record
 from src.understanding.belief import (
     BeliefBuffer,
     BeliefEmitter,
+    BeliefSnapshotPersister,
     RegimeFSM,
     hebbian_step,
 )
@@ -293,6 +294,59 @@ def test_belief_emitter_publishes_belief_state(tmp_path: Any) -> None:
         expected = json.load(handle)
 
     assert payload == expected["belief"]
+
+
+def test_belief_emitter_persists_snapshots(tmp_path: Any) -> None:
+    bus = _StubEventBus()
+    buffer = BeliefBuffer(belief_id="understanding-belief", learning_rate=0.15, decay=0.08)
+    duckdb_path = tmp_path / "belief_snapshots.duckdb"
+    parquet_dir = tmp_path / "belief_snapshots"
+    persister = BeliefSnapshotPersister(
+        duckdb_path=duckdb_path,
+        parquet_path=parquet_dir,
+    )
+
+    emitter = BeliefEmitter(
+        buffer=buffer,
+        event_bus=bus,
+        top_k=4,
+        activation_floor=0.0,
+        snapshot_persister=persister,
+    )
+
+    snapshot = _build_snapshot(
+        strength=0.52,
+        confidence=0.81,
+        timestamp=datetime(2025, 1, 2, 12, 45, tzinfo=UTC),
+        lineage_counter=3,
+    )
+
+    state = emitter.emit(snapshot)
+
+    duckdb = pytest.importorskip("duckdb")
+    pandas = pytest.importorskip("pandas")
+
+    with duckdb.connect(str(duckdb_path)) as connection:  # type: ignore[attr-defined]
+        rows = connection.execute(
+            "SELECT belief_id, feature_count, active_count, activation_method, top_features FROM belief_snapshots"
+        ).fetchall()
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row[0] == state.belief_id
+    assert row[1] == len(state.features)
+    assert row[2] >= 0
+    assert row[3] == "relu_topk"
+    top_features = json.loads(row[4])
+    assert isinstance(top_features, list)
+    if top_features:
+        assert top_features[0]["feature"] in state.features
+
+    parquet_files = sorted(parquet_dir.glob("*.parquet"))
+    assert parquet_files, "belief emitter should persist parquet snapshots"
+    frame = pandas.read_parquet(parquet_files[0])
+    assert frame.loc[0, "belief_id"] == state.belief_id
+    assert frame.loc[0, "activation_method"] == "relu_topk"
 
 
 def test_regime_fsm_publishes_signal() -> None:

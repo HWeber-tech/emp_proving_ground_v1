@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Iterable, Mapping, MutableMapping, Sequence
 
 import numpy as np
@@ -32,11 +34,29 @@ __all__ = [
     "BeliefState",
     "BeliefBuffer",
     "BeliefEmitter",
+    "BeliefSnapshotPersister",
     "RegimeSignal",
     "RegimeTransition",
     "RegimeFSM",
     "hebbian_step",
 ]
+
+
+def _json_safe_default(value: object) -> object:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC).isoformat()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, set):
+        return sorted(str(item) for item in value)
+    if isinstance(value, tuple):
+        return list(value)
+    try:
+        if isinstance(value, np.generic):
+            return value.item()
+    except Exception:  # pragma: no cover - numpy can raise for unsupported item()
+        pass
+    return value
 
 
 @dataclass(slots=True, frozen=True)
@@ -355,6 +375,13 @@ class BeliefBuffer:
 
     def latest(self) -> BeliefState | None:
         return self._states[0] if self._states else None
+
+    def replace_latest(self, state: BeliefState) -> None:
+        """Replace the most recent belief state in the buffer."""
+
+        if not self._states:
+            raise ValueError("cannot replace latest belief state on an empty buffer")
+        self._states[0] = state
 
     def apply_hyperparameters(
         self,
@@ -727,6 +754,233 @@ class RegimeTransition:
         return payload
 
 
+@dataclass(slots=True, frozen=True)
+class BeliefSnapshotRecord:
+    """Row persisted for each emitted belief snapshot."""
+
+    belief_id: str
+    generated_at: datetime
+    version: str
+    symbol: str | None
+    regime_hint: str | None
+    feature_count: int
+    active_count: int
+    sparsity: float
+    activation_method: str
+    top_features: tuple[Mapping[str, object], ...]
+    payload: Mapping[str, object]
+
+    def to_row(self) -> Mapping[str, object]:
+        top_features_serialised = [
+            {
+                "feature": str(entry.get("feature")),
+                "value": float(entry.get("value", 0.0)),
+                "rank": int(entry.get("rank", index + 1)),
+            }
+            for index, entry in enumerate(self.top_features)
+        ]
+        payload_serialised = json.dumps(dict(self.payload), default=_json_safe_default)
+        return {
+            "belief_id": self.belief_id,
+            "generated_at": self.generated_at.astimezone(UTC).isoformat(),
+            "version": self.version,
+            "symbol": self.symbol,
+            "regime_hint": self.regime_hint,
+            "feature_count": self.feature_count,
+            "active_count": self.active_count,
+            "sparsity": float(self.sparsity),
+            "activation_method": self.activation_method,
+            "top_features": json.dumps(top_features_serialised, default=_json_safe_default),
+            "payload": payload_serialised,
+        }
+
+
+class BeliefSnapshotPersister:
+    """Persist belief snapshots to DuckDB and/or Parquet for retrospective analysis."""
+
+    def __init__(
+        self,
+        *,
+        duckdb_path: str | Path | None = None,
+        parquet_path: str | Path | None = None,
+        duckdb_table: str = "belief_snapshots",
+    ) -> None:
+        if duckdb_path is None and parquet_path is None:
+            raise ValueError("BeliefSnapshotPersister requires a DuckDB or Parquet destination")
+
+        self._duckdb_path = Path(duckdb_path).expanduser() if duckdb_path else None
+        if self._duckdb_path is not None:
+            self._duckdb_path.parent.mkdir(parents=True, exist_ok=True)
+
+        parquet_destination: Path | None = None
+        if parquet_path is not None:
+            parquet_destination = Path(parquet_path).expanduser()
+            if parquet_destination.suffix.lower() == ".parquet":
+                parquet_destination = parquet_destination.parent / parquet_destination.stem
+            parquet_destination.mkdir(parents=True, exist_ok=True)
+        self._parquet_dir = parquet_destination
+
+        self._duckdb_table = duckdb_table
+        self._duckdb_warning_logged = False
+        self._parquet_warning_logged = False
+
+    def persist(self, state: BeliefState) -> None:
+        record = self._build_record(state)
+        if self._duckdb_path is not None:
+            self._persist_duckdb(record)
+        if self._parquet_dir is not None:
+            self._persist_parquet(record)
+
+    def _build_record(self, state: BeliefState) -> BeliefSnapshotRecord:
+        payload = state.as_dict()
+        metadata = payload.get("metadata", {}) if isinstance(payload, Mapping) else {}
+        activation_summary = metadata.get("activation_summary")
+
+        top_features: list[Mapping[str, object]] = []
+        activation_method = "unknown"
+        active_count = 0
+        sparsity = 1.0
+        feature_count = len(state.features)
+        if isinstance(activation_summary, Mapping):
+            activation_method = str(activation_summary.get("method", "unknown"))
+            try:
+                active_count = int(activation_summary.get("active_count", 0))
+            except (TypeError, ValueError):
+                active_count = 0
+            try:
+                sparsity = float(activation_summary.get("sparsity", 1.0))
+            except (TypeError, ValueError):
+                sparsity = 1.0
+            top_features_payload = activation_summary.get("top_features", ())
+            if isinstance(top_features_payload, Mapping):
+                top_features_payload = top_features_payload.values()
+            if isinstance(top_features_payload, Iterable):
+                for entry in top_features_payload:
+                    if not isinstance(entry, Mapping):
+                        continue
+                    feature_name = str(entry.get("feature"))
+                    try:
+                        value = float(entry.get("value", 0.0))
+                    except (TypeError, ValueError):
+                        value = 0.0
+                    try:
+                        rank = int(entry.get("rank", len(top_features) + 1))
+                    except (TypeError, ValueError):
+                        rank = len(top_features) + 1
+                    top_features.append({"feature": feature_name, "value": value, "rank": rank})
+
+        regime_hint = metadata.get("regime_hint") if isinstance(metadata, Mapping) else None
+        regime_hint_str = str(regime_hint) if regime_hint is not None else None
+
+        return BeliefSnapshotRecord(
+            belief_id=state.belief_id,
+            generated_at=state.generated_at,
+            version=state.version,
+            symbol=state.symbol,
+            regime_hint=regime_hint_str,
+            feature_count=feature_count,
+            active_count=active_count,
+            sparsity=sparsity,
+            activation_method=activation_method,
+            top_features=tuple(top_features),
+            payload=payload,
+        )
+
+    def _persist_duckdb(self, record: BeliefSnapshotRecord) -> None:
+        try:
+            import duckdb  # type: ignore[import-not-found]
+        except ModuleNotFoundError:
+            if not self._duckdb_warning_logged:
+                logger.warning(
+                    "duckdb not available; skipping belief snapshot persistence to %s",
+                    self._duckdb_path,
+                )
+                self._duckdb_warning_logged = True
+            return
+        except ImportError as exc:
+            if not self._duckdb_warning_logged:
+                logger.warning(
+                    "duckdb import failed (%s); skipping persistence to %s",
+                    exc,
+                    self._duckdb_path,
+                    exc_info=exc,
+                )
+                self._duckdb_warning_logged = True
+            return
+
+        row = record.to_row()
+        columns = (
+            "belief_id",
+            "generated_at",
+            "version",
+            "symbol",
+            "regime_hint",
+            "feature_count",
+            "active_count",
+            "sparsity",
+            "activation_method",
+            "top_features",
+            "payload",
+        )
+        sql = f"INSERT INTO {self._duckdb_table} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        create_sql = f"""
+            CREATE TABLE IF NOT EXISTS {self._duckdb_table} (
+                belief_id TEXT,
+                generated_at TIMESTAMP,
+                version TEXT,
+                symbol TEXT,
+                regime_hint TEXT,
+                feature_count INTEGER,
+                active_count INTEGER,
+                sparsity DOUBLE,
+                activation_method TEXT,
+                top_features JSON,
+                payload JSON
+            )
+        """
+
+        with duckdb.connect(str(self._duckdb_path)) as connection:  # type: ignore[attr-defined]
+            connection.execute(create_sql)
+            connection.execute(sql, [row[name] for name in columns])
+
+    def _persist_parquet(self, record: BeliefSnapshotRecord) -> None:
+        try:
+            import pandas as pd  # type: ignore[import-not-found]
+        except ModuleNotFoundError:
+            if not self._parquet_warning_logged:
+                logger.warning(
+                    "pandas/pyarrow not available; skipping belief snapshot parquet export to %s",
+                    self._parquet_dir,
+                )
+                self._parquet_warning_logged = True
+            return
+        except ImportError as exc:
+            if not self._parquet_warning_logged:
+                logger.warning(
+                    "failed to import pandas for parquet export (%s); destination=%s",
+                    exc,
+                    self._parquet_dir,
+                    exc_info=exc,
+                )
+                self._parquet_warning_logged = True
+            return
+
+        row = record.to_row()
+        frame = pd.DataFrame([row])
+        filename = self._build_parquet_filename(record)
+        frame.to_parquet(filename, index=False)
+
+    def _build_parquet_filename(self, record: BeliefSnapshotRecord) -> Path:
+        assert self._parquet_dir is not None
+        timestamp = record.generated_at.astimezone(UTC).strftime("%Y%m%dT%H%M%S%f")
+        belief_slug = self._slugify(record.belief_id)
+        return self._parquet_dir / f"{timestamp}_{belief_slug}.parquet"
+
+    @staticmethod
+    def _slugify(value: str) -> str:
+        return value.replace("/", "_").replace(":", "-")
+
+
 class BeliefEmitter:
     """Translate sensory snapshots into belief states and publish them."""
 
@@ -737,11 +991,21 @@ class BeliefEmitter:
         event_bus: EventBus,
         event_type: str = "telemetry.understanding.belief",
         global_bus_factory: Callable[[], TopicBus] | None = None,
+        top_k: int = 5,
+        activation_floor: float = 0.0,
+        snapshot_persister: BeliefSnapshotPersister | None = None,
     ) -> None:
         self._buffer = buffer
         self._event_bus = event_bus
         self._event_type = event_type
         self._global_bus_factory = global_bus_factory
+        if top_k <= 0:
+            raise ValueError("top_k must be a positive integer")
+        if activation_floor < 0.0:
+            raise ValueError("activation_floor must be non-negative")
+        self._top_k = int(top_k)
+        self._activation_floor = float(activation_floor)
+        self._snapshot_persister = snapshot_persister
 
     @property
     def buffer(self) -> BeliefBuffer:
@@ -754,6 +1018,11 @@ class BeliefEmitter:
         regime_hint: str | None = None,
     ) -> BeliefState:
         state = self._buffer.update(sensory_snapshot, regime_hint=regime_hint)
+        state = self._apply_activation(state)
+        try:
+            self._buffer.replace_latest(state)
+        except ValueError:
+            logger.debug("Belief buffer empty while attempting to replace latest state")
         event = Event(
             type=self._event_type,
             payload=state.as_dict(),
@@ -770,7 +1039,67 @@ class BeliefEmitter:
             global_unexpected_message="Unexpected error publishing belief state via global bus",
             global_bus_factory=self._global_bus_factory,
         )
+        if self._snapshot_persister is not None:
+            try:
+                self._snapshot_persister.persist(state)
+            except Exception:  # pragma: no cover - defensive against IO issues
+                logger.exception("Failed to persist belief snapshot for %s", state.belief_id)
         return state
+
+    def _apply_activation(self, state: BeliefState) -> BeliefState:
+        posterior_mean = np.asarray(state.posterior.mean, dtype=float)
+        if posterior_mean.size == 0:
+            return state
+
+        activated = np.maximum(posterior_mean, 0.0)
+        active_indices = np.where(activated > self._activation_floor)[0]
+        active_count = int(active_indices.size)
+        feature_count = int(activated.size)
+
+        if active_indices.size:
+            ranked_indices = active_indices[np.argsort(activated[active_indices])[::-1]]
+        else:
+            ranked_indices = np.array([], dtype=int)
+
+        top_indices = ranked_indices[: self._top_k]
+        top_features: list[dict[str, object]] = []
+        for rank, index in enumerate(top_indices, start=1):
+            feature_name = state.features[index] if index < len(state.features) else f"feature_{index}"
+            top_features.append(
+                {
+                    "feature": feature_name,
+                    "value": float(activated[index]),
+                    "rank": rank,
+                }
+            )
+
+        sparsity = 1.0
+        if feature_count > 0:
+            sparsity = 1.0 - (active_count / feature_count)
+            if sparsity < 0.0:
+                sparsity = 0.0
+            elif sparsity > 1.0:
+                sparsity = 1.0
+
+        activation_summary = {
+            "method": "relu_topk",
+            "top_k": self._top_k,
+            "activation_floor": self._activation_floor,
+            "feature_count": feature_count,
+            "active_count": active_count,
+            "sparsity": float(sparsity),
+            "top_features": top_features,
+        }
+        top_feature_map = {
+            entry["feature"]: entry["value"]
+            for entry in top_features
+            if isinstance(entry.get("feature"), str)
+        }
+
+        metadata = dict(state.metadata)
+        metadata["activation_summary"] = activation_summary
+        metadata["activation_top_features"] = top_feature_map
+        return replace(state, metadata=metadata)
 
     def healthcheck(self) -> Mapping[str, object]:
         latest = self._buffer.latest()

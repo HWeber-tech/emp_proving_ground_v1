@@ -11,6 +11,7 @@ from src.core.event_bus import EventBus
 from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.system_config import ConnectionProtocol, SystemConfig
 from src.runtime.predator_app import _build_bootstrap_runtime
+from src.runtime.paper_simulation import run_paper_trading_simulation
 
 
 async def _start_paper_server(
@@ -330,3 +331,87 @@ async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> 
             if asyncio.iscoroutine(result):
                 await result
         await shutdown()
+
+
+@pytest.mark.asyncio()
+async def test_paper_trading_simulation_handles_persistent_api_failure(tmp_path) -> None:
+    call_counter = {"count": 0}
+
+    async def handler(_request: web.Request) -> web.Response:
+        call_counter["count"] += 1
+        return web.Response(status=500, text="paper broker meltdown")
+
+    base_url, shutdown, captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "qa"),
+        evidence_id="paper-sim-failure",
+    )
+
+    diary_path = tmp_path / "diary.json"
+
+    extras = {
+        "PAPER_TRADING_API_URL": base_url,
+        "PAPER_TRADING_ORDER_ENDPOINT": "/orders",
+        "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
+        "PAPER_TRADING_ORDER_TIMEOUT": "0.5",
+        "PAPER_TRADING_RETRY_ATTEMPTS": "2",
+        "PAPER_TRADING_RETRY_BACKOFF": "0.0",
+        "PAPER_TRADING_DEFAULT_STAGE": PolicyLedgerStage.LIMITED_LIVE.value,
+        "POLICY_LEDGER_PATH": str(ledger_path),
+        "DECISION_DIARY_PATH": str(diary_path),
+        "BOOTSTRAP_TICK_INTERVAL": "0.0",
+        "BOOTSTRAP_MAX_TICKS": "4",
+        "BOOTSTRAP_BUY_THRESHOLD": "0.0",
+        "BOOTSTRAP_SELL_THRESHOLD": "1.0",
+        "BOOTSTRAP_MIN_CONFIDENCE": "0.0",
+        "BOOTSTRAP_MIN_LIQ_CONF": "0.0",
+        "BOOTSTRAP_ORDER_SIZE": "1",
+    }
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+
+    try:
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=1,
+            max_runtime=5.0,
+            poll_interval=0.1,
+            stop_when_complete=False,
+        )
+    finally:
+        await shutdown()
+
+    assert call_counter["count"] >= 1
+    assert captured, "Paper trading API was never invoked"
+    assert not report.orders
+
+    assert report.errors, "Simulation did not capture broker failures"
+    failure = report.errors[-1]
+    assert failure.get("stage") == "broker_submission"
+    assert failure.get("exception_type") == "PaperTradingApiError"
+    assert "500" in failure.get("exception", "")
+
+    metrics = report.paper_metrics or {}
+    assert metrics.get("failed_orders", 0) >= 1
+    assert metrics.get("successful_orders", 0) == 0
+    assert metrics.get("success_ratio") == 0.0
+    assert metrics.get("failure_ratio") == pytest.approx(1.0)
+
+    assert report.decisions >= 1
+    assert report.diary_entries >= 1
+
+    diary_payload = json.loads(diary_path.read_text())
+    entries = diary_payload.get("entries", [])
+    assert entries, "Decision diary did not record failure entry"
+    last_entry = entries[-1]
+    execution_outcome = last_entry.get("outcomes", {}).get("execution", {})
+    assert execution_outcome.get("last_order") in (None, {})
+    error_snapshot = execution_outcome.get("last_error", {})
+    assert error_snapshot.get("stage") == "broker_submission"
+    assert error_snapshot.get("exception_type") == "PaperTradingApiError"

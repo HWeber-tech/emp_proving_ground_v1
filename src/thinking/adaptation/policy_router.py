@@ -77,11 +77,21 @@ class PolicyTactic:
     description: str | None = None
     objectives: Sequence[str] = field(default_factory=tuple)
     tags: Sequence[str] = field(default_factory=tuple)
+    exploration: bool = False
 
     def __post_init__(self) -> None:
         if self.topology is not None:
             topology_text = str(self.topology).strip()
             object.__setattr__(self, "topology", topology_text or None)
+        cleaned_tags = tuple(str(tag).strip() for tag in self.tags if str(tag).strip())
+        object.__setattr__(self, "tags", cleaned_tags)
+        cleaned_objectives = tuple(
+            str(objective).strip()
+            for objective in self.objectives
+            if str(objective).strip()
+        )
+        object.__setattr__(self, "objectives", cleaned_objectives)
+        object.__setattr__(self, "exploration", bool(self.exploration))
 
     def score(self, regime_state: RegimeState) -> tuple[float, MutableMapping[str, float]]:
         """Return a regime-conditioned score and a breakdown for reflection summaries."""
@@ -192,10 +202,112 @@ class PolicyDecision:
     weight_breakdown: Mapping[str, object] = field(default_factory=dict)
     fast_weight_metrics: Mapping[str, object] = field(default_factory=dict)
     decision_timestamp: datetime | None = None
+    exploration_metadata: Mapping[str, object] = field(default_factory=dict)
 
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checking
     from .policy_reflection import PolicyReflectionArtifacts
+
+
+@dataclass
+class ExplorationBudget:
+    """Track and enforce a global exploration budget for tactic routing."""
+
+    max_fraction: float | None = None
+    mutate_every: int | None = None
+    _total_decisions: int = 0
+    _exploration_decisions: int = 0
+    _has_explored: bool = False
+    _since_last_exploration: int = 0
+    _blocked_attempts: int = 0
+    _blocked_reasons: Counter = field(default_factory=Counter)
+    _forced_decisions: int = 0
+    _forced_reasons: Counter = field(default_factory=Counter)
+
+    def __post_init__(self) -> None:
+        if self.max_fraction is not None:
+            if not isinstance(self.max_fraction, (int, float)):
+                raise TypeError("max_fraction must be numeric or None")
+            if math.isnan(self.max_fraction):
+                raise ValueError("max_fraction cannot be NaN")
+            if not 0.0 <= float(self.max_fraction) <= 1.0:
+                raise ValueError("max_fraction must be between 0 and 1")
+            self.max_fraction = float(self.max_fraction)
+        if self.mutate_every is not None:
+            if not isinstance(self.mutate_every, int):
+                raise TypeError("mutate_every must be an integer or None")
+            if self.mutate_every <= 0:
+                raise ValueError("mutate_every must be positive")
+
+    def can_select(self) -> tuple[bool, str | None]:
+        """Return whether an exploration tactic can be selected now."""
+
+        if self.max_fraction is not None:
+            projected_total = self._total_decisions + 1
+            projected_exploration = self._exploration_decisions + 1
+            projected_fraction = projected_exploration / projected_total
+            if projected_fraction > self.max_fraction + 1e-9:
+                return False, "budget_exhausted"
+
+        if self.mutate_every is not None and self._has_explored:
+            if self._since_last_exploration < self.mutate_every:
+                return False, "cadence"
+
+        return True, None
+
+    def record_decision(self, *, exploration: bool) -> None:
+        """Update counters after a decision has been emitted."""
+
+        self._total_decisions += 1
+        if exploration:
+            self._exploration_decisions += 1
+            self._has_explored = True
+            self._since_last_exploration = 0
+        elif self._has_explored:
+            self._since_last_exploration += 1
+
+    def record_blocked(self, reason: str | None) -> None:
+        """Record that an exploration attempt was blocked."""
+
+        self._blocked_attempts += 1
+        if reason:
+            self._blocked_reasons[str(reason)] += 1
+
+    def record_forced(self, reason: str | None) -> None:
+        """Record that we had to ignore the budget due to lack of alternatives."""
+
+        self._forced_decisions += 1
+        if reason:
+            self._forced_reasons[str(reason)] += 1
+
+    def snapshot(self) -> Mapping[str, object]:
+        """Return a JSON-serialisable view of the current budget state."""
+
+        total = self._total_decisions
+        exploration_total = self._exploration_decisions
+        share = exploration_total / total if total else 0.0
+        next_allowed = None
+        if self.mutate_every is not None:
+            if not self._has_explored:
+                next_allowed = 0
+            else:
+                deficit = self.mutate_every - self._since_last_exploration
+                next_allowed = max(0, deficit)
+        return {
+            "max_fraction": self.max_fraction,
+            "mutate_every": self.mutate_every,
+            "total_decisions": total,
+            "exploration_decisions": exploration_total,
+            "exploration_share": share,
+            "since_last_exploration": (
+                self._since_last_exploration if self._has_explored else None
+            ),
+            "next_exploration_in": next_allowed,
+            "blocked_attempts": self._blocked_attempts,
+            "blocked_reasons": dict(self._blocked_reasons),
+            "forced_decisions": self._forced_decisions,
+            "forced_reasons": dict(self._forced_reasons),
+        }
 
 
 class PolicyRouter:
@@ -210,6 +322,8 @@ class PolicyRouter:
         fast_weight_controller: "FastWeightController" | None = None,
         regime_switch_deadline_ms: int = 75,
         enforce_regime_topology: bool = True,
+        exploration_max_fraction: float | None = None,
+        exploration_mutate_every: int | None = None,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -222,6 +336,13 @@ class PolicyRouter:
         self._last_regime: str | None = None
         self._last_tactic_id: str | None = None
         self._last_topology: str | None = None
+        if exploration_max_fraction is not None or exploration_mutate_every is not None:
+            self._exploration_budget: ExplorationBudget | None = ExplorationBudget(
+                max_fraction=exploration_max_fraction,
+                mutate_every=exploration_mutate_every,
+            )
+        else:
+            self._exploration_budget = None
 
     def register_tactic(self, tactic: PolicyTactic) -> None:
         if tactic.tactic_id in self._tactics:
@@ -394,16 +515,30 @@ class PolicyRouter:
         if not ranked_entries:
             raise RuntimeError("no tactics available after scoring")
 
+        exploration_context: dict[str, object] | None = None
+        if self._exploration_budget is not None:
+            budget_before = self._exploration_budget.snapshot()
+            working_entries, enforcement_context = self._apply_exploration_budget(
+                ranked=ranked_entries,
+            )
+            exploration_context = dict(enforcement_context)
+            exploration_context["budget_before"] = dict(budget_before)
+        else:
+            working_entries = list(ranked_entries)
+
+        if not working_entries:
+            raise RuntimeError("no tactics available after budgeting")
+
         regime_changed = (
             self._last_regime is not None and regime_state.regime != self._last_regime
         )
         previous_topology = self._last_topology
 
-        winner_entry = ranked_entries[0]
+        winner_entry = working_entries[0]
         switch_forced = False
         if regime_changed and self._enforce_regime_topology:
             candidate_entry, forced = self._select_regime_transition_winner(
-                ranked=ranked_entries,
+                ranked=working_entries,
                 regime_state=regime_state,
                 previous_topology=previous_topology,
                 default_entry=winner_entry,
@@ -411,11 +546,11 @@ class PolicyRouter:
             winner_entry = candidate_entry
             switch_forced = forced
 
-        if winner_entry is ranked_entries[0]:
-            ordered_ranked: list[Mapping[str, object]] = list(ranked_entries)
+        if winner_entry is working_entries[0]:
+            ordered_ranked: list[Mapping[str, object]] = list(working_entries)
         else:
             ordered_ranked = [winner_entry] + [
-                entry for entry in ranked_entries if entry is not winner_entry
+                entry for entry in working_entries if entry is not winner_entry
             ]
 
         decision_time = decision_timestamp or datetime.now(tz=timezone.utc)
@@ -431,10 +566,25 @@ class PolicyRouter:
         guardrails.update(tactic.guardrails)
 
         rationale = self._build_rationale(tactic, regime_state, experiments, winner_entry)
+        if self._exploration_budget is not None:
+            self._exploration_budget.record_decision(exploration=bool(tactic.exploration))
+            after_snapshot = self._exploration_budget.snapshot()
+            if exploration_context is None:
+                exploration_context = {}
+            exploration_context.setdefault("blocked_candidates", [])
+            exploration_context.setdefault("forced", False)
+            exploration_context["budget_after"] = dict(after_snapshot)
+            if "budget_before" not in exploration_context:
+                exploration_context["budget_before"] = dict(after_snapshot)
+            exploration_context["selected_is_exploration"] = bool(tactic.exploration)
+        else:
+            exploration_context = None
+
         weight_breakdown = self._build_weight_breakdown(
             tactic=tactic,
             summary=winner_entry,
             experiments=experiments,
+            exploration_context=exploration_context,
         )
         regime_transition = self._build_regime_transition_summary(
             regime_state=regime_state,
@@ -450,6 +600,7 @@ class PolicyRouter:
                 winner=winner_entry,
                 rationale=rationale,
                 weight_breakdown=weight_breakdown,
+                exploration_context=exploration_context,
             )
         )
         reflection_summary["decision_timestamp"] = decision_time.isoformat()
@@ -475,6 +626,7 @@ class PolicyRouter:
                 else {}
             ),
             decision_timestamp=decision_time,
+            exploration_metadata=dict(exploration_context or {}),
         )
 
     def history(self) -> Sequence[Mapping[str, object]]:
@@ -1256,6 +1408,7 @@ class PolicyRouter:
         winner: Mapping[str, object],
         rationale: str,
         weight_breakdown: Mapping[str, object],
+        exploration_context: Mapping[str, object] | None = None,
     ) -> Mapping[str, object]:
         top_candidates: list[Mapping[str, object]] = []
         for entry in ranked[: self._summary_top_k]:
@@ -1300,6 +1453,21 @@ class PolicyRouter:
                 else {}
             ),
         }
+        if exploration_context:
+            summary["exploration"] = {
+                "selected": bool(exploration_context.get("selected_is_exploration", False)),
+                "forced": bool(exploration_context.get("forced", False)),
+                "blocked_candidates": [
+                    {
+                        "tactic_id": item.get("tactic_id"),
+                        "reason": item.get("reason"),
+                        "score": item.get("score"),
+                    }
+                    for item in exploration_context.get("blocked_candidates", [])
+                ],
+                "budget_before": dict(exploration_context.get("budget_before", {})),
+                "budget_after": dict(exploration_context.get("budget_after", {})),
+            }
         return summary
 
     @staticmethod
@@ -1308,6 +1476,7 @@ class PolicyRouter:
         tactic: PolicyTactic,
         summary: Mapping[str, object],
         experiments: Sequence[FastWeightExperiment],
+        exploration_context: Mapping[str, object] | None = None,
     ) -> Mapping[str, object]:
         breakdown = dict(summary.get("breakdown", {}))
         total_multiplier = float(summary.get("multiplier", 1.0))
@@ -1338,11 +1507,90 @@ class PolicyRouter:
             )
         else:
             payload["fast_weight_active_percentage"] = None
+        if exploration_context:
+            payload["exploration"] = {
+                "selected": bool(exploration_context.get("selected_is_exploration", False)),
+                "forced": bool(exploration_context.get("forced", False)),
+                "blocked_candidates": [
+                    {
+                        "tactic_id": item.get("tactic_id"),
+                        "reason": item.get("reason"),
+                        "score": item.get("score"),
+                    }
+                    for item in exploration_context.get("blocked_candidates", [])
+                ],
+                "budget_before": dict(exploration_context.get("budget_before", {})),
+                "budget_after": dict(exploration_context.get("budget_after", {})),
+            }
         return payload
 
     @staticmethod
     def _topology_identifier(tactic: PolicyTactic) -> str:
         return tactic.topology or tactic.tactic_id
+
+    def _apply_exploration_budget(
+        self,
+        *,
+        ranked: Sequence[Mapping[str, object]],
+    ) -> tuple[list[Mapping[str, object]], Mapping[str, object]]:
+        if not ranked:
+            return [], {}
+
+        budget = self._exploration_budget
+        if budget is None:
+            return list(ranked), {}
+
+        allowed: list[Mapping[str, object]] = []
+        blocked_details: list[tuple[Mapping[str, object], str | None]] = []
+
+        for entry in ranked:
+            tactic: PolicyTactic = entry["tactic"]  # type: ignore[assignment]
+            if not tactic.exploration:
+                entry["exploration_budget_status"] = "allowed"
+                entry["exploration_budget_reason"] = None
+                allowed.append(entry)
+                continue
+
+            permitted, reason = budget.can_select()
+            if permitted:
+                entry["exploration_budget_status"] = "allowed"
+                entry["exploration_budget_reason"] = None
+                allowed.append(entry)
+            else:
+                entry["exploration_budget_status"] = "blocked"
+                entry["exploration_budget_reason"] = reason
+                blocked_details.append((entry, reason))
+
+        metadata: dict[str, object] = {}
+
+        if allowed:
+            for _, reason in blocked_details:
+                budget.record_blocked(reason)
+            ordered = allowed + [entry for entry, _ in blocked_details]
+            metadata["blocked_candidates"] = [
+                {
+                    "tactic_id": entry["tactic"].tactic_id,  # type: ignore[index]
+                    "reason": reason,
+                    "score": float(entry.get("score", 0.0)),
+                }
+                for entry, reason in blocked_details
+            ]
+            metadata["forced"] = False
+            return ordered, metadata
+
+        ordered = list(ranked)
+        metadata["blocked_candidates"] = [
+            {
+                "tactic_id": entry["tactic"].tactic_id,  # type: ignore[index]
+                "reason": reason,
+                "score": float(entry.get("score", 0.0)),
+            }
+            for entry, reason in blocked_details
+        ]
+        metadata["forced"] = bool(blocked_details)
+        if blocked_details:
+            budget.record_forced(blocked_details[0][1])
+        return ordered, metadata
 
     def _select_regime_transition_winner(
         self,

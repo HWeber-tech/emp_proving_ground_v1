@@ -86,6 +86,8 @@ def test_evolution_manager_registers_variant_on_losses() -> None:
     assert "momentum_core_explore" in tactics
     assert tactics["momentum_core"].base_weight == pytest.approx(0.5)
     assert tactics["momentum_core_explore"].base_weight == pytest.approx(0.99)
+    assert tactics["momentum_core_explore"].exploration is True
+    assert "exploration" in set(tactics["momentum_core_explore"].tags)
 
     payload = result.as_dict()
     assert payload["base_tactic_id"] == "momentum_core"
@@ -222,7 +224,8 @@ def test_evolution_manager_registers_catalogue_variant() -> None:
     assert trial.parameters["catalogue_identifier"] == "momentum_trial_v1"
     assert trial.parameters["catalogue_version"] == "test"
     assert trial.guardrails["force_paper"] is True
-    assert trial.tags == ("momentum", "trial")
+    assert set(trial.tags) == {"momentum", "trial", "exploration"}
+    assert trial.exploration is True
     assert router.tactics()["momentum_core"].base_weight == pytest.approx(0.5)
 
     payload = result.as_dict()
@@ -284,6 +287,8 @@ def test_evolution_manager_applies_parameter_mutation() -> None:
     mutated = tactics[mutated_id]
     assert mutated.parameters["lookback"] == pytest.approx(24.0)
     assert mutated.base_weight == pytest.approx(0.75)
+    assert mutated.exploration is True
+    assert "exploration" in set(mutated.tags)
 
     payload = result.as_dict()
     actions = payload["actions"]

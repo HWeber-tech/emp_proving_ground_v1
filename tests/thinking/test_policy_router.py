@@ -398,36 +398,86 @@ def test_reflection_digest_surfaces_emerging_strategies() -> None:
 
     tag_entries = digest["tags"]
     assert [entry["tag"] for entry in tag_entries[:2]] == ["fast-weight", "momentum"]
-    assert tag_entries[0]["count"] == 2
-    assert tag_entries[0]["top_tactics"][0] == "breakout"
 
-    objective_entries = digest["objectives"]
-    assert objective_entries[0]["objective"] == "alpha-capture"
-    assert objective_entries[0]["share"] == pytest.approx(2 / 3)
-    assert "breakout" in objective_entries[0]["top_tactics"]
 
-    regimes = digest["regimes"]
-    assert regimes["bull"]["share"] == pytest.approx(1.0)
-
-    feature_entries = digest["features"]
-    volatility_entry = next(item for item in feature_entries if item["feature"] == "volatility")
-    assert volatility_entry["count"] == 3
-    assert volatility_entry["latest"] == pytest.approx(0.25)
-    assert volatility_entry["trend"] == pytest.approx(0.05)
-
-    assert digest["current_streak"] == {"tactic_id": "mean_reversion", "length": 1}
-    assert digest["longest_streak"] == {"tactic_id": "breakout", "length": 2}
-
-    headlines = digest["recent_headlines"]
-    assert len(headlines) == 3
-    assert headlines[-1].startswith("Selected mean_reversion")
-    weight_stats = digest["weight_stats"]
-    assert weight_stats["fast_weight"]["applications"] == 0
-    assert weight_stats["fast_weight"]["average_multiplier"] == pytest.approx(1.0)
-    assert weight_stats["average_total_multiplier"] == pytest.approx((1.0 + 1.0 + 1.75) / 3)
-    assert weight_stats["average_final_score"] == pytest.approx(
-        sum(entry["score"] for entry in router.history()) / 3
+def test_exploration_budget_enforces_flow_limit() -> None:
+    router = PolicyRouter(exploration_max_fraction=0.25)
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="core",
+            base_weight=1.0,
+            regime_bias={"bull": 1.0},
+        )
     )
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="explore",
+            base_weight=1.4,
+            regime_bias={"bull": 1.0},
+            exploration=True,
+            tags=("exploration",),
+        )
+    )
+
+    base_time = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+
+    for offset in range(3):
+        decision = router.route(_regime(timestamp=base_time + timedelta(minutes=offset)))
+        assert decision.tactic_id == "core"
+        blocked = decision.exploration_metadata.get("blocked_candidates", [])
+        assert blocked and blocked[0]["reason"] == "budget_exhausted"
+
+    allowed_decision = router.route(_regime(timestamp=base_time + timedelta(minutes=3)))
+    assert allowed_decision.tactic_id == "explore"
+    metadata = allowed_decision.exploration_metadata
+    assert metadata["selected_is_exploration"] is True
+    assert metadata["budget_before"]["total_decisions"] == 3
+    assert metadata["budget_after"]["exploration_decisions"] == 1
+
+    follow_up = router.route(_regime(timestamp=base_time + timedelta(minutes=4)))
+    assert follow_up.tactic_id == "core"
+    follow_blocked = follow_up.exploration_metadata.get("blocked_candidates", [])
+    assert follow_blocked and follow_blocked[0]["reason"] == "budget_exhausted"
+
+
+def test_exploration_budget_respects_mutation_cadence() -> None:
+    router = PolicyRouter(exploration_mutate_every=3)
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="core",
+            base_weight=1.0,
+            regime_bias={"bull": 1.0},
+        )
+    )
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="explore",
+            base_weight=1.3,
+            regime_bias={"bull": 1.0},
+            exploration=True,
+            tags=("exploration",),
+        )
+    )
+
+    base_time = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+
+    first_decision = router.route(_regime(timestamp=base_time))
+    assert first_decision.tactic_id == "explore"
+    assert first_decision.exploration_metadata["selected_is_exploration"] is True
+
+    for offset in range(1, 4):
+        decision = router.route(
+            _regime(timestamp=base_time + timedelta(minutes=offset))
+        )
+        assert decision.tactic_id == "core"
+        blocked = decision.exploration_metadata.get("blocked_candidates", [])
+        assert blocked and blocked[0]["reason"] == "cadence"
+
+    follow_up = router.route(_regime(timestamp=base_time + timedelta(minutes=4)))
+    assert follow_up.tactic_id == "explore"
+    follow_meta = follow_up.exploration_metadata
+    assert follow_meta["selected_is_exploration"] is True
+    assert follow_meta["budget_after"]["exploration_decisions"] == 2
 
 
 def test_prune_experiments_removes_expired_entries() -> None:

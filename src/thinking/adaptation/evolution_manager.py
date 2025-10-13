@@ -38,6 +38,7 @@ class StrategyVariant:
     base_tactic_id: str
     rationale: str | None = None
     trial_weight_multiplier: float = 1.0
+    exploration: bool = True
 
 
 @dataclass(frozen=True)
@@ -270,6 +271,8 @@ class EvolutionManager:
         metadata: Mapping[str, object] | None,
     ) -> Mapping[str, object] | None:
         tactic = variant.tactic
+        if variant.exploration:
+            tactic = self._ensure_exploration_tactic(tactic)
         if variant.trial_weight_multiplier != 1.0:
             tactic = replace(
                 tactic,
@@ -307,6 +310,16 @@ class EvolutionManager:
         if metadata:
             payload["metadata"] = {str(key): value for key, value in metadata.items()}
         return payload
+
+    @staticmethod
+    def _ensure_exploration_tactic(tactic: PolicyTactic) -> PolicyTactic:
+        has_tag = "exploration" in {str(tag) for tag in tactic.tags}
+        if tactic.exploration and has_tag:
+            return tactic
+        tags = tuple(dict.fromkeys((*tactic.tags, "exploration"))) if tactic.tags else ("exploration",)
+        if tactic.exploration:
+            return replace(tactic, tags=tags)
+        return replace(tactic, exploration=True, tags=tags)
 
     def _degrade_base(self, tactic_id: str, multiplier: float) -> Mapping[str, object] | None:
         if multiplier <= 0:

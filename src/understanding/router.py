@@ -214,11 +214,39 @@ class UnderstandingRouter:
 
         extras = config.extras or {}
         controller = build_fast_weight_controller(extras)
+
+        def _parse_fraction(value: object | None) -> float | None:
+            if value is None:
+                return None
+            try:
+                fraction = float(value)
+            except (TypeError, ValueError):
+                return None
+            if not 0.0 <= fraction <= 1.0:
+                return None
+            return fraction
+
+        def _parse_int(value: object | None) -> int | None:
+            if value is None:
+                return None
+            try:
+                integer = int(str(value))
+            except (TypeError, ValueError):
+                return None
+            if integer <= 0:
+                return None
+            return integer
+
+        exploration_fraction = _parse_fraction(extras.get("EXPLORATION_MAX_FRACTION"))
+        exploration_cadence = _parse_int(extras.get("EXPLORATION_MUTATE_EVERY"))
+
         policy_router = PolicyRouter(
             default_guardrails=default_guardrails,
             reflection_history=reflection_history,
             summary_top_k=summary_top_k,
             fast_weight_controller=controller,
+            exploration_max_fraction=exploration_fraction,
+            exploration_mutate_every=exploration_cadence,
         )
         return cls(policy_router=policy_router)
 

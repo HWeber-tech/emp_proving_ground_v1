@@ -13,7 +13,7 @@
 
 **Deliverables**
 - [ ] `[risk]` Preâ€‘trade invariants verified (exposure, price bands, inventory, drawdown); killâ€‘switch wired.
-- [ ] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env).
+- [x] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env). _Progress: `AdaptationFeatureToggles` resolves SystemConfig posture into fast-weight, linear-attention, and exploration flags, flows them through the operational backbone pipeline and runtime, and regression coverage proves AlphaTrade respects environment defaults while diary metadata mirrors forced fast-weight shutdowns.【F:src/thinking/adaptation/feature_toggles.py†L1-L164】【F:src/data_foundation/pipelines/operational_backbone.py†L35-L213】【F:tools/data_ingest/run_operational_backbone.py†L287-L313】【F:src/runtime/predator_app.py†L260-L288】【F:src/orchestration/alpha_trade_runner.py†L120-L198】【F:tests/thinking/test_adaptation_feature_toggles.py†L1-L86】【F:tests/orchestration/test_alpha_trade_runner.py†L268-L298】_
 - [ ] `[obs]` Minimal **heartbeat** & latency counters (ingestâ†’signalâ†’orderâ†’ack p50/p99/p99.9).
 - [x] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table. _Progress: CONTRIBUTING.md now documents simulation, paper, and liveâ€‘shadow launch recipes alongside a featureâ€‘flag matrix that complements the workflow guide in `docs/development/contributing.md`, giving operators the runtime posture and evidence checklist they need for roadmap gates.【F:CONTRIBUTING.md†L1-L96】_
 
@@ -156,7 +156,7 @@
 - [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, streams progress, and persists structured summaries for dashboards under pytest coverage.【F:Makefile†L90-L98】【F:src/runtime/cli.py†L1-L220】【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】_
 - [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger.
 - [x] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report. _Progress: The `rim-shadow` target now drives the governance-gated shadow runner, emitting suggestions plus queue/digest markdown artifacts with auto-apply annotations under pytest coverage so nightly cron jobs stay audit-ready.【F:Makefile†L67-L85】【F:tools/rim_shadow_run.py†L160-L222】【F:tests/tools/test_rim_shadow_run.py†L44-L139】_
-- [ ] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders).
+- [x] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders). _Progress: `archive_artifact` standardises dated evidence mirrors and now runs from the decision diary, nightly replay job, policy ledger, and evolution lab exporter with coverage so compliance packs auto-land in `artifacts/<kind>/<date>/<run>/` without manual curation.【F:src/artifacts/archive.py†L1-L95】【F:src/understanding/decision_diary.py†L447-L465】【F:src/governance/policy_ledger.py†L394-L420】【F:tools/operations/nightly_replay_job.py†L573-L590】【F:scripts/generate_evolution_lab.py†L171-L185】【F:tests/artifacts/test_archive.py†L1-L45】_
 
 ---
 
@@ -164,10 +164,10 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-13T11:22:48Z
+## Automation updates — 2025-10-13T11:49:05Z
 
 ### Last 4 commits
+- 4941ac86 feat(data_foundation): add 8 files (2025-10-13)
+- 9e74cefd feat(scripts): add 7 files (2025-10-13)
+- db699aee docs(docs): tune 3 files (2025-10-13)
 - f8559f7d docs(docs): add 1 file (2025-10-13)
-- efdba913 feat(governance): add 5 files (2025-10-13)
-- 692276c2 docs(config): add 9 files (2025-10-13)
-- 69b0fd68 docs(docs): add 5 files (2025-10-13)

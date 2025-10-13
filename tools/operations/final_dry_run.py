@@ -11,6 +11,7 @@ from typing import Sequence
 
 from src.operations.dry_run_audit import DryRunStatus
 from src.operations.final_dry_run import FinalDryRunConfig
+from src.operations.final_dry_run_review import parse_objective_spec
 from src.operations.final_dry_run_workflow import run_final_dry_run_workflow
 
 
@@ -286,6 +287,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Add an attendee to the review brief (can be supplied multiple times).",
     )
     parser.add_argument(
+        "--objective",
+        action="append",
+        dest="objectives",
+        default=None,
+        metavar="NAME=STATUS[:NOTE]",
+        help=(
+            "Record an acceptance objective outcome for the review (pass/warn/fail). "
+            "Example: --objective data-backbone=pass:Timescale ingestion live"
+        ),
+    )
+    parser.add_argument(
         "--note",
         action="append",
         dest="notes",
@@ -368,6 +380,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     notes_files = [Path(path) for path in (args.notes_files or ())]
     notes_list.extend(_load_notes(notes_files))
     review_notes = tuple(notes_list)
+
+    objective_specs: tuple[object, ...] = tuple()
+    if args.objectives:
+        parsed_objectives = []
+        for spec in args.objectives:
+            try:
+                parsed_objectives.append(parse_objective_spec(spec))
+            except ValueError as exc:
+                parser.error(str(exc))
+        objective_specs = tuple(parsed_objectives)
 
     duration = timedelta(hours=args.duration_hours)
     required_duration = (
@@ -465,6 +487,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         review_run_label=args.review_run_label,
         review_attendees=attendees,
         review_notes=review_notes,
+        review_objectives=objective_specs,
         create_review=not args.no_review,
     )
     result = workflow.run_result

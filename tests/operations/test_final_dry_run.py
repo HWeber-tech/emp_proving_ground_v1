@@ -242,6 +242,7 @@ def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):
         review_run_label="Test Run",
         review_attendees=("Alice", "Bob"),
         review_notes=("Inspect metrics",),
+        review_objectives=("data-backbone=pass:Ingestion live",),
     )
 
     assert workflow.run_result.status is DryRunStatus.pass_
@@ -261,6 +262,9 @@ def test_final_dry_run_workflow_builds_packet_and_review(tmp_path):
     assert review.run_label == "Test Run"
     assert set(review.attendees) == {"Alice", "Bob"}
     assert review.evidence_packet == packet
+    assert review.objectives
+    assert review.objectives[0].name == "data-backbone"
+    assert review.objectives[0].status is DryRunStatus.pass_
 
 
 @pytest.mark.asyncio()

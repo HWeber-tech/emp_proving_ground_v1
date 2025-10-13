@@ -18,6 +18,15 @@ from src.operations.dry_run_audit import (
 from src.operations.dry_run_packet import DryRunPacketPaths
 
 
+__all__ = [
+    "FinalDryRunReview",
+    "ReviewActionItem",
+    "ReviewObjective",
+    "build_review",
+    "parse_objective_spec",
+]
+
+
 @dataclass(frozen=True)
 class ReviewActionItem:
     """Follow-up item captured for the final dry run wrap-up."""
@@ -37,6 +46,29 @@ class ReviewActionItem:
 
 
 @dataclass(frozen=True)
+class ReviewObjective:
+    """Acceptance criterion captured during the sign-off review."""
+
+    name: str
+    status: DryRunStatus
+    note: str | None = None
+    evidence: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "name": self.name,
+            "status": self.status.value,
+        }
+        if self.note:
+            payload["note"] = self.note
+        if self.evidence:
+            payload["evidence"] = {
+                key: value for key, value in self.evidence.items()
+            }
+        return payload
+
+
+@dataclass(frozen=True)
 class FinalDryRunReview:
     """Structured brief for the final dry run review meeting."""
 
@@ -44,6 +76,7 @@ class FinalDryRunReview:
     summary: DryRunSummary
     sign_off_report: DryRunSignOffReport | None
     action_items: tuple[ReviewActionItem, ...]
+    objectives: tuple[ReviewObjective, ...] = tuple()
     run_label: str | None = None
     attendees: tuple[str, ...] = tuple()
     notes: tuple[str, ...] = tuple()
@@ -56,6 +89,7 @@ class FinalDryRunReview:
         if self.sign_off_report is not None:
             severities.append(self.sign_off_report.status)
         severities.extend(item.severity for item in self.action_items)
+        severities.extend(objective.status for objective in self.objectives)
         if any(severity is DryRunStatus.fail for severity in severities):
             return DryRunStatus.fail
         if any(severity is DryRunStatus.warn for severity in severities):
@@ -75,6 +109,7 @@ class FinalDryRunReview:
             "notes": list(self.notes),
             "highlights": {key: value for key, value in self.highlights.items()},
             "action_items": [item.as_dict() for item in self.action_items],
+            "objectives": [objective.as_dict() for objective in self.objectives],
         }
         if self.evidence_packet is not None:
             payload["evidence_packet"] = self.evidence_packet.as_dict()
@@ -119,6 +154,21 @@ class FinalDryRunReview:
                 lines.append(
                     f"- Evidence packet directory: {self.evidence_packet.output_dir.as_posix()}"
                 )
+        lines.append("")
+
+        lines.append("## Objectives")
+        if self.objectives:
+            for objective in self.objectives:
+                status_text = objective.status.value.upper()
+                line = f"- {objective.name}: {status_text}"
+                if objective.note:
+                    line += f" — {objective.note}"
+                lines.append(line)
+                if objective.evidence:
+                    for key, value in sorted(objective.evidence.items()):
+                        lines.append(f"  - {key}: {value}")
+        else:
+            lines.append("- Not recorded")
         lines.append("")
 
         lines.append("## Action Items")
@@ -167,6 +217,7 @@ def build_review(
     attendees: Iterable[str] = (),
     notes: Iterable[str] = (),
     evidence_packet: DryRunPacketPaths | None = None,
+    objectives: Iterable[ReviewObjective | Mapping[str, Any] | str] = (),
 ) -> FinalDryRunReview:
     """Assemble a :class:`FinalDryRunReview` from dry run evidence."""
 
@@ -179,6 +230,7 @@ def build_review(
     notes_tuple = tuple(note.strip() for note in notes if note and note.strip())
     highlights = _extract_highlights(summary)
     action_items = _collect_action_items(summary, sign_off_report)
+    objectives_tuple = _normalise_objectives(objectives)
     generated_at = datetime.now(tz=UTC)
 
     run_token = _normalise_token(run_label) if run_label else ""
@@ -188,12 +240,116 @@ def build_review(
         summary=summary,
         sign_off_report=sign_off_report,
         action_items=action_items,
+        objectives=objectives_tuple,
         run_label=run_token or None,
         attendees=attendees_tuple,
         notes=notes_tuple,
         highlights=highlights,
         evidence_packet=evidence_packet,
     )
+
+
+def parse_objective_spec(text: str) -> ReviewObjective:
+    """Parse a CLI-style objective spec into a :class:`ReviewObjective`."""
+
+    if "=" not in text:
+        raise ValueError("Objective spec must include '=' separating name and status")
+
+    name_text, remainder = text.split("=", 1)
+    name = _normalise_token(name_text)
+    if not name:
+        raise ValueError("Objective name cannot be empty")
+
+    if ":" in remainder:
+        status_text, note_text = remainder.split(":", 1)
+        note = note_text.strip() or None
+    else:
+        status_text, note = remainder, None
+
+    status_token = status_text.strip().lower()
+    if not status_token:
+        raise ValueError("Objective status cannot be empty")
+
+    status = _parse_status_token(status_token)
+
+    return ReviewObjective(name=name, status=status, note=note)
+
+
+def _normalise_objectives(
+    objectives: Iterable[ReviewObjective | Mapping[str, Any] | str],
+) -> tuple[ReviewObjective, ...]:
+    normalised: list[ReviewObjective] = []
+    for item in objectives:
+        normalised.append(_coerce_objective(item))
+    return tuple(normalised)
+
+
+def _coerce_objective(
+    item: ReviewObjective | Mapping[str, Any] | str,
+) -> ReviewObjective:
+    if isinstance(item, ReviewObjective):
+        name = _normalise_token(item.name)
+        if not name:
+            raise ValueError("Objective name cannot be empty")
+        note = _normalise_token(item.note) if item.note else None
+        evidence = {key: value for key, value in item.evidence.items()}
+        return ReviewObjective(
+            name=name,
+            status=item.status,
+            note=note,
+            evidence=evidence,
+        )
+
+    if isinstance(item, str):
+        return parse_objective_spec(item)
+
+    if "name" not in item:
+        raise ValueError("Objective mapping must include a 'name' field")
+    if "status" not in item:
+        raise ValueError("Objective mapping must include a 'status' field")
+
+    name_token = _normalise_token(str(item["name"]))
+    if not name_token:
+        raise ValueError("Objective name cannot be empty")
+
+    status_value = item["status"]
+    if isinstance(status_value, DryRunStatus):
+        status = status_value
+    else:
+        status = _parse_status_token(str(status_value))
+
+    note_value = item.get("note")
+    note = _normalise_token(str(note_value)) if note_value is not None else None
+
+    evidence_value = item.get("evidence")
+    if evidence_value is None:
+        evidence = {}
+    elif isinstance(evidence_value, Mapping):
+        evidence = {str(key): value for key, value in evidence_value.items()}
+    else:
+        raise ValueError("Objective evidence must be a mapping when provided")
+
+    return ReviewObjective(name=name_token, status=status, note=note, evidence=evidence)
+
+
+def _parse_status_token(token: str) -> DryRunStatus:
+    normalised = token.strip().lower()
+    if not normalised:
+        raise ValueError("Objective status cannot be empty")
+
+    if normalised in {"pass", "pass_", "ok", "ready", "go", "success"}:
+        return DryRunStatus.pass_
+    if normalised in {"warn", "warning", "at_risk", "yellow"}:
+        return DryRunStatus.warn
+    if normalised in {"fail", "failed", "block", "blocked", "no", "stop", "red"}:
+        return DryRunStatus.fail
+
+    try:
+        return DryRunStatus(normalised)
+    except ValueError as exc:  # pragma: no cover - defensive guard
+        raise ValueError(
+            f"Unrecognised objective status '{token}'. Use pass/warn/fail."
+        ) from exc
 
 
 def _extract_highlights(summary: DryRunSummary) -> Mapping[str, Any]:
@@ -336,10 +492,3 @@ def _normalise_token(value: str | None) -> str:
     if value is None:
         return ""
     return " ".join(part for part in value.strip().split() if part)
-
-
-__all__ = [
-    "FinalDryRunReview",
-    "ReviewActionItem",
-    "build_review",
-]

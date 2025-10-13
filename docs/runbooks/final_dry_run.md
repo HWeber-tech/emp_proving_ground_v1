@@ -84,6 +84,7 @@ quickly.
 - Markdown summary (optional): provide `--markdown-report summary.md`
 - Evidence packet (optional): pass `--packet-dir artifacts/final_dry_run/2025-10-12/packet --packet-archive artifacts/final_dry_run/2025-10-12/packet.tar.gz` to bundle summaries plus raw artefacts in a review-ready archive.
 - Review brief (optional): add `--review-output review.md` (or `--review-output -` for stdout) to emit the meeting brief generated from the audit and sign-off records.
+- Acceptance objectives (optional): capture roadmap readiness checks with `--objective NAME=STATUS[:NOTE]` flags, e.g. `--objective governance=pass:Risk controls enforced`. Supply multiple flags to cover data backbone, understanding, governance, and launch readiness; they surface in the review brief and JSON reports.
 
 The JSON summary contains the dry run audit (`summary`) plus the sign-off report. Harness incidents (unexpected exits, duration shortfalls) are embedded into `summary.metadata.harness_incidents`.
 

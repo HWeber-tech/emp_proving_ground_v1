@@ -83,6 +83,8 @@ def test_final_dry_run_cli_success(tmp_path: Path) -> None:
             "CLI Dry Run",
             "--attendee",
             "Ops",
+            "--objective",
+            "governance=pass:Controls enforced",
             "--note",
             "Check latency charts",
             "--review-skip-sign-off",
@@ -102,9 +104,14 @@ def test_final_dry_run_cli_success(tmp_path: Path) -> None:
     payload = json.loads(json_report.read_text(encoding="utf-8"))
     assert payload["status"] == "pass"
     assert "summary" in payload
+    review_payload = payload.get("review")
+    assert review_payload is not None
+    assert review_payload["objectives"][0]["name"] == "governance"
+    assert review_payload["objectives"][0]["status"] == "pass"
 
     review_text = review_output.read_text(encoding="utf-8")
     assert "Final Dry Run Review" in review_text
+    assert "governance: PASS" in review_text
 
 
 def test_final_dry_run_cli_failure_on_short_run(tmp_path: Path) -> None:

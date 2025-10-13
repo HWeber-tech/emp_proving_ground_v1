@@ -11,6 +11,7 @@ import click
 
 from src.operations.dry_run_audit import DryRunStatus
 from src.operations.final_dry_run import FinalDryRunConfig
+from src.operations.final_dry_run_review import parse_objective_spec
 from src.operations.final_dry_run_workflow import run_final_dry_run_workflow
 
 
@@ -242,6 +243,15 @@ def _load_notes(paths: Iterable[Path]) -> list[str]:
     help="Add an attendee to the review brief.",
 )
 @click.option(
+    "--objective",
+    "objectives",
+    multiple=True,
+    help=(
+        "Record an acceptance objective outcome (NAME=STATUS[:NOTE]). "
+        "Example: --objective governance=pass:Risk controls enforced"
+    ),
+)
+@click.option(
     "--note",
     "notes",
     multiple=True,
@@ -311,6 +321,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     review_format: str,
     review_run_label: str | None,
     attendees: Sequence[str],
+    objectives: Sequence[str],
     notes: Sequence[str],
     notes_file: Sequence[Path],
     no_review: bool,
@@ -338,6 +349,16 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     note_lines = list(notes)
     note_lines.extend(_load_notes(notes_file))
     review_notes = tuple(line for line in note_lines if line.strip())
+
+    objective_specs: tuple[object, ...] = tuple()
+    if objectives:
+        parsed_objectives: list[object] = []
+        for spec in objectives:
+            try:
+                parsed_objectives.append(parse_objective_spec(spec))
+            except ValueError as exc:
+                raise click.BadParameter(str(exc), param_hint="--objective") from exc
+        objective_specs = tuple(parsed_objectives)
 
     duration = timedelta(hours=duration_hours)
     required_duration = (
@@ -435,6 +456,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         review_run_label=review_run_label,
         review_attendees=attendees,
         review_notes=review_notes,
+        review_objectives=objective_specs,
         create_review=not no_review,
     )
     result = workflow.run_result

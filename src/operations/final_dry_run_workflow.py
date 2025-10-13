@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from src.operations.dry_run_packet import DryRunPacketPaths, write_dry_run_packet
 from src.operations.final_dry_run import (
@@ -13,7 +13,11 @@ from src.operations.final_dry_run import (
     FinalDryRunResult,
     perform_final_dry_run,
 )
-from src.operations.final_dry_run_review import FinalDryRunReview, build_review
+from src.operations.final_dry_run_review import (
+    FinalDryRunReview,
+    ReviewObjective,
+    build_review,
+)
 
 __all__ = [
     "FinalDryRunWorkflowResult",
@@ -40,6 +44,7 @@ async def perform_final_dry_run_workflow(
     review_run_label: str | None = None,
     review_attendees: Iterable[str] = (),
     review_notes: Iterable[str] = (),
+    review_objectives: Iterable[ReviewObjective | Mapping[str, object] | str] = (),
     create_review: bool = True,
 ) -> FinalDryRunWorkflowResult:
     """Execute the dry run, evidence packet, and review assembly workflow."""
@@ -74,6 +79,7 @@ async def perform_final_dry_run_workflow(
             attendees=tuple(review_attendees),
             notes=tuple(review_notes),
             evidence_packet=evidence_packet,
+            objectives=tuple(review_objectives),
         )
 
     return FinalDryRunWorkflowResult(

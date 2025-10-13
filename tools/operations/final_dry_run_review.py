@@ -17,7 +17,7 @@ from src.operations.dry_run_audit import (
     evaluate_dry_run,
 )
 from src.operations.dry_run_packet import write_dry_run_packet
-from src.operations.final_dry_run_review import build_review
+from src.operations.final_dry_run_review import build_review, parse_objective_spec
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -66,6 +66,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="NAME",
         help="Add a reviewer or stakeholder to the attendee list.",
+    )
+    parser.add_argument(
+        "--objective",
+        action="append",
+        dest="objectives",
+        default=None,
+        metavar="NAME=STATUS[:NOTE]",
+        help=(
+            "Record an acceptance objective outcome (pass/warn/fail). "
+            "Example: --objective data-backbone=pass:Ingestion stable"
+        ),
     )
     parser.add_argument(
         "--note",
@@ -281,6 +292,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         notes.extend(_load_notes(notes_files))
 
     attendees: Iterable[str] = args.attendees or []
+    objective_specs: list[object] = []
+    if args.objectives:
+        for spec in args.objectives:
+            try:
+                objective_specs.append(parse_objective_spec(spec))
+            except ValueError as exc:
+                parser.error(str(exc))
 
     review = build_review(
         summary,
@@ -289,6 +307,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         attendees=attendees,
         notes=notes,
         evidence_packet=packet_paths,
+        objectives=tuple(objective_specs),
     )
 
     if args.format == "json":

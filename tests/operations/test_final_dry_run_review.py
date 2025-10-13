@@ -48,6 +48,7 @@ DryRunStatus = _AUDIT_MODULE.DryRunStatus
 DryRunSummary = _AUDIT_MODULE.DryRunSummary
 StructuredLogRecord = _AUDIT_MODULE.StructuredLogRecord
 build_review = _REVIEW_MODULE.build_review
+parse_objective_spec = _REVIEW_MODULE.parse_objective_spec
 
 from src.understanding.decision_diary import DecisionDiaryEntry
 
@@ -200,3 +201,17 @@ def test_review_to_markdown_includes_sections() -> None:
         include_sign_off=False,
     )
     assert "## Appendices" not in markdown_trimmed
+
+
+def test_build_review_records_objectives() -> None:
+    generated = datetime(2024, 6, 1, tzinfo=UTC)
+    summary = DryRunSummary(generated_at=generated)
+    objective = parse_objective_spec("governance=pass:Controls enforced")
+
+    review = build_review(summary, objectives=[objective])
+
+    assert review.objectives
+    recorded = review.objectives[0]
+    assert recorded.name == "governance"
+    assert recorded.status is DryRunStatus.pass_
+    assert recorded.note == "Controls enforced"

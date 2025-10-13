@@ -15,7 +15,7 @@
 - [ ] `[risk]` Preâ€‘trade invariants verified (exposure, price bands, inventory, drawdown); killâ€‘switch wired.
 - [ ] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env).
 - [ ] `[obs]` Minimal **heartbeat** & latency counters (ingestâ†’signalâ†’orderâ†’ack p50/p99/p99.9).
-- [ ] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table.
+- [x] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table. _Progress: CONTRIBUTING.md now documents simulation, paper, and liveâ€‘shadow launch recipes alongside a featureâ€‘flag matrix that complements the workflow guide in `docs/development/contributing.md`, giving operators the runtime posture and evidence checklist they need for roadmap gates.【F:CONTRIBUTING.md†L1-L96】_
 
 **Acceptance (DoD)**
 - [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes.
@@ -40,7 +40,7 @@
 - [ ] `[sim]` **Determinism**: Replay same tape + seeds â‡’ identical diary & PnL.
 - [x] `[adapt]` **Regimeâ€‘aware routing**: regime flip â‡’ topology switch within N ms; proven in diary. _Progress: PolicyRouter enforces topology switches on regime changes, tracks switch latency, and reflection summaries capture the transition under dedicated pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L520】【F:tests/thinking/test_policy_router.py†L60-L152】_
 - [ ] `[reflect]` **Drift throttle**: injected alpha decay â‡’ sentry fires within 1 decision step; theory packet written.
-- [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms).
+- [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms). _Progress: AlphaTradeLoopRunner now attaches belief/probe attribution payloads to trade metadata and decision diaries, while TradingManager records `orders_with_attribution` and `attribution_coverage` stats and warns when coverage slips below the 90% target under guardrail tests for executed intents.【F:src/orchestration/alpha_trade_runner.py†L168-L234】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [ ] `[risk]` **0** invariant violations in a 4â€‘hour sim run.
 
 ---
@@ -131,7 +131,7 @@
 ## Backlog / Niceâ€‘toâ€‘Haves
 
 - [ ] `[adapt]` (Âµ+Î») evolution mode in addition to tournament selection.
-- [ ] `[adapt]` `op_mix_strategies` (ensembles) with stability penalties (switching frictions).
+- [x] `[adapt]` `op_mix_strategies` (ensembles) with stability penalties (switching frictions). _Progress: The new strategy mixer operator blends scored tactics with friction, decay, and bounds enforcement, exports typed dataclasses, and ships regression coverage for score prioritisation, friction decay, and max-share enforcement so ensemble evolution can progress beyond the backlog stub.【F:src/evolution/mutation/strategy_mixer.py†L1-L200】【F:tests/evolution/test_strategy_mix_operator.py†L1-L118】_
 - [ ] `[reflect]` Counterfactual explainers per trade (why not alternative topology).
 - [ ] `[core]` HMMâ€‘based RegimeFSM v2; learned transition priors.
 - [ ] `[obs]` Prometheus/Grafana (or cloud) monitoring; SLO alerting as code.
@@ -145,7 +145,7 @@
 - [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a CLI reports average/median/p90 turnaround and breach details so the experimentation loop can track adherence in real time under regression coverage.【F:emp/core/findings_memory.py†L1-L460】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L86】_
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates.
 - [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned.
-- [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation).
+- [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Execution stats now surface attribution coverage metrics and end-to-end tests assert executed trades retain the enriched payload, enabling governance dashboards to track the 90% target quantitatively.【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [ ] **Operator leverage**: experiments/week/person â†‘ without quality loss.
 
 ---

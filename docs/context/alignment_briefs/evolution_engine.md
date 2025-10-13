@@ -133,6 +133,7 @@
   governance reviewers see catalogue registrations and degradations inline with
   each trade.【src/thinking/adaptation/evolution_manager.py:104】【src/orchestration/alpha_trade_loop.py:299】【tests/orchestration/test_alpha_trade_loop.py:485】
 - Progress: Replay-driven adaptive evaluations now route through `TacticReplayHarness`, which normalises recorded sensory snapshots, compares outcomes to stage thresholds, and emits governance-ready promotion/demotion decisions that the `AdaptiveGovernanceGate` applies to the policy ledger with audit metadata and optional approvals; guardrail tests prove promotions, demotions, and maintain paths update ledger state deterministically.【F:src/thinking/adaptation/replay_harness.py†L1-L274】【F:src/governance/adaptive_gate.py†L15-L101】【F:tests/thinking/test_adaptive_replay_harness.py†L88-L173】
+- Progress: Strategy mixing operator now blends scored tactics with switching friction, decay, and per-tactic bounds via `op_mix_strategies`, returning typed results and coverage for share limits so ensembles evolve safely under regression tests.【F:src/evolution/mutation/strategy_mixer.py†L1-L200】【F:tests/evolution/test_strategy_mix_operator.py†L1-L118】
 - Progress: Adaptive runs remain gated behind the `EVOLUTION_ENABLE_ADAPTIVE_RUNS`
   flag, with orchestrator wiring skipping champion registration and telemetry
   when the flag is disabled and pytest coverage documenting the contract so

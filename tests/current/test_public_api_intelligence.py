@@ -23,6 +23,7 @@ def test_intelligence_public_api_no_side_effects_and_lazy(caplog):
         "AdversarialTrainer",
         "RedTeamAI",
         "SpecializedPredatorEvolution",
+        "CompetitiveUnderstandingSystem",
         "CompetitiveIntelligenceSystem",
         "Phase3IntelligenceOrchestrator",
     }
@@ -52,7 +53,8 @@ def test_intelligence_facade_resolves_canonical_symbols(caplog):
         "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer",
         "MarketGAN": "src.thinking.adversarial.market_gan",
         "PredictiveMarketModeler": "src.thinking.prediction.predictive_market_modeler",
-        "CompetitiveIntelligenceSystem": "src.thinking.competitive.competitive_intelligence_system",
+        "CompetitiveUnderstandingSystem": "src.thinking.competitive.competitive_understanding_system",
+        "CompetitiveIntelligenceSystem": "src.thinking.competitive.competitive_understanding_system",
         "SpecializedPredatorEvolution": "src.ecosystem.evolution.specialized_predator_evolution",
     }
 
@@ -70,7 +72,7 @@ def test_intelligence_facade_resolves_canonical_symbols(caplog):
         ),
         (
             "src.intelligence.competitive_intelligence",
-            "src.thinking.competitive.competitive_intelligence_system",
+            "src.thinking.competitive.competitive_understanding_system",
         ),
         (
             "src.intelligence.predictive_modeling",

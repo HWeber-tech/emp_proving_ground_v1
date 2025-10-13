@@ -29,6 +29,7 @@ __all__ = [
     "AdversarialTrainer",
     "RedTeamAI",
     "SpecializedPredatorEvolution",
+    "CompetitiveUnderstandingSystem",
     "CompetitiveIntelligenceSystem",
     "Phase3IntelligenceOrchestrator",
 ]
@@ -47,8 +48,11 @@ _LAZY_EXPORTS: dict[str, str] = {
     "AdversarialTrainer": "src.thinking.adversarial.adversarial_trainer:AdversarialTrainer",
     "RedTeamAI": "src.thinking.adversarial.red_team_ai:RedTeamAI",
     "SpecializedPredatorEvolution": "src.ecosystem.evolution.specialized_predator_evolution:SpecializedPredatorEvolution",
+    "CompetitiveUnderstandingSystem": (
+        "src.thinking.competitive.competitive_understanding_system:CompetitiveUnderstandingSystem"
+    ),
     "CompetitiveIntelligenceSystem": (
-        "src.thinking.competitive.competitive_intelligence_system:CompetitiveIntelligenceSystem"
+        "src.thinking.competitive.competitive_understanding_system:CompetitiveIntelligenceSystem"
     ),
 }
 
@@ -163,7 +167,7 @@ class Phase3IntelligenceOrchestrator:
         AdversarialTrainer = __getattr__("AdversarialTrainer")
         RedTeamAI = __getattr__("RedTeamAI")
         SpecializedPredatorEvolution = __getattr__("SpecializedPredatorEvolution")
-        CompetitiveIntelligenceSystem = __getattr__("CompetitiveIntelligenceSystem")
+        CompetitiveUnderstandingSystem = __getattr__("CompetitiveUnderstandingSystem")
 
         # Instantiate components
         self.sentient_engine = SentientAdaptationEngine()
@@ -173,7 +177,7 @@ class Phase3IntelligenceOrchestrator:
         self.red_team = RedTeamAI()
         self.specialized_evolution = SpecializedPredatorEvolution()
         self.portfolio_evolution = None
-        self.competitive_understanding = CompetitiveIntelligenceSystem()
+        self.competitive_understanding = CompetitiveUnderstandingSystem()
 
         # If any components expose initialize coroutines, call them defensively
         import inspect

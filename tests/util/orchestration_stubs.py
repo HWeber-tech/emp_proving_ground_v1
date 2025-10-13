@@ -154,8 +154,11 @@ def install_phase3_orchestrator(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     )
     _install_module(
         monkeypatch,
-        "src.thinking.competitive.competitive_intelligence_system",
-        {"CompetitiveIntelligenceSystem": StubCompetitiveIntelligence},
+        "src.thinking.competitive.competitive_understanding_system",
+        {
+            "CompetitiveUnderstandingSystem": StubCompetitiveIntelligence,
+            "CompetitiveIntelligenceSystem": StubCompetitiveIntelligence,
+        },
     )
     specialized_module = _install_module(
         monkeypatch,

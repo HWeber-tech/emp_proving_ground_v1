@@ -5,10 +5,11 @@ from datetime import datetime
 import pytest
 
 from src.operational.state_store.adapters import InMemoryStateStore
-from src.thinking.competitive.competitive_intelligence_system import (
+from src.thinking.competitive.competitive_understanding_system import (
     AlgorithmSignature,
     CompetitorBehavior,
     CompetitiveIntelligenceSystem,
+    CompetitiveUnderstandingSystem,
     CounterStrategy,
 )
 
@@ -16,7 +17,11 @@ from src.thinking.competitive.competitive_intelligence_system import (
 @pytest.mark.asyncio
 async def test_competitive_understanding_stats_alias_matches_legacy() -> None:
     store = InMemoryStateStore()
-    system = CompetitiveIntelligenceSystem(store)
+    system = CompetitiveUnderstandingSystem(store)
+
+    with pytest.warns(DeprecationWarning):
+        legacy_system = CompetitiveIntelligenceSystem(store)
+    assert isinstance(legacy_system, CompetitiveUnderstandingSystem)
 
     signature = AlgorithmSignature(
         signature_id="sig-1",

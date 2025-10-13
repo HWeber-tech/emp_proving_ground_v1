@@ -46,7 +46,7 @@ Prioritize the following frequently modified modules to minimize merge conflicts
 - `src/core/interfaces.py`
 - `src/validation/phase2_validation_suite.py`
 - `src/thinking/prediction/predictive_market_modeler.py`
-- `src/thinking/competitive/competitive_intelligence_system.py`
+- `src/thinking/competitive/competitive_understanding_system.py`
 
 ## Immediate Follow-Ups
 - Share this inventory with package owners and align on tranche sequencing.

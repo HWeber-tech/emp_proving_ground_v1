@@ -32,7 +32,9 @@ from src.ecosystem.evolution.specialized_predator_evolution import SpecializedPr
 from src.runtime.task_supervisor import TaskSupervisor
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI
-from src.thinking.competitive.competitive_intelligence_system import CompetitiveIntelligenceSystem
+from src.thinking.competitive.competitive_understanding_system import (
+    CompetitiveUnderstandingSystem,
+)
 from src.thinking.prediction.predictive_market_modeler import PredictiveMarketModeler
 
 
@@ -125,7 +127,7 @@ class Phase3Orchestrator:
         self.red_team: RedTeamP = RedTeamAI(state_store)
         self.specialized_evolution: SpecializedEvolutionP = SpecializedPredatorEvolution()
         self.competitive_understanding: CompetitiveUnderstandingP = (
-            CompetitiveIntelligenceSystem(state_store)
+            CompetitiveUnderstandingSystem(state_store)
         )
         # Legacy attribute retained for downstream compatibility during the
         # intelligence -> understanding terminology migration.

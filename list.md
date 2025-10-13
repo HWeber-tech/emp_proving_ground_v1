@@ -99,9 +99,9 @@
 99 - Replace Any payloads with typed JSONDict/TypedDict in [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py:1)
 100 - Ensure numpy array types via NDArray[np.float64] in [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py:1)
 101 - Clean up literal_eval paths and types in [src/thinking/prediction/predictive_market_modeler.py](src/thinking/prediction/predictive_market_modeler.py:1)
-102 - Provide competitive intelligence system typing in [src/thinking/competitive/competitive_intelligence_system.py](src/thinking/competitive/competitive_intelligence_system.py:1)
-103 - Replace Any across behavior/signature/strategy payloads in [src/thinking/competitive/competitive_intelligence_system.py](src/thinking/competitive/competitive_intelligence_system.py:1)
-104 - Fix float vs numpy scalar math consistency and type coercions in [src/thinking/competitive/competitive_intelligence_system.py](src/thinking/competitive/competitive_intelligence_system.py:1)
+102 - Provide competitive understanding system typing in [src/thinking/competitive/competitive_understanding_system.py](src/thinking/competitive/competitive_understanding_system.py:1)
+103 - Replace Any across behavior/signature/strategy payloads in [src/thinking/competitive/competitive_understanding_system.py](src/thinking/competitive/competitive_understanding_system.py:1)
+104 - Fix float vs numpy scalar math consistency and type coercions in [src/thinking/competitive/competitive_understanding_system.py](src/thinking/competitive/competitive_understanding_system.py:1)
 105 - Fully type red team engine in [src/thinking/adversarial/red_team_ai.py](src/thinking/adversarial/red_team_ai.py:1) with explicit dataclasses/TypedDicts
 106 - Remove dynamic lazy proxies for numpy and type resolution in [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py:1) by using TYPE_CHECKING and stubs
 107 - Replace Any and legacy ignores in [src/intelligence/red_team_ai.py](src/intelligence/red_team_ai.py:1) with precise types and stubs

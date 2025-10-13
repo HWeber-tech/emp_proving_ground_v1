@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from src.thinking.adversarial.red_team_ai import _to_mapping as red_to_mapping
-from src.thinking.competitive.competitive_intelligence_system import _to_mapping as ci_to_mapping
+from src.thinking.competitive.competitive_understanding_system import _to_mapping as ci_to_mapping
 
 
 class _DictFailure:

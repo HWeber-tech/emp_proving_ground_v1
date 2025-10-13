@@ -4,7 +4,7 @@ import logging
 import random
 from dataclasses import dataclass
 from time import time
-from typing import Callable, Dict, Iterable, Mapping, Optional, Sequence, cast
+from typing import Callable, Dict, Iterable, Literal, Mapping, Optional, Sequence, cast
 
 from src.core.genome import get_genome_provider
 from src.core.interfaces import DecisionGenome, PopulationManager as PopulationManagerProtocol
@@ -49,6 +49,26 @@ class EvolutionConfig:
     mutation_rate: float = 0.1
     max_generations: int = 100
     use_catalogue: bool | None = None
+    selection_mode: Literal["tournament", "mu_plus_lambda"] = "tournament"
+    offspring_count: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.population_size < 1:
+            raise ValueError("population_size must be >= 1")
+        if self.elite_count < 1:
+            raise ValueError("elite_count must be >= 1")
+        if self.elite_count > self.population_size:
+            raise ValueError("elite_count must be <= population_size")
+        if not 0.0 <= self.crossover_rate <= 1.0:
+            raise ValueError("crossover_rate must be between 0 and 1")
+        if not 0.0 <= self.mutation_rate <= 1.0:
+            raise ValueError("mutation_rate must be between 0 and 1")
+        if self.max_generations < 1:
+            raise ValueError("max_generations must be >= 1")
+        if self.selection_mode not in {"tournament", "mu_plus_lambda"}:
+            raise ValueError("selection_mode must be 'tournament' or 'mu_plus_lambda'")
+        if self.offspring_count is not None and self.offspring_count < 0:
+            raise ValueError("offspring_count must be >= 0 when provided")
 
 
 @dataclass
@@ -138,53 +158,151 @@ class EvolutionEngine:
         stats_before = self._population_manager.get_population_statistics()
         current_generation = _to_int(stats_before.get("generation", 0))
 
-        elite_count = max(1, min(self.config.elite_count, len(population)))
-        elites = list(self._population_manager.get_best_genomes(elite_count))
-        if not elites:
+        selection_mode = self.config.selection_mode
+        scored_population = sorted(population, key=self._fitness_value, reverse=True)
+
+        if selection_mode == "mu_plus_lambda" and scored_population:
+            mu = min(self.config.population_size, len(scored_population))
+            parent_pool = scored_population[:mu]
+        else:
+            parent_pool = list(population)
+
+        elite_basis = parent_pool if selection_mode == "mu_plus_lambda" else scored_population
+        elite_count = max(1, min(self.config.elite_count, len(elite_basis))) if elite_basis else 0
+        elites = elite_basis[:elite_count] if elite_basis else []
+        if not elites and population:
             elites = [population[0]]
 
-        new_population: list[DecisionGenome] = list(elites)
-        while len(new_population) < self.config.population_size:
-            parent1 = self._select_parent(population)
-            parent2 = self._select_parent(population) if len(population) > 1 else parent1
-            if parent2 is parent1 and len(population) > 1:
-                parent2 = self._select_alternate_parent(population, parent1)
+        if selection_mode == "mu_plus_lambda":
+            survivors = list(parent_pool) if parent_pool else list(population)
+            offspring_target = self.config.offspring_count
+            if offspring_target is None:
+                offspring_target = self.config.population_size
+            if offspring_target < 0:
+                offspring_target = 0
 
-            params_a = self._extract_parameters(parent1)
-            params_b = self._extract_parameters(parent2)
+            parent_source = survivors if survivors else list(population)
+            if not parent_source:
+                parent_source = [factory()]
 
-            if parent1 is parent2 or self._rng.random() >= self.config.crossover_rate:
-                child_params = dict(params_a)
-            else:
-                child_params = self._crossover_parameters(params_a, params_b)
+            new_population: list[DecisionGenome] = list(survivors)
+            target_size = len(survivors) + offspring_target
 
-            child_params = self._mutate_parameters(child_params, self.config.mutation_rate)
+            while len(new_population) < target_size and parent_source:
+                parent1 = self._select_parent(parent_source)
+                parent2 = (
+                    self._select_parent(parent_source)
+                    if len(parent_source) > 1
+                    else parent1
+                )
+                if parent2 is parent1 and len(parent_source) > 1:
+                    parent2 = self._select_alternate_parent(parent_source, parent1)
 
-            species = (
-                getattr(parent1, "species_type", None)
-                or getattr(parent2, "species_type", None)
-                or "core_strategy"
-            )
-            child = self._spawn_genome(
-                parameters=child_params,
-                species=species,
-                parents=[parent for parent in (parent1, parent2) if parent is not None],
-                generation=current_generation + 1,
-            )
+                params_a = self._extract_parameters(parent1)
+                params_b = self._extract_parameters(parent2)
 
-            new_population.append(child)
+                if parent1 is parent2 or self._rng.random() >= self.config.crossover_rate:
+                    child_params = dict(params_a)
+                else:
+                    child_params = self._crossover_parameters(params_a, params_b)
 
-            # Periodically inject a fresh random genome to maintain diversity
-            if self._rng.random() < 0.05 and len(new_population) < self.config.population_size:
+                child_params = self._mutate_parameters(child_params, self.config.mutation_rate)
+
+                species = (
+                    getattr(parent1, "species_type", None)
+                    or getattr(parent2, "species_type", None)
+                    or "core_strategy"
+                )
+                child = self._spawn_genome(
+                    parameters=child_params,
+                    species=species,
+                    parents=[parent for parent in (parent1, parent2) if parent is not None],
+                    generation=current_generation + 1,
+                )
+
+                new_population.append(child)
+
+                if self._rng.random() < 0.05 and len(new_population) < target_size:
+                    seed = factory()
+                    seed_child = self._spawn_genome(
+                        parameters=self._extract_parameters(seed),
+                        species=getattr(seed, "species_type", "core_strategy"),
+                        parents=[],
+                        generation=current_generation + 1,
+                    )
+                    new_population.append(seed_child)
+
+            while len(new_population) < target_size:
+                seed = factory()
                 seed_child = self._spawn_genome(
-                    parameters=self._extract_parameters(factory()),
-                    species="core_strategy",
+                    parameters=self._extract_parameters(seed),
+                    species=getattr(seed, "species_type", "core_strategy"),
                     parents=[],
                     generation=current_generation + 1,
                 )
                 new_population.append(seed_child)
 
-        self._population_manager.update_population(new_population[: self.config.population_size])
+            target_population = new_population[:target_size]
+        else:
+            working_population = list(population) if population else list(parent_pool)
+            new_population = list(elites)
+            while len(new_population) < self.config.population_size and working_population:
+                parent1 = self._select_parent(working_population)
+                parent2 = (
+                    self._select_parent(working_population)
+                    if len(working_population) > 1
+                    else parent1
+                )
+                if parent2 is parent1 and len(working_population) > 1:
+                    parent2 = self._select_alternate_parent(working_population, parent1)
+
+                params_a = self._extract_parameters(parent1)
+                params_b = self._extract_parameters(parent2)
+
+                if parent1 is parent2 or self._rng.random() >= self.config.crossover_rate:
+                    child_params = dict(params_a)
+                else:
+                    child_params = self._crossover_parameters(params_a, params_b)
+
+                child_params = self._mutate_parameters(child_params, self.config.mutation_rate)
+
+                species = (
+                    getattr(parent1, "species_type", None)
+                    or getattr(parent2, "species_type", None)
+                    or "core_strategy"
+                )
+                child = self._spawn_genome(
+                    parameters=child_params,
+                    species=species,
+                    parents=[parent for parent in (parent1, parent2) if parent is not None],
+                    generation=current_generation + 1,
+                )
+
+                new_population.append(child)
+
+                if self._rng.random() < 0.05 and len(new_population) < self.config.population_size:
+                    seed = factory()
+                    seed_child = self._spawn_genome(
+                        parameters=self._extract_parameters(seed),
+                        species=getattr(seed, "species_type", "core_strategy"),
+                        parents=[],
+                        generation=current_generation + 1,
+                    )
+                    new_population.append(seed_child)
+
+            while len(new_population) < self.config.population_size:
+                seed = factory()
+                seed_child = self._spawn_genome(
+                    parameters=self._extract_parameters(seed),
+                    species=getattr(seed, "species_type", "core_strategy"),
+                    parents=[],
+                    generation=current_generation + 1,
+                )
+                new_population.append(seed_child)
+
+            target_population = new_population[: self.config.population_size]
+
+        self._population_manager.update_population(target_population)
         self._population_manager.advance_generation()
         self._record_seed_metadata()
         stats = self._population_manager.get_population_statistics()
@@ -202,7 +320,7 @@ class EvolutionEngine:
         if len(population) == 1:
             return population[0]
         tournament = self._rng.sample(population, k=min(3, len(population)))
-        return max(tournament, key=lambda g: float(getattr(g, "fitness", 0.0) or 0.0))
+        return max(tournament, key=self._fitness_value)
 
     def _select_alternate_parent(
         self, population: Sequence[DecisionGenome], exclude: DecisionGenome
@@ -211,6 +329,13 @@ class EvolutionEngine:
         if not candidates:
             return exclude
         return self._select_parent(candidates)
+
+    def _fitness_value(self, genome: DecisionGenome) -> float:
+        value = getattr(genome, "fitness", None)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
 
     def _extract_parameters(self, genome: DecisionGenome) -> Dict[str, float]:
         params = getattr(genome, "parameters", {})

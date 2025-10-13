@@ -213,6 +213,15 @@ propagated directly to SQLAlchemy so production rehearsals can tune pool sizing
 without editing code; regression coverage exercises the Postgres vs SQLite
 paths.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L90】
 
+When `TIMESCALEDB_URL` is absent the same helper now assembles a connection URL
+from discrete credentials (`TIMESCALEDB_HOST`, `TIMESCALEDB_PORT`,
+`TIMESCALEDB_DB`, `TIMESCALEDB_USER`, `TIMESCALEDB_PASSWORD`) and optional
+Postgres-style TLS hints (`TIMESCALEDB_SSLMODE`, `TIMESCALEDB_SSLROOTCERT`,
+`TIMESCALEDB_SSLKEY`, `TIMESCALEDB_SSLCERT`).  This keeps configuration aligned
+with managed Timescale deployments that distribute host/port secrets via
+environment injection while still allowing a prebuilt URL to take precedence;
+tests lock the new assembly path and the explicit-URL override behaviour.【F:src/data_foundation/persist/timescale.py†L130-L210】【F:tests/data_foundation/test_timescale_connection_settings.py†L92-L122】
+
 When `SystemConfig.data_backbone_mode` is `institutional`, the operational
 backbone factory automatically requires Timescale and Redis extras and, when
 `KAFKA_INGEST_ENABLE_STREAMING` resolves truthy (accepting `1/true/yes/on` or

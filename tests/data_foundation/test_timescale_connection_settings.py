@@ -88,3 +88,36 @@ def test_timescale_connection_settings_skips_pool_overrides_for_sqlite(
     assert "max_overflow" not in params
     assert params["pool_pre_ping"] is False
     assert "connect_args" not in params
+
+
+def test_timescale_connection_settings_builds_url_from_components() -> None:
+    extras = {
+        "TIMESCALEDB_HOST": "timescale.prod.internal",
+        "TIMESCALEDB_PORT": "6543",
+        "TIMESCALEDB_DB": "alpha_trade",
+        "TIMESCALEDB_USER": "alpha_user",
+        "TIMESCALEDB_PASSWORD": "s3cr3t!",
+        "TIMESCALEDB_SSLMODE": "require",
+        "TIMESCALEDB_SSLROOTCERT": "/etc/timescale/root.pem",
+        "TIMESCALEDB_DRIVER": "psycopg2",
+    }
+
+    settings = TimescaleConnectionSettings.from_mapping(extras)
+
+    assert (
+        settings.url
+        == "postgresql+psycopg2://alpha_user:s3cr3t%21@timescale.prod.internal:6543/alpha_trade"
+        "?sslmode=require&sslrootcert=/etc/timescale/root.pem"
+    )
+    assert settings.configured is True
+
+
+def test_timescale_connection_settings_prefers_explicit_url() -> None:
+    extras = {
+        "TIMESCALEDB_URL": "postgresql://primary/db",
+        "TIMESCALEDB_HOST": "ignored.example.com",
+    }
+
+    settings = TimescaleConnectionSettings.from_mapping(extras)
+
+    assert settings.url == "postgresql://primary/db"

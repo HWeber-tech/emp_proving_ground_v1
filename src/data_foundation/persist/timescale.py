@@ -24,6 +24,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Iterable, Mapping, Sequence, cast
+from urllib.parse import quote
 from uuid import uuid4
 
 import json
@@ -100,6 +101,20 @@ def _load_json_sequence(raw: object) -> list[Any]:
 
 
 DEFAULT_SQLITE_FALLBACK = "sqlite:///data/timescale_sim.db"
+
+
+def _encode_query_params(pairs: Sequence[tuple[str, str]]) -> str:
+    segments: list[str] = []
+    for key, value in pairs:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        encoded_key = quote(str(key), safe="")
+        encoded_value = quote(text, safe="/@:._-")
+        segments.append(f"{encoded_key}={encoded_value}")
+    return "&".join(segments)
 
 
 def _normalise_mapping(env: Mapping[str, str] | None) -> Mapping[str, str]:
@@ -192,6 +207,75 @@ class TimescaleConnectionSettings:
         pool_timeout = _coerce_optional_float("TIMESCALEDB_POOL_TIMEOUT", None)
         pool_recycle = _coerce_optional_int("TIMESCALEDB_POOL_RECYCLE", None)
         pool_pre_ping = _coerce_bool("TIMESCALEDB_POOL_PRE_PING", True)
+
+        def _lookup(*keys: str) -> str | None:
+            for key in keys:
+                raw_value = data.get(key)
+                if raw_value is None:
+                    continue
+                text_value = str(raw_value).strip()
+                if text_value:
+                    return text_value
+            return None
+
+        if url == DEFAULT_SQLITE_FALLBACK:
+            host = _lookup("TIMESCALEDB_HOST", "TIMESCALE_HOST", "PGHOST")
+            if host:
+                driver = _lookup("TIMESCALEDB_DRIVER", "PGDRIVER")
+                dialect = f"postgresql+{driver}" if driver else "postgresql"
+                port_text = _lookup("TIMESCALEDB_PORT", "TIMESCALE_PORT", "PGPORT")
+                port_segment = ""
+                if port_text is not None:
+                    try:
+                        port_segment = f":{int(port_text)}"
+                    except (TypeError, ValueError):
+                        port_segment = ""
+
+                username = _lookup(
+                    "TIMESCALEDB_USER",
+                    "TIMESCALEDB_USERNAME",
+                    "TIMESCALE_USER",
+                    "TIMESCALE_USERNAME",
+                    "PGUSER",
+                )
+                password = _lookup(
+                    "TIMESCALEDB_PASSWORD",
+                    "TIMESCALE_PASSWORD",
+                    "PGPASSWORD",
+                )
+                netloc = host
+                if username:
+                    userinfo = quote(username, safe="")
+                    if password:
+                        userinfo += ":" + quote(password, safe="")
+                    netloc = f"{userinfo}@{host}"
+                if port_segment:
+                    netloc = f"{netloc}{port_segment}"
+
+                database = _lookup(
+                    "TIMESCALEDB_DB",
+                    "TIMESCALEDB_DATABASE",
+                    "TIMESCALE_DATABASE",
+                    "PGDATABASE",
+                ) or "postgres"
+                path = quote(database, safe="")
+
+                query_pairs: list[tuple[str, str]] = []
+                for key, env_keys in (
+                    ("sslmode", ("TIMESCALEDB_SSLMODE", "PGSSLMODE")),
+                    ("sslrootcert", ("TIMESCALEDB_SSLROOTCERT", "PGSSLROOTCERT")),
+                    ("sslcert", ("TIMESCALEDB_SSLCERT", "PGSSLCERT")),
+                    ("sslkey", ("TIMESCALEDB_SSLKEY", "PGSSLKEY")),
+                ):
+                    value = _lookup(*env_keys)
+                    if value:
+                        query_pairs.append((key, value))
+
+                query = _encode_query_params(tuple(query_pairs)) if query_pairs else ""
+
+                url = f"{dialect}://{netloc}/{path}"
+                if query:
+                    url = f"{url}?{query}"
 
         return cls(
             url=url,

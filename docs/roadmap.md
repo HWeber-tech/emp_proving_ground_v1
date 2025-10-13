@@ -32,7 +32,7 @@
 - [ ] `[adapt]` **LinearAttentionRouter** (flagâ€‘guarded) for policy arbitration.
 - [ ] `[adapt]` **Fastâ€‘weights (Ïƒ) kernel** (Hebbian decay + potentiation); **lowâ€‘rank** implementation; clamps/decay.
 - [ ] `[reflect]` **Decision Diary** table + writer (belief, policy_hash, exec_topo, risk_template, features, decision, ex_post).
-- [ ] `[reflect]` 3â€“5 **synapse probes** (e.g., opening auction, sweep risk, imbalance surge).
+- [ ] `[reflect]` 3â€“5 **synapse probes** (e.g., opening auction, sweep risk, imbalance surge). _Progress: WHAT sensor now emits trend-strength telemetry, metadata, and lineage parity so probes discriminate bullish versus bearish sequences under regression coverage.【F:src/sensory/what/what_sensor.py†L83-L200】【F:tests/sensory/test_primary_dimension_sensors.py†L35-L83】_
 - [ ] `[reflect]` **Drift Sentry** (Pageâ€“Hinkley/CUSUM) + actions (freeze exploration, halve size) + â€œtheory packetâ€.
 - [ ] `[obs]` Graph diagnostics nightly job: degree hist, modularity, coreâ€“periphery (thresholds set).
 
@@ -95,7 +95,7 @@
 **Deliverables**
 - [ ] `[ops]` Containerized runtime (Docker) + deployment profile (dev/paper); health checks.
 - [ ] `[core]` Live market data ingest configured (API keys, symbols, session calendars).
-- [ ] `[sim]` **Paper broker** connector smokeâ€‘tested; failover & reconnect logic.
+- [ ] `[sim]` **Paper broker** connector smokeâ€‘tested; failover & reconnect logic. _Progress: Paper trading simulation reports persist aggregated order summaries with side/symbol splits and broker failover snapshots so operators inherit audit-ready context, locked by regression coverage.【F:src/runtime/paper_simulation.py†L339-L367】【F:tests/runtime/test_paper_trading_simulation_runner.py†L132-L188】【F:tests/integration/test_paper_trading_simulation.py†L394-L429】_
 - [ ] `[obs]` Monitoring: dashboards (latency, throughput, P&L swings, memory); alerts on tail spikes and drift.
 - [ ] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports).
 

@@ -42,7 +42,9 @@
   data feeds remain forthcoming. The WHAT sensor also offloads pattern synthesis
   into a worker thread when invoked inside an active asyncio loop so pattern
   payloads stay populated during runtime drills, with coverage capturing the
-  async-path metadata.【F:src/sensory/what/what_sensor.py†L114-L224】【F:src/sensory/when/when_sensor.py†L147-L230】【F:src/sensory/why/why_sensor.py†L126-L238】【F:tests/sensory/test_primary_dimension_sensors.py†L1-L116】
+  async-path metadata. Recent uplift adds a built-in trend-strength score that
+  threads through lineage, telemetry, and default signals so directional probes
+  distinguish bullish versus bearish sequences under pytest coverage.【F:src/sensory/what/what_sensor.py†L83-L200】【F:src/sensory/when/when_sensor.py†L147-L230】【F:src/sensory/why/why_sensor.py†L126-L238】【F:tests/sensory/test_primary_dimension_sensors.py†L35-L174】
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata and bundled metrics payloads, and
   exposes audit/status helpers

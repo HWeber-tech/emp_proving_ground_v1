@@ -14,12 +14,12 @@
 **Deliverables**
 - [ ] `[risk]` Preâ€‘trade invariants verified (exposure, price bands, inventory, drawdown); killâ€‘switch wired.
 - [x] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env). _Progress: `AdaptationFeatureToggles` resolves SystemConfig posture into fast-weight, linear-attention, and exploration flags, flows them through the operational backbone pipeline and runtime, and regression coverage proves AlphaTrade respects environment defaults while diary metadata mirrors forced fast-weight shutdowns.【F:src/thinking/adaptation/feature_toggles.py†L1-L164】【F:src/data_foundation/pipelines/operational_backbone.py†L35-L213】【F:tools/data_ingest/run_operational_backbone.py†L287-L313】【F:src/runtime/predator_app.py†L260-L288】【F:src/orchestration/alpha_trade_runner.py†L120-L198】【F:tests/thinking/test_adaptation_feature_toggles.py†L1-L86】【F:tests/orchestration/test_alpha_trade_runner.py†L268-L298】_
-- [ ] `[obs]` Minimal **heartbeat** & latency counters (ingestâ†’signalâ†’orderâ†’ack p50/p99/p99.9).
+- [x] `[obs]` Minimal **heartbeat** & latency counters (ingestâ†’signalâ†’orderâ†’ack p50/p99/p99.9). _Progress: `PipelineLatencyMonitor` now records ingest, signal, order, ack, and total latencies with heartbeat ticks/orders inside the bootstrap stack, exposes the snapshot through the runtime status surface, and regression coverage asserts samples populate during simulated runs so operators inherit ready-to-export counters.【F:src/orchestration/pipeline_metrics.py†L1-L137】【F:src/orchestration/bootstrap_stack.py†L195-L351】【F:src/runtime/bootstrap_runtime.py†L328-L344】【F:tests/current/test_bootstrap_stack.py†L170-L176】【F:tests/current/test_bootstrap_runtime_integration.py†L167-L169】_
 - [x] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table. _Progress: CONTRIBUTING.md now documents simulation, paper, and liveâ€‘shadow launch recipes alongside a featureâ€‘flag matrix that complements the workflow guide in `docs/development/contributing.md`, giving operators the runtime posture and evidence checklist they need for roadmap gates.【F:CONTRIBUTING.md†L1-L96】_
 
 **Acceptance (DoD)**
 - [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes.
-- [ ] `[obs]` Heartbeat visible during a 30â€‘minute run; latency counters populated.
+- [x] `[obs]` Heartbeat visible during a 30â€‘minute run; latency counters populated. _Progress: Runtime smoke tests exercise the bootstrap loop until status snapshots expose populated heartbeat ticks while stack-level tests confirm ingest and ack percentiles accumulate across ticks, proving the counters fill during multi-tick rehearsals.【F:tests/current/test_bootstrap_runtime_integration.py†L167-L169】【F:tests/current/test_bootstrap_stack.py†L170-L176】_
 - [x] `[ops]` Deterministic run reproducible via one command (`make run-sim` or equivalent). _Progress: The `run-sim` wrapper now boots the bootstrap runtime with deterministic defaults, writes summaries/diaries, exposes CLI overrides, and ships a Makefile target plus regression coverage so a single command reproduces the acceptance drill with evidence artifacts.【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】【F:Makefile†L103-L121】_
 
 ---
@@ -59,7 +59,7 @@
 
 **Budgeted, Safe Exploration**
 - [ ] `[adapt]` **Global exploration budget** (â‰¤ X% flow, mutate every K decisions) enforced in router.
-- [ ] `[adapt]` **Counterfactual guardrails** (passive vs aggro delta bounds) for live candidates.
+- [ ] `[adapt]` **Counterfactual guardrails** (passive vs aggro delta bounds) for live candidates. _Progress: AlphaTradeLoopRunner now merges counterfactual guardrail payloads with existing risk metadata so forced-paper actions propagate to trade intents, trade outcomes, and diaries under regression coverage.【F:src/orchestration/alpha_trade_runner.py†L190-L225】【F:tests/orchestration/test_alpha_trade_runner.py†L253-L365】【F:src/trading/execution/release_router.py†L447-L516】_
 - [ ] `[reflect]` **Autoâ€‘freeze** exploration on drift or risk warnings (hooks wired).
 
 **Provenance & Governance**
@@ -70,7 +70,7 @@
 **Acceptance (DoD)**
 - [ ] `[sim]` Spawn â†’ score â†’ **promote** a **new topology** (not just parameter tweak) via ledger gates.
 - [ ] `[risk]` **0** invariant violations during exploration; freeze triggers on violations/drift immediately.
-- [ ] `[obs]` Evolution KPIs live: timeâ€‘toâ€‘candidate, promotion rate, budget usage, rollback latency.
+- [x] `[obs]` Evolution KPIs live: timeâ€‘toâ€‘candidate, promotion rate, budget usage, rollback latency. _Progress: `evaluate_evolution_kpis` fuses experimentation turnaround, ledger promotions, exploration budget, and rollback latency into Prometheus-backed gauges that feed the observability dashboard’s Evolution KPIs panel with regression coverage locking both the KPI snapshot and rendered panel wiring.【F:src/operations/evolution_kpis.py†L1-L740】【F:src/operational/metrics.py†L182-L296】【F:src/operations/observability_dashboard.py†L569-L720】【F:tests/operations/test_evolution_kpis.py†L1-L120】【F:tests/operations/test_observability_dashboard.py†L399-L527】_
 - [ ] `[adapt]` p50/p99 decision latency **not worse** than M1 baseline.
 
 ---
@@ -78,7 +78,7 @@
 ## M3 â€” Governed Reflection Feedback (Weeks 5â€“8)
 
 **Deliverables**
-- [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers). _Progress: RIMSuggestion contracts now ship a traceability payload that records code/config/model hashes, batch diary slices, and target strategies, with TRM runner and application tests asserting the evidence pointers persist through governance queues and ledger metadata.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L166】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】_
+- [ ] `[reflect]` **RIM/TRM proposal schema** (confidence, rationale, affected regimes, evidence pointers). _Progress: RIMSuggestion schema now requires a `trace` payload with non-empty code/config/batch hashes and diary slices, and TRM runner/application tests assert every suggestion emits the trace object end-to-end so governance queues preserve evidence pointers.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L123】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】_
 - [x] `[reflect]` Governance rule: **autoâ€‘apply** proposals IF (a) OOS uplift â‰¥ threshold, (b) 0 risk hits in replay, (c) budget available. _Progress: Auto-apply guard now loads thresholds from `config/reflection/rim.config.example.yml`, evaluates uplift, risk hits, and budget utilisation inside `TRMRunner`, and surfaces evaluations in the governance queue and digest with regression coverage documenting rejection reasons.【F:config/reflection/rim.config.example.yml†L13-L24】【F:src/reflection/trm/config.py†L44-L169】【F:src/reflection/trm/runner.py†L138-L213】【F:tests/reflection/test_trm_runner.py†L70-L150】_
 - [x] `[reflect]` Shadow job: nightly RIM run â‡’ proposals â‡’ governance gate â‡’ staged application (flagâ€‘guarded). _Progress: The shadow runner now enforces the governance gate, writes skip digests, and stamps auto-apply decisions into the queue/markdown artifacts, with regression coverage ensuring nightly RIM runs stage approved changes without bypassing safeguards.【F:tools/rim_shadow_run.py†L160-L222】【F:src/reflection/trm/governance.py†L19-L247】【F:tests/tools/test_rim_shadow_run.py†L44-L139】【F:tests/reflection/test_trm_governance.py†L16-L126】_
 - [ ] `[reflect]` Ledger entries for accepted/rejected proposals + human signâ€‘offs. _Progress: Ledger releases now surface metadata/policy deltas alongside staged approvals so governance packets inherit the recorded reviewers and auto-applied changes in the exported posture snapshot.【F:src/governance/policy_ledger.py†L572-L595】_

@@ -127,6 +127,7 @@ can layer on without introducing third-party dependencies.
   publishes the feed on the runtime bus, and records the latest block in the
   professional runtime so operators can review automated tuning guidance alongside
   experiment metrics.【F:src/operations/evolution_tuning.py†L1-L443】【F:src/runtime/runtime_builder.py†L2566-L2649】【F:src/runtime/predator_app.py†L229-L515】【F:src/runtime/predator_app.py†L1098-L1104】【F:tests/operations/test_evolution_tuning.py†L1-L172】【F:tests/runtime/test_professional_app_timescale.py†L1298-L1338】
+* **Evolution KPI telemetry** – `evaluate_evolution_kpis` fuses time-to-candidate stats, ledger transitions, exploration budget snapshots, and rollback latency into a single payload, records Prometheus gauges, and drives the observability dashboard panel under regression coverage so operators inherit SLA posture without bespoke wiring.【F:src/operations/evolution_kpis.py†L1-L740】【F:src/operational/metrics.py†L182-L296】【F:src/operations/observability_dashboard.py†L569-L720】【F:tests/operations/test_evolution_kpis.py†L1-L120】【F:tests/operations/test_observability_dashboard.py†L399-L527】
 * **Strategy performance telemetry** – `evaluate_strategy_performance` groups
   trading-manager experiment events and ROI snapshots into
   `telemetry.strategy.performance`, logs Markdown summaries, and the professional

@@ -111,6 +111,7 @@
     escalating severities from ROI status, risk-limit breaches, event-bus/SLO
     lag, and coverage posture while retaining structured metadata for each panel
     so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L566-L905】【F:tests/operations/test_observability_dashboard.py†L220-L320】
+  - Progress: Observability dashboard now renders an Evolution KPIs panel powered by `evaluate_evolution_kpis`, surfacing SLA status, promotion posture, budget usage, and rollback latency while Prometheus gauges keep the metrics exportable under regression coverage.【F:src/operations/evolution_kpis.py†L1-L740】【F:src/operational/metrics.py†L182-L296】【F:src/operations/observability_dashboard.py†L569-L720】【F:tests/operations/test_evolution_kpis.py†L1-L120】【F:tests/operations/test_observability_dashboard.py†L399-L527】
   - Progress: Observability dashboard metadata now auto-fills panel status counts
     and severity maps next to the remediation capsule, and exports Markdown
     summaries so exporters and runbooks can ingest a machine-readable readiness
@@ -131,7 +132,7 @@
     simulation runs, diary validation, and KPI regeneration so observability
     reviewers can reproduce the paper-trading packet directly from versioned
     documentation instead of ad-hoc notes.【F:docs/AlphaTrade_Whitepaper.md†L21-L28】【F:docs/AlphaTrade_Whitepaper.md†L50-L77】
-  - Progress: TRM reflection exports now embed a `trace` payload capturing batch diary slices, code/config/model hashes, and target strategies, with runner and auto-apply tests ensuring the evidence pointers persist through governance queues and ledger metadata for observability packets.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L166】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】
+  - Progress: TRM reflection exports now require and embed a `trace` payload with non-empty code/config/batch hashes alongside diary slices and target strategies, and runner/auto-apply tests ensure governance queues and ledger metadata retain the evidence pointers for observability packets.【F:interfaces/rim_types.json†L81-L178】【F:tests/reflection/test_trm_runner.py†L93-L123】【F:tests/reflection/test_trm_application.py†L18-L129】【F:docs/design/trm_reflection_design.md†L95-L110】
   - Progress: Dry-run audit evaluator now applies minimum runtime and uptime
     thresholds, emitting structured incidents when evidence windows are too
     short or availability slips, with regression coverage confirming the new

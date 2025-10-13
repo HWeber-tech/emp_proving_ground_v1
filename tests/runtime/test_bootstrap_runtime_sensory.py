@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any, Mapping
 
 import sys
@@ -300,3 +301,49 @@ async def test_bootstrap_runtime_publishes_sensory_telemetry(monkeypatch) -> Non
     status = runtime.status()
     metrics_payload = status.get("sensory_metrics")
     assert metrics_payload == metrics_calls[-1].as_dict()
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_runtime_supervises_run_loop_restart(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.05)
+
+    supervisor = TaskSupervisor(namespace="test-bootstrap-restart", cancel_timeout=0.1)
+    loop_counter = 0
+    resumed = asyncio.Event()
+
+    async def _failing_run_loop(self) -> None:
+        nonlocal loop_counter
+        loop_counter += 1
+        if loop_counter == 1:
+            raise RuntimeError("synthetic loop failure")
+        resumed.set()
+        while not self._stop_event.is_set():
+            await asyncio.sleep(0.01)
+
+    runtime._run_loop = types.MethodType(  # type: ignore[attr-defined]
+        _failing_run_loop,
+        runtime,
+    )
+
+    with caplog.at_level(logging.ERROR, supervisor._logger.name):
+        await runtime.start(task_supervisor=supervisor)
+        try:
+            await asyncio.wait_for(resumed.wait(), timeout=2.0)
+            assert loop_counter >= 2, "runtime loop did not resume after failure"
+
+            snapshots = supervisor.describe()
+            loop_snapshot = next(
+                (snapshot for snapshot in snapshots if snapshot.get("name") == "bootstrap-runtime-loop"),
+                None,
+            )
+            assert loop_snapshot is not None
+            assert loop_snapshot.get("restarts", 0) >= 1
+            assert any(
+                "synthetic loop failure" in (record.exc_text or "") for record in caplog.records
+            )
+        finally:
+            await runtime.stop()
+            await supervisor.cancel_all()

@@ -23,6 +23,9 @@ briefs and CI health snapshot.
 - [Drift sentry response](drift_sentry_response.md) – Maps Page–Hinkley and
   variance detector severities to alert policies, readiness dashboards, and
   remediation steps so operators can halt promotions when sensory drift spikes.
+- [Incident playbook validation](incident_playbook_validation.md) – Bundles the
+  kill-switch, nightly replay, and trade rollback drills into a repeatable
+  evidence pack for the incident response programme.
 
 Keep these documents close to the institutional data backbone alignment brief so
 runbooks, roadmap status, and acceptance hooks evolve together.

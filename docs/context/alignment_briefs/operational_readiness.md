@@ -136,6 +136,10 @@
   - Progress: Compliance panels now ingest the AlphaTrade loop’s enriched governance events, surfacing stage labels, stage-gate reasons, and breach counts directly on the dashboard so operators can reconcile forced-paper decisions without spelunking through logs.【F:src/operations/observability_dashboard.py†L825-L963】【F:tests/operations/test_observability_dashboard.py†L340-L368】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
+- Progress: Incident playbook validation now ships as a bundled CLI that runs the
+  kill-switch, nightly replay, and trade throttle rollback drills, persists a
+  JSON evidence pack, and links into the refreshed runbook so operators can drop
+  the artifacts straight into the context pack.【F:tools/operations/incident_playbook_validation.py†L208】【F:docs/operations/runbooks/incident_playbook_validation.md†L1】【F:docs/operations/runbooks/incident_playbook_validation.md†L31】【F:tests/tools/test_incident_playbook_validation.py†L9】
 - Extend CI step summaries to include risk, ingest, and sensory telemetry status so
   failures surface promptly.
 

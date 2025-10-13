@@ -96,6 +96,11 @@ class AlphaTradeLoopResult:
 class AlphaTradeLoopOrchestrator:
     """Coordinate policy routing, drift gating, and governance recording."""
 
+    _COUNTERFACTUAL_LIMITS: Mapping[PolicyLedgerStage, Mapping[str, float]] = {
+        PolicyLedgerStage.PILOT: {"relative": 0.35},
+        PolicyLedgerStage.LIMITED_LIVE: {"relative": 0.20},
+    }
+
     def __init__(
         self,
         *,
@@ -229,11 +234,78 @@ class AlphaTradeLoopOrchestrator:
             force_required = True
         guardrails["force_paper"] = force_required
 
+        guardrails = self._apply_counterfactual_guardrail(
+            guardrails,
+            decision,
+            guardrail_stage,
+        )
+
         if guardrails == decision.guardrails:
             return decision_bundle
 
         updated_decision = replace(decision, guardrails=guardrails)
         return replace(decision_bundle, decision=updated_decision)
+
+    def _apply_counterfactual_guardrail(
+        self,
+        guardrails: MutableMapping[str, Any],
+        decision: PolicyDecision,
+        stage: PolicyLedgerStage,
+    ) -> MutableMapping[str, Any]:
+        breakdown = decision.weight_breakdown
+        if not isinstance(breakdown, Mapping) or not breakdown:
+            return guardrails
+
+        passive_score = breakdown.get("base_score")
+        final_score = breakdown.get("final_score") or decision.selected_weight
+
+        try:
+            passive_score_value = float(passive_score)
+        except (TypeError, ValueError):
+            passive_score_value = None
+        try:
+            final_score_value = float(final_score)
+        except (TypeError, ValueError):
+            final_score_value = None
+
+        if passive_score_value is None or final_score_value is None:
+            return guardrails
+
+        delta = final_score_value - passive_score_value
+        relative_delta: float | None = None
+        if passive_score_value != 0.0:
+            relative_delta = delta / passive_score_value
+
+        limits = self._COUNTERFACTUAL_LIMITS.get(stage, {})
+        max_relative = limits.get("relative")
+        max_absolute = limits.get("absolute")
+
+        breached = False
+        if max_relative is not None and relative_delta is not None:
+            if abs(relative_delta) > max_relative:
+                breached = True
+        if max_absolute is not None:
+            if abs(delta) > max_absolute:
+                breached = True
+
+        guardrail_payload: dict[str, Any] = {
+            "stage": stage.value,
+            "passive_score": passive_score_value,
+            "aggro_score": final_score_value,
+            "score_delta": delta,
+            "relative_delta": relative_delta,
+            "max_relative_delta": max_relative,
+            "max_absolute_delta": max_absolute,
+            "breached": breached,
+        }
+
+        if breached:
+            guardrail_payload["reason"] = "counterfactual_guardrail_delta_exceeded"
+            guardrail_payload["action"] = "force_paper"
+            guardrails["force_paper"] = True
+
+        guardrails["counterfactual_guardrail"] = guardrail_payload
+        return guardrails
 
     def run_iteration(
         self,
@@ -322,19 +394,22 @@ class AlphaTradeLoopOrchestrator:
         }
         fast_weight_metrics = dict(decision_bundle.fast_weight_metrics)
 
+        guardrail_force_paper = bool(decision.guardrails.get("force_paper"))
+
         metadata: MutableMapping[str, Any] = {
             "policy_id": resolved_policy_id,
             "release_stage": stage.value,
             "drift": drift_decision.as_dict(),
             "thresholds": dict(thresholds),
             "applied_adapters": decision_bundle.applied_adapters,
-            "force_paper": drift_decision.force_paper,
+            "force_paper": drift_decision.force_paper or guardrail_force_paper,
             "trade_metadata": dict(trade or {}),
             "release_stage_sources": {
                 "policy": stage_sources["policy"].value,
                 "tactic": stage_sources["tactic"].value,
             },
         }
+        metadata.setdefault("guardrails", dict(decision.guardrails))
         fast_weight_enabled = belief_snapshot.fast_weights_enabled
         enabled_value = fast_weight_enabled if isinstance(fast_weight_enabled, bool) else None
         metadata["fast_weight"] = {

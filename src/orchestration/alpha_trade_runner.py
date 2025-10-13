@@ -164,6 +164,9 @@ class AlphaTradeLoopRunner:
         trade_metadata = dict(trade_plan.metadata or {})
         if "fast_weight" not in trade_metadata:
             trade_metadata["fast_weight"] = dict(fast_weight_metadata)
+        guardrails_payload = dict(loop_result.decision.guardrails)
+        if guardrails_payload:
+            trade_metadata.setdefault("guardrails", guardrails_payload)
 
         attribution_payload = self._build_order_attribution(
             belief_state=belief_state,
@@ -181,6 +184,8 @@ class AlphaTradeLoopRunner:
                 metadata_payload["fast_weight"] = dict(fast_weight_metadata)
             if attribution_payload and "attribution" not in metadata_payload:
                 metadata_payload["attribution"] = attribution_payload
+            if guardrails_payload and "guardrails" not in metadata_payload:
+                metadata_payload["guardrails"] = guardrails_payload
             raw_intent["metadata"] = metadata_payload
             intent_payload = raw_intent
         if intent_payload is None:

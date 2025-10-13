@@ -185,8 +185,11 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert isinstance(fast_weight_metadata, dict)
     assert fast_weight_metadata.get("enabled") is True
     assert "metrics" in fast_weight_metadata
+    guardrails = result.loop_result.decision.guardrails
+    assert result.trade_metadata.get("guardrails") == guardrails
     intent_fast_weight = trading_manager.intents[0]["metadata"].get("fast_weight")
     assert intent_fast_weight == fast_weight_metadata
+    assert trading_manager.intents[0]["metadata"].get("guardrails") == guardrails
     attribution = result.trade_metadata.get("attribution")
     assert isinstance(attribution, dict)
     belief_summary = attribution.get("belief")
@@ -200,6 +203,7 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert result.trade_outcome is not None
     assert result.trade_outcome.status == "executed"
     assert result.trade_outcome.metadata.get("attribution") == attribution
+    assert result.trade_outcome.metadata.get("guardrails") == guardrails
     entry = diary_store.entries()[0]
     trade_execution = entry.metadata.get("trade_execution")
     assert isinstance(trade_execution, dict)

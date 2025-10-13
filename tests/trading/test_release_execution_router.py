@@ -234,6 +234,59 @@ async def test_release_router_stage_gate_paper_forces_paper(tmp_path: Path) -> N
 
 
 @pytest.mark.asyncio()
+async def test_release_router_counterfactual_guardrail_forces_paper(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger_guardrail.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha_guard",
+        tactic_id="alpha_guard",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha-guard",
+    )
+
+    paper_engine = StubEngine("paper")
+    live_engine = StubEngine("live")
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+        live_engine=live_engine,
+    )
+
+    intent: dict[str, Any] = {
+        "strategy_id": "alpha_guard",
+        "metadata": {
+            "guardrails": {
+                "counterfactual_guardrail": {
+                    "breached": True,
+                    "reason": "counterfactual_guardrail_delta_exceeded",
+                }
+            }
+        },
+    }
+
+    result = await router.process_order(intent)
+
+    assert result == "paper-ok"
+    assert len(paper_engine.calls) == 1
+    assert not live_engine.calls
+
+    metadata = intent.get("metadata")
+    assert isinstance(metadata, dict)
+    assert metadata.get("release_execution_route") == "paper"
+    assert metadata.get("release_execution_route_overridden") is True
+    assert metadata.get("release_execution_forced") == "counterfactual_guardrail_delta_exceeded"
+    assert metadata.get("release_execution_forced_reasons") == [
+        "counterfactual_guardrail_delta_exceeded"
+    ]
+
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("forced_route") == "paper"
+    assert last_route.get("forced_reason") == "counterfactual_guardrail_delta_exceeded"
+
+
+@pytest.mark.asyncio()
 async def test_release_router_configure_engines_for_stage_routing(tmp_path: Path) -> None:
     store = PolicyLedgerStore(tmp_path / "ledger_configure.json")
     release_manager = LedgerReleaseManager(store)

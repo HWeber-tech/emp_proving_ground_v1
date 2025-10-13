@@ -427,10 +427,18 @@ class ReleaseAwareExecutionRouter:
         self,
         metadata: Mapping[str, Any] | None,
     ) -> tuple[bool, str | None, DriftSeverity | None]:
+        guardrail_reason = self._counterfactual_guardrail_reason(metadata)
+        guardrail_force = guardrail_reason is not None
+
         if not metadata:
+            if guardrail_force:
+                return True, guardrail_reason, None
             return False, None, None
+
         gate_payload = metadata.get("drift_gate")
         if not isinstance(gate_payload, Mapping):
+            if guardrail_force:
+                return True, guardrail_reason, None
             return False, None, None
 
         allowed = gate_payload.get("allowed")
@@ -462,10 +470,32 @@ class ReleaseAwareExecutionRouter:
             return True, forced_reason, severity
 
         if severity is None or severity is DriftSeverity.normal:
+            if guardrail_force:
+                return True, guardrail_reason, None
             return False, None, severity
 
         reason = f"drift_gate_severity_{severity.value}"
         return True, reason, severity
+
+    @staticmethod
+    def _counterfactual_guardrail_reason(
+        metadata: Mapping[str, Any] | None,
+    ) -> str | None:
+        if not metadata:
+            return None
+        guardrails_payload = metadata.get("guardrails")
+        if not isinstance(guardrails_payload, Mapping):
+            return None
+        candidate = guardrails_payload.get("counterfactual_guardrail")
+        if not isinstance(candidate, Mapping):
+            candidate = guardrails_payload.get("counterfactual")
+            if not isinstance(candidate, Mapping):
+                return None
+        breached = candidate.get("breached")
+        if isinstance(breached, bool) and breached:
+            reason = candidate.get("reason") or "counterfactual_guardrail_breach"
+            return str(reason)
+        return None
 
     @staticmethod
     def _stage_force_reason(stage: PolicyLedgerStage) -> str | None:

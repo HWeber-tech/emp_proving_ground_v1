@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Mapping, MutableMapping
+from typing import Any, Callable, Mapping, MutableMapping, Sequence
 from urllib.parse import urljoin
 import uuid
 
@@ -19,6 +19,24 @@ __all__ = [
     "PaperTradingApiSettings",
     "PaperTradingApiAdapter",
 ]
+
+
+def _clone_mapping(payload: Mapping[Any, Any]) -> dict[str, Any]:
+    """Recursively copy mapping-like structures for safe exposure."""
+
+    result: MutableMapping[str, Any] = {}
+    for key, value in payload.items():
+        key_str = str(key)
+        if isinstance(value, Mapping):
+            result[key_str] = _clone_mapping(value)
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            result[key_str] = [
+                _clone_mapping(item) if isinstance(item, Mapping) else item
+                for item in value
+            ]
+        else:
+            result[key_str] = value
+    return dict(result)
 
 
 class PaperTradingApiError(RuntimeError):
@@ -245,6 +263,7 @@ class PaperTradingApiAdapter:
         self._settings = settings
         self._session_factory = session_factory
         self._session: aiohttp.ClientSession | None = None
+        self._last_submission: MutableMapping[str, Any] | None = None
 
     @property
     def settings(self) -> PaperTradingApiSettings:
@@ -260,9 +279,10 @@ class PaperTradingApiAdapter:
         attempts = max(1, int(self._settings.retry_attempts))
         backoff = max(0.0, float(self._settings.retry_backoff_seconds))
         last_error: PaperTradingApiError | None = None
+        self._last_submission = None
         for attempt in range(1, attempts + 1):
             try:
-                return await self._submit_market_order(symbol, side, quantity)
+                return await self._submit_market_order(symbol, side, quantity, attempt)
             except PaperTradingApiError as exc:
                 last_error = exc
                 if attempt >= attempts:
@@ -285,12 +305,30 @@ class PaperTradingApiAdapter:
             f"Paper trading API failed after {attempts} attempts: {last_error}"
         ) from last_error
 
-    async def _submit_market_order(self, symbol: str, side: str, quantity: float) -> str:
+    async def _submit_market_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        attempt: int,
+    ) -> str:
         session = await self._ensure_session()
         url = self._build_orders_url()
         payload = self._build_market_payload(symbol, side, quantity)
         headers = self._settings.build_headers()
         timeout = self._build_timeout()
+
+        submission: MutableMapping[str, Any] = {
+            "attempt": attempt,
+            "request": {
+                "url": url,
+                "payload": dict(payload),
+                "headers": dict(headers),
+                "verify_ssl": self._settings.verify_ssl,
+            },
+        }
+        if timeout is not None:
+            submission["request"]["timeout"] = timeout.total
 
         logger.debug(
             "paper_trading_api_submit",
@@ -311,26 +349,66 @@ class PaperTradingApiAdapter:
                 timeout=timeout,
             ) as response:
                 body_text = await response.text()
+                submission["response"] = {
+                    "status": response.status,
+                    "headers": {str(k): str(v) for k, v in response.headers.items()},
+                    "body_text": body_text,
+                }
                 if response.status >= 400:
-                    raise PaperTradingApiError(
+                    error = PaperTradingApiError(
                         f"Paper trading API responded with {response.status}: {body_text}"
                     )
+                    submission["error"] = {
+                        "type": error.__class__.__name__,
+                        "message": str(error),
+                    }
+                    self._last_submission = submission
+                    raise error
                 try:
                     body = await response.json()
                 except aiohttp.ContentTypeError as exc:
-                    raise PaperTradingApiError(
+                    error = PaperTradingApiError(
                         f"Paper trading API returned non-JSON payload: {body_text}"
-                    ) from exc
+                    )
+                    submission["error"] = {
+                        "type": error.__class__.__name__,
+                        "message": str(error),
+                    }
+                    submission["response"]["body_text"] = body_text
+                    self._last_submission = submission
+                    raise error from exc
+                else:
+                    submission["response"]["body_json"] = body
         except asyncio.TimeoutError as exc:
-            raise PaperTradingApiError("Paper trading API request timed out") from exc
+            error = PaperTradingApiError("Paper trading API request timed out")
+            submission["error"] = {
+                "type": error.__class__.__name__,
+                "message": str(error),
+            }
+            self._last_submission = submission
+            raise error from exc
         except aiohttp.ClientError as exc:
-            raise PaperTradingApiError(f"Paper trading API request failed: {exc}") from exc
+            error = PaperTradingApiError(f"Paper trading API request failed: {exc}")
+            submission["error"] = {
+                "type": error.__class__.__name__,
+                "message": str(error),
+            }
+            self._last_submission = submission
+            raise error from exc
 
         order_id = self._extract_order_id(body)
         if not order_id:
-            raise PaperTradingApiError(
+            error = PaperTradingApiError(
                 "Paper trading API response is missing an order identifier"
             )
+            submission["error"] = {
+                "type": error.__class__.__name__,
+                "message": str(error),
+            }
+            self._last_submission = submission
+            raise error
+        submission.setdefault("response", {})["order_id"] = order_id
+        self._last_submission = submission
         return order_id
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
@@ -421,3 +499,22 @@ class PaperTradingApiAdapter:
         if self._settings.extra_headers:
             payload["extra_headers"] = dict(self._settings.extra_headers)
         return payload
+
+    def describe_last_submission(self) -> Mapping[str, Any] | None:
+        """Expose the most recent request/response pair for audit logging."""
+
+        if not self._last_submission:
+            return None
+        snapshot: MutableMapping[str, Any] = {}
+        for key, value in self._last_submission.items():
+            key_str = str(key)
+            if isinstance(value, Mapping):
+                snapshot[key_str] = _clone_mapping(value)
+            elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+                snapshot[key_str] = [
+                    _clone_mapping(item) if isinstance(item, Mapping) else item
+                    for item in value
+                ]
+            else:
+                snapshot[key_str] = value
+        return dict(snapshot)

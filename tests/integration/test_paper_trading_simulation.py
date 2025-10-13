@@ -107,6 +107,9 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         assert "last_order" in execution_outcome
         assert execution_outcome["last_order"]["symbol"] == "EURUSD"
         assert "placed_at" in execution_outcome["last_order"]
+        broker_snapshot = execution_outcome["last_order"].get("broker_submission", {})
+        assert broker_snapshot.get("response", {}).get("order_id") == "sim-123"
+        assert broker_snapshot.get("request", {}).get("payload", {}).get("symbol") == "EURUSD"
         assert execution_outcome.get("last_error") in (None, {})
         metrics_snapshot = execution_outcome.get("paper_metrics")
         assert isinstance(metrics_snapshot, dict)
@@ -300,6 +303,8 @@ async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> 
             assert error_payload.get("stage") == "broker_submission"
             assert error_payload.get("exception_type") == "PaperTradingApiError"
             assert "gateway failure" in error_payload.get("exception", "")
+            broker_submission = error_payload.get("broker_submission", {})
+            assert broker_submission.get("response", {}).get("status") == 502
         else:
             latest_entry = entries[-1]
             execution_outcome = latest_entry.get("outcomes", {}).get("execution", {})
@@ -415,3 +420,5 @@ async def test_paper_trading_simulation_handles_persistent_api_failure(tmp_path)
     error_snapshot = execution_outcome.get("last_error", {})
     assert error_snapshot.get("stage") == "broker_submission"
     assert error_snapshot.get("exception_type") == "PaperTradingApiError"
+    broker_submission = error_snapshot.get("broker_submission", {})
+    assert broker_submission.get("response", {}).get("status") == 500

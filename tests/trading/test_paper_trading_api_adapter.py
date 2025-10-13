@@ -66,6 +66,11 @@ async def test_paper_trading_api_adapter_places_market_order() -> None:
         assert submitted["side"] == "buy"
         assert submitted["type"] == "market"
         assert "client_order_id" in submitted
+        snapshot = adapter.describe_last_submission()
+        assert snapshot is not None
+        assert snapshot.get("attempt") == 1
+        assert snapshot.get("response", {}).get("order_id") == "ORD-123"
+        assert snapshot.get("request", {}).get("url")
     finally:
         await adapter.close()
         await shutdown()
@@ -90,6 +95,12 @@ async def test_paper_trading_api_adapter_raises_on_http_error() -> None:
     try:
         with pytest.raises(PaperTradingApiError):
             await adapter.place_market_order("GBPUSD", "sell", 2.0)
+        snapshot = adapter.describe_last_submission()
+        assert snapshot is not None
+        assert snapshot.get("attempt") == settings.retry_attempts
+        response = snapshot.get("response", {})
+        assert response.get("status") == 503
+        assert "Service unavailable" in response.get("body_text", "")
     finally:
         await adapter.close()
         await shutdown()
@@ -129,6 +140,15 @@ async def test_paper_trading_api_adapter_retries_and_succeeds() -> None:
 
     assert order_id == "ORD-RETRY"
     assert call_counter["count"] == 2
+    snapshot = adapter.describe_last_submission()
+    assert snapshot is not None
+    assert snapshot.get("attempt") == 2
+    response = snapshot.get("response", {})
+    assert response.get("status") == 200
+    assert response.get("order_id") == "ORD-RETRY"
+    request = snapshot.get("request", {})
+    assert request.get("payload", {}).get("symbol") == "EURUSD"
+    assert "headers" in request
 
 
 @pytest.mark.asyncio

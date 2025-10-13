@@ -59,6 +59,31 @@ class _DescribingBroker(_StubBroker):
         return dict(self._description)
 
 
+class _TelemetryBroker(_StubBroker):
+    def __init__(self, *, order_id: str = "BROKER-100") -> None:
+        super().__init__(order_id=order_id)
+        self._last_submission: dict[str, Any] | None = None
+
+    async def place_market_order(self, symbol: str, side: str, quantity: float) -> str:
+        order_id = await super().place_market_order(symbol, side, quantity)
+        self._last_submission = {
+            "request": {
+                "symbol": symbol,
+                "side": side,
+                "quantity": quantity,
+            },
+            "response": {
+                "order_id": order_id,
+            },
+        }
+        return order_id
+
+    def describe_last_submission(self) -> Mapping[str, Any]:
+        if self._last_submission is None:
+            return {}
+        return {key: value for key, value in self._last_submission.items()}
+
+
 class _FailingBroker:
     async def place_market_order(self, _symbol: str, _side: str, _quantity: float) -> None:
         await asyncio.sleep(0)
@@ -266,6 +291,34 @@ async def test_paper_broker_adapter_describes_broker_interface() -> None:
     assert summary.get("base_url") == "http://paper.example"
     assert summary.get("order_endpoint") == "/orders"
     assert summary.get("order_id_field") == "order_id"
+
+
+@pytest.mark.asyncio
+async def test_paper_broker_adapter_captures_broker_submission_metadata() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _TelemetryBroker(order_id="BROKER-777")
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+        order_timeout=None,
+    )
+
+    order_id = await adapter.process_order(
+        {
+            "symbol": "USDJPY",
+            "side": "buy",
+            "quantity": 4.0,
+        }
+    )
+
+    assert order_id == "BROKER-777"
+    last_order = adapter.describe_last_order()
+    assert last_order is not None
+    submission = last_order.get("broker_submission")
+    assert isinstance(submission, Mapping)
+    assert submission.get("response", {}).get("order_id") == "BROKER-777"
+    assert submission.get("request", {}).get("symbol") == "USDJPY"
 
 
 @pytest.mark.asyncio

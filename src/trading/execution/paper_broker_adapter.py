@@ -273,6 +273,10 @@ class PaperBrokerExecutionAdapter:
         if self._last_risk_error is not None:
             self._last_order["risk_error"] = dict(self._last_risk_error)
 
+        broker_submission = self._fetch_broker_submission()
+        if broker_submission:
+            self._last_order["broker_submission"] = broker_submission
+
         self._order_history.append(dict(self._last_order))
         self._last_order_time = now
         if self._first_order_time is None:
@@ -425,6 +429,10 @@ class PaperBrokerExecutionAdapter:
         if self._last_risk_error is not None:
             payload["risk_error"] = dict(self._last_risk_error)
 
+        broker_submission = self._fetch_broker_submission()
+        if broker_submission:
+            payload["broker_submission"] = broker_submission
+
         now = datetime.now(timezone.utc)
         payload["recorded_at"] = now.isoformat()
 
@@ -445,3 +453,33 @@ class PaperBrokerExecutionAdapter:
         self._total_orders += 1
         self._failed_orders += 1
         self._last_latency = None
+
+    def _fetch_broker_submission(self) -> Mapping[str, Any] | None:
+        """Capture request/response telemetry exposed by the broker interface."""
+
+        interface = self.broker_interface
+        if interface is None:
+            return None
+
+        accessor_names = (
+            "describe_last_submission",
+            "get_last_submission",
+            "snapshot_last_submission",
+            "last_submission",
+        )
+
+        for name in accessor_names:
+            candidate = getattr(interface, name, None)
+            if candidate is None:
+                continue
+            try:
+                if callable(candidate):
+                    submission = candidate()
+                else:
+                    submission = candidate
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug("Broker submission accessor '%s' failed", name, exc_info=True)
+                continue
+            if isinstance(submission, Mapping):
+                return {str(key): value for key, value in submission.items()}
+        return None

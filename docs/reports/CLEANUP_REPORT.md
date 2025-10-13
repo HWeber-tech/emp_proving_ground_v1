@@ -140,7 +140,7 @@ Dead code candidates (first 100):
 -  src\integration\component_integrator.py
 -  src\integration\component_integrator_impl.py
 -  src\intelligence\adversarial_training.py
--  ~~src\intelligence\competitive_intelligence.py~~ (removed; canonical competitive intelligence lives in `src/thinking/competitive/competitive_intelligence_system.py` and is covered by the lazy intelligence facade.)【F:src/thinking/competitive/competitive_intelligence_system.py†L84-L758】【F:src/intelligence/__init__.py†L40-L117】
+-  ~~src\intelligence\competitive_intelligence.py~~ (removed; canonical competitive understanding lives in `src/thinking/competitive/competitive_understanding_system.py` and is covered by the lazy intelligence facade.)【F:src/thinking/competitive/competitive_understanding_system.py†L19-L965】【F:src/intelligence/__init__.py†L24-L117】
 -  ~~src\intelligence\portfolio_evolution.py~~ (removed; portfolio evolution now routes through the intelligence facade and ecosystem optimisers.)
 -  ~~src\intelligence\predictive_modeling.py~~ (removed; predictive modeling contracts resolve through `src/thinking/prediction/predictive_market_modeler.py` and remain available via the intelligence facade.)【F:src/thinking/prediction/predictive_market_modeler.py†L368-L740】【F:src/intelligence/__init__.py†L40-L117】
 -  ~~src\intelligence\red_team_ai.py~~ (removed; canonical red-team surface resides in `src/thinking/adversarial/red_team_ai.py` and the facade lazily proxies the public API.)【F:src/thinking/adversarial/red_team_ai.py†L132-L612】【F:src/intelligence/__init__.py†L40-L117】

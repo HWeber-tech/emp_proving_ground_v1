@@ -69,9 +69,11 @@ backlog grooming, release readiness reviews, and post-mortems.
 - Executable HOW/ANOMALY organs now wrap the canonical sensors, normalise market
   frames or sequences, track calibrated windows, emit telemetry/lineage metadata,
   and expose structured readings under guardrail coverage so runtime summaries
-  inherit deterministic dimension organs instead of placeholders; the HOW suite
-  now exercises bullish versus bearish payloads against the institutional
-  engine to prove bias discrimination before live ingest.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L210】【F:tests/sensory/test_dimension_organs.py†L130-L186】
+  inherit deterministic dimension organs instead of placeholders; the updated
+  InstitutionalUnderstandingEngine supplies liquidity/participation/imbalance/regime
+  metrics with bounded jitter and confidence scaling while guard suites replay
+  bullish versus bearish payloads and belief pipelines to assert discrimination
+  before live ingest.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L210】【F:src/sensory/enhanced/how_dimension.py†L19-L117】【F:tests/sensory/test_dimension_organs.py†L147-L204】【F:tests/understanding/test_sensory_belief_pipeline.py†L84-L144】
 
 **Gaps to close:**
 1. Calibrate HOW/ANOMALY organs against institutional ingest once live, wiring
@@ -82,7 +84,7 @@ backlog grooming, release readiness reviews, and post-mortems.
    seeding, and adaptive decision loops.
 
 **Actionable checklist:**
-- [x] Executable HOW/ANOMALY organs integrated with runtime summary and drift telemetry; bias discrimination coverage now drives the enhanced HOW engine.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L210】【F:tests/sensory/test_dimension_organs.py†L130-L186】
+- [x] Executable HOW/ANOMALY organs integrated with runtime summary and drift telemetry; bias discrimination coverage now drives the enhanced InstitutionalUnderstandingEngine across sensory organs and belief pipelines.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L210】【F:src/sensory/enhanced/how_dimension.py†L19-L117】【F:tests/sensory/test_dimension_organs.py†L147-L204】【F:tests/understanding/test_sensory_belief_pipeline.py†L84-L144】
 - [ ] Catalogue-backed genomes with lineage telemetry captured for governance review.
 - [ ] Regression suites covering sensory drift, catalogue seeding, and adaptive loops.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 
@@ -121,12 +123,14 @@ backlog grooming, release readiness reviews, and post-mortems.
   reasons so governance reviews see the execution posture despite mock execution
   engines underneath.【F:src/runtime/bootstrap_runtime.py†L195-L428】【F:src/runtime/predator_app.py†L1001-L1141】【F:tests/current/test_bootstrap_runtime_integration.py†L238-L268】【F:tests/trading/test_trading_manager_execution.py†L960-L983】
 - Async event bus teardown now spawns a supervised `event-bus-shutdown` task with
-  component metadata so TaskSupervisor rosters capture cancellation, and tests
-  assert the shutdown entry persists even when factories swap during runtime.【F:src/core/_event_bus_impl.py†L501-L590】【F:tests/current/test_event_bus_task_supervision.py†L178-L244】
-- Final dry run harness rotates structured and raw log sinks via
-  `--log-rotate-hours`, surfaces rotated counts in CLI summaries, and records the
-  behaviour in the runbook so multi-day rehearsals stay reviewable under guardrail
-  coverage.【F:src/operations/final_dry_run.py†L307-L405】【F:emp/cli/final_dry_run.py†L335-L487】【F:docs/runbooks/final_dry_run.md†L58-L64】【F:tests/operations/test_final_dry_run.py†L247-L266】【F:tests/operations/test_final_dry_run_cli.py†L78-L116】
+  component metadata, and TaskSupervisor tracking adds restart counters, hang
+  timeout telemetry, and loop-factory coverage so rosters capture cancellation
+  history even when factories swap during runtime; guard suites cover the new
+  diagnostics alongside the event-bus shutdown path.【F:src/runtime/task_supervisor.py†L1-L358】【F:tests/runtime/test_task_supervisor.py†L9-L360】【F:src/core/_event_bus_impl.py†L501-L590】【F:tests/current/test_event_bus_task_supervision.py†L178-L244】
+- Final dry run harness now rotates structured/raw log sinks, auto-wires diary/performance/log
+  directories plus run labels into child processes, and materialises review + wrap-up
+  artefacts alongside packet manifests; the runbook documents the turnkey flow and
+  tests drive the orchestrator end to end so multi-day rehearsals stay reviewable.【F:src/operations/final_dry_run.py†L307-L405】【F:tools/operations/final_dry_run_orchestrator.py†L401-L519】【F:docs/runbooks/final_dry_run.md†L10-L160】【F:tests/operations/test_final_dry_run.py†L107-L256】【F:tests/operations/test_final_dry_run_orchestrator.py†L106-L243】
 - Regulatory telemetry publisher uses the shared failover helper, logging
   runtime failures and falling back to the global bus so compliance snapshots
   persist through outages.【F:src/operations/regulatory_telemetry.py†L11-L388】【F:tests/operations/test_regulatory_telemetry.py†L18-L160】

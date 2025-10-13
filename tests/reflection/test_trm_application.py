@@ -18,9 +18,40 @@ def _write_queue_lines(path: Path, suggestions: list[dict[str, object]]) -> None
 def _build_queue_entry(strategy_id: str, *, suggestion_id: str, delta: float) -> dict[str, object]:
     run_id = "rim-run-001"
     applied_at = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    timestamp = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    trace_payload = {
+        "code_hash": "test-code",
+        "config_hash": "cfg-hash",
+        "model_hash": "model-hash",
+        "batch_input_hash": "batch-hash",
+        "target_strategy_ids": [strategy_id],
+        "diary_slice": {
+            "source_path": "artifacts/diaries/diaries-0001.jsonl",
+            "window": {"start": timestamp, "end": timestamp, "minutes": 60},
+            "aggregates": {"total_entries": 1},
+            "entry_count": 1,
+            "strategy_entry_count": 1,
+            "strategy_entries": [
+                {
+                    "timestamp": timestamp,
+                    "strategy_id": strategy_id,
+                    "instrument": "test-instrument",
+                    "pnl": 0.0,
+                    "action": "hold",
+                    "input_hash": "entry-001",
+                    "risk_flags": [],
+                    "outcome_labels": [],
+                    "raw": {"strategy_id": strategy_id},
+                }
+            ],
+        },
+    }
     return {
         "suggestion_id": suggestion_id,
         "type": "WEIGHT_ADJUST",
+        "input_hash": "batch-hash",
+        "model_hash": "model-hash",
+        "config_hash": "cfg-hash",
         "payload": {
             "strategy_id": strategy_id,
             "proposed_weight_delta": delta,
@@ -28,6 +59,7 @@ def _build_queue_entry(strategy_id: str, *, suggestion_id: str, delta: float) ->
         },
         "confidence": 0.83,
         "audit_ids": ["diary-001"],
+        "trace": trace_payload,
         "governance": {
             "queue": "reflection.trm",
             "status": "auto_applied",
@@ -90,6 +122,11 @@ def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None
     assert payload["type"] == "WEIGHT_ADJUST"
     assert payload["auto_apply"]["applied"] is True
     assert payload["payload"]["proposed_weight_delta"] == -0.07
+    trace = payload.get("trace")
+    assert trace is not None
+    assert trace.get("code_hash") == "test-code"
+    diary_slice = trace.get("diary_slice")
+    assert diary_slice is not None and diary_slice.get("strategy_entries")
 
     # Re-running should be idempotent.
     reapplied = apply_auto_applied_suggestions_to_ledger(

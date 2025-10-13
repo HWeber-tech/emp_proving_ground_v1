@@ -102,6 +102,23 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
         validator.validate(suggestion)
         assert suggestion["confidence"] >= 0.5
         assert suggestion["type"] in {"WEIGHT_ADJUST", "STRATEGY_FLAG", "EXPERIMENT_PROPOSAL"}
+        trace = suggestion.get("trace")
+        assert isinstance(trace, dict), "expected trace payload on suggestion"
+        assert trace.get("config_hash") == suggestion["config_hash"]
+        assert trace.get("model_hash") == suggestion["model_hash"]
+        assert trace.get("batch_input_hash") == suggestion["input_hash"]
+        assert isinstance(trace.get("code_hash"), str)
+        diary_slice = trace.get("diary_slice")
+        assert isinstance(diary_slice, dict)
+        assert "window" in diary_slice
+        assert diary_slice.get("entry_count", 0) >= diary_slice.get("strategy_entry_count", 0)
+        strategy_entries = diary_slice.get("strategy_entries")
+        assert isinstance(strategy_entries, list) and strategy_entries, "expected strategy entries in trace"
+        first_entry = strategy_entries[0]
+        assert "raw" in first_entry and "input_hash" in first_entry
+        assert trace.get("target_strategy_ids")
+        if "source_path" in diary_slice:
+            assert diary_slice["source_path"], "source_path should not be empty"
 
     # Telemetry log should exist
     assert telemetry_dir.exists()

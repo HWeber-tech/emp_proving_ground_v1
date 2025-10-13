@@ -105,6 +105,7 @@ sequenceDiagram
 | `rationale` | string | Human-readable explanation. |
 | `audit_ids` | array[string] | Cross-links to diary entries. |
 | `created_at` | string (ISO-8601, UTC) | Suggestion emission time. |
+| `trace` | object | Traceability payload (input diary slice, code hash, config hash). |
 
 Canonical schemas live in [`interfaces/rim_types.json`](../../interfaces/rim_types.json). Diary entries within a batch are sorted by timestamp (stable on ties) before hashing to guarantee deterministic `input_hash` values.
 

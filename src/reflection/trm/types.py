@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping
 
 
@@ -37,6 +38,7 @@ class RIMInputBatch:
     input_hash: str
     window: RIMWindow
     aggregates: Mapping[str, Any]
+    source_path: Path | None = None
 
 
 @dataclass(slots=True)

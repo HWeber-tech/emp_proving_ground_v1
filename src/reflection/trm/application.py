@@ -220,6 +220,9 @@ def _build_metadata_payload(
     run_id = governance.get("run_id")
     if run_id:
         payload["run_id"] = run_id
+    trace = entry.get("trace")
+    if isinstance(trace, Mapping):
+        payload["trace"] = json.loads(json.dumps(trace))
     metadata_block = {}
     evaluation = auto_apply.get("evaluation")
     if isinstance(evaluation, Mapping):

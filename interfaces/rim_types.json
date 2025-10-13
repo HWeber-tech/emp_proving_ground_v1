@@ -78,6 +78,69 @@
       },
       "additionalProperties": true
     },
+    "Traceability": {
+      "type": "object",
+      "required": ["diary_slice"],
+      "properties": {
+        "code_hash": {"type": "string"},
+        "config_hash": {"type": "string"},
+        "model_hash": {"type": "string"},
+        "batch_input_hash": {"type": "string"},
+        "target_strategy_ids": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "diary_slice": {
+          "type": "object",
+          "required": ["window", "entry_count", "strategy_entries"],
+          "properties": {
+            "source_path": {"type": "string"},
+            "window": {
+              "type": "object",
+              "required": ["start", "end", "minutes"],
+              "properties": {
+                "start": {"type": "string", "format": "date-time"},
+                "end": {"type": "string", "format": "date-time"},
+                "minutes": {"type": "integer", "minimum": 1}
+              },
+              "additionalProperties": true
+            },
+            "aggregates": {"type": "object"},
+            "entry_count": {"type": "integer", "minimum": 0},
+            "strategy_entry_count": {"type": "integer", "minimum": 0},
+            "strategy_entries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["timestamp", "strategy_id", "input_hash"],
+                "properties": {
+                  "timestamp": {"type": "string", "format": "date-time"},
+                  "strategy_id": {"type": "string"},
+                  "instrument": {"type": "string"},
+                  "pnl": {"type": "number"},
+                  "action": {"type": "string"},
+                  "input_hash": {"type": "string"},
+                  "risk_flags": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  },
+                  "outcome_labels": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  },
+                  "belief_confidence": {"type": "number"},
+                  "features_digest": {"type": "object"},
+                  "raw": {"type": "object"}
+                },
+                "additionalProperties": true
+              }
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "RIMSuggestion": {
       "type": "object",
       "required": [
@@ -110,7 +173,8 @@
           "type": "array",
           "items": {"type": "string", "minLength": 1}
         },
-        "created_at": {"type": "string", "format": "date-time"}
+        "created_at": {"type": "string", "format": "date-time"},
+        "trace": {"$ref": "#/definitions/Traceability"}
       },
       "additionalProperties": true
     }

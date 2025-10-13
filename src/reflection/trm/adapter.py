@@ -46,7 +46,13 @@ class RIMInputAdapter:
 
         aggregates = self._build_aggregates(filtered_entries)
         input_hash = self._compute_input_hash(filtered_entries)
-        return RIMInputBatch(entries=filtered_entries, input_hash=input_hash, window=rim_window, aggregates=aggregates)
+        return RIMInputBatch(
+            entries=filtered_entries,
+            input_hash=input_hash,
+            window=rim_window,
+            aggregates=aggregates,
+            source_path=path,
+        )
 
     def _load_entries(self, path: Path) -> Iterable[DecisionDiaryEntry]:
         with path.open("r", encoding="utf-8") as handle:

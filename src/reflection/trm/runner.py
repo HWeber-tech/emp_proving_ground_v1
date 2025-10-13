@@ -6,9 +6,11 @@ import datetime as dt
 import json
 import os
 import platform
+import subprocess
 import time
 from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
@@ -18,7 +20,7 @@ from .encoder import RIMEncoder
 from .model import TRMModel
 from .governance import AutoApplyRuleConfig, ProposalEvaluation, publish_governance_artifacts
 from .postprocess import build_suggestions
-from .types import RIMInputBatch, StrategyEncoding
+from .types import DecisionDiaryEntry, RIMInputBatch, StrategyEncoding
 
 
 @dataclass(slots=True)
@@ -103,6 +105,21 @@ class TRMRunner:
                     max_budget_utilisation=settings.max_budget_utilisation,
                     require_budget_metrics=settings.require_budget_metrics,
                 )
+
+        trace_lookup = _build_trace_payloads(
+            suggestions,
+            batch=batch,
+            config_hash=self._config_hash,
+            model_hash=self._model.model_hash,
+            code_hash=_resolve_code_hash(),
+        )
+        for suggestion in suggestions:
+            suggestion_id = str(suggestion.get("suggestion_id", "")).strip()
+            if not suggestion_id:
+                continue
+            trace_payload = trace_lookup.get(suggestion_id)
+            if trace_payload is not None:
+                suggestion["trace"] = trace_payload
 
         suggestions_path = self._publish(
             suggestions,
@@ -273,6 +290,157 @@ def _build_proposal_evaluations(
         )
 
     return tuple(evaluations)
+
+
+def _build_trace_payloads(
+    suggestions: Sequence[Mapping[str, object]],
+    *,
+    batch: RIMInputBatch,
+    config_hash: str,
+    model_hash: str,
+    code_hash: str | None,
+) -> dict[str, dict[str, object]]:
+    if not suggestions:
+        return {}
+
+    entries_by_strategy: dict[str, list[DecisionDiaryEntry]] = {}
+    for entry in batch.entries:
+        entries_by_strategy.setdefault(entry.strategy_id, []).append(entry)
+
+    diary_slice_template: dict[str, object] = {
+        "window": {
+            "start": _format_timestamp(batch.window.start),
+            "end": _format_timestamp(batch.window.end),
+            "minutes": batch.window.minutes,
+        },
+        "entry_count": len(batch.entries),
+        "aggregates": _normalise_value(batch.aggregates),
+    }
+    if batch.source_path is not None:
+        diary_slice_template["source_path"] = str(batch.source_path)
+
+    trace_lookup: dict[str, dict[str, object]] = {}
+    code_hash_value = code_hash or "unknown"
+
+    for suggestion in suggestions:
+        suggestion_id = str(suggestion.get("suggestion_id", "")).strip()
+        if not suggestion_id:
+            continue
+
+        target_ids = _extract_target_strategy_ids(suggestion)
+        strategy_entries: list[dict[str, object]] = []
+        for strategy_id in target_ids:
+            for entry in entries_by_strategy.get(strategy_id, ()):  # preserve order
+                strategy_entries.append(_serialise_diary_entry(entry))
+        if not strategy_entries:
+            strategy_entries = [_serialise_diary_entry(entry) for entry in batch.entries]
+
+        diary_slice = dict(diary_slice_template)
+        diary_slice["strategy_entry_count"] = len(strategy_entries)
+        diary_slice["strategy_entries"] = strategy_entries
+
+        trace_lookup[suggestion_id] = {
+            "code_hash": code_hash_value,
+            "config_hash": str(suggestion.get("config_hash", config_hash)),
+            "model_hash": str(suggestion.get("model_hash", model_hash)),
+            "batch_input_hash": batch.input_hash,
+            "target_strategy_ids": list(target_ids),
+            "diary_slice": diary_slice,
+        }
+
+    return trace_lookup
+
+
+def _extract_target_strategy_ids(suggestion: Mapping[str, object]) -> tuple[str, ...]:
+    payload = suggestion.get("payload")
+    if not isinstance(payload, Mapping):
+        return tuple()
+
+    suggestion_type = str(suggestion.get("type", "")).upper()
+    candidate_ids: list[str] = []
+
+    strategy_id = payload.get("strategy_id")
+    if strategy_id:
+        candidate_ids.append(str(strategy_id))
+
+    if suggestion_type == "EXPERIMENT_PROPOSAL":
+        raw_candidates = payload.get("strategy_candidates")
+        if isinstance(raw_candidates, Sequence) and not isinstance(raw_candidates, (str, bytes)):
+            for candidate in raw_candidates:
+                if candidate:
+                    candidate_ids.append(str(candidate))
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for candidate in candidate_ids:
+        if candidate not in seen:
+            deduped.append(candidate)
+            seen.add(candidate)
+    return tuple(deduped)
+
+
+def _serialise_diary_entry(entry: DecisionDiaryEntry) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "timestamp": _format_timestamp(entry.timestamp),
+        "strategy_id": entry.strategy_id,
+        "instrument": entry.instrument,
+        "pnl": float(entry.pnl),
+        "action": entry.action,
+        "input_hash": entry.input_hash,
+        "risk_flags": [str(flag) for flag in entry.risk_flags],
+        "outcome_labels": [str(label) for label in entry.outcome_labels],
+    }
+    if entry.belief_confidence is not None:
+        payload["belief_confidence"] = float(entry.belief_confidence)
+    if entry.features_digest:
+        payload["features_digest"] = {
+            str(key): float(value) for key, value in entry.features_digest.items()
+        }
+    payload["raw"] = dict(entry.raw)
+    return payload
+
+
+def _normalise_value(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _normalise_value(val) for key, val in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_normalise_value(item) for item in value]
+    if isinstance(value, dt.datetime):
+        return _format_timestamp(value)
+    if isinstance(value, dt.date):
+        return value.isoformat()
+    return value
+
+
+def _format_timestamp(value: dt.datetime) -> str:
+    return value.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+@lru_cache(maxsize=1)
+def _resolve_code_hash() -> str | None:
+    root = _discover_repo_root()
+    if root is None:
+        return None
+    try:
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(root),
+                stderr=subprocess.DEVNULL,
+            )
+            .decode("utf-8")
+            .strip()
+        )
+    except Exception:
+        return None
+
+
+def _discover_repo_root() -> Path | None:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / ".git").exists():
+            return parent
+    return None
 
 
 def _suggestion_strategy_id(suggestion: Mapping[str, object]) -> str | None:

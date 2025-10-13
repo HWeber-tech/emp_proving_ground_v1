@@ -169,6 +169,25 @@ def _coerce_float(value: object, default: float = 0.0) -> float:
     return coerced
 
 
+_DIMENSION_EXTRA_VALUE_KEYS: dict[str, tuple[str, ...]] = {
+    "WHAT": ("last_close",),
+    "WHEN": ("session", "news", "gamma"),
+    "HOW": ("liquidity", "participation", "imbalance", "volatility_drag", "volatility"),
+    "WHY": ("narrative_sentiment",),
+}
+
+
+def _populate_dimension_features(
+    accumulator: MutableMapping[str, float],
+    dimension: str,
+    value_payload: Mapping[str, object] | None,
+) -> None:
+    extras = _DIMENSION_EXTRA_VALUE_KEYS.get(dimension, ())
+    for key in extras:
+        raw_value = value_payload.get(key) if value_payload is not None else None
+        accumulator[f"{dimension}_{key}"] = _coerce_float(raw_value)
+
+
 def _extract_anomaly_flag(
     value_payload: Mapping[str, object] | None,
     metadata_payload: Mapping[str, object] | None,
@@ -570,6 +589,8 @@ class BeliefBuffer:
                     raw_metadata = getattr(dimension, "metadata", None)
                     if isinstance(raw_metadata, Mapping):
                         metadata_payload = {str(k): v for k, v in raw_metadata.items()}
+
+                _populate_dimension_features(payload, key_base, value_payload)
 
                 if key_base == "ANOMALY":
                     anomaly_flag = _extract_anomaly_flag(value_payload, metadata_payload)

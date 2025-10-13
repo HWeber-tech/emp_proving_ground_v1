@@ -130,6 +130,11 @@ def test_sensory_pipeline_emits_belief_and_detects_drift() -> None:
     feature_means = dict(zip(final_state.features, final_state.posterior.mean))
     assert feature_means.get("ANOMALY_flag", 0.0) > 0.0
     assert feature_means.get("ANOMALY_z_score", 0.0) > 0.0
+    assert feature_means.get("WHAT_last_close", 0.0) > 0.0
+    assert "HOW_liquidity" in feature_means
+    assert "WHEN_session" in feature_means
+    assert "WHEN_news" in feature_means
+    assert "WHEN_gamma" in feature_means
 
     drift_summary = organ.status()["drift_summary"]
     assert drift_summary is not None

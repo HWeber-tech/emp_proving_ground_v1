@@ -38,9 +38,12 @@ The system has a well-defined architectural framework with clear separation of c
 - `fix_connection_manager.py`: FIX session bootstrapping helpers and typed configuration hooks
 - `mock_fix.py`: Simplified FIX manager used for tests and rehearsals
 
-**Reality**: Legacy IC Markets connectors have been removed; only the connection
-manager scaffolding and mocks remain. There is no live broker execution, only
-bootstrap wiring for future pilots.
+**Reality**: Legacy IC Markets connectors have been removed; the connection
+manager scaffolding and mocks remain, but the trading stack now ships a
+`LiveBrokerExecutionAdapter` that revalidates intents against the risk gateway,
+captures policy snapshots for governance, and plugs into the trading manager
+while default deployments still run in paper until a release ledger promotes
+the live stage.【F:src/trading/execution/live_broker_adapter.py†L1-L200】【F:src/trading/trading_manager.py†L2520-L2594】【F:tests/trading/test_live_broker_adapter.py†L31-L159】
 
 ### Evolution Layer (`src/evolution/`)
 

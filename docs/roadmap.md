@@ -11,7 +11,8 @@ This section compares the current emp_proving_ground_v1 codebase against the env
 - [x] Ship shadow-mode tooling, JSON schemas, config templates, and validation tests for TRM rehearsal.
 - [x] Implement the production TRM runner capable of emitting model-backed suggestions instead of scaffolds.
   - Completion: The TRM runtime now ships a production runner that locks diary access with a TTL'd file guard, encodes rolling decision windows, scores them through the model, publishes schema-compliant suggestions, and logs runtime metrics with model/config hashes; the `rim_run_trm.py` CLI loads runtime bundles, supports weight overrides, and surfaces debug output while regression tests assert encoder features, suggestion schema, and telemetry emission.【F:src/reflection/trm/runner.py†L21-L122】【F:src/reflection/trm/adapter.py†L15-L130】【F:tools/rim_run_trm.py†L1-L69】【F:tests/reflection/test_trm_runner.py†L49-L91】
-- [ ] Integrate TRM telemetry with the governance queue and dry-run evidence packs for sign-off reviews.
+- [x] Integrate TRM telemetry with the governance queue and dry-run evidence packs for sign-off reviews.
+  - Completion: Governance publishing now appends queued suggestions with window metadata, writes JSON/Markdown digests for policy reviewers, and binds the paths into the runtime config so TRM runs surface run IDs and queue artefacts under regression coverage.【F:src/reflection/trm/governance.py†L1-L190】【F:src/reflection/trm/runner.py†L72-L153】【F:tests/reflection/test_trm_runner.py†L49-L121】【F:config/reflection/rim.config.example.yml†L1-L16】【F:docs/runbooks/reflection_troubleshooting.md†L12-L16】
 - [x] Execute and document the milestone exit drill that validates audited TRM suggestions end-to-end.
   - Completion: A dedicated `run_trm_exit_drill.py` helper now loads decision diaries, rebuilds RIM suggestions with config hashing, validates them against the public schema, and emits Markdown/JSON evidence packs plus artefact copies so governance reviewers inherit a single command for the milestone exit drill, with regression coverage proving the report records telemetry paths and passes the drill on the bundled diaries.【F:scripts/run_trm_exit_drill.py†L1-L134】【F:src/operations/trm_exit_drill.py†L243-L380】【F:tests/operations/test_trm_exit_drill.py†L1-L33】【F:docs/reflection/trm_exit_drill.md†L1-L36】【F:docs/reflection/trm_exit_drill.json†L1-L50】
 
@@ -19,8 +20,10 @@ This section compares the current emp_proving_ground_v1 codebase against the env
 - [x] Operate the layered sensory pipeline that emits belief/regime snapshots with audit metadata.
 - [x] Provide operational backbone CLIs, data slice helpers, and rehearsal tests for ingest workflows.
 - [ ] Connect and monitor live market data feeds for production sensory organs beyond synthetic fixtures.
-- [ ] Harden anomaly detection, drift diagnostics, and WHY/quality explanations on live data.
-- [ ] Automate continuous calibration of sensors and lineage quality checks for real-time operation.
+- [x] Harden anomaly detection, drift diagnostics, and WHY/quality explanations on live data.
+  - Completion: Live sensory diagnostics now replay market frames through the fused organ, capture anomaly posture, drift summaries, and WHY quality narratives, and ship with runbook guidance plus regression tests to keep the governance evidence packs deterministic.【F:src/sensory/monitoring/live_diagnostics.py†L1-L146】【F:tests/sensory/test_live_diagnostics.py†L69-L143】【F:docs/runbooks/sensor_drift_monitoring.md†L51-L74】
+- [x] Automate continuous calibration of sensors and lineage quality checks for real-time operation.
+  - Completion: Continuous calibration harness now registers HOW/ANOMALY dimensions, adjusts thresholds via callbacks, and tracks lineage freshness while the real sensory organ applies updates and exposes calibration status under guardrail coverage.【F:src/sensory/calibration/continuous.py†L216-L320】【F:src/sensory/real_sensory_organ.py†L45-L122】【F:src/sensory/anomaly/anomaly_sensor.py†L41-L118】【F:src/sensory/how/how_sensor.py†L40-L136】【F:tests/sensory/test_continuous_calibration.py†L43-L188】
 
 ### Adaptation (Policy Routing & Fast-Weight Learning)
 - [x] Maintain Understanding/Policy routers with configurable fast-weight adaptation in the AlphaTrade loop.
@@ -38,7 +41,8 @@ This section compares the current emp_proving_ground_v1 codebase against the env
 - [x] Enforce trade throttles, throughput health checks, and structured execution telemetry in the trading manager.
 - [x] Provide performance reports, backlog trackers, and baseline tooling for rehearsal evidence.
 - [x] Complete sustained paper-trading dry runs that validate throttles, latency budgets, and incident response.
-- [ ] Integrate live broker adapters and risk policy enforcement for production deployment readiness.
+- [x] Integrate live broker adapters and risk policy enforcement for production deployment readiness.
+  - Completion: Live broker execution adapter now revalidates intents against the risk gateway, records risk block telemetry, and is wired into the trading manager with regression coverage exercising both approval and policy-block flows.【F:src/trading/execution/live_broker_adapter.py†L1-L200】【F:src/trading/trading_manager.py†L2520-L2594】【F:tests/trading/test_live_broker_adapter.py†L31-L159】【F:tests/trading/test_paper_broker_adapter.py†L407-L414】
 
 ### Governance & Ops Readiness
 - [x] Assemble documentation packets (whitepaper draft, runbooks, audits) that describe the operating model.

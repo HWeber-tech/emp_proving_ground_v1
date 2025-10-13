@@ -50,6 +50,10 @@
   anomaly posture, drift telemetry, and WHY quality explanations for governance
   evidence packs, and ships with regression coverage to keep the reports
   deterministic.【F:src/sensory/monitoring/live_diagnostics.py†L1-L223】【F:tests/sensory/test_live_diagnostics.py†L1-L126】
+- Continuous calibration harness now maintains HOW/ANOMALY windows, recalibrates
+  thresholds via sensor callbacks, and flags lineage or quality gaps while the
+  fused organ surfaces calibration status for operators under regression
+  coverage.【F:src/sensory/calibration/continuous.py†L216-L320】【F:src/sensory/real_sensory_organ.py†L45-L122】【F:src/sensory/anomaly/anomaly_sensor.py†L41-L118】【F:src/sensory/how/how_sensor.py†L40-L136】【F:tests/sensory/test_continuous_calibration.py†L43-L188】
 - Executable HOW/ANOMALY sensory organs now wrap the canonical sensors, normalise
   market frames or sequences, maintain calibrated windows, and emit structured
   lineage/telemetry payloads under guardrail regression coverage, though they

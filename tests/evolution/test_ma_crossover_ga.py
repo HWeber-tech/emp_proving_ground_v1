@@ -59,6 +59,25 @@ def test_ga_experiment_improves_population() -> None:
     assert len(result.population_history) == config.generations
 
 
+def test_mu_plus_lambda_selection_preserves_best_fitness() -> None:
+    prices = _make_trending_prices(150)
+    config = GARunConfig(
+        population_size=6,
+        generations=5,
+        elite_count=2,
+        seed=321,
+        selection_mode="mu_plus_lambda",
+        offspring_size=8,
+    )
+
+    result = run_ga_experiment(prices, config)
+
+    fitness_values = [metrics.fitness for _, metrics in result.population_history]
+
+    assert len(fitness_values) == config.generations
+    assert all(b >= a for a, b in zip(fitness_values, fitness_values[1:]))
+
+
 def test_ga_result_to_frame_exposes_generation_history() -> None:
     prices = _make_trending_prices(120)
     config = GARunConfig(population_size=8, generations=4, elite_count=2, seed=7)

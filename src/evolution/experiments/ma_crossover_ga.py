@@ -23,7 +23,7 @@ import math
 import random
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, List, Mapping, Sequence
+from typing import Any, List, Literal, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -156,6 +156,8 @@ class GARunConfig:
     seed: int | None = None
     bounds: MovingAverageGenomeBounds = field(default_factory=MovingAverageGenomeBounds)
     weights: FitnessWeights = field(default_factory=FitnessWeights)
+    selection_mode: Literal["tournament", "mu_plus_lambda"] = "tournament"
+    offspring_size: int | None = None
 
     def __post_init__(self) -> None:
         if self.population_size <= 1:
@@ -168,6 +170,12 @@ class GARunConfig:
             raise ValueError("elite_count must be in [1, population_size)")
         if self.generations < 1:
             raise ValueError("generations must be >= 1")
+        if self.selection_mode not in {"tournament", "mu_plus_lambda"}:
+            raise ValueError("selection_mode must be 'tournament' or 'mu_plus_lambda'")
+        if self.offspring_size is not None and self.offspring_size < 1:
+            raise ValueError("offspring_size must be positive when provided")
+        if self.selection_mode == "mu_plus_lambda" and self.population_size < 2:
+            raise ValueError("mu+lambda mode requires population_size >= 2")
 
 
 @dataclass(slots=True)
@@ -351,6 +359,24 @@ def _mutate(
     return bounds.clamp(mutated)
 
 
+def _breed_child(
+    population: Sequence[tuple[MovingAverageGenome, FitnessMetrics]],
+    rng: random.Random,
+    bounds: MovingAverageGenomeBounds,
+    *,
+    crossover_rate: float,
+    mutation_rate: float,
+) -> MovingAverageGenome:
+    parent_a = _select_parent(population, rng)
+    parent_b = _select_parent(population, rng)
+    child = parent_a
+    if rng.random() < crossover_rate:
+        child = _crossover(parent_a, parent_b, rng, bounds)
+    if rng.random() < mutation_rate:
+        child = _mutate(child, rng, bounds)
+    return child
+
+
 def _select_parent(
     population: Sequence[tuple[MovingAverageGenome, FitnessMetrics]],
     rng: random.Random,
@@ -382,22 +408,43 @@ def run_ga_experiment(
             for genome in population
         ]
         evaluated.sort(key=lambda item: item[1].fitness, reverse=True)
-        history.append(evaluated[0])
-
-        elites = [genome for genome, _ in evaluated[: cfg.elite_count]]
-        new_population: list[MovingAverageGenome] = list(elites)
-
-        while len(new_population) < cfg.population_size:
-            parent_a = _select_parent(evaluated, rng)
-            parent_b = _select_parent(evaluated, rng)
-            child = parent_a
-            if rng.random() < cfg.crossover_rate:
-                child = _crossover(parent_a, parent_b, rng, bounds)
-            if rng.random() < cfg.mutation_rate:
-                child = _mutate(child, rng, bounds)
-            new_population.append(child)
-
-        population = new_population
+        if cfg.selection_mode == "mu_plus_lambda":
+            parents_with_metrics = evaluated[: cfg.population_size]
+            offspring_target = cfg.offspring_size or cfg.population_size
+            offspring: list[MovingAverageGenome] = []
+            while len(offspring) < offspring_target:
+                offspring.append(
+                    _breed_child(
+                        parents_with_metrics,
+                        rng,
+                        bounds,
+                        crossover_rate=cfg.crossover_rate,
+                        mutation_rate=cfg.mutation_rate,
+                    )
+                )
+            offspring_evaluated = [
+                (child, evaluate_genome_fitness(prices, child, weights=weights))
+                for child in offspring
+            ]
+            combined = parents_with_metrics + offspring_evaluated
+            combined.sort(key=lambda item: item[1].fitness, reverse=True)
+            history.append(combined[0])
+            population = [genome for genome, _ in combined[: cfg.population_size]]
+        else:
+            history.append(evaluated[0])
+            elites = [genome for genome, _ in evaluated[: cfg.elite_count]]
+            new_population: list[MovingAverageGenome] = list(elites)
+            while len(new_population) < cfg.population_size:
+                new_population.append(
+                    _breed_child(
+                        evaluated,
+                        rng,
+                        bounds,
+                        crossover_rate=cfg.crossover_rate,
+                        mutation_rate=cfg.mutation_rate,
+                    )
+                )
+            population = new_population
 
     best_genome, best_metrics = max(history, key=lambda item: item[1].fitness)
     return GARunResult(best_genome=best_genome, best_metrics=best_metrics, population_history=history)

@@ -19,6 +19,7 @@ from src.trading.execution.paper_execution import ImmediateFillExecutionAdapter
 from src.trading.liquidity.depth_aware_prober import DepthAwareLiquidityProber
 from src.trading.monitoring.portfolio_monitor import InMemoryRedis, PortfolioMonitor
 from src.trading.trading_manager import TradingManager
+from src.understanding.decision_diary import DecisionDiaryStore
 
 
 
@@ -214,3 +215,59 @@ async def test_bootstrap_stack_logs_optional_callback_failures(
     messages = [record.message for record in caplog.records]
     assert any("Liquidity prober snapshot recording failed" in message for message in messages)
     assert any("Bootstrap control center notification failed" in message for message in messages)
+
+
+@pytest.mark.asyncio()
+async def test_decision_diary_records_trade_throttle_note(tmp_path: Any) -> None:
+    connector = _build_replay_connector()
+    fabric = MarketDataFabric({"replay": connector})
+    pipeline = BootstrapSensoryPipeline(fabric, ContextualFusionEngine())
+
+    event_bus = EventBus()
+    portfolio_monitor = PortfolioMonitor(event_bus, InMemoryRedis())
+    execution_adapter = ImmediateFillExecutionAdapter(portfolio_monitor)
+    liquidity_prober = DepthAwareLiquidityProber()
+    risk_config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+    )
+    trading_manager = TradingManager(
+        event_bus=event_bus,
+        strategy_registry=DummyStrategyRegistry(),
+        execution_engine=execution_adapter,
+        initial_equity=100000.0,
+        redis_client=InMemoryRedis(),
+        liquidity_prober=liquidity_prober,
+        risk_config=risk_config,
+        trade_throttle={"max_trades": 1, "window_seconds": 120.0},
+    )
+
+    diary_path = tmp_path / "decision_diary.json"
+    diary_store = DecisionDiaryStore(diary_path, publish_on_record=False)
+
+    stack = BootstrapTradingStack(
+        pipeline,
+        trading_manager,
+        strategy_id="bootstrap-alpha",
+        buy_threshold=-1.0,
+        sell_threshold=0.05,
+        requested_quantity=Decimal("1"),
+        stop_loss_pct=0.01,
+        liquidity_prober=liquidity_prober,
+        diary_store=diary_store,
+    )
+
+    await stack.evaluate_tick("EURUSD")
+    throttled_result = await stack.evaluate_tick("EURUSD")
+
+    assert throttled_result["status"] == "throttled"
+
+    entries = diary_store.entries()
+    assert len(entries) >= 2
+    throttled_entry = entries[-1]
+    assert any("Throttled" in note for note in throttled_entry.notes)
+
+    throttle_snapshot = throttled_entry.outcomes.get("throttle")
+    assert isinstance(throttle_snapshot, Mapping)
+    assert throttle_snapshot.get("state") in {"rate_limited", "cooldown", "min_interval"}

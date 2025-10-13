@@ -29,7 +29,7 @@ from src.orchestration.enhanced_understanding_engine import (
     Synthesis,
 )
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
-from src.trading.trading_manager import TradingManager
+from src.trading.trading_manager import TradingManager, TradeIntentOutcome
 from src.thinking.adaptation.policy_router import PolicyDecision
 from src.understanding.decision_diary import DecisionDiaryStore
 
@@ -238,8 +238,18 @@ class BootstrapTradingStack:
         if isinstance(intent.metadata, MutableMapping):
             intent.metadata.pop("intelligence_snapshot", None)
 
-        await self.trading_manager.on_trade_intent(intent)
+        trade_outcome = await self.trading_manager.on_trade_intent(intent)
         decision = self.trading_manager.risk_gateway.get_last_decision()
+
+        outcome_payload: Mapping[str, Any] | None = None
+        status = "submitted"
+        if isinstance(trade_outcome, TradeIntentOutcome):
+            outcome_payload = trade_outcome.as_dict()
+            outcome_status = outcome_payload.get("status")
+            if isinstance(outcome_status, str) and outcome_status.strip():
+                status = outcome_status.strip()
+            else:
+                status = trade_outcome.status
 
         liquidity_summary = None
         if isinstance(decision, Mapping):
@@ -252,9 +262,17 @@ class BootstrapTradingStack:
             "snapshot": snapshot,
             "intent": intent,
             "decision": decision,
-            "status": "submitted",
+            "status": status,
             "liquidity_summary": liquidity_summary,
         }
+        if outcome_payload is not None:
+            result_payload["trade_outcome"] = outcome_payload
+            throttle_fragment = outcome_payload.get("throttle")
+            if isinstance(throttle_fragment, Mapping):
+                result_payload["throttle"] = throttle_fragment
+            outcome_metadata = outcome_payload.get("metadata")
+            if isinstance(outcome_metadata, Mapping):
+                result_payload["trade_metadata"] = outcome_metadata
         self.decisions.append(result_payload)
         self._notify_control_center(snapshot, result_payload)
         self._record_decision_diary(
@@ -262,6 +280,7 @@ class BootstrapTradingStack:
             intent,
             decision,
             liquidity_summary,
+            trade_outcome,
         )
         return result_payload
 
@@ -281,6 +300,7 @@ class BootstrapTradingStack:
         intent: PaperTradeIntent,
         decision: Mapping[str, Any] | None,
         liquidity_summary: Mapping[str, Any] | None,
+        trade_outcome: TradeIntentOutcome | None,
     ) -> None:
         if self._diary_store is None:
             return
@@ -294,6 +314,28 @@ class BootstrapTradingStack:
                 if isinstance(decision, Mapping)
                 else {}
             )
+
+            notes: list[str] = [f"Bootstrap runtime decision for {snapshot.symbol}"]
+
+            trade_outcome_payload: Mapping[str, Any] | None = None
+            trade_outcome_metadata: Mapping[str, Any] | None = None
+            throttle_snapshot: Mapping[str, Any] | None = None
+            if isinstance(trade_outcome, TradeIntentOutcome):
+                trade_outcome_payload = trade_outcome.as_dict()
+                metadata_candidate = trade_outcome_payload.get("metadata")
+                if isinstance(metadata_candidate, Mapping):
+                    trade_outcome_metadata = metadata_candidate
+                throttle_candidate = trade_outcome.throttle
+                if throttle_candidate is None:
+                    throttle_candidate = trade_outcome_payload.get("throttle")
+                if isinstance(throttle_candidate, Mapping):
+                    throttle_snapshot = dict(throttle_candidate)
+
+                outcome_status = trade_outcome_payload.get("status")
+                if isinstance(outcome_status, str):
+                    status_note = outcome_status.strip()
+                    if status_note and status_note not in {"submitted", "executed"}:
+                        notes.append(f"Trade outcome status: {status_note}")
 
             guardrails: dict[str, Any] = {
                 "stop_loss_pct": float(intent.metadata.get("stop_loss_pct", self.stop_loss_pct))
@@ -344,6 +386,35 @@ class BootstrapTradingStack:
                 if execution_outcome
                 else None,
             }
+            if trade_outcome_payload:
+                outcomes["trade_outcome"] = self._serialise(trade_outcome_payload)
+
+            serialised_throttle: Mapping[str, Any] | None = None
+            if throttle_snapshot is None:
+                fallback_throttle = self.trading_manager.get_trade_throttle_snapshot()
+                if isinstance(fallback_throttle, Mapping):
+                    throttle_snapshot = dict(fallback_throttle)
+
+            throttle_note: str | None = None
+            if isinstance(throttle_snapshot, Mapping) and throttle_snapshot:
+                message_value = throttle_snapshot.get("message")
+                reason_value = throttle_snapshot.get("reason")
+                state_value = throttle_snapshot.get("state")
+                active_flag = bool(throttle_snapshot.get("active"))
+                state_guard = str(state_value or "").lower()
+                if active_flag or state_guard in {"rate_limited", "cooldown", "min_interval"}:
+                    if isinstance(message_value, str) and message_value.strip():
+                        throttle_note = message_value.strip()
+                    elif isinstance(reason_value, str) and reason_value.strip():
+                        throttle_note = f"Trade throttle active ({reason_value.strip()})"
+                    elif isinstance(state_value, str) and state_value.strip():
+                        throttle_note = f"Trade throttle active ({state_value.strip()})"
+                    else:
+                        throttle_note = "Trade throttle active"
+
+                serialised_throttle = self._serialise(throttle_snapshot)
+                outcomes["throttle"] = serialised_throttle
+
             outcomes = {key: value for key, value in outcomes.items() if value}
 
             metadata = {
@@ -355,7 +426,15 @@ class BootstrapTradingStack:
                 if isinstance(intent.metadata, Mapping)
                 else None,
             }
+            if trade_outcome_metadata:
+                metadata["trade_outcome_metadata"] = self._serialise(trade_outcome_metadata)
+            if serialised_throttle is not None:
+                metadata["trade_throttle"] = serialised_throttle
+
             metadata = {key: value for key, value in metadata.items() if value}
+
+            if throttle_note:
+                notes.append(throttle_note)
 
             self._diary_store.record(
                 policy_id=policy_id,
@@ -363,9 +442,7 @@ class BootstrapTradingStack:
                 regime_state=regime_state,
                 outcomes=outcomes,
                 metadata=metadata,
-                notes=(
-                    f"Bootstrap runtime decision for {snapshot.symbol}",
-                ),
+                notes=tuple(notes),
             )
         except Exception:  # pragma: no cover - diary logging must never break runtime
             logger.debug(

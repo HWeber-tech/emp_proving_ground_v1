@@ -35,6 +35,11 @@ from src.operations.evolution_kpis import (
     RollbackLatencyKpi,
     TimeToCandidateKpi,
 )
+from src.operations.operator_leverage import (
+    OperatorExperimentStats,
+    OperatorLeverageSnapshot,
+    OperatorLeverageStatus,
+)
 import src.operations.observability_dashboard as dashboard_module
 from src.operations.observability_dashboard import (
     DashboardPanel,
@@ -256,6 +261,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "Risk & exposure",
         "Compliance & governance",
         "Evolution KPIs",
+        "Operator leverage",
         "Latency & throughput",
         "System health",
         "Operational readiness",
@@ -326,20 +332,21 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     metadata_counts = dashboard.metadata["panel_status_counts"]
     assert metadata_counts == {
         DashboardStatus.ok.value: 1,
-        DashboardStatus.warn.value: 7,
+        DashboardStatus.warn.value: 8,
         DashboardStatus.fail.value: 1,
     }
     metadata_statuses = dashboard.metadata["panel_statuses"]
     assert metadata_statuses["Risk & exposure"] == DashboardStatus.fail.value
     assert metadata_statuses["Operational readiness"] == DashboardStatus.warn.value
     assert metadata_statuses["Compliance & governance"] == DashboardStatus.warn.value
+    assert metadata_statuses["Operator leverage"] == DashboardStatus.warn.value
     assert metadata_statuses["Understanding loop"] == DashboardStatus.warn.value
     assert metadata_statuses["Evolution KPIs"] == DashboardStatus.warn.value
 
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 7
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 8
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
     assert remediation["failing_panels"] == ("Risk & exposure",)
     assert set(remediation["warning_panels"]) == {
@@ -350,6 +357,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "Compliance & governance",
         "Understanding loop",
         "Evolution KPIs",
+        "Operator leverage",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
 
@@ -389,7 +397,7 @@ def test_dashboard_handles_missing_inputs() -> None:
     dashboard = build_observability_dashboard()
 
     assert dashboard.status is DashboardStatus.warn
-    assert len(dashboard.panels) == 3
+    assert len(dashboard.panels) == 4
     panels_by_name = {panel.name: panel for panel in dashboard.panels}
 
     compliance_panel = panels_by_name["Compliance & governance"]
@@ -399,6 +407,10 @@ def test_dashboard_handles_missing_inputs() -> None:
     evolution_panel = panels_by_name["Evolution KPIs"]
     assert evolution_panel.status is DashboardStatus.warn
     assert "Evolution KPI" in evolution_panel.headline
+
+    operator_panel = panels_by_name["Operator leverage"]
+    assert operator_panel.status is DashboardStatus.warn
+    assert "telemetry unavailable" in operator_panel.headline.lower()
 
     understanding_panel = panels_by_name["Understanding loop"]
     assert understanding_panel.status is DashboardStatus.warn
@@ -415,27 +427,30 @@ def test_dashboard_handles_missing_inputs() -> None:
     assert {item["name"] for item in payload["panels"]} == {
         "Compliance & governance",
         "Evolution KPIs",
+        "Operator leverage",
         "Understanding loop",
     }
     assert payload["metadata"]["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 3,
+        DashboardStatus.warn.value: 4,
         DashboardStatus.fail.value: 0,
     }
     assert payload["metadata"]["panel_statuses"] == {
         "Compliance & governance": DashboardStatus.warn.value,
         "Evolution KPIs": DashboardStatus.warn.value,
+        "Operator leverage": DashboardStatus.warn.value,
         "Understanding loop": DashboardStatus.warn.value,
     }
 
     remediation = payload["remediation_summary"]
     assert remediation["overall_status"] == DashboardStatus.warn.value
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 3
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 4
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 0
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 0
     assert set(remediation["warning_panels"]) == {
         "Compliance & governance",
         "Evolution KPIs",
+        "Operator leverage",
         "Understanding loop",
     }
     assert remediation["healthy_panels"] == ()
@@ -455,26 +470,23 @@ def test_dashboard_merges_additional_panels() -> None:
     dashboard = build_observability_dashboard(additional_panels=[custom_panel])
 
     assert dashboard.status is DashboardStatus.warn
-    assert len(dashboard.panels) == 4
+    assert len(dashboard.panels) == 5
     assert dashboard.panels[0] is custom_panel
-    compliance_panel = dashboard.panels[1]
-    assert compliance_panel.name == "Compliance & governance"
-    assert compliance_panel.status is DashboardStatus.warn
-    evolution_panel = dashboard.panels[2]
-    assert evolution_panel.name == "Evolution KPIs"
-    assert evolution_panel.status is DashboardStatus.warn
-    understanding_panel = dashboard.panels[3]
-    assert understanding_panel.name == "Understanding loop"
-    assert understanding_panel.status is DashboardStatus.warn
+    panels_by_name = {panel.name: panel for panel in dashboard.panels[1:]}
+    assert panels_by_name["Compliance & governance"].status is DashboardStatus.warn
+    assert panels_by_name["Evolution KPIs"].status is DashboardStatus.warn
+    assert panels_by_name["Operator leverage"].status is DashboardStatus.warn
+    assert panels_by_name["Understanding loop"].status is DashboardStatus.warn
     assert dashboard.metadata["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 4,
+        DashboardStatus.warn.value: 5,
         DashboardStatus.fail.value: 0,
     }
     assert dashboard.metadata["panel_statuses"] == {
         "Custom": DashboardStatus.warn.value,
         "Compliance & governance": DashboardStatus.warn.value,
         "Evolution KPIs": DashboardStatus.warn.value,
+        "Operator leverage": DashboardStatus.warn.value,
         "Understanding loop": DashboardStatus.warn.value,
     }
 
@@ -530,6 +542,61 @@ def test_evolution_panel_renders_snapshot() -> None:
     joined_details = " ".join(panel.details)
     assert "Promotion posture" in joined_details
     assert "Exploration budget" in joined_details
+
+
+def test_operator_leverage_panel_renders_snapshot() -> None:
+    now = _now()
+    snapshot = OperatorLeverageSnapshot(
+        generated_at=now,
+        status=OperatorLeverageStatus.warn,
+        experiments_total=6,
+        operator_count=2,
+        weeks=2.0,
+        experiments_per_week=2.5,
+        experiments_per_week_total=5.0,
+        quality_pass_rate=0.75,
+        operators=(
+            OperatorExperimentStats(
+                operator="alice",
+                experiments=4,
+                experiments_per_week=2.0,
+                quality_passes=3,
+                quality_failures=1,
+                quality_rate=0.75,
+                last_experiment_at=now,
+                recent_statuses=("executed", "executed"),
+                metadata={"quality_events": 4},
+            ),
+            OperatorExperimentStats(
+                operator="carol",
+                experiments=2,
+                experiments_per_week=1.0,
+                quality_passes=1,
+                quality_failures=1,
+                quality_rate=0.5,
+                last_experiment_at=now - timedelta(days=5),
+                recent_statuses=("executed", "rejected"),
+                metadata={"quality_events": 2},
+            ),
+        ),
+        metadata={
+            "lookback_days": 14.0,
+            "low_velocity_warn": ("carol",),
+            "quality_warn": ("alice",),
+            "quality_missing": (),
+            "top_failure_reasons": {"guardrail": 2},
+        },
+    )
+
+    dashboard = build_observability_dashboard(operator_leverage_snapshot=snapshot)
+    panel = next(panel for panel in dashboard.panels if panel.name == "Operator leverage")
+
+    assert panel.status is DashboardStatus.warn
+    assert "quality 75%" in panel.headline
+    joined_details = " ".join(panel.details)
+    assert "Top operators:" in joined_details
+    assert "Velocity WARN" in joined_details
+    assert "Quality WARN" in joined_details
 
 
 def test_risk_panel_metadata_includes_limit_ratio() -> None:

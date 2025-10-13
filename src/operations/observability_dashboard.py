@@ -19,6 +19,10 @@ from src.operations.event_bus_health import (
     EventBusHealthStatus,
 )
 from src.operations.evolution_kpis import EvolutionKpiSnapshot, EvolutionKpiStatus
+from src.operations.operator_leverage import (
+    OperatorLeverageSnapshot,
+    OperatorLeverageStatus,
+)
 from src.operations.operational_readiness import (
     OperationalReadinessSnapshot,
     OperationalReadinessStatus,
@@ -226,6 +230,23 @@ def _map_evolution_status(value: EvolutionKpiStatus | str | None) -> DashboardSt
     if resolved in {EvolutionKpiStatus.warn.value, "warning"}:
         return DashboardStatus.warn
     if resolved == EvolutionKpiStatus.ok.value:
+        return DashboardStatus.ok
+    return DashboardStatus.warn
+
+
+def _map_operator_leverage_status(value: OperatorLeverageStatus | str | None) -> DashboardStatus:
+    if isinstance(value, OperatorLeverageStatus):
+        resolved = value.value
+    elif value is None:
+        return DashboardStatus.warn
+    else:
+        resolved = str(value).strip().lower()
+
+    if resolved == OperatorLeverageStatus.fail.value:
+        return DashboardStatus.fail
+    if resolved == OperatorLeverageStatus.warn.value:
+        return DashboardStatus.warn
+    if resolved == OperatorLeverageStatus.ok.value:
         return DashboardStatus.ok
     return DashboardStatus.warn
 
@@ -677,6 +698,120 @@ def _build_evolution_panel(
     )
 
 
+def _build_operator_leverage_panel(
+    snapshot: OperatorLeverageSnapshot | Mapping[str, Any] | None,
+) -> DashboardPanel:
+    if snapshot is None:
+        return DashboardPanel(
+            name="Operator leverage",
+            status=DashboardStatus.warn,
+            headline="Operator leverage telemetry unavailable",
+            details=(
+                "Provide operator leverage snapshots via operations.operator_leverage "
+                "to track experiments per week and quality posture.",
+            ),
+            metadata={"operator_leverage": {"status": "missing"}},
+        )
+
+    if isinstance(snapshot, OperatorLeverageSnapshot):
+        snapshot_dict = snapshot.as_dict()
+    else:
+        snapshot_dict = dict(snapshot)
+
+    panel_status = _map_operator_leverage_status(snapshot_dict.get("status"))
+    operators = [
+        entry for entry in snapshot_dict.get("operators", []) if isinstance(entry, Mapping)
+    ]
+    operator_count = snapshot_dict.get("operator_count")
+    if not isinstance(operator_count, int):
+        operator_count = len(operators)
+
+    def _coerce_float(value: Any) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    avg_per_week = _coerce_float(snapshot_dict.get("experiments_per_week"))
+    total_per_week = _coerce_float(snapshot_dict.get("experiments_per_week_total"))
+    if avg_per_week is None and total_per_week is not None and operator_count:
+        avg_per_week = total_per_week / max(operator_count, 1)
+
+    quality_rate = _coerce_float(snapshot_dict.get("quality_pass_rate"))
+
+    headline_parts: list[str] = []
+    if operator_count:
+        headline_parts.append(
+            f"{operator_count} operator{'s' if operator_count != 1 else ''}"
+        )
+    if avg_per_week is not None:
+        headline_parts.append(f"{avg_per_week:.2f}/wk avg")
+    if total_per_week is not None and (avg_per_week is None or operator_count > 1):
+        headline_parts.append(f"{total_per_week:.2f}/wk total")
+    if quality_rate is not None:
+        headline_parts.append(f"quality {quality_rate:.0%}")
+    else:
+        headline_parts.append("quality n/a")
+
+    details: list[str] = []
+    if operators:
+        sorted_ops = sorted(
+            operators,
+            key=lambda entry: (
+                _coerce_float(entry.get("experiments_per_week")) or 0.0,
+                float(entry.get("experiments", 0) or 0.0),
+            ),
+            reverse=True,
+        )
+        top_lines: list[str] = []
+        for entry in sorted_ops[:3]:
+            name = str(entry.get("operator", "unknown"))
+            per_week_value = _coerce_float(entry.get("experiments_per_week")) or 0.0
+            quality_value = _coerce_float(entry.get("quality_rate"))
+            quality_text = f"{quality_value:.0%}" if quality_value is not None else "n/a"
+            top_lines.append(f"{name}: {per_week_value:.2f}/wk (quality {quality_text})")
+        details.append("Top operators: " + "; ".join(top_lines))
+    else:
+        details.append("No experiments recorded in the lookback window.")
+
+    meta = snapshot_dict.get("metadata")
+    if isinstance(meta, Mapping):
+        low_velocity_fail = [str(op) for op in meta.get("low_velocity_fail", ()) if op]
+        if low_velocity_fail:
+            details.append("Velocity FAIL: " + ", ".join(low_velocity_fail))
+        low_velocity_warn = [str(op) for op in meta.get("low_velocity_warn", ()) if op]
+        low_velocity_warn = [op for op in low_velocity_warn if op not in low_velocity_fail]
+        if low_velocity_warn:
+            details.append("Velocity WARN: " + ", ".join(low_velocity_warn))
+        quality_fail = [str(op) for op in meta.get("quality_fail", ()) if op]
+        if quality_fail:
+            details.append("Quality FAIL: " + ", ".join(quality_fail))
+        quality_warn = [str(op) for op in meta.get("quality_warn", ()) if op]
+        quality_warn = [op for op in quality_warn if op not in quality_fail]
+        if quality_warn:
+            details.append("Quality WARN: " + ", ".join(quality_warn))
+        missing_quality = [str(op) for op in meta.get("quality_missing", ()) if op]
+        if missing_quality:
+            details.append("Quality missing: " + ", ".join(missing_quality))
+        failure_reasons = meta.get("top_failure_reasons")
+        if isinstance(failure_reasons, Mapping) and failure_reasons:
+            summary = ", ".join(
+                f"{reason}: {count}"
+                for reason, count in failure_reasons.items()
+            )
+            details.append("Top failure reasons: " + summary)
+
+    headline = " | ".join(headline_parts) if headline_parts else "Operator leverage snapshot"
+
+    return DashboardPanel(
+        name="Operator leverage",
+        status=panel_status,
+        headline=headline,
+        details=tuple(details),
+        metadata={"operator_leverage": snapshot_dict},
+    )
+
+
 def _build_policy_reflection_panel(
     artifacts: "PolicyReflectionArtifacts",
 ) -> DashboardPanel:
@@ -967,6 +1102,7 @@ def build_observability_dashboard(
     compliance_events: Sequence["ComplianceEvent"] | None = None,
     compliance_slo_snapshot: OperationalSLOSnapshot | None = None,
     evolution_kpis: EvolutionKpiSnapshot | Mapping[str, Any] | None = None,
+    operator_leverage_snapshot: OperatorLeverageSnapshot | Mapping[str, Any] | None = None,
     event_bus_snapshot: EventBusHealthSnapshot | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
@@ -1108,6 +1244,7 @@ def build_observability_dashboard(
         )
     )
     panels.append(_build_evolution_panel(evolution_kpis))
+    panels.append(_build_operator_leverage_panel(operator_leverage_snapshot))
 
     if event_bus_snapshot is not None or slo_snapshot is not None:
         latency_status = DashboardStatus.ok

@@ -86,7 +86,10 @@ and deprecated exports still leak into runtime consumers. Event bus shutdown now
 runs under the task supervisor with explicit metadata and the final dry run
 harness rotates structured/raw logs, emits typed progress snapshots, and ships a
 watch CLI so operations can monitor multi-day rehearsals live, but deterministic
-risk controls are still required before expanding pilots.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/core/_event_bus_impl.py†L501-L590】【F:src/operations/final_dry_run.py†L307-L405】【F:src/operations/final_dry_run_progress.py†L15-L210】【F:tools/operations/final_dry_run_watch.py†L21-L176】【F:tests/operations/test_final_dry_run_progress.py†L12-L120】
+risk controls are still required before expanding pilots. Governance review
+gates are now codified through a typed registry, CLI, configuration, and runbook
+so sign-off verdicts stay auditable while automation still depends on manual
+verdict capture until broader instrumentation lands.【F:docs/technical_debt_assessment.md†L33-L121】【F:src/core/__init__.py†L14-L33】【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/core/_event_bus_impl.py†L501-L590】【F:src/operations/final_dry_run.py†L307-L405】【F:src/operations/final_dry_run_progress.py†L15-L210】【F:tools/operations/final_dry_run_watch.py†L21-L176】【F:tests/operations/test_final_dry_run_progress.py†L12-L120】【F:src/governance/review_gates.py†L1-L199】【F:tools/governance/review_gates.py†L1-L200】【F:config/governance/review_gates.yaml†L1-L84】【F:docs/runbooks/governance_review_gates.md†L1-L60】
 *Next checkpoint:* Finish the runtime builder rollout, adopt supervised tasks,
 enforce risk policies, and retire deprecated facades before expanding broker
 coverage.【F:docs/technical_debt_assessment.md†L33-L101】【F:docs/development/remediation_plan.md†L34-L167】

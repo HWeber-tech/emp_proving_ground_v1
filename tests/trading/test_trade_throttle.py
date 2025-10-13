@@ -308,3 +308,34 @@ def test_trade_throttle_decision_surfaces_multiplier() -> None:
     assert snapshot.get("active") is False
     metadata = snapshot.get("metadata", {})
     assert metadata.get("remaining_trades") == 1
+
+
+def test_trade_throttle_rollback_restores_capacity() -> None:
+    config = TradeThrottleConfig(
+        name="rollback",
+        max_trades=1,
+        window_seconds=30.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 2, 9, 0, 0, tzinfo=timezone.utc)
+    metadata = {"symbol": "EURUSD"}
+
+    first = throttle.evaluate(now=base, metadata=metadata)
+    assert first.allowed is True
+    assert first.scope_key == ("__global__",)
+
+    blocked = throttle.evaluate(now=base + timedelta(seconds=5), metadata=metadata)
+    assert blocked.allowed is False
+    assert blocked.snapshot["state"] == "rate_limited"
+
+    snapshot = throttle.rollback(first)
+    assert snapshot is not None
+    assert snapshot["state"] == "open"
+    snapshot_meta = snapshot.get("metadata", {})
+    assert snapshot_meta.get("recent_trades") == 0
+    assert snapshot_meta.get("remaining_trades") == 1
+
+    reopened = throttle.evaluate(now=base + timedelta(seconds=6), metadata=metadata)
+    assert reopened.allowed is True
+    assert reopened.snapshot["state"] == "open"

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import math
 import re
@@ -104,6 +104,8 @@ class TradeThrottleDecision:
     retry_at: datetime | None = None
     multiplier: float | None = None
     retry_in_seconds: float | None = None
+    evaluated_at: datetime | None = None
+    scope_key: tuple[str, ...] = field(default_factory=tuple)
 
     def as_dict(self) -> Mapping[str, Any]:
         """Return a serialisable view of the throttle snapshot."""
@@ -269,6 +271,8 @@ class TradeThrottle:
             retry_at=retry_at,
             multiplier=multiplier,
             retry_in_seconds=retry_in_seconds,
+            evaluated_at=moment,
+            scope_key=scope_key,
         )
 
     def snapshot(self) -> Mapping[str, Any]:
@@ -281,6 +285,129 @@ class TradeThrottle:
 
         entries = sorted(self._scope_snapshots.items(), key=lambda item: item[0])
         return tuple(self._clone_snapshot(snapshot) for _key, snapshot in entries)
+
+    def rollback(self, decision: TradeThrottleDecision) -> Mapping[str, Any] | None:
+        """Roll back counters for a trade that was allowed but not executed.
+
+        Args:
+            decision: The previously returned decision corresponding to the trade
+                that needs to be reverted.
+
+        Returns:
+            Updated snapshot for the affected scope or ``None`` if no changes were
+            applied (for example, when the decision was already blocked).
+        """
+
+        if not isinstance(decision, TradeThrottleDecision):
+            raise TypeError("rollback expects a TradeThrottleDecision instance")
+        if not decision.allowed:
+            return None
+
+        scope_key = decision.scope_key or self._GLOBAL_SCOPE
+        state = self._states.get(scope_key)
+        if state is None:
+            return None
+
+        moment = decision.evaluated_at
+        if moment is None:
+            return None
+
+        moment = self._coerce_timestamp(moment)
+        timestamps = state.timestamps
+        removed = False
+        for index in range(len(timestamps) - 1, -1, -1):
+            candidate = timestamps[index]
+            if candidate == moment:
+                del timestamps[index]
+                removed = True
+                break
+            if abs((candidate - moment).total_seconds()) <= 1e-6:
+                del timestamps[index]
+                removed = True
+                break
+
+        if not removed:
+            return None
+
+        if state.last_trade == moment:
+            state.last_trade = timestamps[-1] if timestamps else None
+
+        window_duration = timedelta(seconds=float(self._config.window_seconds))
+        self._cleanup_scope_if_idle(scope_key, state, moment, window_duration)
+
+        if scope_key != self._GLOBAL_SCOPE and scope_key not in self._states:
+            self._scope_snapshots.pop(scope_key, None)
+            return None
+
+        scope_descriptor = state.scope_descriptor
+        if scope_descriptor is None and self._config.scope_fields:
+            scope_descriptor = MappingProxyType(
+                {field: None for field in self._config.scope_fields}
+            )
+
+        metadata_context: Mapping[str, Any] | None = None
+        snapshot_metadata = decision.snapshot.get("metadata")
+        if isinstance(snapshot_metadata, Mapping):
+            context_payload = snapshot_metadata.get("context")
+            if isinstance(context_payload, Mapping):
+                metadata_context = dict(context_payload)
+
+        recent_trades = len(timestamps)
+        cooldown_until = state.cooldown_until
+
+        throttle_state = "open"
+        reason: str | None = None
+        active = False
+        retry_at: datetime | None = None
+        retry_in_seconds: float | None = None
+
+        if cooldown_until is not None and moment < cooldown_until:
+            throttle_state = "cooldown"
+            reason = "cooldown_active"
+            active = True
+            retry_at = cooldown_until
+            retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
+        elif self._config.min_spacing_seconds > 0.0 and state.last_trade is not None:
+            min_spacing = timedelta(seconds=float(self._config.min_spacing_seconds))
+            if moment - state.last_trade < min_spacing:
+                throttle_state = "min_interval"
+                reason = f"min_interval_{float(self._config.min_spacing_seconds):g}s"
+                retry_at = state.last_trade + min_spacing
+                retry_in_seconds = max((retry_at - moment).total_seconds(), 0.0)
+
+        window_reset_at: datetime | None = None
+        window_reset_in_seconds: float | None = None
+        if timestamps:
+            oldest = timestamps[0]
+            reset_target = oldest + window_duration
+            window_reset_at = reset_target
+            window_reset_in_seconds = max((reset_target - moment).total_seconds(), 0.0)
+
+        snapshot = self._build_snapshot(
+            state=throttle_state,
+            active=active,
+            reason=reason,
+            retry_at=retry_at,
+            metadata=metadata_context,
+            message=self._format_reason(reason, retry_at),
+            scope_key=scope_key,
+            scope_descriptor=scope_descriptor,
+            recent_trades=recent_trades,
+            cooldown_until=cooldown_until,
+            moment=moment,
+            window_reset_at=window_reset_at,
+            window_reset_in_seconds=window_reset_in_seconds,
+            retry_in_seconds=retry_in_seconds,
+        )
+
+        if scope_key == self._GLOBAL_SCOPE:
+            self._last_snapshot = snapshot
+        if recent_trades or scope_key == self._GLOBAL_SCOPE:
+            self._scope_snapshots[scope_key] = snapshot
+        else:
+            self._scope_snapshots.pop(scope_key, None)
+
+        return snapshot
 
     def _initial_snapshot(self) -> Mapping[str, Any]:
         now = datetime.now(tz=UTC)

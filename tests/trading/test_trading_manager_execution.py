@@ -2146,6 +2146,62 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
 
 
 @pytest.mark.asyncio()
+async def test_trade_throttle_rolls_back_on_execution_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+        trade_throttle={"max_trades": 1, "window_seconds": 60.0},
+    )
+
+    failing_engine = FailingExecutionEngine()
+    manager.execution_engine = failing_engine
+
+    intent = ConfidenceIntent(
+        symbol="EURUSD",
+        quantity=1.0,
+        price=1.2345,
+        confidence=0.9,
+        strategy_id="alpha",
+    )
+    manager.risk_gateway.validate_trade_intent = AsyncMock(return_value=intent)  # type: ignore[assignment]
+
+    outcome = await manager.on_trade_intent(intent)
+    assert outcome.status == "failed"
+    assert outcome.executed is False
+    assert failing_engine.calls == 1
+
+    stats_after_failure = manager.get_execution_stats()
+    throttle_stats = stats_after_failure.get("trade_throttle")
+    assert isinstance(throttle_stats, Mapping)
+    assert throttle_stats.get("state") == "open"
+    throttle_meta = throttle_stats.get("metadata", {})
+    assert throttle_meta.get("recent_trades") == 0
+    assert throttle_meta.get("remaining_trades") == 1
+    assert stats_after_failure.get("throttle_retry_at") is None
+    assert stats_after_failure.get("throttle_retry_in_seconds") in (None, 0.0)
+
+    recording_engine = RecordingExecutionEngine()
+    manager.execution_engine = recording_engine
+    manager.risk_gateway.validate_trade_intent = AsyncMock(return_value=intent)  # type: ignore[assignment]
+
+    success_outcome = await manager.on_trade_intent(intent)
+    assert success_outcome.executed is True
+    assert recording_engine.calls == 1
+
+
+@pytest.mark.asyncio()
 async def test_trade_throttle_handles_high_frequency_burst(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

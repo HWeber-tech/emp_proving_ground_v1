@@ -626,13 +626,9 @@ class TradingManager:
 
         if config is None:
             self._trade_throttle = None
-            self._trade_throttle_snapshot = None
-            self._execution_stats.pop("trade_throttle", None)
-            self._execution_stats["throttle_retry_at"] = None
-            self._execution_stats["throttle_retry_in_seconds"] = None
+            self._update_trade_throttle_snapshot(None)
             self._execution_stats["throttle_scalings"] = 0
             self._execution_stats["last_throttle_multiplier"] = None
-            self._execution_stats.pop("trade_throttle_scopes", None)
             return
 
         throttle_config = (
@@ -642,37 +638,17 @@ class TradingManager:
         )
         self._trade_throttle = TradeThrottle(throttle_config)
         snapshot = self._trade_throttle.snapshot()
-        snapshot_dict = dict(snapshot)
-        metadata = snapshot_dict.get("metadata")
-        if isinstance(metadata, Mapping):
-            snapshot_dict["metadata"] = dict(metadata)
-        self._trade_throttle_snapshot = snapshot_dict
-        self._execution_stats["trade_throttle"] = snapshot_dict
+        self._update_trade_throttle_snapshot(snapshot)
         self._execution_stats["throttle_blocks"] = coerce_int(
             self._execution_stats.get("throttle_blocks"), default=0
         )
         self._execution_stats["throttle_scalings"] = 0
-        retry_at = snapshot_dict.get("metadata")
-        if isinstance(retry_at, Mapping):
-            self._execution_stats["throttle_retry_at"] = retry_at.get("retry_at")
-        else:
-            self._execution_stats["throttle_retry_at"] = None
-        metadata_block = snapshot_dict.get("metadata")
-        if isinstance(metadata_block, Mapping):
-            self._execution_stats["throttle_retry_in_seconds"] = metadata_block.get(
-                "retry_in_seconds"
-            )
-        else:
-            self._execution_stats["throttle_retry_in_seconds"] = None
         if throttle_config.multiplier is not None:
             self._execution_stats["last_throttle_multiplier"] = float(
                 throttle_config.multiplier
             )
         else:
             self._execution_stats["last_throttle_multiplier"] = None
-        self._execution_stats["trade_throttle_scopes"] = list(
-            self._trade_throttle.scope_snapshots()
-        )
 
     def _evaluate_trade_throttle(
         self,
@@ -701,28 +677,18 @@ class TradingManager:
         )
         snapshot = decision.as_dict()
         metadata_payload = snapshot.get("metadata")
+        metadata_dict: dict[str, Any] | None = None
         if isinstance(metadata_payload, Mapping):
-            snapshot["metadata"] = dict(metadata_payload)
-        self._trade_throttle_snapshot = snapshot
-        self._execution_stats["trade_throttle"] = snapshot
-        self._execution_stats["throttle_retry_in_seconds"] = decision.retry_in_seconds
+            metadata_dict = dict(metadata_payload)
+            snapshot["metadata"] = metadata_dict
         if decision.retry_at is not None:
             retry_iso = decision.retry_at.astimezone(timezone.utc).isoformat()
-            self._execution_stats["throttle_retry_at"] = retry_iso
-            snapshot.setdefault("metadata", {}).setdefault("retry_at", retry_iso)
-        elif isinstance(snapshot.get("metadata"), Mapping):
-            self._execution_stats["throttle_retry_at"] = snapshot["metadata"].get(
-                "retry_at"
-            )
-        else:
-            self._execution_stats["throttle_retry_at"] = None
+            metadata_dict = snapshot.setdefault("metadata", {})
+            metadata_dict.setdefault("retry_at", retry_iso)
         if decision.retry_in_seconds is not None:
-            snapshot.setdefault("metadata", {}).setdefault(
-                "retry_in_seconds", decision.retry_in_seconds
-            )
-        self._execution_stats["trade_throttle_scopes"] = list(
-            self._trade_throttle.scope_snapshots()
-        )
+            metadata_dict = snapshot.setdefault("metadata", {})
+            metadata_dict.setdefault("retry_in_seconds", decision.retry_in_seconds)
+        self._update_trade_throttle_snapshot(snapshot)
 
         if not decision.allowed:
             blocks = coerce_int(self._execution_stats.get("throttle_blocks"), default=0)
@@ -732,6 +698,71 @@ class TradingManager:
             ).isoformat()
 
         return decision
+
+    def _update_trade_throttle_snapshot(
+        self,
+        snapshot: Mapping[str, Any] | None,
+    ) -> None:
+        """Refresh execution statistics with the current trade throttle state."""
+
+        if snapshot is None:
+            self._trade_throttle_snapshot = None
+            self._execution_stats.pop("trade_throttle", None)
+            self._execution_stats["throttle_retry_at"] = None
+            self._execution_stats["throttle_retry_in_seconds"] = None
+            self._execution_stats.pop("trade_throttle_scopes", None)
+            return
+
+        snapshot_dict = dict(snapshot)
+        metadata = snapshot_dict.get("metadata")
+        retry_at_iso: str | None = None
+        retry_in_seconds_value: float | None = None
+        if isinstance(metadata, Mapping):
+            metadata_copy = dict(metadata)
+            snapshot_dict["metadata"] = metadata_copy
+            retry_at_raw = metadata_copy.get("retry_at")
+            if isinstance(retry_at_raw, datetime):
+                retry_at_iso = retry_at_raw.astimezone(timezone.utc).isoformat()
+                metadata_copy["retry_at"] = retry_at_iso
+            elif isinstance(retry_at_raw, str):
+                retry_at_iso = retry_at_raw
+            retry_in_seconds_raw = metadata_copy.get("retry_in_seconds")
+            if isinstance(retry_in_seconds_raw, (int, float)):
+                retry_in_seconds_value = float(retry_in_seconds_raw)
+        self._trade_throttle_snapshot = snapshot_dict
+        self._execution_stats["trade_throttle"] = snapshot_dict
+        self._execution_stats["throttle_retry_at"] = retry_at_iso
+        self._execution_stats["throttle_retry_in_seconds"] = retry_in_seconds_value
+        multiplier = snapshot_dict.get("multiplier")
+        if multiplier is not None:
+            try:
+                self._execution_stats["last_throttle_multiplier"] = float(multiplier)
+            except (TypeError, ValueError):
+                self._execution_stats["last_throttle_multiplier"] = None
+        elif "last_throttle_multiplier" in self._execution_stats:
+            self._execution_stats["last_throttle_multiplier"] = None
+        if self._trade_throttle is not None:
+            self._execution_stats["trade_throttle_scopes"] = list(
+                self._trade_throttle.scope_snapshots()
+            )
+
+    def _rollback_trade_throttle_decision(
+        self, decision: TradeThrottleDecision | None
+    ) -> None:
+        """Undo throttle counters when a permitted trade did not execute."""
+
+        if decision is None or self._trade_throttle is None:
+            return
+        try:
+            snapshot = self._trade_throttle.rollback(decision)
+        except Exception:  # pragma: no cover - defensive guardrail
+            logger.debug("Failed to roll back trade throttle state", exc_info=True)
+            snapshot = None
+        if snapshot is None:
+            snapshot_payload = self._trade_throttle.snapshot()
+        else:
+            snapshot_payload = snapshot
+        self._update_trade_throttle_snapshot(snapshot_payload)
 
     async def on_trade_intent(self, event: TradeIntent) -> TradeIntentOutcome:
         """
@@ -756,6 +787,7 @@ class TradingManager:
         strategy_id: str | None = None
         base_confidence: float | None = None
         trade_outcome: TradeIntentOutcome | None = None
+        throttle_decision: TradeThrottleDecision | None = None
         try:
             logger.info(f"Received trade intent: {event_id}")
 
@@ -1051,6 +1083,7 @@ class TradingManager:
                                     "Failed to release reserved position after execution error",
                                     exc_info=True,
                                 )
+                        self._rollback_trade_throttle_decision(throttle_decision)
                         logger.exception(
                             "Execution engine error for trade intent %s", event_id
                         )
@@ -1204,6 +1237,7 @@ class TradingManager:
                                     status="failed",
                                     release_metadata=release_metadata,
                                 )
+                            self._rollback_trade_throttle_decision(throttle_decision)
                             self._record_experiment_event(
                                 event_id=event_id,
                                 status="failed",
@@ -1280,6 +1314,7 @@ class TradingManager:
 
         except Exception as e:
             logger.error(f"Error processing trade intent {event_id}: {e}")
+            self._rollback_trade_throttle_decision(throttle_decision)
             if gate_decision is not None and not drift_event_emitted:
                 fallback_status = drift_event_status or "error"
                 confidence_payload = (

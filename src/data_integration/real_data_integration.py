@@ -292,7 +292,7 @@ class RealDataManager(MarketDataGateway):
             self._redis_client = managed_cache
             self._owns_redis = False
         else:
-            redis_client = configure_redis_client(self._redis_settings, ping=False)
+            redis_client = configure_redis_client(self._redis_settings, ping=True)
             if redis_client is None and redis_required:
                 raise RuntimeError(
                     "Redis connection required but redis client could not be created"
@@ -790,6 +790,7 @@ class RealDataManager(MarketDataGateway):
             "namespace": self._cache_policy.namespace,
             "ttl_seconds": self._cache_policy.ttl_seconds,
             "max_keys": self._cache_policy.max_keys,
+            "endpoint": self._redis_settings.summary(redacted=True),
         }
         if client is not None:
             details["client_class"] = type(client).__name__
@@ -846,6 +847,9 @@ class RealDataManager(MarketDataGateway):
 
     def _check_kafka(self) -> ConnectivityProbeSnapshot:
         start = time.perf_counter()
+        details: dict[str, object] = {
+            "endpoint": self._kafka_settings.summary(redacted=True),
+        }
         publisher = self._kafka_publisher
         if publisher is None:
             latency_ms = (time.perf_counter() - start) * 1000
@@ -855,9 +859,8 @@ class RealDataManager(MarketDataGateway):
                 status="off",
                 latency_ms=latency_ms,
                 error="kafka publisher not configured",
-                details={},
+                details=details,
             )
-        details: dict[str, object] = {}
         topic_map = getattr(publisher, "_topic_map", None)
         if isinstance(topic_map, Mapping):
             details["topics"] = sorted(str(topic) for topic in topic_map.values())

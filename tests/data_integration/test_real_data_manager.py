@@ -11,6 +11,7 @@ from src.data_foundation.cache.redis_cache import (
     InMemoryRedis,
     ManagedRedisCache,
     RedisCachePolicy,
+    RedisConnectionSettings,
 )
 from src.data_foundation.ingest import timescale_pipeline as ingest_pipeline
 from src.data_foundation.ingest.scheduler import IngestSchedule
@@ -355,6 +356,37 @@ def test_real_data_manager_requires_timescale_when_flag_set():
         )
 
 
+def test_real_data_manager_configures_redis_with_ping(monkeypatch, tmp_path):
+    url = f"sqlite:///{tmp_path / 'redis_ping.db'}"
+    settings = TimescaleConnectionSettings(url=url)
+
+    captured: dict[str, object] = {}
+
+    class _PingableRedis:
+        def ping(self) -> bool:  # pragma: no cover - simple stub
+            return True
+
+    def fake_configure(
+        redis_settings: object,
+        *,
+        factory: object | None = None,
+        ping: bool,
+    ) -> object:
+        captured["settings"] = redis_settings
+        captured["factory"] = factory
+        captured["ping"] = ping
+        return _PingableRedis()
+
+    monkeypatch.setattr(real_data_module, "configure_redis_client", fake_configure)
+
+    manager = RealDataManager(timescale_settings=settings)
+
+    try:
+        assert captured["ping"] is True
+    finally:
+        manager.close()
+
+
 class _HealthyRedis:
     def ping(self) -> bool:
         return True
@@ -388,8 +420,10 @@ def test_real_data_manager_connectivity_report_defaults(tmp_path):
     assert probes["redis"].status == "degraded"
     assert probes["redis"].healthy is False
     assert probes["redis"].error == "in-memory redis fallback active"
+    assert probes["redis"].details["endpoint"] == "Redis: not configured"
     assert probes["kafka"].status == "off"
     assert probes["kafka"].error == "kafka publisher not configured"
+    assert probes["kafka"].details["endpoint"] == "Kafka connection not configured"
     assert report.as_dict()["status"] == "off"
     assert report.overall_status() == "off"
 
@@ -402,6 +436,9 @@ def test_real_data_manager_connectivity_report_full_stack(tmp_path):
 
     redis_policy = RedisCachePolicy.institutional_defaults()
     redis_cache = ManagedRedisCache(_HealthyRedis(), redis_policy)
+    redis_settings = RedisConnectionSettings.from_mapping(
+        {"REDIS_URL": "redis://cache.example.com:6379/0"}
+    )
     publisher = KafkaIngestEventPublisher(
         _HealthyKafkaProducer(),
         topic_map={"daily_bars": "telemetry.ingest"},
@@ -410,6 +447,7 @@ def test_real_data_manager_connectivity_report_full_stack(tmp_path):
     manager = RealDataManager(
         timescale_settings=settings,
         managed_cache=redis_cache,
+        redis_settings=redis_settings,
         ingest_publisher=publisher,
     )
 
@@ -423,9 +461,11 @@ def test_real_data_manager_connectivity_report_full_stack(tmp_path):
     assert probes["timescale"].error == "Timescale backend running on sqlite"
     assert probes["redis"].status == "ok"
     assert probes["redis"].error is None
+    assert probes["redis"].details["endpoint"].startswith("Redis endpoint")
     assert probes["kafka"].status == "ok"
     assert probes["kafka"].error is None
     assert probes["kafka"].details.get("topics") == ["telemetry.ingest"]
+    assert probes["kafka"].details["endpoint"] == "Kafka connection not configured"
     assert report.as_dict()["status"] == "degraded"
     assert report.overall_status() == "degraded"
 

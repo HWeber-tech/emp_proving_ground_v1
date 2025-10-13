@@ -132,6 +132,18 @@ sys.exit(0)
 """
 
 
+_STACKTRACE_STDOUT_SCRIPT = r"""
+import sys
+import time
+
+print("Traceback (most recent call last):", flush=True)
+print('  File "<stdin>", line 1, in <module>', flush=True)
+print("ValueError: boom", flush=True)
+time.sleep(0.5)
+sys.exit(0)
+"""
+
+
 
 async def _wait_for_file(path, timeout: float = 2.0) -> None:
     loop = asyncio.get_running_loop()
@@ -366,6 +378,27 @@ def test_final_dry_run_can_compress_logs(tmp_path):
     assert first_line, "compressed log should contain at least one line"
     payload = json.loads(first_line)
     assert payload["stream"] == "stdout"
+
+
+def test_final_dry_run_detects_stack_trace_on_stdout(tmp_path):
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _STACKTRACE_STDOUT_SCRIPT],
+        duration=timedelta(seconds=0.8),
+        required_duration=timedelta(seconds=0.6),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.8,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.status is DryRunStatus.fail
+    assert any(
+        incident.severity is DryRunStatus.fail
+        and "stack trace" in incident.message.lower()
+        for incident in result.incidents
+    )
 
 @pytest.mark.asyncio()
 async def test_final_dry_run_progress_updates_on_incident(tmp_path):

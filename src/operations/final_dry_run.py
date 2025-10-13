@@ -1207,6 +1207,29 @@ async def _maybe_record_log_incident(
         return
 
     level = str(record.get("level") or "").lower()
+
+    if _looks_like_stack_trace(record):
+        stack_excerpt = _derive_stack_trace_excerpt(record)
+        incident = HarnessIncident(
+            severity=DryRunStatus.fail,
+            occurred_at=observed_at,
+            message=_format_stack_trace_incident_message(stream, stack_excerpt),
+            metadata={
+                "level": level or None,
+                "stream": stream,
+                "detected_via": "stack_trace",
+            },
+        )
+        await _append_incident(
+            incident=incident,
+            key=("stack_trace", stream, stack_excerpt),
+            incidents=incidents,
+            incident_keys=incident_keys,
+            lock=lock,
+            progress_reporter=progress_reporter,
+        )
+        return
+
     severity: DryRunStatus | None = None
     if level in _LOG_FAIL_LEVELS or (not level and stream == "stderr"):
         severity = DryRunStatus.fail
@@ -1270,3 +1293,56 @@ def _format_incident_message(
     level_token = level.upper() if level else stream.upper()
     suffix = f" — event: {event}" if event else ""
     return f"Runtime emitted {level_token} log on {stream}: {message}{suffix}"
+
+
+def _looks_like_stack_trace(record: Mapping[str, Any]) -> bool:
+    for candidate in _stack_trace_candidates(record):
+        text = candidate.lower()
+        if "traceback (most recent call last)" in text:
+            return True
+    return False
+
+
+def _derive_stack_trace_excerpt(record: Mapping[str, Any]) -> str:
+    for candidate in _stack_trace_candidates(record):
+        lower = candidate.lower()
+        marker_index = lower.find("traceback (most recent call last)")
+        if marker_index >= 0:
+            snippet = candidate[marker_index:].splitlines()[0].strip()
+            if snippet:
+                return snippet
+    return _derive_incident_message(record)
+
+
+def _format_stack_trace_incident_message(stream: str, excerpt: str) -> str:
+    return f"Runtime emitted stack trace on {stream}: {excerpt}"
+
+
+def _stack_trace_candidates(record: Mapping[str, Any]) -> tuple[str, ...]:
+    candidates: list[str] = []
+
+    message = record.get("message")
+    if isinstance(message, str) and message.strip():
+        candidates.append(message)
+
+    payload = record.get("payload")
+    if isinstance(payload, Mapping):
+        raw = payload.get("raw")
+        if isinstance(raw, str) and raw.strip():
+            candidates.append(raw)
+        structured = payload.get("structured")
+        if isinstance(structured, Mapping):
+            for key in (
+                "message",
+                "event",
+                "exc_info",
+                "exc_text",
+                "stack",
+                "stacktrace",
+                "traceback",
+            ):
+                value = structured.get(key)
+                if isinstance(value, str) and value.strip():
+                    candidates.append(value)
+
+    return tuple(candidates)

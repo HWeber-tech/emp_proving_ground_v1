@@ -41,9 +41,12 @@ Timescale pooling extras (`TIMESCALEDB_POOL_SIZE`, `TIMESCALEDB_MAX_OVERFLOW`,
 `TIMESCALEDB_POOL_TIMEOUT`, `TIMESCALEDB_POOL_RECYCLE`,
 `TIMESCALEDB_POOL_PRE_PING`) flow through `TimescaleConnectionSettings` and are
 reflected in the manifest whenever the Timescale URL targets PostgreSQL, letting
-operators tune pool sizing from `SystemConfig` without editing code. Regression
-coverage locks the Postgres vs SQLite behaviour so local SQLite rehearsals stay
-lightweight while institutional runs pick up the overrides.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L90】
+operators tune pool sizing from `SystemConfig` without editing code. When no URL
+is supplied the helper now composes one from host/user/password/TLS extras while
+still allowing a pre-built URL to win, so managed secrets and local overrides
+surface consistently in the manifest. Regression coverage locks the Postgres vs
+SQLite behaviour and the explicit-URL preference, keeping SQLite rehearsals
+lightweight while institutional runs pick up the overrides.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L122】
 
 The CLI leans on `plan_managed_manifest()` so the manifest and the runtime
 provisioner share the same metadata contract.  When connectivity checks are

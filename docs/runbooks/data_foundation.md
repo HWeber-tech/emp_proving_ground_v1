@@ -211,7 +211,7 @@ overrides exposed via `SystemConfig.extras` (`TIMESCALEDB_POOL_SIZE`,
 PostgreSQL/Timescale backend, leaving SQLite fallbacks unchanged, and are
 propagated directly to SQLAlchemy so production rehearsals can tune pool sizing
 without editing code; regression coverage exercises the Postgres vs SQLite
-paths.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L90】
+paths.【F:src/data_foundation/persist/timescale.py†L111-L255】【F:tests/data_foundation/test_timescale_connection_settings.py†L18-L122】
 
 When `TIMESCALEDB_URL` is absent the same helper now assembles a connection URL
 from discrete credentials (`TIMESCALEDB_HOST`, `TIMESCALEDB_PORT`,

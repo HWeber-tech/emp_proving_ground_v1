@@ -1,4 +1,6 @@
+import asyncio
 import json
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -170,6 +172,57 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
     assert report.paper_metrics is not None
     assert report.paper_metrics.get("success_ratio", 0.0) >= 0.0
     assert report.paper_metrics.get("failure_ratio", 0.0) >= 0.0
+
+
+@pytest.mark.asyncio()
+async def test_run_paper_trading_simulation_honours_stop_event(tmp_path) -> None:
+    async def handler(_request: web.Request) -> web.Response:
+        return web.json_response({"order_id": "stub-stop-event"})
+
+    base_url, shutdown, _captured = await _start_paper_server(handler)
+
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "qa"),
+        evidence_id="paper-sim-evidence",
+    )
+
+    diary_path = tmp_path / "diary.json"
+
+    extras = _build_extras(base_url, ledger_path, diary_path, max_ticks=200)
+
+    config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)
+    stop_event = asyncio.Event()
+
+    async def _trigger() -> None:
+        await asyncio.sleep(0.15)
+        stop_event.set()
+
+    trigger_task = asyncio.create_task(_trigger())
+
+    try:
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=0,
+            max_runtime=5.0,
+            poll_interval=0.05,
+            stop_when_complete=False,
+            stop_event=stop_event,
+        )
+    finally:
+        trigger_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await trigger_task
+        await shutdown()
+
+    assert stop_event.is_set()
+    assert report.runtime_seconds < 2.0
+    assert report.strategy_summary is not None
+    assert report.paper_metrics is not None
 
 
 @pytest.mark.asyncio()

@@ -88,6 +88,7 @@ async def run_paper_trading_simulation(
     poll_interval: float = 0.5,
     stop_when_complete: bool = True,
     report_path: str | Path | None = None,
+    stop_event: asyncio.Event | None = None,
 ) -> PaperTradingSimulationReport:
     """Execute the bootstrap runtime until paper orders are observed.
 
@@ -112,6 +113,10 @@ async def run_paper_trading_simulation(
     report_path:
         Optional filesystem path where a JSON serialisation of the simulation
         report should be written.  Parent directories are created automatically.
+    stop_event:
+        Optional asyncio event that, when set, triggers a graceful shutdown of
+        the simulation loop before ``max_runtime`` elapses.  Useful for
+        long-running simulations that must respond to OS signals.
 
     Returns
     -------
@@ -142,6 +147,9 @@ async def run_paper_trading_simulation(
         await runtime.start()
 
         while True:
+            if stop_event is not None and stop_event.is_set():
+                stop_requested = True
+                break
             if stop_when_complete and min_orders > 0 and len(orders) >= min_orders:
                 stop_requested = True
                 break
@@ -151,7 +159,17 @@ async def run_paper_trading_simulation(
                 stop_requested = True
                 break
 
-            await asyncio.sleep(max(poll_interval, 0.01))
+            interval = max(poll_interval, 0.01)
+            if stop_event is None:
+                await asyncio.sleep(interval)
+            else:
+                try:
+                    await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    stop_requested = True
+                    break
 
             _capture_order_history(paper_engine, orders, seen_orders)
             _capture_error_history(paper_engine, errors, seen_errors)

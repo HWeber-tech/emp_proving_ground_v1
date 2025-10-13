@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import signal
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -18,6 +20,41 @@ from src.runtime.paper_simulation import (
     _json_default as _simulation_json_default,
     run_paper_trading_simulation,
 )
+
+
+@contextmanager
+def _temporary_signal_handlers(
+    loop: asyncio.AbstractEventLoop,
+    stop_event: asyncio.Event,
+) -> None:
+    """Install SIGINT/SIGTERM handlers that request a graceful shutdown."""
+
+    signals: list[int] = [signal.SIGINT]
+    if hasattr(signal, "SIGTERM"):
+        signals.append(signal.SIGTERM)
+
+    previous: dict[int, signal.Handlers] = {}
+
+    def _handle(signum: int, frame) -> None:  # type: ignore[override]
+        if stop_event.is_set():
+            raise KeyboardInterrupt
+        loop.call_soon_threadsafe(stop_event.set)
+
+    for signum in signals:
+        try:
+            previous[signum] = signal.getsignal(signum)
+            signal.signal(signum, _handle)
+        except (ValueError, RuntimeError, OSError):  # pragma: no cover - platform guards
+            continue
+
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            try:
+                signal.signal(signum, handler)
+            except (ValueError, RuntimeError, OSError):  # pragma: no cover - platform guards
+                continue
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -199,14 +236,19 @@ def _apply_overrides(config: SystemConfig, args: argparse.Namespace) -> SystemCo
 
 async def _run_async(args: argparse.Namespace) -> Mapping[str, object]:
     config = _apply_overrides(_load_config(args.config), args)
-    report = await run_paper_trading_simulation(
-        config,
-        min_orders=max(0, args.min_orders or 0),
-        max_runtime=args.runtime_seconds,
-        poll_interval=max(args.poll_interval, 0.05),
-        stop_when_complete=not args.keep_running,
-        report_path=args.output,
-    )
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    with _temporary_signal_handlers(loop, stop_event):
+        report = await run_paper_trading_simulation(
+            config,
+            min_orders=max(0, args.min_orders or 0),
+            max_runtime=args.runtime_seconds,
+            poll_interval=max(args.poll_interval, 0.05),
+            stop_when_complete=not args.keep_running,
+            report_path=args.output,
+            stop_event=stop_event,
+        )
     payload = report.to_dict()
     payload.setdefault("orders_observed", len(report.orders))
     payload.setdefault("errors_observed", len(report.errors))

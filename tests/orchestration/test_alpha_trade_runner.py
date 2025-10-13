@@ -6,6 +6,8 @@ from typing import Mapping
 
 import pytest
 
+from src.operations.drift_sentry import DriftSentryConfig, evaluate_drift_sentry
+from src.operations.sensory_drift import DriftSeverity
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage, PolicyLedgerStore
 from src.orchestration.alpha_trade_loop import AlphaTradeLoopOrchestrator
 from src.orchestration.alpha_trade_runner import AlphaTradeLoopRunner
@@ -446,3 +448,85 @@ async def test_alpha_trade_runner_releases_freeze_after_safe_iteration(
     state = policy_router.exploration_freeze_state()
     assert state.get("release_reason") == "stability_recovered"
     assert state.get("release_metadata", {}).get("safe_iterations") == 1
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+
+    drift_gate = runner._orchestrator._drift_gate
+    config = DriftSentryConfig(
+        baseline_window=10,
+        evaluation_window=5,
+        min_observations=5,
+        page_hinkley_delta=0.001,
+        page_hinkley_warn=0.25,
+        page_hinkley_alert=0.6,
+        cusum_warn=0.35,
+        cusum_alert=0.9,
+        variance_ratio_warn=5.0,
+        variance_ratio_alert=12.0,
+    )
+    baseline = [0.12, 0.118, 0.121, 0.123, 0.119, 0.122, 0.117, 0.124, 0.12, 0.119]
+    evaluation = [0.19, 0.198, 0.205, 0.21, 0.202]
+    snapshot = evaluate_drift_sentry(
+        {"belief_confidence": baseline + evaluation},
+        config=config,
+        generated_at=datetime(2025, 1, 5, tzinfo=UTC),
+    )
+    assert snapshot.status is DriftSeverity.warn
+    drift_gate.update_snapshot(snapshot)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    result = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    trade_metadata = result.trade_metadata
+    mitigation = trade_metadata.get("drift_mitigation")
+    assert isinstance(mitigation, dict)
+    assert pytest.approx(mitigation["size_multiplier"], rel=1e-9) == 0.5
+    assert pytest.approx(mitigation["original_quantity"], rel=1e-9) == 25_000.0
+    assert pytest.approx(mitigation["adjusted_quantity"], rel=1e-9) == 12_500.0
+
+    assert pytest.approx(trade_metadata["quantity"], rel=1e-9) == 12_500.0
+    expected_notional = 12_500.0 * 1.2345
+    assert pytest.approx(trade_metadata["notional"], rel=1e-9) == expected_notional
+
+    assert trading_manager.intents, "expected trade intent to be submitted"
+    recorded_intent = trading_manager.intents[-1]
+    assert pytest.approx(recorded_intent["quantity"], rel=1e-9) == 12_500.0
+
+    theory_packet = trade_metadata.get("theory_packet")
+    assert isinstance(theory_packet, dict)
+    assert theory_packet.get("severity") == "warn"
+    actions = theory_packet.get("actions")
+    assert isinstance(actions, list)
+    action_labels = {entry.get("action") for entry in actions if isinstance(entry, Mapping)}
+    assert {"freeze_exploration", "size_multiplier"}.issubset(action_labels)
+
+    diary_metadata = result.loop_result.diary_entry.metadata
+    assert diary_metadata.get("theory_packet") == theory_packet
+    assert diary_metadata.get("drift_mitigation") == mitigation
+
+    loop_metadata = result.loop_result.metadata
+    assert loop_metadata.get("theory_packet") == theory_packet
+    assert loop_metadata.get("drift_mitigation") == mitigation
+
+    policy_router = runner._understanding_router.policy_router
+    assert policy_router.exploration_freeze_active() is True

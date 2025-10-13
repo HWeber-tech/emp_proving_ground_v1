@@ -223,12 +223,28 @@ class AlphaTradeLoopRunner:
                 trade_overrides,
             )
 
+        mitigation_payload: Mapping[str, Any] | None
+        theory_packet_payload: Mapping[str, Any] | None
+        mitigation_payload, theory_packet_payload = self._apply_drift_mitigation(
+            drift_decision=loop_result.drift_decision,
+            trade_metadata=trade_metadata,
+            intent_payload=intent_payload,
+        )
+
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
         if attribution_payload:
             diary_annotations["attribution"] = attribution_payload
             loop_metadata_updates["attribution"] = attribution_payload
+        if mitigation_payload:
+            mitigation_copy = dict(mitigation_payload)
+            diary_annotations["drift_mitigation"] = mitigation_copy
+            loop_metadata_updates["drift_mitigation"] = mitigation_copy
+        if theory_packet_payload:
+            packet_copy = dict(theory_packet_payload)
+            diary_annotations["theory_packet"] = packet_copy
+            loop_metadata_updates["theory_packet"] = packet_copy
         if intent_payload is not None:
             outcome = await self._trading_manager.on_trade_intent(intent_payload)
             trade_outcome = outcome
@@ -496,6 +512,155 @@ class AlphaTradeLoopRunner:
             )
             self._exploration_safe_streak = 0
             self._last_freeze_reason = None
+
+    def _apply_drift_mitigation(
+        self,
+        *,
+        drift_decision: DriftSentryDecision | None,
+        trade_metadata: MutableMapping[str, Any],
+        intent_payload: MutableMapping[str, Any] | None,
+    ) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None]:
+        """Apply drift-driven mitigations (size reduction & theory packet)."""
+
+        if drift_decision is None:
+            return None, None
+
+        severity = drift_decision.severity
+        if severity not in (DriftSeverity.warn, DriftSeverity.alert):
+            return None, None
+
+        if not isinstance(trade_metadata, MutableMapping):
+            return None, None
+
+        existing = trade_metadata.get("drift_mitigation")
+        if isinstance(existing, Mapping) and existing.get("size_multiplier") is not None:
+            theory_packet = trade_metadata.get("theory_packet")
+            packet_payload = (
+                dict(theory_packet) if isinstance(theory_packet, Mapping) else None
+            )
+            return dict(existing), packet_payload
+
+        multiplier = 0.5
+        applied_at = datetime.now(timezone.utc)
+        reason = drift_decision.reason or f"drift_{severity.value}"
+
+        quantity_value = _coerce_float(trade_metadata.get("quantity"))
+        if quantity_value is None and isinstance(intent_payload, Mapping):
+            quantity_value = _coerce_float(intent_payload.get("quantity"))
+
+        notional_value = _coerce_float(trade_metadata.get("notional"))
+        if notional_value is None and isinstance(intent_payload, Mapping):
+            metadata_block = intent_payload.get("metadata")
+            if isinstance(metadata_block, Mapping):
+                notional_value = _coerce_float(metadata_block.get("notional"))
+
+        price_value = _coerce_float(trade_metadata.get("price"))
+        if notional_value is None and quantity_value is not None and price_value is not None:
+            notional_value = abs(quantity_value) * abs(price_value)
+
+        adjusted_quantity = (
+            quantity_value * multiplier if quantity_value is not None else None
+        )
+        adjusted_notional = (
+            notional_value * multiplier if notional_value is not None else None
+        )
+
+        if adjusted_quantity is not None:
+            trade_metadata["quantity"] = adjusted_quantity
+        if adjusted_notional is not None:
+            trade_metadata["notional"] = adjusted_notional
+
+        mitigation_payload: dict[str, Any] = {
+            "severity": severity.value,
+            "reason": reason,
+            "size_multiplier": multiplier,
+            "applied_at": applied_at.astimezone(timezone.utc).isoformat(),
+            "force_paper": drift_decision.force_paper,
+        }
+        if isinstance(drift_decision.requirements, Mapping):
+            mitigation_payload["requirements"] = dict(drift_decision.requirements)
+        if quantity_value is not None:
+            mitigation_payload["original_quantity"] = quantity_value
+        if adjusted_quantity is not None:
+            mitigation_payload["adjusted_quantity"] = adjusted_quantity
+        if notional_value is not None:
+            mitigation_payload["original_notional"] = notional_value
+        if adjusted_notional is not None:
+            mitigation_payload["adjusted_notional"] = adjusted_notional
+
+        trade_metadata["drift_mitigation"] = dict(mitigation_payload)
+
+        if isinstance(intent_payload, MutableMapping):
+            intent_payload["quantity"] = (
+                adjusted_quantity if adjusted_quantity is not None else intent_payload.get("quantity")
+            )
+            meta_block: MutableMapping[str, Any]
+            metadata_payload = intent_payload.get("metadata")
+            if isinstance(metadata_payload, MutableMapping):
+                meta_block = metadata_payload
+            elif isinstance(metadata_payload, Mapping):
+                meta_block = dict(metadata_payload)
+                intent_payload["metadata"] = meta_block
+            else:
+                meta_block = {}
+                intent_payload["metadata"] = meta_block
+            if adjusted_notional is not None:
+                meta_block["notional"] = adjusted_notional
+            meta_block["drift_mitigation"] = dict(mitigation_payload)
+
+        snapshot_metadata: dict[str, Any] = {}
+        if isinstance(drift_decision.snapshot_metadata, Mapping):
+            snapshot_metadata = dict(drift_decision.snapshot_metadata)
+
+        actions: list[dict[str, Any]] = [
+            {
+                "action": "freeze_exploration",
+                "status": "triggered",
+                "reason": reason,
+            },
+            {
+                "action": "size_multiplier",
+                "value": multiplier,
+                "applied": adjusted_quantity is not None,
+            },
+        ]
+        if adjusted_quantity is not None:
+            actions[1]["original_quantity"] = quantity_value
+            actions[1]["adjusted_quantity"] = adjusted_quantity
+        if adjusted_notional is not None:
+            actions[1]["original_notional"] = notional_value
+            actions[1]["adjusted_notional"] = adjusted_notional
+        if drift_decision.force_paper:
+            actions.append(
+                {
+                    "action": "force_paper",
+                    "status": bool(drift_decision.force_paper),
+                }
+            )
+
+        theory_packet: dict[str, Any] = {
+            "summary": (
+                f"Drift sentry severity {severity.value} triggered exploration freeze and "
+                f"a {multiplier:.2f}x size multiplier"
+            ),
+            "generated_at": applied_at.astimezone(timezone.utc).isoformat(),
+            "severity": severity.value,
+            "actions": actions,
+            "drift_decision": drift_decision.as_dict(),
+        }
+        if snapshot_metadata:
+            theory_packet["snapshot_metadata"] = snapshot_metadata
+            runbook = snapshot_metadata.get("runbook")
+            if isinstance(runbook, str) and runbook.strip():
+                theory_packet["runbook"] = runbook.strip()
+
+        trade_metadata["theory_packet"] = dict(theory_packet)
+        if isinstance(intent_payload, MutableMapping):
+            meta_block = intent_payload.get("metadata")
+            if isinstance(meta_block, MutableMapping):
+                meta_block["theory_packet"] = dict(theory_packet)
+
+        return dict(mitigation_payload), dict(theory_packet)
 
     def _default_trade_builder(
         self,

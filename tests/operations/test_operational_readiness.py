@@ -137,6 +137,8 @@ def _understanding_drift_snapshot(severity: DriftSeverity) -> DriftSentrySnapsho
             page_hinkley_delta=0.001,
             page_hinkley_warn=0.15,
             page_hinkley_alert=0.3,
+            cusum_warn=1.2,
+            cusum_alert=2.0,
             variance_ratio_warn=1.2,
             variance_ratio_alert=1.6,
         )
@@ -149,6 +151,8 @@ def _understanding_drift_snapshot(severity: DriftSeverity) -> DriftSentrySnapsho
             page_hinkley_delta=0.002,
             page_hinkley_warn=0.08,
             page_hinkley_alert=0.35,
+            cusum_warn=1.0,
+            cusum_alert=1.8,
             variance_ratio_warn=1.25,
             variance_ratio_alert=3.0,
         )

@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any, Callable, Mapping, Sequence
 
 from src.governance.policy_ledger import PolicyLedgerStage
+from src.operations.drift_sentry import DriftSentryMetric, DriftSentrySnapshot
 from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, SensoryDriftSnapshot
 
 __all__ = [
@@ -82,12 +83,12 @@ class DriftSentryGate:
             for strategy in (exempt_strategies or tuple())
             if strategy and strategy.strip()
         }
-        self._latest_snapshot: SensoryDriftSnapshot | None = None
+        self._latest_snapshot: SensoryDriftSnapshot | DriftSentrySnapshot | None = None
         self._last_decision: DriftSentryDecision | None = None
         self._threshold_resolver = threshold_resolver
 
     @property
-    def latest_snapshot(self) -> SensoryDriftSnapshot | None:
+    def latest_snapshot(self) -> SensoryDriftSnapshot | DriftSentrySnapshot | None:
         """Return the most recent drift snapshot applied to the gate."""
 
         return self._latest_snapshot
@@ -98,7 +99,9 @@ class DriftSentryGate:
 
         return self._last_decision
 
-    def update_snapshot(self, snapshot: SensoryDriftSnapshot | None) -> None:
+    def update_snapshot(
+        self, snapshot: SensoryDriftSnapshot | DriftSentrySnapshot | None
+    ) -> None:
         """Refresh the gate with the latest sensory drift snapshot."""
 
         self._latest_snapshot = snapshot
@@ -233,16 +236,31 @@ class DriftSentryGate:
         )
 
     @staticmethod
-    def _blocked_dimensions(snapshot: SensoryDriftSnapshot | None) -> tuple[str, ...]:
+    def _blocked_dimensions(
+        snapshot: SensoryDriftSnapshot | DriftSentrySnapshot | None,
+    ) -> tuple[str, ...]:
         if snapshot is None:
             return tuple()
-        dimensions = []
-        for name, dimension in snapshot.dimensions.items():
-            if not isinstance(dimension, SensoryDimensionDrift):
-                continue
-            if _severity_ge(dimension.severity, DriftSeverity.warn):
-                dimensions.append(name)
-        return tuple(sorted({dim for dim in dimensions}))
+
+        if isinstance(snapshot, DriftSentrySnapshot):
+            dimensions: list[str] = []
+            for name, metric in snapshot.metrics.items():
+                if not isinstance(metric, DriftSentryMetric):
+                    continue
+                if _severity_ge(metric.severity, DriftSeverity.warn):
+                    dimensions.append(name)
+            return tuple(sorted({dim for dim in dimensions}))
+
+        if isinstance(snapshot, SensoryDriftSnapshot):
+            dimensions = []
+            for name, dimension in snapshot.dimensions.items():
+                if not isinstance(dimension, SensoryDimensionDrift):
+                    continue
+                if _severity_ge(dimension.severity, DriftSeverity.warn):
+                    dimensions.append(name)
+            return tuple(sorted({dim for dim in dimensions}))
+
+        return tuple()
 
     def describe(self) -> Mapping[str, Any]:
         """Return a serialisable view of the current gate posture."""

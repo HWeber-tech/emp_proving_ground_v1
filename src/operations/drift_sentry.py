@@ -66,6 +66,24 @@ def _page_hinkley_stat(values: Sequence[float], *, delta: float) -> float | None
     return max(positive_max, abs(negative_max))
 
 
+def _cusum_stat(
+    values: Sequence[float], *, reference: float | None, drift: float = 0.0
+) -> float | None:
+    if len(values) < 2 or reference is None:
+        return None
+    positive_sum = 0.0
+    negative_sum = 0.0
+    positive_max = 0.0
+    negative_max = 0.0
+    for value in values:
+        deviation = value - reference - drift
+        positive_sum = max(0.0, positive_sum + deviation)
+        negative_sum = min(0.0, negative_sum + deviation)
+        positive_max = max(positive_max, positive_sum)
+        negative_max = min(negative_max, negative_sum)
+    return max(positive_max, abs(negative_max))
+
+
 _SEVERITY_ORDER: Mapping[DriftSeverity, int] = {
     DriftSeverity.normal: 0,
     DriftSeverity.warn: 1,
@@ -87,6 +105,9 @@ class DriftSentryConfig:
     page_hinkley_delta: float = 0.05
     page_hinkley_warn: float = 2.0
     page_hinkley_alert: float = 4.0
+    cusum_drift: float = 0.0
+    cusum_warn: float = 3.0
+    cusum_alert: float = 6.0
     variance_ratio_warn: float = 1.6
     variance_ratio_alert: float = 2.4
 
@@ -98,6 +119,9 @@ class DriftSentryConfig:
             "page_hinkley_delta": self.page_hinkley_delta,
             "page_hinkley_warn": self.page_hinkley_warn,
             "page_hinkley_alert": self.page_hinkley_alert,
+            "cusum_drift": self.cusum_drift,
+            "cusum_warn": self.cusum_warn,
+            "cusum_alert": self.cusum_alert,
             "variance_ratio_warn": self.variance_ratio_warn,
             "variance_ratio_alert": self.variance_ratio_alert,
         }
@@ -116,6 +140,7 @@ class DriftSentryMetric:
     baseline_count: int
     evaluation_count: int
     page_hinkley_stat: float | None
+    cusum_stat: float | None
     variance_ratio: float | None
     detectors: tuple[str, ...] = ()
     metadata: Mapping[str, object] = field(default_factory=dict)
@@ -133,6 +158,8 @@ class DriftSentryMetric:
         }
         if self.page_hinkley_stat is not None:
             payload["page_hinkley_stat"] = self.page_hinkley_stat
+        if self.cusum_stat is not None:
+            payload["cusum_stat"] = self.cusum_stat
         if self.variance_ratio is not None:
             payload["variance_ratio"] = self.variance_ratio
         if self.detectors:
@@ -230,6 +257,11 @@ def evaluate_drift_sentry(
         page_stat = _page_hinkley_stat(combined_sequence, delta=cfg.page_hinkley_delta)
         baseline_variance = _variance(baseline)
         evaluation_variance = _variance(evaluation)
+        cusum_stat = _cusum_stat(
+            evaluation,
+            reference=fmean(baseline) if baseline else None,
+            drift=cfg.cusum_drift,
+        )
         if baseline_variance <= 0.0:
             variance_ratio: float | None = (
                 inf if evaluation_variance > 0.0 else None
@@ -245,18 +277,30 @@ def evaluate_drift_sentry(
             cfg.page_hinkley_warn,
             cfg.page_hinkley_alert,
         )
+        cusum_severity = _severity_from_thresholds(
+            cusum_stat,
+            cfg.cusum_warn,
+            cfg.cusum_alert,
+        )
         variance_severity = _severity_from_thresholds(
             variance_ratio,
             cfg.variance_ratio_warn,
             cfg.variance_ratio_alert,
         )
-        metric_severity = _max_severity(page_severity, variance_severity)
+        metric_severity = _max_severity(
+            _max_severity(page_severity, cusum_severity),
+            variance_severity,
+        )
 
         detectors: list[str] = []
         if page_severity is DriftSeverity.warn:
             detectors.append("page_hinkley_warn")
         elif page_severity is DriftSeverity.alert:
             detectors.append("page_hinkley_alert")
+        if cusum_severity is DriftSeverity.warn:
+            detectors.append("cusum_warn")
+        elif cusum_severity is DriftSeverity.alert:
+            detectors.append("cusum_alert")
         if variance_severity is DriftSeverity.warn:
             detectors.append("variance_warn")
         elif variance_severity is DriftSeverity.alert:
@@ -272,6 +316,7 @@ def evaluate_drift_sentry(
             baseline_count=len(baseline),
             evaluation_count=len(evaluation),
             page_hinkley_stat=page_stat,
+            cusum_stat=cusum_stat,
             variance_ratio=variance_ratio,
             detectors=tuple(detectors),
         )
@@ -282,6 +327,8 @@ def evaluate_drift_sentry(
             detector_entry["detectors"] = list(detectors)
         if page_stat is not None:
             detector_entry["page_hinkley_stat"] = page_stat
+        if cusum_stat is not None:
+            detector_entry["cusum_stat"] = cusum_stat
         if variance_ratio is not None:
             detector_entry["variance_ratio"] = variance_ratio
         detector_catalog[name] = detector_entry

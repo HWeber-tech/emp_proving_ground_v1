@@ -48,6 +48,9 @@ def test_drift_sentry_detects_abrupt_shift() -> None:
         page_hinkley_delta=0.001,
         page_hinkley_warn=0.2,
         page_hinkley_alert=0.4,
+        cusum_drift=0.0,
+        cusum_warn=1.5,
+        cusum_alert=2.5,
         variance_ratio_warn=1.2,
         variance_ratio_alert=1.6,
     )
@@ -63,7 +66,9 @@ def test_drift_sentry_detects_abrupt_shift() -> None:
     assert snapshot.status is DriftSeverity.alert
     assert metric.severity is DriftSeverity.alert
     assert "page_hinkley_alert" in metric.detectors
+    assert "cusum_alert" in metric.detectors
     assert metric.variance_ratio is not None
+    assert metric.cusum_stat is not None
 
 
 def test_drift_sentry_variance_warn() -> None:
@@ -74,6 +79,9 @@ def test_drift_sentry_variance_warn() -> None:
         page_hinkley_delta=0.01,
         page_hinkley_warn=0.8,
         page_hinkley_alert=1.8,
+        cusum_drift=0.0,
+        cusum_warn=5.0,
+        cusum_alert=7.5,
         variance_ratio_warn=1.6,
         variance_ratio_alert=5.5,
     )
@@ -110,6 +118,8 @@ def test_drift_sentry_alert_generation_respects_threshold() -> None:
         page_hinkley_delta=0.005,
         page_hinkley_warn=0.18,
         page_hinkley_alert=0.5,
+        cusum_warn=1.2,
+        cusum_alert=2.0,
         variance_ratio_warn=1.15,
         variance_ratio_alert=2.5,
     )

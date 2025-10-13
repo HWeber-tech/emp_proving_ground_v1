@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from bisect import bisect_left, insort
 from collections import deque
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Deque, Iterable, Mapping, MutableMapping
+import math
+from typing import Deque, Iterable, Mapping, MutableMapping, Sequence
 
 UTC = timezone.utc
 
@@ -39,10 +41,10 @@ class EventBacklogTracker:
         self._threshold_ms = float(threshold_ms)
         self._window = int(window)
         self._samples: Deque[float] = deque()
+        self._sorted_samples: list[float] = []
         self._breaches: Deque[BacklogBreach] = deque()
         self._breach_flags: Deque[bool] = deque()
         self._sample_sum: float = 0.0
-        self._max_lag: float = 0.0
         self._worst_breach: float = 0.0
         self._latest_lag: float | None = None
 
@@ -80,19 +82,16 @@ class EventBacklogTracker:
             removed_sample = self._samples.popleft()
             removed_flag = self._breach_flags.popleft()
             self._sample_sum -= removed_sample
-            if removed_sample >= self._max_lag:
-                self._max_lag = max(self._samples, default=0.0)
+            _remove_sorted_value(self._sorted_samples, removed_sample)
             if removed_flag and not any(self._breach_flags):
                 self._worst_breach = max(
                     (entry.lag_ms for entry in self._breaches), default=0.0
                 )
 
-        was_empty = not self._samples
         self._samples.append(lag_value)
         self._breach_flags.append(breach_flag)
         self._sample_sum += lag_value
-        if was_empty or lag_value > self._max_lag:
-            self._max_lag = lag_value
+        insort(self._sorted_samples, lag_value)
         self._latest_lag = lag_value
 
         breach_event: BacklogBreach | None = None
@@ -134,11 +133,11 @@ class EventBacklogTracker:
             }
 
         samples = len(self._samples)
-        max_lag = self._max_lag if samples else 0.0
+        max_lag = self._sorted_samples[-1] if self._sorted_samples else 0.0
         avg_lag = (self._sample_sum / samples) if samples else 0.0
         breach_samples = sum(1 for flag in self._breach_flags if flag)
         breach_rate = (breach_samples / samples) if samples else 0.0
-        p95_lag = _percentile(self._samples, 95.0)
+        p95_lag = _percentile(self._sorted_samples, 95.0)
         max_streak = _max_streak(self._breach_flags)
         latest_lag = self._latest_lag
         breaches = len(self._breaches)
@@ -173,27 +172,28 @@ class EventBacklogTracker:
         """Clear tracked samples and breaches."""
 
         self._samples.clear()
+        self._sorted_samples.clear()
         self._breaches.clear()
         self._breach_flags.clear()
         self._sample_sum = 0.0
-        self._max_lag = 0.0
         self._worst_breach = 0.0
         self._latest_lag = None
 
 
-def _percentile(values: Iterable[float], percentile: float) -> float | None:
-    ordered = sorted(values)
-    if not ordered:
+def _percentile(values: Sequence[float], percentile: float) -> float | None:
+    if not values:
         return None
     if percentile <= 0.0:
-        return ordered[0]
+        return float(values[0])
     if percentile >= 100.0:
-        return ordered[-1]
-    rank = (percentile / 100.0) * (len(ordered) - 1)
+        return float(values[-1])
+    rank = (percentile / 100.0) * (len(values) - 1)
     lower = int(rank)
-    upper = min(lower + 1, len(ordered) - 1)
+    upper = min(lower + 1, len(values) - 1)
     weight = rank - lower
-    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+    lower_value = float(values[lower])
+    upper_value = float(values[upper])
+    return lower_value * (1.0 - weight) + upper_value * weight
 
 
 def _max_streak(flags: Iterable[bool]) -> int:
@@ -207,3 +207,28 @@ def _max_streak(flags: Iterable[bool]) -> int:
         else:
             current = 0
     return max_streak
+
+
+def _remove_sorted_value(container: list[float], value: float) -> None:
+    """Remove ``value`` from ``container`` while preserving ordering."""
+
+    if not container:
+        return
+
+    index = bisect_left(container, value)
+    tolerance = 1e-9
+    length = len(container)
+
+    while index < length:
+        candidate = container[index]
+        if math.isclose(candidate, value, rel_tol=tolerance, abs_tol=tolerance):
+            container.pop(index)
+            return
+        if candidate > value and not math.isclose(candidate, value, rel_tol=tolerance, abs_tol=tolerance):
+            break
+        index += 1
+
+    for idx, candidate in enumerate(container):
+        if math.isclose(candidate, value, rel_tol=tolerance, abs_tol=tolerance):
+            container.pop(idx)
+            return

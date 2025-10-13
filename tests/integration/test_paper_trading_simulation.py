@@ -407,6 +407,7 @@ async def test_paper_trading_simulation_handles_persistent_api_failure(tmp_path)
     assert 1 <= call_counter["count"] <= 4
     assert captured, "Paper trading API was never invoked"
     assert not report.orders
+    assert report.order_summary is None
 
     assert report.errors, "Simulation did not capture broker failures"
     failure = report.errors[-1]

@@ -133,6 +133,18 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.orders, "Simulation did not capture any broker orders"
     assert report.orders[0]["symbol"] == "EURUSD"
     assert "placed_at" in report.orders[0]
+    assert report.order_summary is not None
+    summary = report.order_summary
+    assert summary.get("total_orders") == len(report.orders)
+    assert summary.get("unique_symbols", 0) >= 1
+    symbols_summary = summary.get("symbols", {})
+    assert "EURUSD" in symbols_summary
+    eurusd_summary = symbols_summary.get("EURUSD", {})
+    assert eurusd_summary.get("count", 0) >= 1
+    assert "first_order_at" in summary
+    assert "last_order_at" in summary
+    sides_summary = summary.get("sides", {})
+    assert sides_summary.get("BUY", {}).get("count", 0) >= 1
     assert report.paper_broker and report.paper_broker["base_url"] == base_url
     assert report.paper_broker.get("order_endpoint") == "/orders"
     assert report.paper_metrics is not None
@@ -206,6 +218,7 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
         await shutdown()
 
     assert report.orders, "Simulation did not capture any broker orders"
+    assert report.order_summary is not None
     assert report.runtime_seconds >= 0.2
     assert report.strategy_summary is not None
     assert report.release is not None
@@ -276,6 +289,8 @@ async def test_run_paper_trading_simulation_emits_progress(tmp_path) -> None:
     assert sync_events, "Sync progress callback was not invoked"
     assert any(event.orders_observed >= 1 for event in progress_events)
     assert progress_events[-1].orders_observed == len(report.orders)
+    assert report.order_summary is not None
+    assert report.order_summary.get("total_orders") == len(report.orders)
     assert all(isinstance(event.timestamp, datetime) for event in progress_events)
     assert all(event.runtime_seconds >= 0.0 for event in progress_events)
     assert all(event.decisions_observed >= 0 for event in progress_events)
@@ -377,6 +392,8 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
 
     payload = json.loads(report_path.read_text(encoding="utf-8"))
     assert payload.get("orders")
+    assert payload.get("order_summary")
+    assert payload["order_summary"].get("total_orders") == len(report.orders)
     assert payload.get("decisions") == report.decisions
     assert "paper_metrics" in payload
     metrics_payload = payload.get("paper_metrics", {})

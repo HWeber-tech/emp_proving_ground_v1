@@ -62,6 +62,7 @@ class PaperTradingSimulationReport:
     decisions: int = 0
     diary_entries: int = 0
     runtime_seconds: float = 0.0
+    order_summary: Mapping[str, Any] | None = None
     paper_broker: Mapping[str, Any] | None = None
     paper_metrics: Mapping[str, Any] | None = None
     portfolio_state: Mapping[str, Any] | None = None
@@ -89,6 +90,8 @@ class PaperTradingSimulationReport:
             payload["paper_broker"] = dict(self.paper_broker)
         if self.paper_metrics is not None:
             payload["paper_metrics"] = dict(self.paper_metrics)
+        if self.order_summary is not None:
+            payload["order_summary"] = _serialise_runtime_value(self.order_summary)
         if self.portfolio_state is not None:
             payload["portfolio_state"] = dict(self.portfolio_state)
         if self.performance is not None:
@@ -332,12 +335,15 @@ async def run_paper_trading_simulation(
                 for record in history_records
             ]
 
+    order_summary = _summarise_orders(orders)
+
     report = PaperTradingSimulationReport(
         orders=list(orders),
         errors=list(errors),
         decisions=len(runtime.decisions),
         diary_entries=_resolve_diary_count(config, runtime),
         runtime_seconds=runtime_seconds,
+        order_summary=order_summary,
         paper_broker=_resolve_paper_broker_snapshot(runtime),
         paper_metrics=paper_engine.describe_metrics(),
         portfolio_state=portfolio_snapshot,
@@ -630,6 +636,183 @@ def _resolve_trade_throttle_scopes(
     if not serialised:
         return None
     return serialised
+
+
+def _summarise_orders(
+    orders: Sequence[Mapping[str, Any]] | Sequence[Any],
+) -> Mapping[str, Any] | None:
+    total_orders = 0
+    total_quantity = 0.0
+    quantity_observed = False
+    total_notional = 0.0
+    notional_observed = False
+    first_order: datetime | None = None
+    last_order: datetime | None = None
+
+    side_stats: dict[str, dict[str, Any]] = {}
+    symbol_stats: dict[str, dict[str, Any]] = {}
+
+    for order in orders:
+        if not isinstance(order, Mapping):
+            continue
+
+        total_orders += 1
+
+        raw_symbol = order.get("symbol")
+        symbol = str(raw_symbol).upper() if raw_symbol is not None else "UNKNOWN"
+        raw_side = order.get("side")
+        side = str(raw_side).upper() if raw_side is not None else "UNKNOWN"
+
+        quantity = _coerce_float(order.get("quantity"))
+        if quantity is not None:
+            quantity_observed = True
+            total_quantity += quantity
+
+        notional = _extract_notional(order)
+        if notional is not None:
+            notional_observed = True
+            total_notional += notional
+
+        side_entry = side_stats.setdefault(side, {"count": 0})
+        side_entry["count"] += 1
+        if quantity is not None:
+            side_entry["quantity"] = side_entry.get("quantity", 0.0) + quantity
+        if notional is not None:
+            side_entry["notional"] = side_entry.get("notional", 0.0) + notional
+
+        symbol_entry = symbol_stats.setdefault(symbol, {"count": 0, "sides": {}})
+        symbol_entry["count"] += 1
+        if quantity is not None:
+            symbol_entry["quantity"] = symbol_entry.get("quantity", 0.0) + quantity
+        if notional is not None:
+            symbol_entry["notional"] = symbol_entry.get("notional", 0.0) + notional
+
+        symbol_side_entry = symbol_entry["sides"].setdefault(side, {"count": 0})
+        symbol_side_entry["count"] += 1
+        if quantity is not None:
+            symbol_side_entry["quantity"] = symbol_side_entry.get("quantity", 0.0) + quantity
+        if notional is not None:
+            symbol_side_entry["notional"] = symbol_side_entry.get("notional", 0.0) + notional
+
+        timestamp = order.get("placed_at") or order.get("timestamp")
+        parsed_ts = _parse_order_timestamp(timestamp)
+        if parsed_ts is not None:
+            if first_order is None or parsed_ts < first_order:
+                first_order = parsed_ts
+            if last_order is None or parsed_ts > last_order:
+                last_order = parsed_ts
+
+    if total_orders == 0:
+        return None
+
+    summary: dict[str, Any] = {
+        "total_orders": total_orders,
+        "unique_symbols": len(symbol_stats),
+    }
+
+    if quantity_observed:
+        summary["total_quantity"] = total_quantity
+    if notional_observed:
+        summary["total_notional"] = total_notional
+    if first_order is not None:
+        summary["first_order_at"] = first_order.astimezone(timezone.utc).isoformat()
+    if last_order is not None:
+        summary["last_order_at"] = last_order.astimezone(timezone.utc).isoformat()
+
+    sides_payload: dict[str, Any] = {}
+    for side, values in side_stats.items():
+        entry: dict[str, Any] = {"count": values["count"]}
+        if quantity_observed and "quantity" in values:
+            entry["quantity"] = values["quantity"]
+        if notional_observed and "notional" in values:
+            entry["notional"] = values["notional"]
+        sides_payload[side] = entry
+    summary["sides"] = sides_payload
+
+    symbols_payload: dict[str, Any] = {}
+    for symbol, value in symbol_stats.items():
+        payload: dict[str, Any] = {"count": value["count"]}
+        if quantity_observed and "quantity" in value:
+            payload["quantity"] = value["quantity"]
+        if notional_observed and "notional" in value:
+            payload["notional"] = value["notional"]
+        side_breakdown: dict[str, Any] = {}
+        for side, side_value in value["sides"].items():
+            side_entry: dict[str, Any] = {"count": side_value["count"]}
+            if quantity_observed and "quantity" in side_value:
+                side_entry["quantity"] = side_value["quantity"]
+            if notional_observed and "notional" in side_value:
+                side_entry["notional"] = side_value["notional"]
+            side_breakdown[side] = side_entry
+        payload["sides"] = side_breakdown
+        symbols_payload[symbol] = payload
+
+    summary["symbols"] = symbols_payload
+
+    return summary
+
+
+def _coerce_float(value: Any) -> float | None:
+    try:
+        candidate = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(candidate):
+        return None
+    return candidate
+
+
+def _extract_notional(order: Mapping[str, Any]) -> float | None:
+    candidates: list[Any] = []
+    for key in ("notional", "order_notional", "notional_value", "trade_notional"):
+        if key in order:
+            candidates.append(order.get(key))
+
+    metadata = order.get("metadata")
+    if isinstance(metadata, Mapping):
+        for key in (
+            "notional",
+            "order_notional",
+            "notional_value",
+            "trade_notional",
+            "applied_notional",
+        ):
+            if key in metadata:
+                candidates.append(metadata.get(key))
+
+    for candidate in candidates:
+        value = _coerce_float(candidate)
+        if value is not None:
+            return value
+    return None
+
+
+def _parse_order_timestamp(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed
+    return None
 
 
 def _resolve_portfolio_snapshot(

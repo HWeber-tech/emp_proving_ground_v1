@@ -184,30 +184,29 @@ class RealSensoryOrgan:
         dimension_payloads: dict[str, dict[str, Any]] = {}
         dimension_lineage_records: dict[str, SensorLineageRecord] = {}
         for name, signal in signals.items():
-            metadata = self._serialise_mapping(signal.metadata)
+            strength = self._extract_strength(signal)
+            metadata = dict(self._serialise_mapping(signal.metadata))
+            quality = self._build_quality_metadata(signal, metadata.get("quality"), dimension=name)
+            metadata["quality"] = quality
+
+            lineage_dict, lineage_record = self._resolve_lineage_metadata(
+                signal,
+                metadata,
+                dimension=name,
+                strength=strength,
+            )
+            metadata["lineage"] = lineage_dict
+            if lineage_record is not None:
+                dimension_lineage_records[name] = lineage_record
+
             payload: dict[str, Any] = {
-                "signal": self._extract_strength(signal),
+                "signal": strength,
                 "confidence": float(signal.confidence),
                 "value": self._serialise_value(signal.value),
                 "metadata": metadata,
+                "quality": quality,
+                "lineage": lineage_dict,
             }
-
-            quality_metadata = metadata.get("quality")
-            if isinstance(quality_metadata, Mapping):
-                payload["quality"] = self._serialise_mapping(quality_metadata)
-
-            lineage_dict: dict[str, Any] | None = None
-            lineage_record = getattr(signal, "lineage", None)
-            if isinstance(lineage_record, SensorLineageRecord):
-                dimension_lineage_records[name] = lineage_record
-                lineage_dict = dict(lineage_record.as_dict())
-            else:
-                metadata_lineage = metadata.get("lineage")
-                if isinstance(metadata_lineage, Mapping):
-                    lineage_dict = self._serialise_mapping(metadata_lineage)
-
-            if lineage_dict is not None:
-                payload["lineage"] = lineage_dict
 
             dimension_payloads[name] = payload
 
@@ -421,6 +420,77 @@ class RealSensoryOrgan:
         if candidate is None:
             candidate = self._as_float(getattr(signal, "strength", None))
         return candidate if candidate is not None else 0.0
+
+    def _build_quality_metadata(
+        self,
+        signal: SensorSignal,
+        existing: Mapping[str, Any] | None,
+        *,
+        dimension: str,
+    ) -> dict[str, Any]:
+        quality: dict[str, Any] = {}
+        if isinstance(existing, Mapping):
+            quality.update(self._serialise_mapping(existing))
+
+        source_key = f"sensory.{dimension.lower()}"
+        quality.setdefault("source", source_key)
+
+        timestamp = self._signal_timestamp(signal)
+        quality.setdefault("timestamp", timestamp.isoformat())
+
+        confidence = self._as_float(signal.confidence)
+        if confidence is None:
+            confidence = 0.0
+        quality.setdefault("confidence", confidence)
+
+        strength = self._extract_strength(signal)
+        quality.setdefault("strength", strength)
+        return quality
+
+    def _resolve_lineage_metadata(
+        self,
+        signal: SensorSignal,
+        metadata: Mapping[str, Any],
+        *,
+        dimension: str,
+        strength: float,
+    ) -> tuple[dict[str, Any], SensorLineageRecord | None]:
+        lineage_record = getattr(signal, "lineage", None)
+        if isinstance(lineage_record, SensorLineageRecord):
+            return dict(lineage_record.as_dict()), lineage_record
+
+        metadata_lineage = metadata.get("lineage")
+        if isinstance(metadata_lineage, Mapping):
+            return self._serialise_mapping(metadata_lineage), None
+
+        confidence_val = self._as_float(signal.confidence)
+        if confidence_val is None:
+            confidence_val = 0.0
+
+        fallback_record = build_lineage_record(
+            dimension,
+            "sensory.real_organ",
+            inputs={"source": "synthetic_lineage"},
+            outputs={
+                "strength": strength,
+                "confidence": confidence_val,
+            },
+            telemetry={},
+            metadata={
+                "mode": "generated",
+                "reason": "missing_lineage",
+                "timestamp": self._signal_timestamp(signal).isoformat(),
+            },
+        )
+        return dict(fallback_record.as_dict()), fallback_record
+
+    def _signal_timestamp(self, signal: SensorSignal) -> datetime:
+        timestamp = getattr(signal, "timestamp", None)
+        if isinstance(timestamp, datetime):
+            if timestamp.tzinfo is None:
+                return timestamp.replace(tzinfo=timezone.utc)
+            return timestamp.astimezone(timezone.utc)
+        return datetime.now(timezone.utc)
 
     def _build_integrated_signal(self, signals: Mapping[str, SensorSignal]) -> IntegratedSignal:
         strengths: list[tuple[float, float, str]] = []

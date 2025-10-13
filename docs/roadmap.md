@@ -73,6 +73,7 @@ Below is a refreshed 90-day roadmap to guide the next phase of AlphaTrade develo
   - Progress: Import-linter contracts now elevate `src.understanding` to first-class layer and independence boundaries, and the backlog checklist retargets orchestration clean-up tickets to the renamed enhanced-understanding engine so architectural hygiene enforces the new namespace vocabulary.【F:contracts/importlinter.toml†L9-L49】【F:contracts/importlinter.ini†L8-L48】【F:list.md†L20-L34】
   - Progress: Runtime assembly now resolves the optional `SentientAdaptationEngine` through a shared `_import_optional_class` helper, centralising guardrails for optional dependencies so compose logic stays typed while gracefully degrading when extras are missing, with regression coverage guarding the fallback.【F:src/orchestration/compose.py†L35-L50】【F:tests/current/test_orchestration_compose.py†L100-L142】
   - Progress: Sentient adaptation now lives in the canonical `src.sentient.adaptation` package, with the intelligence facade lazily exporting the engine, a compatibility shim forwarding legacy imports, and a guard test suite proving the duplicate class definitions are retired without breaking callers.【F:src/sentient/adaptation/sentient_adaptation_engine.py†L1-L211】【F:src/intelligence/__init__.py†L23-L193】【F:src/intelligence/sentient_adaptation.py†L1-L22】【F:tests/current/test_public_api_intelligence.py†L1-L87】
+  - Progress: Phase 3 intelligence orchestrator now returns `competitive_understanding` as the canonical telemetry while mirroring `competitive_intelligence` for legacy callers, and async guardrails pin the alias so downstream migrations stay lossless.【F:src/intelligence/__init__.py†L212-L284】【F:tests/intelligence/test_phase3_intelligence_orchestrator.py†L1-L83】
   - Progress: Namespace cleanup tooling now remaps legacy `market_intelligence` segments to the sensory domain so duplicate sweeps and hygiene scripts reinforce the understanding vocabulary across the tree.【F:scripts/cleanup/duplicate_map.py†L76-L107】
   - Progress: Integration, trading, validation, and orchestration surfaces now import `RiskManager` via the consolidated `src.risk` package, retiring lingering `.manager` references so the facade governs runtime usage consistently under regression coverage.【F:src/integration/component_integrator.py†L1-L120】【F:src/trading/trading_manager.py†L1-L210】【F:src/validation/phase2d_simple_integration.py†L1-L120】【F:tests/risk/test_risk_manager_impl_additional.py†L1-L80】
   - Progress: `src.core` now lazily exposes only the canonical `RiskManager` export and raises `AttributeError` for the retired `get_risk_manager` shim, with regression coverage ensuring the legacy symbol stays unavailable for downstream callers.【F:src/core/__init__.py†L17-L56】【F:src/risk/__init__.py†L39-L84】【F:tests/risk/test_risk_manager_impl_additional.py†L267-L277】
@@ -265,6 +266,8 @@ Below is a refreshed 90-day roadmap to guide the next phase of AlphaTrade develo
   - Progress: Structured log ingestion now streams gz/bz2/xz archives and normalises ISO timestamps with trailing `Z`, so compressed evidence bundles and legacy diary exports feed the audit without manual unpacking, under regression coverage for gzip/bz2 fixtures and the diary parser.【F:src/operations/dry_run_audit.py†L31-L671】【F:src/understanding/decision_diary.py†L41-L54】【F:tests/operations/test_dry_run_audit.py†L1-L47】
   - Progress: Evidence packet tooling now composes the dry-run summary, optional sign-off verdicts, raw logs, diary exports, and KPI snapshots into a manifest plus tarball so governance reviewers can archive or distribute the complete sign-off bundle from a single command, with regression exercising raw-artifact toggles and archive emission.【F:src/operations/dry_run_packet.py†L1-L158】【F:tests/operations/test_dry_run_packet.py†L54-L143】
   - Progress: A dedicated workflow now runs the dry run, assembles evidence packets, and emits review briefs; CLI flags surface packet archives, review notes, and formatting controls while the runbook captures the new options and tests assert packets and reviews materialise for governance boards. The wrapper now ships as an EMP CLI subcommand so operators can invoke `emp final-dry-run` with the same switches, with integration tests covering pass/fail paths.【F:src/operations/final_dry_run_workflow.py†L25-L310】【F:tools/operations/final_dry_run.py†L236-L412】【F:emp/cli/final_dry_run.py†L1-L450】【F:emp/__main__.py†L1-L33】【F:docs/runbooks/final_dry_run.md†L10-L57】【F:tests/operations/test_final_dry_run_cli.py†L49-L134】【F:tests/operations/test_final_dry_run.py†L92-L201】
+  - Progress: Smoke harness now bundles a simulated runtime and CLI wrapper so ops can rehearse end-to-end dry-run workflows in minutes; the runbook documents the shortcut and regression coverage asserts the smoke pipeline produces logs, diary entries, reviews, and packet scaffolding.【F:src/operations/final_dry_run_simulated_runtime.py†L1-L214】【F:src/operations/final_dry_run_smoke.py†L1-L298】【F:tools/operations/final_dry_run_smoke.py†L1-L361】【F:tests/operations/test_final_dry_run_smoke.py†L1-L43】【F:docs/runbooks/final_dry_run.md†L54-L73】
+  - Progress: Dry-run entrypoints add `--compress-logs` across EMP and tooling CLIs, writing `.jsonl.gz`/`.log.gz` artefacts and guarding gzip decoding so multi-day rehearsals shrink evidence footprints without breaking audit ingestion.【F:emp/cli/final_dry_run.py†L268-L424】【F:src/operations/final_dry_run.py†L67-L724】【F:tools/operations/final_dry_run.py†L257-L454】【F:tests/operations/test_final_dry_run.py†L339-L411】【F:docs/runbooks/final_dry_run.md†L19-L77】
   - Progress: Dry-run progress telemetry now tracks the highest-severity incident seen so far, flushes snapshots as soon as log monitors emit WARN/FAIL payloads, and guardrail coverage asserts the JSON progress file records incident metadata before the harness completes so governance can tail real-time failures instead of waiting for the final report.【src/operations/final_dry_run.py:209】【src/operations/final_dry_run.py:246】【tests/operations/test_final_dry_run.py:277】
   - Progress: Diary summarisation enforces coverage windows tied to the log timeline, producing fail or warn issues when entries are missing at the start or end of the run so reviewers can certify diary completeness during sign-off rehearsals.【F:src/operations/dry_run_audit.py†L712-L796】【F:tests/operations/test_dry_run_audit.py†L174-L206】
   - Progress: Daily diary coverage checks now demand configurable minimum entries per calendar day and wire CLI toggles for severity, ensuring dry-run packets surface gaps in operator journaling with regression coverage across audit helpers and the final sign-off script.【F:src/operations/dry_run_audit.py†L738-L947】【F:tests/operations/test_dry_run_audit.py†L188-L304】【F:tools/operations/final_dry_run_audit.py†L21-L206】
@@ -283,122 +286,10 @@ Maintain and improve the CI coverage: aim to raise coverage from ~76% into the 8
 Keep documentation up-to-date with code. The roadmap’s context briefs and sprint briefs should be revised when assumptions change. For example, once real data ingest is done, the alignment brief for the data backbone can be marked as achieved or updated with remaining gaps. This ensures the “concept promises” in the docs match reality, maintaining alignment between narrative and implementation[59].
 By following this roadmap, in 90 days we will have transformed the AlphaTrade prototype from a scaffold into a paper-trading-ready, well-governed AI trading loop. We will have demonstrated the system’s ability to perceive real market data, adapt using fast weights and evolutionary tweaks, reflect on its decisions with interpretable metrics, execute trades under strict risk controls, and govern itself through policy stages. Quick wins are captured early to build momentum, and risky, research-heavy tasks are deferred or made optional behind feature flags. Each phase concludes with concrete acceptance tests and definitions of done, giving a clear target for completion. With this structured approach, the team and stakeholders can track progress and gain confidence as AlphaTrade moves toward both practical deployment and the potential to contribute novel insights (via the BDH-inspired design) to the algorithmic trading community.
 
-## Automation updates — 2025-10-13T02:10:35Z
+## Automation updates — 2025-10-13T00:28:22Z
 
 ### Last 4 commits
-- a2634577 test(integration): tune 1 file (2025-10-13)
-- 424b029a refactor(sensory): tune 3 files (2025-10-13)
-- 4eb29205 refactor(runtime): tune 3 files (2025-10-13)
-- e789796c refactor(trading): tune 4 files (2025-10-13)
-
-## Automation updates — 2025-10-13T01:22:16Z
-
-### Last 4 commits
-- 42c090d6 refactor(trading): tune 5 files (2025-10-13)
-- cd059da6 refactor(data_foundation): tune 3 files (2025-10-13)
-- b542ffd0 refactor(trading): tune 2 files (2025-10-13)
-- 9098af23 docs(docs): tune 7 files (2025-10-13)
-
-## Automation updates — 2025-10-12T13:11:32Z
-
-### Last 4 commits
-- e9044cd refactor(sensory): tune 2 files (2025-10-12)
-- f6f7d36 refactor(governance): tune 1 file (2025-10-12)
-- a47bc40 feat(runtime): add 4 files (2025-10-12)
-- c19e03d docs(docs): tune 3 files (2025-10-12)
-
-## Automation updates — 2025-10-12T22:24:00Z
-
-### Last 4 commits
-- da205265 refactor(docs): tune 5 files (2025-10-13)
-- a722e51f refactor(runtime): tune 6 files (2025-10-13)
-- 85d3eabb refactor(data_foundation): tune 2 files (2025-10-13)
-- 64d6d82b refactor(runtime): tune 5 files (2025-10-13)
-
-## Automation updates — 2025-10-12T13:28:24Z
-
-### Last 4 commits
-- 3f405ad refactor(docs): tune 5 files (2025-10-12)
-- 2538632 refactor(docs): tune 5 files (2025-10-12)
-- a003ee9 refactor(data_foundation): tune 4 files (2025-10-12)
-- 36c9ade refactor(docs): tune 4 files (2025-10-12)
-
-## Automation updates — 2025-10-12T14:28:09Z
-
-### Last 4 commits
-- 39220a2 refactor(data_foundation): tune 2 files (2025-10-12)
-- f9fbbf4 feat(data_foundation): add 3 files (2025-10-12)
-- 1d3621f feat(data_integration): add 2 files (2025-10-12)
-- e1a3833 docs(docs): tune 5 files (2025-10-12)
-
-## Automation updates — 2025-10-12T15:17:35Z
-
-### Last 4 commits
-- a31a050 refactor(runtime): tune 4 files (2025-10-12)
-- cbd143a feat(data_foundation): add 4 files (2025-10-12)
-- 535a8f7 refactor(understanding): tune 3 files (2025-10-12)
-- 10420c7 refactor(operations): tune 2 files (2025-10-12)
-
-## Automation updates — 2025-10-12T15:48:41Z
-
-### Last 4 commits
-- a64e0c6 test(tools): tune 2 files (2025-10-12)
-- 807b6fc refactor(docs): tune 7 files (2025-10-12)
-- 2aa5e7d refactor(data_foundation): tune 2 files (2025-10-12)
-- 8c31543 refactor(sensory): tune 3 files (2025-10-12)
-
-## Automation updates — 2025-10-12T18:37:29Z
-
-### Last 4 commits
-- 8c10020 refactor(understanding): tune 3 files (2025-10-12)
-- a73ddc6 refactor(runtime): tune 2 files (2025-10-12)
-- e5f4617 refactor(docs): tune 4 files (2025-10-12)
-- c6c82a7 refactor(orchestration): tune 11 files (2025-10-12)
-
-## Automation updates — 2025-10-12T19:13:05Z
-
-### Last 4 commits
-- 3e477f4 test(.telemetry): tune 1 file (2025-10-12)
-- 35c8685 feat(validation): add 3 files (2025-10-12)
-- 00bb41b test(integration): tune 1 file (2025-10-12)
-- 4abb58a refactor(runtime): tune 3 files (2025-10-12)
-
-## Automation updates — 2025-10-12T20:37:14Z
-
-### Last 4 commits
-- 2ab2225 feat(docs): add 4 files (2025-10-12)
-- 4fec864 feat(ecosystem): add 5 files (2025-10-12)
-- 67780cc refactor(understanding): tune 4 files (2025-10-12)
-- 5acc7a8 test(runtime): tune 1 file (2025-10-12)
-
-## Automation updates — 2025-10-12T21:20:15Z
-
-### Last 4 commits
-- bee13e3 feat(docs): add 6 files (2025-10-12)
-- 1233f04 test(system_validation_report.json): tune 2 files (2025-10-12)
-- 16c856b refactor(thinking): tune 2 files (2025-10-12)
-- f1c365e refactor(docs): tune 6 files (2025-10-12)
-
-## Automation updates — 2025-10-12T21:59:36Z
-
-### Last 4 commits
-- d918a83 refactor(thinking): tune 6 files (2025-10-12)
-- 438a4a2 test(.telemetry): tune 5 files (2025-10-12)
-- 6337e61 test(.telemetry): add 2 files (2025-10-12)
-- d995cab refactor(sensory): tune 2 files (2025-10-12)
-
-## Automation updates — 2025-10-12T22:41:11Z
-
-### Last 4 commits
-- 0dfbe39 refactor(orchestration): tune 4 files (2025-10-13)
-- 81a682c refactor(docs): tune 3 files (2025-10-13)
-- 06e7822 refactor(docs): tune 6 files (2025-10-13)
-- a579a44 refactor(runtime): tune 2 files (2025-10-13)
-
-## Automation updates — 2025-10-12T23:43:45Z
-
-### Last 4 commits
-- 6c6c2b63 refactor(runtime): tune 2 files (2025-10-13)
-- b4a56f74 refactor(orchestration): tune 5 files (2025-10-13)
-- bd667e55 refactor(trading): tune 2 files (2025-10-13)
-- c8970808 refactor(data_integration): tune 2 files (2025-10-13)
+- 39faa668 feat(intelligence): add 2 files (2025-10-13)
+- 7a2807a7 refactor(docs): tune 5 files (2025-10-13)
+- e9e770b2 feat(docs): add 5 files (2025-10-13)
+- e2ff4011 docs(docs): tune 4 files (2025-10-13)

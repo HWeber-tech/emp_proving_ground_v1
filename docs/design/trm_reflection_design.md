@@ -147,6 +147,7 @@ Referenced in [`config/reflection/rim.config.example.yml`](../../config/reflecti
 - `diaries_dir`, `diary_glob`
 - `window_minutes`, `min_entries`, `suggestion_cap`, `confidence_floor`
 - `enable_governance_gate`, `publish_channel`, `kill_switch`
+- `governance.queue_path`, `governance.digest_path`, `governance.markdown_path`
 - `telemetry.log_dir`
 - `trm_params.K_outer`, `trm_params.n_inner`, `trm_params.halt_enabled`
 - `redact.fields`, `redact.mode`

@@ -5,15 +5,17 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import platform
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Sequence
 
 from .adapter import RIMInputAdapter
 from .config import RIMRuntimeConfig
 from .encoder import RIMEncoder
 from .model import TRMModel
+from .governance import publish_governance_artifacts
 from .postprocess import build_suggestions
 from .types import RIMInputBatch
 
@@ -24,6 +26,7 @@ class TRMRunResult:
     suggestions_count: int
     runtime_seconds: float
     skipped_reason: str | None = None
+    run_id: str | None = None
 
 
 class TRMRunner:
@@ -67,6 +70,9 @@ class TRMRunner:
         return result
 
     def _execute(self, batch: RIMInputBatch, start: float) -> TRMRunResult:
+        run_timestamp = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        run_id = self._build_run_id(run_timestamp)
+
         encodings = self._encoder.encode(batch.entries)
         inferences = [self._model.infer(encoding) for encoding in encodings]
         suggestions = build_suggestions(
@@ -78,13 +84,35 @@ class TRMRunner:
             config_hash=self._config_hash,
         )
 
-        suggestions_path = self._publish(suggestions)
+        suggestions_path = self._publish(
+            suggestions,
+            run_id=run_id,
+            run_timestamp=run_timestamp,
+        )
         runtime = time.perf_counter() - start
         self._log_metrics(batch, runtime, len(suggestions), suggestions_path)
-        return TRMRunResult(suggestions_path, len(suggestions), runtime)
+        if self._config.enable_governance_gate:
+            self._publish_governance(
+                suggestions,
+                run_id=run_id,
+                run_timestamp=run_timestamp,
+                batch=batch,
+                suggestions_path=suggestions_path,
+            )
+        return TRMRunResult(
+            suggestions_path,
+            len(suggestions),
+            runtime,
+            run_id=run_id,
+        )
 
-    def _publish(self, suggestions: Iterable[dict[str, object]]) -> Path | None:
-        suggestions = list(suggestions)
+    def _publish(
+        self,
+        suggestions: Sequence[dict[str, object]],
+        *,
+        run_id: str,
+        run_timestamp: dt.datetime,
+    ) -> Path | None:
         if not suggestions:
             return None
         publish_channel = self._config.publish_channel
@@ -93,14 +121,37 @@ class TRMRunner:
         else:
             target_dir = Path("artifacts/rim_suggestions")
         target_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = dt.datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-        run_id = f"{timestamp}-{os.uname().nodename}-{os.getpid()}"
-        output_path = target_dir / f"rim-suggestions-UTC-{timestamp}-{os.getpid()}.jsonl"
+        timestamp_slug = run_timestamp.strftime("%Y%m%dT%H%M%S")
+        output_path = target_dir / f"rim-suggestions-UTC-{timestamp_slug}-{os.getpid()}.jsonl"
         with output_path.open("w", encoding="utf-8") as handle:
             for item in suggestions:
-                item.setdefault("run_id", run_id)
-                handle.write(json.dumps(item) + "\n")
+                payload = dict(item)
+                payload.setdefault("run_id", run_id)
+                handle.write(json.dumps(payload) + "\n")
         return output_path
+
+    def _publish_governance(
+        self,
+        suggestions: Sequence[dict[str, object]],
+        *,
+        run_id: str,
+        run_timestamp: dt.datetime,
+        batch: RIMInputBatch,
+        suggestions_path: Path | None,
+    ) -> None:
+        publish_governance_artifacts(
+            suggestions,
+            run_id=run_id,
+            run_timestamp=run_timestamp,
+            window=batch.window,
+            input_hash=batch.input_hash,
+            model_hash=self._model.model_hash,
+            config_hash=self._config_hash,
+            queue_path=self._config.governance_queue_path,
+            digest_path=self._config.governance_digest_path,
+            markdown_path=self._config.governance_markdown_path,
+            artifact_path=suggestions_path,
+        )
 
     def _log_metrics(
         self,
@@ -120,6 +171,11 @@ class TRMRunner:
         log_path = log_dir / f"rim-{timestamp:%Y%m%d}.log"
         with log_path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
+
+    def _build_run_id(self, timestamp: dt.datetime) -> str:
+        node = platform.node() or "unknown"
+        slug = timestamp.strftime("%Y%m%dT%H%M%S")
+        return f"{slug}-{node}-{os.getpid()}"
 
 
 class _FileLock:

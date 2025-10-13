@@ -62,6 +62,9 @@ class RIMRuntimeConfig:
     redact: RedactConfig = field(default_factory=RedactConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
     lock_path: Path = Path("artifacts/locks/rim.lock")
+    governance_queue_path: Path = Path("artifacts/governance/reflection_queue.jsonl")
+    governance_digest_path: Path = Path("artifacts/governance/reflection_digest.json")
+    governance_markdown_path: Path = Path("artifacts/governance/reflection_digest.md")
 
 
 @dataclass(slots=True)
@@ -134,6 +137,7 @@ def load_runtime_config(path: Path | None = None) -> RuntimeConfigBundle:
     trm_params = _build_trm_params(_ensure_mapping(raw_config.get("trm_params")))
     redact = _build_redact(_ensure_mapping(raw_config.get("redact")))
     model = _build_model(_ensure_mapping(raw_config.get("model")))
+    governance = _ensure_mapping(raw_config.get("governance"))
 
     diaries_dir = _coerce_path(raw_config.get("diaries_dir", RIMRuntimeConfig.diaries_dir))
     diary_glob = str(raw_config.get("diary_glob", RIMRuntimeConfig.diary_glob))
@@ -147,6 +151,24 @@ def load_runtime_config(path: Path | None = None) -> RuntimeConfigBundle:
     publish_channel = str(raw_config.get("publish_channel", RIMRuntimeConfig.publish_channel))
     kill_switch = bool(raw_config.get("kill_switch", RIMRuntimeConfig.kill_switch))
     lock_path = _coerce_path(raw_config.get("lock_path", RIMRuntimeConfig.lock_path))
+    governance_queue_path = _coerce_path(
+        (governance or {}).get(
+            "queue_path",
+            RIMRuntimeConfig.governance_queue_path,
+        )
+    )
+    governance_digest_path = _coerce_path(
+        (governance or {}).get(
+            "digest_path",
+            RIMRuntimeConfig.governance_digest_path,
+        )
+    )
+    governance_markdown_path = _coerce_path(
+        (governance or {}).get(
+            "markdown_path",
+            RIMRuntimeConfig.governance_markdown_path,
+        )
+    )
 
     config = RIMRuntimeConfig(
         diaries_dir=diaries_dir,
@@ -163,6 +185,9 @@ def load_runtime_config(path: Path | None = None) -> RuntimeConfigBundle:
         redact=redact,
         model=model,
         lock_path=lock_path,
+        governance_queue_path=governance_queue_path,
+        governance_digest_path=governance_digest_path,
+        governance_markdown_path=governance_markdown_path,
     )
 
     return RuntimeConfigBundle(config=config, config_hash=digest, source_path=resolved_path)

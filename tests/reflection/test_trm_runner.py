@@ -51,6 +51,10 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
     publish_dir = tmp_path / "suggestions"
     telemetry_dir = tmp_path / "logs"
     lock_path = tmp_path / "locks" / "rim.lock"
+    governance_dir = tmp_path / "governance"
+    queue_path = governance_dir / "queue.jsonl"
+    digest_path = governance_dir / "digest.json"
+    markdown_path = governance_dir / "digest.md"
 
     config = RIMRuntimeConfig(
         diaries_dir=diaries_dir,
@@ -63,6 +67,9 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
         telemetry=TelemetryConfig(log_dir=telemetry_dir),
         model=ModelConfig(path=None, temperature=1.0),
         lock_path=lock_path,
+        governance_queue_path=queue_path,
+        governance_digest_path=digest_path,
+        governance_markdown_path=markdown_path,
     )
 
     model = TRMModel.load(config.model.path, temperature=config.model.temperature)
@@ -72,6 +79,7 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
     assert result.skipped_reason is None, f"unexpected skip: {result.skipped_reason}"
     assert result.suggestions_count > 0, "expected suggestions to be emitted"
     assert result.suggestions_path is not None and result.suggestions_path.exists()
+    assert result.run_id is not None and result.run_id.strip(), "expected run_id"
 
     schema_doc = json.loads(SCHEMA_PATH.read_text())
     validator = jsonschema.Draft7Validator(
@@ -89,3 +97,25 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
     # Telemetry log should exist
     assert telemetry_dir.exists()
     assert any(telemetry_dir.iterdir()), "expected telemetry log file"
+
+    # Governance artifacts should be emitted
+    assert digest_path.exists(), "expected governance digest"
+    digest = json.loads(digest_path.read_text())
+    assert digest["run_id"] == result.run_id
+    assert digest["suggestion_count"] == result.suggestions_count
+
+    assert markdown_path.exists(), "expected governance markdown"
+    markdown = markdown_path.read_text()
+    assert result.run_id in markdown
+
+    assert queue_path.exists(), "expected governance queue"
+    queue_lines = [
+        json.loads(line)
+        for line in queue_path.read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(queue_lines) == result.suggestions_count
+    for entry in queue_lines:
+        governance_meta = entry.get("governance")
+        assert governance_meta is not None
+        assert governance_meta["run_id"] == result.run_id

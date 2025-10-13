@@ -10,6 +10,10 @@ confidence_floor: 0.65
 enable_governance_gate: true
 publish_channel: file://artifacts/rim_suggestions
 kill_switch: false
+governance:
+  queue_path: artifacts/governance/reflection_queue.jsonl
+  digest_path: artifacts/governance/reflection_digest.json
+  markdown_path: artifacts/governance/reflection_digest.md
 telemetry:
   log_dir: artifacts/rim_logs
 trm_params:

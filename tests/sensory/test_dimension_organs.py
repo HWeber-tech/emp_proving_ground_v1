@@ -137,6 +137,7 @@ async def test_how_sensory_organ_emits_lineage_and_telemetry() -> None:
     telemetry = metadata.get("telemetry")
     assert isinstance(telemetry, dict)
     assert "liquidity" in telemetry
+    assert "volatility" in telemetry
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("dimension") == "HOW"

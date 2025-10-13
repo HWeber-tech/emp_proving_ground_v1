@@ -195,6 +195,8 @@ def test_how_sensor_discriminates_institutional_bias() -> None:
     assert bullish_signal.value["strength"] > 0.25
     assert bearish_signal.value["strength"] < -0.25
     assert bullish_signal.value["strength"] > bearish_signal.value["strength"]
+    assert "volatility" in bullish_signal.value
+    assert bullish_signal.value["volatility"] > 0.0
 
 
 def test_what_sensor_breakout_strength_tracks_extremes() -> None:

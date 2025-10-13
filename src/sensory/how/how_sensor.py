@@ -104,6 +104,7 @@ class HowSensor:
             "participation": float(reading_adapter.get("participation", 0.0)),
             "imbalance": float(reading_adapter.get("imbalance", 0.0)),
             "volatility_drag": float(reading_adapter.get("volatility_drag", 0.0)),
+            "volatility": float(reading_adapter.get("volatility", 0.0)),
         }
 
         assessment = evaluate_thresholds(

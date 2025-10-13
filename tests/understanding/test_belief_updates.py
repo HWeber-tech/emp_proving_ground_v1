@@ -75,11 +75,27 @@ def _build_dimensions(strength: float, confidence: float) -> Mapping[str, Mappin
     anomaly_strength = abs(strength) * 0.3
     anomaly_flag = anomaly_strength > 0.15
     anomaly_z_score = anomaly_strength * 4.0
+    abs_strength = abs(strength)
+    how_value = {
+        "liquidity": float(0.55 + 0.25 * strength),
+        "participation": float(0.45 + 0.2 * strength),
+        "imbalance": float(0.15 * strength),
+        "volatility_drag": float(0.08 * abs_strength),
+        "volatility": float(0.35 * abs_strength),
+    }
+
     return {
         "WHY": {"signal": strength * 0.6, "confidence": confidence * 0.9},
         "WHAT": {"signal": strength * 0.4, "confidence": confidence * 0.85},
         "WHEN": {"signal": strength * 0.2, "confidence": confidence * 0.8},
-        "HOW": {"signal": strength * 0.1, "confidence": confidence * 0.75},
+        "HOW": {
+            "signal": strength * 0.1,
+            "confidence": confidence * 0.75,
+            "value": how_value,
+            "metadata": {
+                "telemetry": how_value,
+            },
+        },
         "ANOMALY": {
             "signal": anomaly_strength,
             "confidence": confidence * 0.7,

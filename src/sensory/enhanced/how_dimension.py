@@ -50,6 +50,13 @@ class InstitutionalUnderstandingEngine:
         participation = tanh(volume / 1200.0 + depth / 5000.0)
         imbalance_score = tanh(imbalance)
         volatility_drag = tanh(max(0.0, volatility) * 4.0)
+        if volatility <= 0.0:
+            high = float(getattr(market_data, "high", 0.0))
+            low = float(getattr(market_data, "low", 0.0))
+            close = float(getattr(market_data, "close", 0.0))
+            base_price = abs(close) or 1.0
+            volatility = abs(high - low) / base_price
+        volatility_intensity = clamp(abs(volatility) * 120.0, 0.0, 1.0)
 
         institutional_bias = (
             0.5 * participation + 0.25 * imbalance_score + 0.2 * liquidity - 0.15 * volatility_drag
@@ -81,6 +88,7 @@ class InstitutionalUnderstandingEngine:
             "participation": float(participation),
             "imbalance": float(imbalance_score),
             "volatility_drag": float(volatility_drag),
+            "volatility": float(volatility_intensity),
         }
 
         # Introduce slight stochasticity to avoid lock-step behaviour when
@@ -104,5 +112,6 @@ class InstitutionalUnderstandingEngine:
             "participation": float(participation),
             "imbalance": float(imbalance_score),
             "volatility_drag": float(volatility_drag),
+            "volatility": float(volatility_intensity),
         }
         return build_legacy_payload(reading, source="sensory.how", extras=extras)

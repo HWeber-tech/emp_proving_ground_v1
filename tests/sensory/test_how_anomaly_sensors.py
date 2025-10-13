@@ -137,13 +137,14 @@ def test_how_sensor_emits_liquidity_audit() -> None:
     assert metadata.get("state") in {"nominal", "warning", "alert"}
     audit = metadata.get("audit")
     assert isinstance(audit, dict)
-    assert set(audit.keys()) >= {"signal", "confidence", "liquidity", "participation"}
+    assert set(audit.keys()) >= {"signal", "confidence", "liquidity", "participation", "volatility"}
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("dimension") == "HOW"
     assert lineage.get("source") == "sensory.how"
     assert lineage.get("inputs", {}).get("symbol") == "EURUSD"
     assert "liquidity" in lineage.get("telemetry", {})
+    assert "volatility" in lineage.get("telemetry", {})
     assert lineage.get("metadata", {}).get("mode") == "market_data"
     assert "state" in lineage.get("metadata", {})
     quality = metadata.get("quality")
@@ -303,11 +304,13 @@ def test_how_sensor_prefixes_order_book_metrics() -> None:
     assert audit["imbalance"] == 0.12
     assert "order_book_mid_price" in audit
     assert audit["order_book_mid_price"] > 0
+    assert "volatility" in audit
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     telemetry = lineage.get("telemetry", {})
     assert telemetry.get("imbalance") == 0.12
     assert "order_book_spread" in telemetry
+    assert "volatility" in telemetry
 
 
 def test_anomaly_sensor_sequence_filters_invalid_samples() -> None:

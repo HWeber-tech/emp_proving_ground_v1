@@ -166,6 +166,7 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     telemetry = how_metrics.get("telemetry")
     assert telemetry is not None
     assert "audit_liquidity" in telemetry
+    assert "audit_volatility" in telemetry
 
 
 def test_real_sensory_organ_handles_empty_frame() -> None:

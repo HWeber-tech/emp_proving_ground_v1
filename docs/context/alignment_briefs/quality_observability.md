@@ -57,6 +57,7 @@
     readiness snapshots, annotates failing checks, derives alert events, and
     publishes via the failover helper under pytest coverage so dashboards retain
     degradation evidence even when the runtime bus misbehaves.【F:src/operations/system_validation.py†L233-L889】【F:tests/operations/test_system_validation.py†L1-L195】
+  - Progress: BeliefEmitter now records ReLU top-k activation summaries with sparsity metrics and persists DuckDB/Parquet snapshots via the belief snapshot persister so decision-loop telemetry ships with attributable feature trails under regression coverage.【F:src/understanding/belief.py†L798-L1102】【F:tests/understanding/test_belief_updates.py†L300-L349】
   - Progress: Event bus failover helper now powers security, system validation,
     compliance readiness, incident response, evolution experiment, and evolution
     tuning publishers, replacing ad-hoc blanket handlers with typed errors and

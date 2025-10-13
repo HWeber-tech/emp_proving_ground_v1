@@ -33,6 +33,8 @@
 - Document existing stubs, remove unused imports, and align module exports to
   prepare for incremental implementation.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Progress: Intelligence package now lazily exposes the canonical sentient adaptation engine from `src.sentient.adaptation`, keeps legacy imports working via a lightweight shim, and retires the old `specialized_predators` surface; regression coverage proves duplicate class definitions are gone and removed modules raise deterministically so callers migrate to the supported API.【F:src/intelligence/__init__.py†L23-L193】【F:src/sentient/adaptation/sentient_adaptation_engine.py†L1-L211】【F:src/intelligence/sentient_adaptation.py†L1-L22】【F:tests/current/test_public_api_intelligence.py†L1-L87】
+- Establish canonical strategy contracts that describe genotypes (features, topology, tunables, risk templates) and realise phenotypes with validated overrides so mutation operators have a typed substrate.
+- Progress: New `StrategyFeature`/`StrategyGenotype`/`StrategyPhenotype` dataclasses normalise identifiers, freeze metadata, and enforce override guards while tests cover duplicate detection, bound checks, and phenotype realisation so evolution workflows can consume deterministic contracts immediately.【F:src/thinking/adaptation/strategy_contracts.py†L1-L409】【F:tests/thinking/adaptation/test_strategy_contracts.py†L17-L119】
 - Define telemetry contracts for population health, lineage snapshots, and
   experiment metadata; add placeholder tests to lock schemas.
 - Progress: Legacy portfolio evolution module now raises a descriptive

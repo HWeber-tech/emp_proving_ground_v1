@@ -12,7 +12,7 @@
 ## M0 â€” Baseline & Safety Gates (0â€“3 days)
 
 **Deliverables**
-- [ ] `[risk]` Preâ€‘trade invariants verified (exposure, price bands, inventory, drawdown); killâ€‘switch wired.
+- [ ] `[risk]` Pre-trade invariants verified (exposure, price bands, inventory, drawdown); kill-switch wired. _Progress: Paper simulation CLI now reuses a shared `ensure_zero_invariants` helper that demands four-hour coverage and zero guardrail breaches, emitting structured assessments for evidence packs; kill-switch wiring remains outstanding.【F:src/runtime/simulation_invariants.py†L1-L156】【F:tools/trading/run_paper_trading_simulation.py†L332-L365】【F:tests/runtime/test_simulation_invariants.py†L37-L122】_
 - [x] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env). _Progress: `AdaptationFeatureToggles` resolves SystemConfig posture into fast-weight, linear-attention, and exploration flags, flows them through the operational backbone pipeline and runtime, and regression coverage proves AlphaTrade respects environment defaults while diary metadata mirrors forced fast-weight shutdowns.【F:src/thinking/adaptation/feature_toggles.py†L1-L164】【F:src/data_foundation/pipelines/operational_backbone.py†L35-L213】【F:tools/data_ingest/run_operational_backbone.py†L287-L313】【F:src/runtime/predator_app.py†L260-L288】【F:src/orchestration/alpha_trade_runner.py†L120-L198】【F:tests/thinking/test_adaptation_feature_toggles.py†L1-L86】【F:tests/orchestration/test_alpha_trade_runner.py†L268-L298】_
 - [x] `[obs]` Minimal **heartbeat** & latency counters (ingestâ†’signalâ†’orderâ†’ack p50/p99/p99.9). _Progress: `PipelineLatencyMonitor` now records ingest, signal, order, ack, and total latencies with heartbeat ticks/orders inside the bootstrap stack, exposes the snapshot through the runtime status surface, and regression coverage asserts samples populate during simulated runs so operators inherit ready-to-export counters.【F:src/orchestration/pipeline_metrics.py†L1-L137】【F:src/orchestration/bootstrap_stack.py†L195-L351】【F:src/runtime/bootstrap_runtime.py†L328-L344】【F:tests/current/test_bootstrap_stack.py†L170-L176】【F:tests/current/test_bootstrap_runtime_integration.py†L167-L169】_
 - [x] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table. _Progress: CONTRIBUTING.md now documents simulation, paper, and liveâ€‘shadow launch recipes alongside a featureâ€‘flag matrix that complements the workflow guide in `docs/development/contributing.md`, giving operators the runtime posture and evidence checklist they need for roadmap gates.【F:CONTRIBUTING.md†L1-L96】_
@@ -27,7 +27,7 @@
 ## M1 â€” Understanding Loop v1 (Weeks 1â€“2)
 
 **Deliverables**
-- [ ] `[core]` **BeliefEmitter** with **ReLU + topâ€‘k sparsity**; persisted `belief_snapshots` (DuckDB/Parquet).
+- [x] `[core]` **BeliefEmitter** with **ReLU + top-k sparsity**; persisted `belief_snapshots` (DuckDB/Parquet). _Progress: BeliefEmitter now applies a ReLU top-k activation pass, annotates sparsity metadata, and streams snapshots into DuckDB/Parquet via the new persister so replay trails land in both evidence stores under regression coverage that asserts the `relu_topk` contract and snapshot exports.【F:src/understanding/belief.py†L798-L1102】【F:tests/understanding/test_belief_updates.py†L300-L349】_
 - [x] `[core]` **RegimeFSM v1** (ruleâ€‘based thresholds + confidence + transitions logged). _Progress: RegimeFSM now emits structured transition events with latency/volatility context, keeps a bounded transition history, and exposes health metrics under regression coverage so regime flips remain auditable for policy routing.【F:src/understanding/belief.py†L695-L878】【F:tests/understanding/test_belief_updates.py†L327-L394】_
 - [ ] `[adapt]` **LinearAttentionRouter** (flagâ€‘guarded) for policy arbitration.
 - [x] `[adapt]` **Fastâ€‘weights (Ïƒ) kernel** (Hebbian decay + potentiation); **lowâ€‘rank** implementation; clamps/decay. _Progress: UnderstandingRouter now applies feature-gated Hebbian adapters with deterministic decay, persists multiplier history, and exposes fast-weight metrics so governance can audit adaptive runs under regression coverage.【F:src/understanding/router.py†L70-L240】【F:tests/understanding/test_understanding_router.py†L1-L185】_
@@ -41,14 +41,14 @@
 - [x] `[adapt]` **Regimeâ€‘aware routing**: regime flip â‡’ topology switch within N ms; proven in diary. _Progress: PolicyRouter enforces topology switches on regime changes, tracks switch latency, and reflection summaries capture the transition under dedicated pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L520】【F:tests/thinking/test_policy_router.py†L60-L152】_
 - [ ] `[reflect]` **Drift throttle**: injected alpha decay â‡’ sentry fires within 1 decision step; theory packet written.
 - [ ] `[obs]` Attribution coverage â‰¥ **90%** of orders have belief + probes; no Ïƒ explosions (bounded norms). _Progress: AlphaTradeLoopRunner now attaches belief/probe attribution payloads to trade metadata and decision diaries, while TradingManager records `orders_with_attribution` and `attribution_coverage` stats and warns when coverage slips below the 90% target under guardrail tests for executed intents.【F:src/orchestration/alpha_trade_runner.py†L168-L234】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
-- [ ] `[risk]` **0** invariant violations in a 4â€‘hour sim run.
+- [x] `[risk]` **0** invariant violations in a 4-hour sim run. _Progress: Simulation invariant guards validate four-hour rehearsal reports and fail fast on runtime shortfalls or guardrail incidents, with CLI integration exporting the assessment and pytest coverage locking the zero-violation proof for the acceptance gate.【F:src/runtime/simulation_invariants.py†L75-L156】【F:tools/trading/run_paper_trading_simulation.py†L332-L365】【F:tests/runtime/test_simulation_invariants.py†L37-L122】_
 
 ---
 
 ## M2 â€” Evolution Engine v1 (Weeks 3â€“6)
 
 **Genotype/Phenotype & Operators**
-- [ ] `[adapt]` **StrategyGenotype/Phenotype** contracts (fields: features, exec topology, risk template, tunables).
+- [x] `[adapt]` **StrategyGenotype/Phenotype** contracts (fields: features, exec topology, risk template, tunables). _Progress: Immutable strategy contracts now normalise feature, topology, tunable, and risk definitions and realise phenotypes with override guards and metadata merges, while regression tests exercise override paths, duplicate detection, and bound enforcement so evolution operators can consume a typed schema immediately.【F:src/thinking/adaptation/strategy_contracts.py†L1-L409】【F:tests/thinking/adaptation/test_strategy_contracts.py†L17-L119】_
 - [ ] `[adapt]` Operators: `op_add_feature`, `op_drop_feature`, `op_swap_execution_topology`, `op_tighten_risk`.
 - [ ] `[adapt]` Operator constraints (allowed domain, regimeâ€‘aware rules).
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-13T16:17:04Z
+
+### Last 4 commits
+- 7ef08544 feat(thinking): add 4 files (2025-10-13)
+- fb7eb27a feat(runtime): add 3 files (2025-10-13)
+- 262b6dcd refactor(understanding): tune 5 files (2025-10-13)
+- 9b789bf1 docs(docs): tune 4 files (2025-10-13)
 
 ## Automation updates — 2025-10-13T15:45:02Z
 

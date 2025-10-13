@@ -49,7 +49,11 @@
 - Executable HOW/ANOMALY sensory organs now wrap the canonical sensors, normalise
   market frames or sequences, maintain calibrated windows, and emit structured
   lineage/telemetry payloads under guardrail regression coverage, though they
-  still consume synthetic payloads until ingest is live.【F:src/sensory/organs/dimensions/executable_organs.py†L1-L226】【F:tests/sensory/test_dimension_organs.py†L1-L93】
+  still consume synthetic payloads until ingest is live. Latest hardening
+  synthesises missing `quality` envelopes (source, timestamp, confidence,
+  strength) when upstream payloads omit them and exports the WHAT/WHEN/WHY organ
+  entry points from the package so downstream imports stay canonical, with
+  regression coverage locking the auto-populated metadata.【F:src/sensory/organs/dimensions/executable_organs.py†L151-L214】【F:src/sensory/organs/__init__.py†L5-L18】【F:tests/sensory/test_dimension_organs.py†L365-L377】
 - Sensory dimension modules now lazily import executable organs to avoid
   bootstrap-era cyclical imports, keeping paper simulation and runtime helpers
   import-safe even when sensory packages are initialised independently under

@@ -4,6 +4,45 @@
 
 This section compares the current emp_proving_ground_v1 codebase against the envisioned AlphaTrade architecture. The AlphaTrade blueprint organizes the system into five major components – Perception, Adaptation, Reflection, Risk/Execution, and Governance – each corresponding to a stage in the intelligent trading loop. Below, we identify for each component what is already implemented, what is partially in place, what is missing, and any misalignments between the blueprint and the current implementation.
 
+## Actionable Checklist Overview
+
+### Reflection Intelligence (TRM) – Phase 1
+- [x] Finalize TRM architecture, interfaces, and safety documentation (ADR + design dossier merged).
+- [x] Ship shadow-mode tooling, JSON schemas, config templates, and validation tests for TRM rehearsal.
+- [ ] Implement the production TRM runner capable of emitting model-backed suggestions instead of scaffolds.
+- [ ] Integrate TRM telemetry with the governance queue and dry-run evidence packs for sign-off reviews.
+- [ ] Execute and document the milestone exit drill that validates audited TRM suggestions end-to-end.
+
+### Perception (Sensory Ingest & Belief Formation)
+- [x] Operate the layered sensory pipeline that emits belief/regime snapshots with audit metadata.
+- [x] Provide operational backbone CLIs, data slice helpers, and rehearsal tests for ingest workflows.
+- [ ] Connect and monitor live market data feeds for production sensory organs beyond synthetic fixtures.
+- [ ] Harden anomaly detection, drift diagnostics, and WHY/quality explanations on live data.
+- [ ] Automate continuous calibration of sensors and lineage quality checks for real-time operation.
+
+### Adaptation (Policy Routing & Fast-Weight Learning)
+- [x] Maintain Understanding/Policy routers with configurable fast-weight adaptation in the AlphaTrade loop.
+- [x] Capture tactic metadata, experiment lifecycles, and decision diaries for reflective feedback.
+- [ ] Expand adaptive evaluation with replay harnesses and governance gates that promote/demote tactics automatically.
+- [ ] Wire fast-weight toggles and Hebbian learning metrics into performance KPIs for regression tracking.
+
+### Reflection (RIM/TRM Governance Alignment)
+- [x] Publish governance queue documentation, troubleshooting guides, and telemetry schemas for reflection artifacts.
+- [ ] Stand up a non-shadow TRM execution path that produces actionable reflection outputs for governance.
+- [ ] Demonstrate audited reflection cycles that feed back into adaptation policies and trading guardrails.
+
+### Execution & Risk Controls
+- [x] Enforce trade throttles, throughput health checks, and structured execution telemetry in the trading manager.
+- [x] Provide performance reports, backlog trackers, and baseline tooling for rehearsal evidence.
+- [ ] Complete sustained paper-trading dry runs that validate throttles, latency budgets, and incident response.
+- [ ] Integrate live broker adapters and risk policy enforcement for production deployment readiness.
+
+### Governance & Ops Readiness
+- [x] Assemble documentation packets (whitepaper draft, runbooks, audits) that describe the operating model.
+- [x] Automate evidence packet generation for dry-run reviews, including incident tracking and KPI summaries.
+- [ ] Achieve final dry-run sign-off with continuous multi-day operation meeting uptime and evidence completeness.
+- [ ] Formalize governance review gates with recorded verdicts, sign-off criteria, and regression-tested CLI workflows.
+
 ### Milestone: Reflection Intelligence (TRM) – Phase 1
 
 | Task | Description | Definition of Done |

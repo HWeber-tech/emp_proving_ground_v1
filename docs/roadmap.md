@@ -53,7 +53,7 @@
 - [x] `[adapt]` Operator constraints (allowed domain, regimeâ€‘aware rules). _Progress: Operator constraint schemas now parse mappings/sequences into typed sets, EvolutionManager resolves constraint bundles per strategy, AlphaTrade threads regime state into adaptation, and regression suites cover allow/deny flows so adaptive operators respect stage/regime gates and parameter bounds before registering variants.【F:src/thinking/adaptation/operator_constraints.py†L1-L388】【F:src/thinking/adaptation/evolution_manager.py†L80-L412】【F:src/orchestration/alpha_trade_loop.py†L658-L699】【F:tests/thinking/test_operator_constraints.py†L1-L104】【F:tests/thinking/test_evolution_manager.py†L310-L455】_
 
 **Search & Selection**
-- [ ] `[adapt]` **Tournament selection** over **regime grid** (multiâ€‘regime fitness table).
+- [x] `[adapt]` **Tournament selection** over **regime grid** (multiâ€‘regime fitness table). _Progress: PolicyRouter now runs regime-grid tournaments once sufficient decisions accrue, using RegimeFitnessTable aggregates to normalise per-regime and global performance while reflection snapshots capture composite bonuses under guardrail coverage.【F:src/thinking/adaptation/policy_router.py†L582-L740】【F:src/thinking/adaptation/regime_fitness.py†L17-L207】【F:tests/thinking/test_policy_router.py†L530-L623】_
 - [ ] `[adapt]` **Novelty archive** (genotype signature + probe vector; novelty score).
 - [ ] `[sim]` **Compute scheduler** for candidate replays (budgeted batches, fairâ€‘share across instruments). _Progress: The `emp_cycle_scheduler` CLI drains idea queues through quick-screening, UCB-lite promotion, and `--max-quick`/`--max-full` budgets while persisting baselines and metadata so replay candidates progress without bespoke scripts under regression coverage.【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:emp/cli/_emp_cycle_common.py†L1-L216】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】_
 
@@ -135,7 +135,7 @@
 - [ ] `[reflect]` Counterfactual explainers per trade (why not alternative topology).
 - [x] `[core]` HMMâ€‘based RegimeFSM v2; learned transition priors. _Progress: RegimeFSM now embeds an online Gaussian HMM that learns transition counts, emits regime probability matrices, and exposes the learned parameters through metadata and health checks with regression coverage proving priors update across belief sequences.【F:src/understanding/belief.py†L905-L1250】【F:tests/understanding/test_belief_updates.py†L321-L456】_
 - [x] `[obs]` Prometheus/Grafana (or cloud) monitoring; SLO alerting as code. _Progress: Prometheus rule files, Grafana provisioning, and the operations runbook now live in-repo with tests guarding alert coverage and dashboard wiring so SLO panels and alerts stay reproducible.【F:config/prometheus/emp_rules.yml†L1-L65】【F:config/grafana/dashboards/json/emp_observability.json†L1-L200】【F:docs/operations/prometheus_grafana.md†L1-L26】【F:tests/config/test_prometheus_monitoring.py†L1-L50】【F:tests/config/test_grafana_dashboard.py†L1-L45】_
-- [ ] `[ops]` K8s deployment (dev/paper); sealed secrets; autoscaling for replay jobs.
+- [x] `[ops]` K8s deployment (dev/paper); sealed secrets; autoscaling for replay jobs. _Progress: Kustomize base now ships replay CronJob/ScaledJob resources and sealed-secret templates, with dev/paper/prod overlays and the paper deployment profile documenting secret regeneration, autoscaling, and replay evidence so operators can apply layered manifests without bespoke edits.【F:k8s/README.md†L1-L95】【F:k8s/base/replay-scaledjob.yaml†L1-L63】【F:k8s/overlays/paper/kustomization.yaml†L1-L18】【F:docs/deployment/paper_k8s_profile.md†L1-L120】_
 - [x] `[docs]` Whitepaper v1 (architecture + governance + empirical results). _Progress: Whitepaper v1 now inventories each loop layer, tabulates guardrail evidence, and publishes reproducible command drills so reviewers trace roadmap Definition-of-Done checks to executable artifacts and context packs.【F:docs/AlphaTrade_Whitepaper.md†L1-L77】_
 
 ---
@@ -146,7 +146,7 @@
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates. _Progress: Strategy registry now bootstraps a config-driven PromotionGuard that enforces stage requirements, ledger/diary paths, and regime coverage, with tests proving missing regimes block approvals until coverage is recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】_
 - [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned. _Progress: Risk guardrail incidents now start a force-paper cooldown, snapshot remaining time and reason into execution stats, propagate `risk_guardrail` blocks onto intents, and trigger release routing to keep near misses on paper, with regression coverage proving the forced routes and telemetry payloads.【F:src/trading/trading_manager.py†L546-L590】【F:src/trading/trading_manager.py†L2011-L2219】【F:src/trading/execution/release_router.py†L433-L547】【F:tests/trading/test_trading_manager_execution.py†L730-L872】_
 - [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Execution stats now surface attribution coverage metrics and end-to-end tests assert executed trades retain the enriched payload, enabling governance dashboards to track the 90% target quantitatively.【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
-- [ ] **Operator leverage**: experiments/week/person â†‘ without quality loss.
+- [x] **Operator leverage**: experiments/week/person â†‘ without quality loss. _Progress: Operator leverage evaluator now rolls experimentation logs into per-operator velocity and quality telemetry, escalates WARN/FAIL posture for lagging operators, and the observability dashboard panel renders the snapshot with deterministic top-operator summaries under guardrail coverage.【F:src/operations/operator_leverage.py†L1-L543】【F:src/operations/observability_dashboard.py†L701-L748】【F:tests/operations/test_operator_leverage.py†L49-L139】【F:tests/operations/test_observability_dashboard.py†L560-L598】_
 
 ---
 
@@ -164,13 +164,13 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-13T16:44:42Z
+## Automation updates — 2025-10-13T17:09:54Z
 
 ### Last 4 commits
-- 77357fe0 feat(orchestration): add 6 files (2025-10-13)
-- 2de10b0f feat(operations): add 5 files (2025-10-13)
-- a83a9a42 docs(docs): tune 4 files (2025-10-13)
-- 7ef08544 feat(thinking): add 4 files (2025-10-13)
+- a884a82f feat(thinking): add 4 files (2025-10-13)
+- db1967d0 feat(operations): add 5 files (2025-10-13)
+- b67cbaf8 docs(docs): add 21 files (2025-10-13)
+- 69d46f9f docs(docs): tune 4 files (2025-10-13)
 
 ## Automation updates — 2025-10-13T15:45:02Z
 

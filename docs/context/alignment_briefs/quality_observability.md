@@ -113,6 +113,7 @@
     lag, and coverage posture while retaining structured metadata for each panel
     so dashboards and exporters inherit a complete readiness view.【F:src/operations/observability_dashboard.py†L566-L905】【F:tests/operations/test_observability_dashboard.py†L220-L320】
   - Progress: Observability dashboard now renders an Evolution KPIs panel powered by `evaluate_evolution_kpis`, surfacing SLA status, promotion posture, budget usage, and rollback latency while Prometheus gauges keep the metrics exportable under regression coverage.【F:src/operations/evolution_kpis.py†L1-L740】【F:src/operational/metrics.py†L182-L296】【F:src/operations/observability_dashboard.py†L569-L720】【F:tests/operations/test_evolution_kpis.py†L1-L120】【F:tests/operations/test_observability_dashboard.py†L399-L527】
+  - Progress: Observability dashboard now includes an operator leverage panel that ingests experimentation snapshots, surfaces experiments-per-week, quality posture, and lagging operators, and exports structured metadata so quality dashboards track throughput without bespoke queries under guardrail coverage.【F:src/operations/operator_leverage.py†L1-L543】【F:src/operations/observability_dashboard.py†L701-L748】【F:tests/operations/test_operator_leverage.py†L49-L139】【F:tests/operations/test_observability_dashboard.py†L560-L598】
   - Progress: Observability dashboard metadata now auto-fills panel status counts
     and severity maps next to the remediation capsule, and exports Markdown
     summaries so exporters and runbooks can ingest a machine-readable readiness

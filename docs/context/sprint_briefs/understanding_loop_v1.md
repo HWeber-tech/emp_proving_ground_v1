@@ -81,6 +81,7 @@
     tracks tactic objectives/tags, aggregates fast-weight metrics, and emits
     reviewer-ready reflection summaries/digests so emerging strategies surface without
     spelunking raw telemetry under expanded pytest coverage.【F:src/thinking/adaptation/policy_router.py†L201-L720】【F:tests/thinking/test_policy_router.py†L1-L210】
+  - PolicyRouter now maintains regime fitness tables, runs tournament selection with composite bonuses once each regime accrues history, and records the tournament context inside reflection summaries so reviewers can audit non-baseline winners under guardrail coverage.【F:src/thinking/adaptation/regime_fitness.py†L17-L207】【F:src/thinking/adaptation/policy_router.py†L582-L756】【F:tests/thinking/test_policy_router.py†L530-L623】
   - Operational backbone pipeline now boots attached `LiveBeliefManager` and
     `UnderstandingRouter` components during ingest rehearsals, returning
     belief/regime snapshots, understanding decisions, and ingest-failure

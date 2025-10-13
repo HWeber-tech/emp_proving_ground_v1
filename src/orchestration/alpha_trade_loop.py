@@ -9,6 +9,8 @@ feeds paper-trade execution with deterministic governance metadata.
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -100,6 +102,22 @@ class AlphaTradeLoopOrchestrator:
         PolicyLedgerStage.PILOT: {"relative": 0.35},
         PolicyLedgerStage.LIMITED_LIVE: {"relative": 0.20},
     }
+    _COUNTERFACTUAL_RELATIVE_KEYS: tuple[str, ...] = (
+        "counterfactual_relative_delta_limit",
+        "counterfactual_relative_limit",
+        "counterfactual_guardrail_relative_limit",
+        "counterfactual_max_relative_delta",
+        "counterfactual_relative_delta_cap",
+        "counterfactual_relative_delta_max",
+    )
+    _COUNTERFACTUAL_ABSOLUTE_KEYS: tuple[str, ...] = (
+        "counterfactual_absolute_delta_limit",
+        "counterfactual_absolute_limit",
+        "counterfactual_guardrail_absolute_limit",
+        "counterfactual_max_absolute_delta",
+        "counterfactual_absolute_delta_cap",
+        "counterfactual_absolute_delta_max",
+    )
 
     def __init__(
         self,
@@ -199,6 +217,7 @@ class AlphaTradeLoopOrchestrator:
         self,
         decision_bundle: UnderstandingDecision,
         *,
+        policy_id: str,
         effective_stage: PolicyLedgerStage,
         stage_sources: Mapping[str, PolicyLedgerStage],
     ) -> UnderstandingDecision:
@@ -234,10 +253,17 @@ class AlphaTradeLoopOrchestrator:
             force_required = True
         guardrails["force_paper"] = force_required
 
+        counterfactual_limits = self._resolve_counterfactual_limits(
+            policy_id=policy_id,
+            tactic_id=decision.tactic_id,
+            effective_stage=guardrail_stage,
+        )
+
         guardrails = self._apply_counterfactual_guardrail(
             guardrails,
             decision,
-            guardrail_stage,
+            stage=guardrail_stage,
+            limits=counterfactual_limits,
         )
 
         if guardrails == decision.guardrails:
@@ -246,11 +272,94 @@ class AlphaTradeLoopOrchestrator:
         updated_decision = replace(decision, guardrails=guardrails)
         return replace(decision_bundle, decision=updated_decision)
 
+    def _resolve_counterfactual_limits(
+        self,
+        *,
+        policy_id: str | None,
+        tactic_id: str,
+        effective_stage: PolicyLedgerStage,
+    ) -> Mapping[str, float]:
+        stage_order = self._stage_order
+        candidates: list[tuple[int, Mapping[str, Any]]] = []
+        seen_ids: set[str] = set()
+
+        def _add_candidate(identifier: str | None) -> None:
+            if not identifier or identifier in seen_ids:
+                return
+            thresholds = self._release_manager.resolve_thresholds(identifier)
+            if not thresholds:
+                return
+            stage_value = thresholds.get("stage")
+            try:
+                threshold_stage = PolicyLedgerStage.from_value(stage_value)
+            except Exception:
+                threshold_stage = effective_stage
+            if stage_order(threshold_stage) > stage_order(effective_stage):
+                return
+            candidates.append((stage_order(threshold_stage), thresholds))
+            seen_ids.add(identifier)
+
+        _add_candidate(policy_id)
+        if tactic_id != policy_id:
+            _add_candidate(tactic_id)
+
+        candidates.sort(key=lambda item: item[0])
+
+        relative_limit: float | None = None
+        absolute_limit: float | None = None
+
+        for _, thresholds in candidates:
+            if relative_limit is None:
+                relative_limit = self._coerce_counterfactual_limit(
+                    thresholds,
+                    self._COUNTERFACTUAL_RELATIVE_KEYS,
+                )
+            if absolute_limit is None:
+                absolute_limit = self._coerce_counterfactual_limit(
+                    thresholds,
+                    self._COUNTERFACTUAL_ABSOLUTE_KEYS,
+                )
+            if relative_limit is not None and absolute_limit is not None:
+                break
+
+        defaults = self._COUNTERFACTUAL_LIMITS.get(effective_stage, {})
+        if relative_limit is None:
+            relative_limit = defaults.get("relative")
+        if absolute_limit is None:
+            absolute_limit = defaults.get("absolute")
+
+        payload: dict[str, float] = {}
+        if relative_limit is not None:
+            payload["relative"] = float(relative_limit)
+        if absolute_limit is not None:
+            payload["absolute"] = float(absolute_limit)
+        return payload
+
+    @staticmethod
+    def _coerce_counterfactual_limit(
+        thresholds: Mapping[str, Any],
+        keys: Sequence[str],
+    ) -> float | None:
+        for key in keys:
+            value = thresholds.get(key)
+            if value is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(numeric) or numeric < 0.0:
+                continue
+            return numeric
+        return None
+
     def _apply_counterfactual_guardrail(
         self,
         guardrails: MutableMapping[str, Any],
         decision: PolicyDecision,
+        *,
         stage: PolicyLedgerStage,
+        limits: Mapping[str, float] | None,
     ) -> MutableMapping[str, Any]:
         breakdown = decision.weight_breakdown
         if not isinstance(breakdown, Mapping) or not breakdown:
@@ -276,9 +385,17 @@ class AlphaTradeLoopOrchestrator:
         if passive_score_value != 0.0:
             relative_delta = delta / passive_score_value
 
-        limits = self._COUNTERFACTUAL_LIMITS.get(stage, {})
-        max_relative = limits.get("relative")
-        max_absolute = limits.get("absolute")
+        max_relative = None
+        max_absolute = None
+        if limits:
+            max_relative = limits.get("relative")
+            max_absolute = limits.get("absolute")
+        if max_relative is None or max_absolute is None:
+            defaults = self._COUNTERFACTUAL_LIMITS.get(stage, {})
+            if max_relative is None:
+                max_relative = defaults.get("relative")
+            if max_absolute is None:
+                max_absolute = defaults.get("absolute")
 
         breached = False
         if max_relative is not None and relative_delta is not None:
@@ -336,6 +453,7 @@ class AlphaTradeLoopOrchestrator:
         stage = stage_sources["effective"]
         decision_bundle = self._apply_governance_guardrails(
             decision_bundle,
+            policy_id=resolved_policy_id,
             effective_stage=stage,
             stage_sources=stage_sources,
         )

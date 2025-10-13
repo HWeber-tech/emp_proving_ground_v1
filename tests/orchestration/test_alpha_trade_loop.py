@@ -258,8 +258,83 @@ def test_alpha_trade_loop_counterfactual_guardrail_forces_paper(tmp_path: Path) 
     assert counterfactual.get("breached") is True
     assert counterfactual.get("reason") == "counterfactual_guardrail_delta_exceeded"
     assert counterfactual.get("action") == "force_paper"
+    assert counterfactual.get("max_relative_delta") == pytest.approx(0.20)
     assert result.metadata["force_paper"] is True
     assert diary_store.entries(), "expected decision diary entry"
+
+
+@pytest.mark.guardrail
+def test_alpha_trade_loop_counterfactual_guardrail_respects_override(tmp_path: Path) -> None:
+    router = UnderstandingRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="alpha_live",
+            base_weight=1.0,
+            parameters={"mode": "alpha"},
+            guardrails={},
+            regime_bias={"balanced": 1.0},
+            confidence_sensitivity=0.0,
+        )
+    )
+    router.policy_router.register_experiment(
+        FastWeightExperiment(
+            experiment_id="live_burst",
+            tactic_id="alpha_live",
+            delta=1.0,
+            rationale="double weight for guardrail test",
+            min_confidence=0.0,
+        )
+    )
+
+    diary_store = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_ledger.json")
+    ledger_store.upsert(
+        policy_id="alpha_live",
+        tactic_id="alpha_live",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha-live",
+        threshold_overrides={"counterfactual_relative_delta_limit": 1.5},
+    )
+    release_manager = LedgerReleaseManager(ledger_store)
+
+    drift_gate = DriftSentryGate()
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=router,
+        diary_store=diary_store,
+        drift_gate=drift_gate,
+        release_manager=release_manager,
+    )
+
+    regime_state = RegimeState(
+        regime="balanced",
+        confidence=0.9,
+        features={"liquidity_z": 0.1, "momentum": 0.4},
+        timestamp=datetime(2024, 1, 2, 12, 0, tzinfo=UTC),
+    )
+    belief_snapshot = BeliefSnapshot(
+        belief_id="belief-live",
+        regime_state=regime_state,
+        features={"liquidity_z": 0.1, "momentum": 0.4},
+        metadata={"symbol": "EURUSD"},
+        fast_weights_enabled=True,
+        feature_flags={"fast_weights_live": True},
+    )
+
+    result = orchestrator.run_iteration(
+        belief_snapshot,
+        policy_id="alpha_live",
+        trade={"symbol": "EURUSD", "quantity": 10_000, "price": 1.25},
+    )
+
+    guardrails = result.decision.guardrails
+    counterfactual = guardrails.get("counterfactual_guardrail")
+    assert isinstance(counterfactual, dict)
+    assert counterfactual.get("breached") is False
+    assert counterfactual.get("max_relative_delta") == pytest.approx(1.5)
+    assert guardrails.get("force_paper") is False
+    assert result.metadata["force_paper"] is False
 
 
 def test_alpha_trade_loop_paper_stage_forces_paper_without_warn(tmp_path: Path) -> None:

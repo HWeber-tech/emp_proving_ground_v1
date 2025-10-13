@@ -498,11 +498,13 @@ _DEFAULT_THRESHOLD_PROFILES: Mapping[PolicyLedgerStage, Mapping[str, float | str
         "warn_confidence_floor": 0.7,
         "warn_notional_limit": 75_000.0,
         "block_severity": "alert",
+        "counterfactual_relative_delta_limit": 0.35,
     },
     PolicyLedgerStage.LIMITED_LIVE: {
         "warn_confidence_floor": 0.6,
         "warn_notional_limit": 100_000.0,
         "block_severity": "alert",
+        "counterfactual_relative_delta_limit": 0.20,
     },
 }
 

@@ -29,6 +29,14 @@ from .replay_harness import (
     TacticEvaluationResult,
     TacticReplayHarness,
 )
+from .strategy_contracts import (
+    StrategyExecutionTopology,
+    StrategyFeature,
+    StrategyGenotype,
+    StrategyPhenotype,
+    StrategyRiskTemplate,
+    StrategyTunable,
+)
 
 __all__ = [
     "PolicyReflectionArtifacts",
@@ -55,4 +63,10 @@ __all__ = [
     "StageThresholds",
     "TacticEvaluationResult",
     "TacticReplayHarness",
+    "StrategyFeature",
+    "StrategyExecutionTopology",
+    "StrategyRiskTemplate",
+    "StrategyTunable",
+    "StrategyGenotype",
+    "StrategyPhenotype",
 ]

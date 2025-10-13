@@ -110,6 +110,54 @@ def test_replay_harness_promotes_and_updates_ledger(tmp_path: Path) -> None:
     assert record.metadata.get("evaluation_id") == "promo-run"
 
 
+def test_replay_harness_promotes_new_topology_with_metadata(tmp_path: Path) -> None:
+    ledger_store = PolicyLedgerStore(tmp_path / "policy_topology.json")
+    release_manager = LedgerReleaseManager(ledger_store)
+    release_manager.apply_stage_transition(
+        policy_id="dual_leg_trial",
+        tactic_id="dual_leg_trial",
+        stage=PolicyLedgerStage.EXPERIMENT,
+        approvals=("research",),
+        evidence_id="dd-spawn-topology",
+        metadata={"spawn_context": "simulation"},
+    )
+
+    tactic = PolicyTactic(
+        tactic_id="dual_leg_trial",
+        base_weight=1.0,
+        parameters={"mode": "dual"},
+        guardrails={"requires_diary": True},
+        topology="dual_leg_v1",
+    )
+
+    harness = TacticReplayHarness(
+        snapshots=_build_positive_snapshots(),
+        release_manager=release_manager,
+        stage_thresholds=_stage_thresholds(),
+    )
+
+    result = harness.evaluate_tactic(tactic)
+
+    assert result.execution_topology == "dual_leg_v1"
+    assert result.decision is StageDecision.promote
+    assert result.current_stage is PolicyLedgerStage.EXPERIMENT
+    assert result.target_stage is PolicyLedgerStage.PAPER
+
+    gate = AdaptiveGovernanceGate(release_manager)
+    record = gate.apply_decision(
+        result,
+        evaluation_id="topology-sim",
+        approvals=("sim",),
+        additional_metadata={"spawn": "simulation"},
+    )
+
+    assert record is not None
+    assert record.stage is PolicyLedgerStage.PAPER
+    assert record.metadata.get("execution_topology") == "dual_leg_v1"
+    context = record.metadata.get("context")
+    assert context is not None and context.get("spawn") == "simulation"
+
+
 def test_replay_harness_demotes_on_poor_performance(tmp_path: Path) -> None:
     ledger_dir = tmp_path / "ledger_demote"
     ledger_dir.mkdir()

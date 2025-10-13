@@ -305,9 +305,12 @@ def _record_diary_entry(
 ) -> str:
     metrics = result.metrics_summary()
     thresholds = result.thresholds_summary()
+    parameters = dict(tactic.parameters)
+    if result.execution_topology and "execution_topology" not in parameters:
+        parameters["execution_topology"] = result.execution_topology
     decision = PolicyDecision(
         tactic_id=tactic.tactic_id,
-        parameters=dict(tactic.parameters),
+        parameters=parameters,
         selected_weight=tactic.base_weight,
         guardrails=dict(tactic.guardrails),
         rationale=result.reason,
@@ -350,6 +353,11 @@ def _record_diary_entry(
             "evaluation_id": evaluation_id,
             "tactic": tactic.tactic_id,
             "policy": result.policy_id,
+            **(
+                {"execution_topology": result.execution_topology}
+                if result.execution_topology is not None
+                else {}
+            ),
         },
     )
     logger.info("Recorded diary entry %s for %s", diary_entry.entry_id, result.policy_id)

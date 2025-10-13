@@ -70,6 +70,7 @@ class TacticEvaluationResult:
 
     tactic_id: str
     policy_id: str
+    execution_topology: str | None
     current_stage: PolicyLedgerStage
     target_stage: PolicyLedgerStage
     decision: StageDecision
@@ -256,6 +257,7 @@ class TacticReplayHarness:
         return TacticEvaluationResult(
             tactic_id=tactic.tactic_id,
             policy_id=policy_key,
+            execution_topology=tactic.topology,
             current_stage=current_stage,
             target_stage=target_stage,
             decision=decision,

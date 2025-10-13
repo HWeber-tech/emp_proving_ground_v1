@@ -96,6 +96,8 @@ class AdaptiveGovernanceGate:
             "metrics": dict(result.metrics_summary()),
             "thresholds": dict(result.thresholds_summary()),
         }
+        if result.execution_topology is not None:
+            metadata["execution_topology"] = result.execution_topology
         if additional_metadata:
             metadata["context"] = dict(additional_metadata)
         metadata.setdefault("recorded_at", datetime.now(tz=timezone.utc).isoformat())

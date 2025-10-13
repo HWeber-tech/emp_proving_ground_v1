@@ -47,10 +47,40 @@ def test_what_sensor_emits_lineage_and_quality_metadata() -> None:
     assert isinstance(quality, dict)
     assert quality.get("source") == "sensory.what"
     assert quality.get("confidence") == signal.confidence
+    assert metadata.get("trend_strength") == pytest.approx(signal.value["trend_strength"])
     lineage = metadata.get("lineage")
     assert isinstance(lineage, dict)
     assert lineage.get("dimension") == "WHAT"
     assert lineage.get("metadata", {}).get("mode") == "pattern_analysis"
+    assert signal.value["trend_strength"] == pytest.approx(
+        signal.lineage.inputs["trend_strength"], rel=1e-6
+    )
+
+
+def test_what_sensor_trend_strength_discriminates_direction(monkeypatch: pytest.MonkeyPatch) -> None:
+    sensor = WhatSensor()
+    monkeypatch.setattr(sensor, "_run_pattern_orchestrator", lambda df: {})
+
+    start = datetime(2024, 2, 1, 9, tzinfo=timezone.utc)
+    bullish_closes = [1.10 + 0.0015 * idx for idx in range(32)]
+    bearish_closes = [1.20 - 0.0015 * idx for idx in range(32)]
+
+    bullish_frame = _build_trending_frame(start, bullish_closes)
+    bearish_frame = _build_trending_frame(start, bearish_closes)
+
+    bullish_signal = sensor.process(bullish_frame)[0]
+    bearish_signal = sensor.process(bearish_frame)[0]
+
+    assert bullish_signal.value["trend_strength"] > 0.4
+    assert bearish_signal.value["trend_strength"] < -0.4
+    assert bullish_signal.value["pattern_strength"] > bearish_signal.value["pattern_strength"]
+    assert bullish_signal.metadata.get("trend_strength") == pytest.approx(
+        bullish_signal.value["trend_strength"], rel=1e-6
+    )
+    assert bearish_signal.metadata.get("trend_strength") == pytest.approx(
+        bearish_signal.value["trend_strength"], rel=1e-6
+    )
+    assert bullish_signal.lineage.inputs["trend_strength"] > bearish_signal.lineage.inputs["trend_strength"]
 
 
 def test_why_sensor_adds_lineage_and_quality_metadata() -> None:

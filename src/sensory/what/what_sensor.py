@@ -83,6 +83,29 @@ class WhatSensor:
     def __init__(self) -> None:
         self._orch = PatternOrchestrator()
 
+    def _compute_trend_strength(self, closes: pd.Series) -> float:
+        """Compute directional strength from price deltas in ``closes``."""
+
+        if closes.empty:
+            return 0.0
+
+        series = closes.astype(float).dropna()
+        if series.size < 3:
+            return 0.0
+
+        deltas = series.diff().dropna()
+        if deltas.empty:
+            return 0.0
+
+        positive = float(deltas[deltas > 0].sum())
+        negative = float((-deltas[deltas < 0]).sum())
+        total_movement = positive + negative
+        if total_movement <= 0.0:
+            return 0.0
+
+        directional = (positive - negative) / total_movement
+        return max(-1.0, min(1.0, directional))
+
     def process(self, df: pd.DataFrame | None) -> List[SensorSignal]:
         if df is None or df.empty or "close" not in df:
             return [self._default_signal(reason="insufficient_market_data")]
@@ -93,12 +116,19 @@ class WhatSensor:
         low = recent["close"].min()
         last = df["close"].iloc[-1]
 
+        trend_strength = self._compute_trend_strength(recent["close"])
+
         # Simple breakout as baseline
         base_strength = 0.0
         if last >= high:
             base_strength = 0.6
         elif last <= low:
             base_strength = -0.6
+
+        if base_strength == 0.0:
+            base_strength = 0.6 * trend_strength
+        else:
+            base_strength = 0.7 * base_strength + 0.3 * trend_strength
 
         # Attempt pattern synthesis (async engine) to compute strength/confidence
         patterns: dict[str, object] = {}
@@ -108,6 +138,7 @@ class WhatSensor:
             patterns = {}
 
         strength = _coerce_float(patterns.get("pattern_strength"), default=base_strength)
+        strength = max(-1.0, min(1.0, strength))
         confidence = _coerce_float(patterns.get("confidence_score"), default=0.5)
         details = _normalise_pattern_payload(patterns)
 
@@ -131,6 +162,7 @@ class WhatSensor:
                 "low": float(low),
                 "last_close": float(last),
                 "base_strength": float(base_strength),
+                "trend_strength": float(trend_strength),
             },
             outputs={
                 "pattern_strength": float(strength),
@@ -139,6 +171,7 @@ class WhatSensor:
             telemetry={
                 "pattern_strength": float(strength),
                 "confidence": float(confidence),
+                "trend_strength": float(trend_strength),
             },
             metadata={
                 "timestamp": timestamp.isoformat(),
@@ -154,6 +187,7 @@ class WhatSensor:
             "low": low,
             "last_close": last,
             "base_strength": base_strength,
+            "trend_strength": trend_strength,
             "pattern_payload": details,
             "quality": quality,
             "lineage": lineage.as_dict(),
@@ -162,6 +196,7 @@ class WhatSensor:
             "pattern_strength": strength,
             "confidence": confidence,
             "last_close": last,
+            "trend_strength": trend_strength,
         }
         if details:
             value["pattern_details"] = details
@@ -201,12 +236,17 @@ class WhatSensor:
         metadata: dict[str, object] = {
             "source": "sensory.what",
             "reason": reason,
+            "trend_strength": 0.0,
             "quality": quality,
             "lineage": lineage.as_dict(),
         }
         return SensorSignal(
             signal_type="WHAT",
-            value={"pattern_strength": 0.0, "confidence": confidence},
+            value={
+                "pattern_strength": 0.0,
+                "trend_strength": 0.0,
+                "confidence": confidence,
+            },
             confidence=confidence,
             metadata=metadata,
             lineage=lineage,

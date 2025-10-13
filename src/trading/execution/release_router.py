@@ -77,6 +77,68 @@ class ReleaseAwareExecutionRouter:
 
         return describe_risk_context(self._last_risk_metadata, self._last_risk_error)
 
+    def should_block_orders(self, intent: Any) -> Mapping[str, Any] | None:
+        """Determine whether the routed engine is currently blocking execution."""
+
+        self._capture_risk_context()
+        metadata = self._extract_metadata(intent)
+        strategy_id = self._extract_policy_id(intent)
+        stage, posture = self._resolve_stage(strategy_id)
+        stage_force_reason = self._stage_force_reason(stage)
+        audit_force, audit_reason, audit_details = self._audit_enforcement(stage, posture)
+        gate_force, gate_reason, forced_severity = self._should_force_paper(metadata)
+        combined_force = audit_force or gate_force or bool(stage_force_reason)
+        engine, route_label = self._select_engine(stage, force_paper=combined_force)
+
+        sentinel = getattr(engine, "should_block_orders", None)
+        if not callable(sentinel):
+            return None
+
+        try:
+            result = sentinel(intent)
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("release_router_block_check_failed", exc_info=True)
+            return None
+
+        if isinstance(result, Mapping):
+            payload: MutableMapping[str, Any] = {
+                str(key): value for key, value in result.items()
+            }
+        elif result:
+            payload = {"reason": str(result)}
+        else:
+            return None
+
+        payload.setdefault("stage", stage.value)
+        payload.setdefault("route", route_label)
+        if combined_force:
+            payload.setdefault("forced_route", "paper")
+
+        forced_reasons: list[str] = []
+        if gate_force and gate_reason:
+            payload.setdefault("drift_gate_reason", gate_reason)
+            forced_reasons.append(gate_reason)
+        if audit_force:
+            payload.setdefault("audit_forced", True)
+            if audit_details:
+                payload.setdefault("audit", audit_details)
+            if audit_reason:
+                forced_reasons.append(audit_reason)
+        if stage_force_reason:
+            payload.setdefault("stage_force_reason", stage_force_reason)
+            forced_reasons.append(stage_force_reason)
+        if forced_severity:
+            payload.setdefault("drift_severity", forced_severity.value)
+        if forced_reasons and "forced_reasons" not in payload:
+            payload["forced_reasons"] = forced_reasons
+
+        if self._last_risk_metadata is not None:
+            payload.setdefault("risk", dict(self._last_risk_metadata))
+        if self._last_risk_error is not None:
+            payload.setdefault("risk_error", dict(self._last_risk_error))
+
+        return dict(payload)
+
     async def process_order(self, intent: Any) -> Any:
         """Process an order using the engine that matches the ledger stage."""
 

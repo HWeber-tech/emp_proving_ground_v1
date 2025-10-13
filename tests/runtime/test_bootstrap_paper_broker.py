@@ -76,6 +76,8 @@ async def test_bootstrap_runtime_routes_live_stage_to_paper_api(tmp_path: Any) -
         "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
         "PAPER_TRADING_DEFAULT_STAGE": PolicyLedgerStage.LIMITED_LIVE.value,
         "PAPER_TRADING_ORDER_TIMEOUT": "3",
+        "PAPER_TRADING_FAILOVER_THRESHOLD": "2",
+        "PAPER_TRADING_FAILOVER_COOLDOWN": "0.5",
         "POLICY_LEDGER_PATH": str(ledger_path),
     }
     config = SystemConfig(connection_protocol=ConnectionProtocol.paper, extras=extras)

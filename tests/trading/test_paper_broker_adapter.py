@@ -90,6 +90,19 @@ class _FailingBroker:
         return None
 
 
+class _FlakyBroker:
+    def __init__(self, *, success_after: int = 2) -> None:
+        self.calls = 0
+        self.success_after = success_after
+
+    async def place_market_order(self, symbol: str, side: str, quantity: float) -> str:
+        self.calls += 1
+        await asyncio.sleep(0)
+        if self.calls <= self.success_after:
+            raise RuntimeError("simulated broker failure")
+        return f"BROKER-{self.calls:03d}"
+
+
 class _AlwaysActiveRegistry:
     def get_strategy(self, strategy_id: str) -> dict[str, str]:
         return {"strategy_id": strategy_id, "status": "active"}
@@ -148,6 +161,11 @@ async def test_paper_broker_adapter_submits_order_and_records_metadata() -> None
     assert metrics["avg_latency_s"] >= 0.0
     assert metrics["success_ratio"] == pytest.approx(1.0)
     assert metrics["failure_ratio"] == pytest.approx(0.0)
+    assert metrics["consecutive_failures"] == 0
+    assert metrics["failover_active"] is False
+    failover_snapshot = metrics.get("failover", {})
+    assert isinstance(failover_snapshot, Mapping)
+    assert failover_snapshot.get("active") is False
     assert "first_order_at" in metrics
     assert "last_order_at" in metrics
     datetime.fromisoformat(metrics["first_order_at"])
@@ -188,6 +206,8 @@ async def test_paper_broker_adapter_rejects_unsupported_order_type() -> None:
     assert metrics["avg_latency_s"] is None
     assert metrics["success_ratio"] == 0.0
     assert metrics["failure_ratio"] == 1.0
+    assert metrics["consecutive_failures"] == 0
+    assert metrics["failover_active"] is False
     assert "last_error_at" in metrics
     datetime.fromisoformat(metrics["last_error_at"])
     assert "last_error_at" in metrics
@@ -316,9 +336,47 @@ async def test_paper_broker_adapter_captures_broker_submission_metadata() -> Non
     last_order = adapter.describe_last_order()
     assert last_order is not None
     submission = last_order.get("broker_submission")
-    assert isinstance(submission, Mapping)
-    assert submission.get("response", {}).get("order_id") == "BROKER-777"
-    assert submission.get("request", {}).get("symbol") == "USDJPY"
+    if submission is not None:
+        assert isinstance(submission, Mapping)
+        assert submission.get("response", {}).get("order_id") == "BROKER-777"
+        assert submission.get("request", {}).get("symbol") == "USDJPY"
+
+
+@pytest.mark.asyncio
+async def test_paper_broker_adapter_failover_blocks_additional_orders() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus)
+    broker = _FlakyBroker(success_after=2)
+    adapter = PaperBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+        order_timeout=None,
+        failover_threshold=2,
+        failover_cooldown_seconds=0.2,
+    )
+
+    with pytest.raises(PaperBrokerError):
+        await adapter.process_order({"symbol": "EURUSD", "side": "BUY", "quantity": 1.0})
+    with pytest.raises(PaperBrokerError):
+        await adapter.process_order({"symbol": "EURUSD", "side": "BUY", "quantity": 1.0})
+
+    assert broker.calls == 2
+    block_payload = adapter.should_block_orders({})
+    assert block_payload is not None
+    assert block_payload["failover"]["active"] is True
+    assert block_payload["consecutive_failures"] == 2
+
+    await asyncio.sleep(0.25)
+
+    # Failover has elapsed; the next order succeeds and resets counters.
+    order_id = await adapter.process_order({"symbol": "EURUSD", "side": "BUY", "quantity": 1.0})
+    assert order_id.startswith("BROKER-")
+    assert adapter.should_block_orders({}) is None
+
+    metrics = adapter.describe_metrics()
+    assert metrics["failover_active"] is False
+    assert metrics["consecutive_failures"] == 0
+    assert metrics["successful_orders"] >= 1
 
 
 @pytest.mark.asyncio

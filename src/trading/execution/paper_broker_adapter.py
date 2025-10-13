@@ -12,7 +12,7 @@ import asyncio
 import logging
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from typing import Any, Mapping, MutableMapping
 
@@ -57,6 +57,8 @@ class PaperBrokerExecutionAdapter:
     broker_interface: Any
     portfolio_monitor: PortfolioMonitor
     order_timeout: float | None = 5.0
+    failover_threshold: int = 3
+    failover_cooldown_seconds: float = 30.0
     risk_context_provider: RiskContextProvider | None = field(default=None, repr=False)
     _last_order: dict[str, object] | None = field(default=None, init=False, repr=False)
     _last_risk_metadata: dict[str, object] | None = field(default=None, init=False, repr=False)
@@ -77,6 +79,8 @@ class PaperBrokerExecutionAdapter:
     _first_order_time: datetime | None = field(default=None, init=False, repr=False)
     _last_order_time: datetime | None = field(default=None, init=False, repr=False)
     _last_error_time: datetime | None = field(default=None, init=False, repr=False)
+    _consecutive_failures: int = field(default=0, init=False, repr=False)
+    _failover_until: datetime | None = field(default=None, init=False, repr=False)
 
     def set_risk_context_provider(
         self, provider: RiskContextProvider | None
@@ -214,6 +218,7 @@ class PaperBrokerExecutionAdapter:
 
         latency = perf_counter() - start_time
         self._register_success(latency)
+        self._reset_failover_state()
 
         # Release the optimistic reservation now that the broker has accepted the order.
         try:
@@ -321,6 +326,12 @@ class PaperBrokerExecutionAdapter:
             payload["last_order_at"] = self._last_order_time.isoformat()
         if self._last_error_time is not None:
             payload["last_error_at"] = self._last_error_time.isoformat()
+
+        payload["consecutive_failures"] = self._consecutive_failures
+        payload["failover_threshold"] = max(0, int(self.failover_threshold))
+        failover_snapshot = self.describe_failover()
+        payload["failover_active"] = failover_snapshot.get("active", False)
+        payload["failover"] = failover_snapshot
 
         return dict(payload)
 
@@ -437,6 +448,10 @@ class PaperBrokerExecutionAdapter:
         payload["recorded_at"] = now.isoformat()
 
         self._register_failure()
+        self._update_failover_state(stage)
+        failover_snapshot = self.describe_failover()
+        if failover_snapshot.get("active"):
+            payload["failover"] = dict(failover_snapshot)
         self._last_error = dict(payload)
         self._error_history.append(dict(self._last_error))
         self._last_error_time = now
@@ -480,6 +495,68 @@ class PaperBrokerExecutionAdapter:
             except Exception:  # pragma: no cover - diagnostics only
                 logger.debug("Broker submission accessor '%s' failed", name, exc_info=True)
                 continue
-            if isinstance(submission, Mapping):
-                return {str(key): value for key, value in submission.items()}
+                if isinstance(submission, Mapping):
+                    return {str(key): value for key, value in submission.items()}
         return None
+
+    def _reset_failover_state(self) -> None:
+        self._consecutive_failures = 0
+        self._failover_until = None
+
+    def _update_failover_state(self, stage: str) -> None:
+        if stage not in {"broker_invocation", "broker_submission"}:
+            self._reset_failover_state()
+            return
+
+        if self.failover_threshold <= 0:
+            return
+
+        self._consecutive_failures += 1
+        cooldown = max(0.0, float(self.failover_cooldown_seconds))
+        if cooldown <= 0.0:
+            return
+        if self._consecutive_failures < self.failover_threshold:
+            return
+        self._failover_until = datetime.now(timezone.utc) + timedelta(seconds=cooldown)
+
+    def should_block_orders(self, _intent: Any | None = None) -> Mapping[str, Any] | None:
+        if self._failover_until is None:
+            return None
+        now = datetime.now(timezone.utc)
+        if now >= self._failover_until:
+            self._reset_failover_state()
+            return None
+        remaining = max(0.0, (self._failover_until - now).total_seconds())
+        payload: MutableMapping[str, Any] = {
+            "reason": "paper_broker_failover",
+            "retry_in_seconds": remaining,
+            "consecutive_failures": self._consecutive_failures,
+            "failover_resumes_at": self._failover_until.isoformat(),
+        }
+        last_error = self.describe_last_error()
+        if last_error:
+            payload["last_error"] = dict(last_error)
+        submission = self._fetch_broker_submission()
+        if submission:
+            payload["last_submission"] = submission
+        payload["failover"] = self.describe_failover()
+        return dict(payload)
+
+    def describe_failover(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "threshold": max(0, int(self.failover_threshold)),
+            "consecutive_failures": self._consecutive_failures,
+        }
+        if self._failover_until is None:
+            payload["active"] = False
+        else:
+            now = datetime.now(timezone.utc)
+            remaining = max(0.0, (self._failover_until - now).total_seconds())
+            payload.update(
+                {
+                    "active": remaining > 0.0,
+                    "resumes_at": self._failover_until.isoformat(),
+                    "retry_in_seconds": remaining,
+                }
+            )
+        return dict(payload)

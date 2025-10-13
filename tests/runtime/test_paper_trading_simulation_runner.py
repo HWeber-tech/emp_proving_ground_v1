@@ -53,6 +53,8 @@ def _build_extras(
         "PAPER_TRADING_ORDER_ID_FIELD": "order_id",
         "PAPER_TRADING_DEFAULT_STAGE": PolicyLedgerStage.LIMITED_LIVE.value,
         "PAPER_TRADING_ORDER_TIMEOUT": "5",
+        "PAPER_TRADING_FAILOVER_THRESHOLD": "2",
+        "PAPER_TRADING_FAILOVER_COOLDOWN": "0.5",
         "POLICY_LEDGER_PATH": str(ledger_path),
         "DECISION_DIARY_PATH": str(diary_path),
         "BOOTSTRAP_TICK_INTERVAL": "0.0",
@@ -334,6 +336,8 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
     assert report.paper_metrics is not None
     assert report.paper_metrics.get("success_ratio") == 0.0
     assert report.paper_metrics.get("failure_ratio") == 1.0
+    assert report.paper_metrics.get("consecutive_failures", 0) >= 1
+    assert "failover" in report.paper_metrics
     assert report.execution_stats is not None
     assert report.performance_health is not None
     assert report.strategy_summary is not None

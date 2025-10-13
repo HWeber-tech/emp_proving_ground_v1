@@ -2568,6 +2568,24 @@ def _build_bootstrap_runtime(
     return runtime, cleanup_callbacks
 
 
+def _coerce_non_negative_int(value: Any, *, default: int) -> int:
+    try:
+        candidate = int(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return default
+    return candidate if candidate >= 0 else default
+
+
+def _coerce_non_negative_float(value: Any, *, default: float) -> float:
+    try:
+        candidate = float(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return default
+    if not math.isfinite(candidate) or candidate < 0.0:
+        return default
+    return candidate
+
+
 def _maybe_attach_paper_trading_adapter(
     config: SystemConfig,
     runtime: BootstrapRuntime,
@@ -2613,12 +2631,22 @@ def _maybe_attach_paper_trading_adapter(
     adapter = PaperTradingApiAdapter(settings=settings)
     order_timeout = settings.request_timeout
     default_stage = extras.get("PAPER_TRADING_DEFAULT_STAGE")
+    failover_threshold_value = _coerce_non_negative_int(
+        extras.get("PAPER_TRADING_FAILOVER_THRESHOLD"),
+        default=3,
+    )
+    failover_cooldown_value = _coerce_non_negative_float(
+        extras.get("PAPER_TRADING_FAILOVER_COOLDOWN"),
+        default=30.0,
+    )
 
     try:
         router = runtime.trading_manager.attach_live_broker_adapter(
             adapter,
             default_stage=default_stage,
             order_timeout=order_timeout,
+            failover_threshold=failover_threshold_value,
+            failover_cooldown=failover_cooldown_value,
         )
     except PaperTradingApiError as exc:
         logger.warning("Failed to initialise paper trading adapter: %s", exc)

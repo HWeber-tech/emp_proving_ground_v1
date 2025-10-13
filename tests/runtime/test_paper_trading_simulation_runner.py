@@ -2,7 +2,7 @@ import asyncio
 import json
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Sequence
 
 import pytest
 from aiohttp import web
@@ -160,6 +160,7 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
     assert report.trade_throttle.get("state") in {"open", "cooldown", "rate_limited", "min_interval"}
     assert report.trade_throttle_scopes is not None
     assert all(isinstance(scope, dict) for scope in report.trade_throttle_scopes)
+    assert isinstance(report.trade_throttle_events, Sequence)
     assert report.incident_response is not None
     incident_snapshot = report.incident_response.get("snapshot")
     assert incident_snapshot is not None

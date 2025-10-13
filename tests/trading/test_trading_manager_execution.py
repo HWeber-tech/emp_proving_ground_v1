@@ -2143,6 +2143,14 @@ async def test_trade_throttle_blocks_and_can_be_disabled(
     assert throttle_context.get("symbol") == "EURUSD"
     assert throttle_context.get("strategy_id") == "alpha"
 
+    throttle_history = manager.get_trade_throttle_history()
+    assert throttle_history, "expected throttle history to capture blocked event"
+    latest_event = throttle_history[-1]
+    assert latest_event.get("action") == "blocked"
+    assert latest_event.get("state") in {"rate_limited", "cooldown", "min_interval"}
+    assert stats.get("last_throttle_event") == latest_event
+    assert stats.get("throttle_history_size") == len(throttle_history)
+
     snapshot = manager.get_trade_throttle_snapshot()
     assert snapshot is not None
     assert snapshot.get("state") in {"rate_limited", "cooldown", "min_interval"}
@@ -2236,6 +2244,14 @@ async def test_backlog_breach_enforces_throttle_cooldown(
     )
     assert throttled_metadata.get("reason") == "backlog_cooldown"
     assert throttled_metadata.get("message")
+
+    throttle_history = manager.get_trade_throttle_history()
+    assert throttle_history, "expected throttle history to include cooldown event"
+    cooldown_event = next(
+        event for event in throttle_history if event.get("action") == "cooldown"
+    )
+    assert cooldown_event.get("reason") == "backlog_cooldown"
+    assert cooldown_event.get("cooldown_until")
 
 
 @pytest.mark.asyncio()

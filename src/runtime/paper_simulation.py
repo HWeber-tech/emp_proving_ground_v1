@@ -57,6 +57,7 @@ class PaperTradingSimulationReport:
     release: Mapping[str, Any] | None = None
     trade_throttle: Mapping[str, Any] | None = None
     trade_throttle_scopes: Sequence[Mapping[str, Any]] | None = None
+    trade_throttle_events: Sequence[Mapping[str, Any]] = field(default_factory=list)
     incident_response: Mapping[str, Any] | None = None
 
     def to_dict(self) -> Mapping[str, Any]:
@@ -90,6 +91,10 @@ class PaperTradingSimulationReport:
         if self.trade_throttle_scopes is not None:
             payload["trade_throttle_scopes"] = [
                 dict(scope) for scope in self.trade_throttle_scopes
+            ]
+        if self.trade_throttle_events:
+            payload["trade_throttle_events"] = [
+                dict(event) for event in self.trade_throttle_events
             ]
         if self.incident_response is not None:
             payload["incident_response"] = dict(self.incident_response)
@@ -236,6 +241,20 @@ async def run_paper_trading_simulation(
         if isinstance(health_payload, Mapping):
             performance_health = _serialise_runtime_value(health_payload)
 
+    throttle_events: Sequence[Mapping[str, Any]] = []
+    try:
+        history_records = runtime.trading_manager.get_trade_throttle_history()
+    except Exception:  # pragma: no cover - diagnostic guardrail
+        logger.debug("Failed to capture trade throttle history", exc_info=True)
+    else:
+        if isinstance(history_records, Sequence):
+            throttle_events = [
+                _serialise_runtime_value(record)
+                if isinstance(record, Mapping)
+                else record
+                for record in history_records
+            ]
+
     report = PaperTradingSimulationReport(
         orders=list(orders),
         errors=list(errors),
@@ -252,6 +271,7 @@ async def run_paper_trading_simulation(
         release=release_summary,
         trade_throttle=_resolve_trade_throttle_snapshot(runtime),
         trade_throttle_scopes=_resolve_trade_throttle_scopes(runtime),
+        trade_throttle_events=tuple(throttle_events),
         incident_response=_resolve_incident_response(
             runtime,
             config,

@@ -560,10 +560,13 @@ class TradingManager:
             "throttle_retry_at": None,
             "throttle_retry_in_seconds": None,
             "last_throttle_cooldown": None,
+            "last_throttle_event": None,
+            "throttle_history_size": 0,
         }
         self._refresh_throughput_snapshot()
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
+        self._throttle_history: deque[dict[str, Any]] = deque(maxlen=256)
 
         self._trade_throttle: TradeThrottle | None = None
         self._trade_throttle_snapshot: Mapping[str, Any] | None = None
@@ -1060,6 +1063,13 @@ class TradingManager:
                         decision=self._get_last_risk_decision(),
                         fast_weight=fast_weight_metadata,
                     )
+                    if throttle_snapshot is not None:
+                        self._record_throttle_event(
+                            action="blocked",
+                            snapshot=throttle_snapshot,
+                            decision=throttle_decision,
+                            event_metadata=metadata_payload,
+                        )
                     log_reason = human_reason or reason
                     logger.warning("Throttled trade intent %s: %s", event_id, log_reason)
                     drift_event_status = "throttled"
@@ -1153,6 +1163,13 @@ class TradingManager:
                                     decision=self._get_last_risk_decision(),
                                     fast_weight=fast_weight_metadata,
                                 )
+                                if throttle_snapshot is not None:
+                                    self._record_throttle_event(
+                                        action="scaled",
+                                        snapshot=throttle_snapshot,
+                                        decision=throttle_decision,
+                                        event_metadata=throttle_scaling_metadata,
+                                    )
                                 logger.info(
                                     "Applied trade throttle multiplier %.4f to %s; quantity %.6f → %.6f",
                                     multiplier_value,
@@ -1589,6 +1606,13 @@ class TradingManager:
                         )
                         metadata_payload["throttle_cooldown_applied"] = True
                         self._execution_stats["last_throttle_cooldown"] = breach_timestamp
+                        if cooldown_snapshot is not None:
+                            self._record_throttle_event(
+                                action="cooldown",
+                                snapshot=cooldown_snapshot,
+                                decision=None,
+                                event_metadata=metadata_payload,
+                            )
                 if cooldown_snapshot is None:
                     metadata_payload["throttle_cooldown_applied"] = False
                 if isinstance(backlog_snapshot, Mapping):
@@ -1819,6 +1843,147 @@ class TradingManager:
         if decision and isinstance(decision, Mapping):
             entry["decision"] = dict(decision)
         self._experiment_events.appendleft(entry)
+
+    def _record_throttle_event(
+        self,
+        *,
+        action: str,
+        snapshot: Mapping[str, Any],
+        decision: TradeThrottleDecision | None = None,
+        event_metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Append a concise summary of a throttle action to history buffers."""
+
+        try:
+            entry = self._build_throttle_history_entry(
+                action=action,
+                snapshot=snapshot,
+                decision=decision,
+                event_metadata=event_metadata,
+            )
+        except Exception:  # pragma: no cover - defensive guard for diagnostics
+            logger.debug("Failed to capture throttle history entry", exc_info=True)
+            return
+
+        self._throttle_history.append(entry)
+        self._execution_stats["last_throttle_event"] = entry
+        self._execution_stats["throttle_history_size"] = len(self._throttle_history)
+
+    def _build_throttle_history_entry(
+        self,
+        *,
+        action: str,
+        snapshot: Mapping[str, Any],
+        decision: TradeThrottleDecision | None,
+        event_metadata: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Normalise throttle payloads for utilisation in diagnostics."""
+
+        snapshot_dict = self._normalise_throttle_snapshot(snapshot)
+        metadata_block = snapshot_dict.get("metadata")
+        metadata_dict = (
+            dict(metadata_block)
+            if isinstance(metadata_block, MappingABC)
+            else {}
+        )
+
+        entry: dict[str, Any] = {
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "action": action,
+            "state": snapshot_dict.get("state"),
+            "active": bool(snapshot_dict.get("active", False)),
+            "reason": snapshot_dict.get("reason")
+            or (decision.reason if decision is not None else None),
+            "message": snapshot_dict.get("message"),
+        }
+
+        name = snapshot_dict.get("name")
+        if name is not None:
+            entry["name"] = name
+
+        multiplier = snapshot_dict.get("multiplier")
+        if multiplier is not None:
+            entry["multiplier"] = multiplier
+
+        scope_key = snapshot_dict.get("scope_key")
+        if isinstance(scope_key, list) and scope_key:
+            entry["scope_key"] = list(scope_key)
+
+        if decision is not None:
+            entry["allowed"] = bool(decision.allowed)
+
+        retry_at = metadata_dict.get("retry_at")
+        if isinstance(retry_at, datetime):
+            retry_at = retry_at.astimezone(timezone.utc).isoformat()
+        if retry_at is not None:
+            entry["retry_at"] = retry_at
+
+        cooldown_until = metadata_dict.get("cooldown_until")
+        if isinstance(cooldown_until, datetime):
+            cooldown_until = cooldown_until.astimezone(timezone.utc).isoformat()
+        if cooldown_until is not None:
+            entry["cooldown_until"] = cooldown_until
+
+        retry_in = metadata_dict.get("retry_in_seconds")
+        if retry_in is not None:
+            try:
+                entry["retry_in_seconds"] = float(retry_in)
+            except (TypeError, ValueError):
+                pass
+
+        for key in ("remaining_trades", "max_trades", "window_utilisation"):
+            if key in metadata_dict:
+                entry[key] = metadata_dict.get(key)
+
+        for key in ("min_spacing_seconds", "cooldown_seconds"):
+            if key in metadata_dict:
+                entry[key] = metadata_dict.get(key)
+
+        context_block = metadata_dict.get("context")
+        if isinstance(context_block, MappingABC) and context_block:
+            entry["context"] = dict(context_block)
+
+        scope_block = metadata_dict.get("scope")
+        if isinstance(scope_block, MappingABC) and scope_block:
+            entry["scope"] = dict(scope_block)
+
+        cooldown_context = metadata_dict.get("cooldown_context")
+        if isinstance(cooldown_context, MappingABC) and cooldown_context:
+            entry["cooldown_context"] = dict(cooldown_context)
+
+        window_reset_at = metadata_dict.get("window_reset_at")
+        if isinstance(window_reset_at, datetime):
+            window_reset_at = window_reset_at.astimezone(timezone.utc).isoformat()
+        if window_reset_at is not None:
+            entry["window_reset_at"] = window_reset_at
+
+        window_reset_in = metadata_dict.get("window_reset_in_seconds")
+        if window_reset_in is not None:
+            try:
+                entry["window_reset_in_seconds"] = float(window_reset_in)
+            except (TypeError, ValueError):
+                pass
+
+        if event_metadata and isinstance(event_metadata, MappingABC):
+            cleaned_event_meta = dict(event_metadata)
+            cleaned_event_meta.pop("throttle", None)
+            if cleaned_event_meta:
+                entry["event_metadata"] = cleaned_event_meta
+
+        return entry
+
+    @staticmethod
+    def _normalise_throttle_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
+        payload = dict(snapshot)
+        metadata_block = payload.get("metadata")
+        if isinstance(metadata_block, MappingABC):
+            payload["metadata"] = dict(metadata_block)
+        scope_key = payload.get("scope_key")
+        if isinstance(scope_key, tuple):
+            payload["scope_key"] = list(scope_key)
+        elif isinstance(scope_key, list):
+            payload["scope_key"] = list(scope_key)
+        return payload
 
     async def _publish_drift_gate_event(
         self,
@@ -2395,6 +2560,15 @@ class TradingManager:
         if self._trade_throttle is None:
             return tuple()
         return self._trade_throttle.scope_snapshots()
+
+    def get_trade_throttle_history(self, limit: int | None = None) -> list[Mapping[str, Any]]:
+        """Return recently recorded throttle events for diagnostics."""
+
+        if limit is None or limit <= 0 or limit >= len(self._throttle_history):
+            records = list(self._throttle_history)
+        else:
+            records = list(self._throttle_history)[-int(limit) :]
+        return [dict(entry) for entry in records]
 
     def get_experiment_events(self, limit: int | None = None) -> list[Mapping[str, Any]]:
         """Expose the recent paper-trading experiment events."""

@@ -91,6 +91,8 @@ class PaperTradingSimulationReport:
             payload["paper_broker"] = dict(self.paper_broker)
         if self.paper_metrics is not None:
             payload["paper_metrics"] = dict(self.paper_metrics)
+        if self.paper_failover is not None:
+            payload["paper_failover"] = dict(self.paper_failover)
         if self.order_summary is not None:
             payload["order_summary"] = _serialise_runtime_value(self.order_summary)
         if self.portfolio_state is not None:

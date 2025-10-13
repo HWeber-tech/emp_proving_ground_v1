@@ -202,11 +202,14 @@ class LiveBrokerExecutionAdapter(PaperBrokerExecutionAdapter):
                 validated_intent = intent
                 revalidation_reason = reason
             else:
+                details = {"decision": _serialise_mapping(decision) or {}}
                 self._record_risk_violation(
                     reason="risk_gateway_rejected",
-                    details={"decision": _serialise_mapping(decision) or {}},
+                    details=details,
                     portfolio_state=portfolio_state,
                 )
+                if reason == "policy.min_position_size":
+                    return await self._delegate_to_paper_adapter(intent)
                 raise LiveBrokerError(reason or "Risk gateway rejected trade")
 
         policy_decision = self._enforce_policy(validated_intent, portfolio_state)

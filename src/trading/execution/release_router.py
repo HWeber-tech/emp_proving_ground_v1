@@ -533,6 +533,21 @@ class ReleaseAwareExecutionRouter:
         if not isinstance(force_flag, bool):
             active_flag = risk_payload.get("active")
             force_flag = bool(active_flag)
+
+        reason_raw = risk_payload.get("reason")
+        reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""
+        severity_raw = risk_payload.get("severity")
+        severity = (
+            str(severity_raw).strip().lower()
+            if isinstance(severity_raw, str)
+            else ""
+        )
+
+        if severity in {"near_miss", "near-miss", "warn", "warning"} or (
+            reason and reason.endswith("near_miss")
+        ):
+            force_flag = False
+
         if not force_flag:
             return False, None
 
@@ -540,10 +555,9 @@ class ReleaseAwareExecutionRouter:
         if remaining_seconds is not None and remaining_seconds <= 0:
             return False, None
 
-        reason = risk_payload.get("reason")
-        if not isinstance(reason, str) or not reason.strip():
+        if not reason:
             reason = "risk_guardrail_active"
-        return True, str(reason)
+        return True, reason
 
     @staticmethod
     def _stage_force_reason(

@@ -21,7 +21,11 @@ end-to-end AlphaTrade runs without manual glue code inside the test fixtures.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
+from decimal import Decimal
+from enum import Enum
+import inspect
+import logging
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, MutableMapping, Sequence
 
@@ -34,6 +38,9 @@ from src.understanding.router import BeliefSnapshot, UnderstandingRouter
 
 if TYPE_CHECKING:
     from src.trading.trading_manager import TradeIntentOutcome
+
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -175,6 +182,8 @@ class AlphaTradeLoopRunner:
             )
 
         trade_outcome: "TradeIntentOutcome | None" = None
+        diary_annotations: dict[str, Any] = {}
+        loop_metadata_updates: dict[str, Any] = {}
         if intent_payload is not None:
             outcome = await self._trading_manager.on_trade_intent(intent_payload)
             trade_outcome = outcome
@@ -187,17 +196,27 @@ class AlphaTradeLoopRunner:
                     trade_execution_payload["metadata"] = dict(outcome.metadata)
                 if outcome.throttle:
                     trade_execution_payload["throttle"] = dict(outcome.throttle)
-                updated_entry = self._orchestrator.annotate_diary_entry(
-                    loop_result.diary_entry.entry_id,
-                    {"trade_execution": trade_execution_payload},
-                )
-                merged_loop_metadata = dict(loop_result.metadata)
-                merged_loop_metadata["trade_execution"] = trade_execution_payload
-                loop_result = replace(
-                    loop_result,
-                    diary_entry=updated_entry,
-                    metadata=MappingProxyType(merged_loop_metadata),
-                )
+                diary_annotations["trade_execution"] = trade_execution_payload
+                loop_metadata_updates["trade_execution"] = trade_execution_payload
+
+        performance_health = await self._collect_performance_health()
+        if performance_health is not None:
+            diary_annotations.setdefault("performance_health", performance_health)
+            loop_metadata_updates.setdefault("performance_health", performance_health)
+            trade_metadata.setdefault("performance_health", performance_health)
+
+        if diary_annotations:
+            merged_loop_metadata = dict(loop_result.metadata)
+            merged_loop_metadata.update(loop_metadata_updates)
+            updated_entry = self._orchestrator.annotate_diary_entry(
+                loop_result.diary_entry.entry_id,
+                diary_annotations,
+            )
+            loop_result = replace(
+                loop_result,
+                diary_entry=updated_entry,
+                metadata=MappingProxyType(merged_loop_metadata),
+            )
 
         if loop_result.metadata.get("trade_metadata") != trade_metadata:
             merged_loop_metadata = dict(loop_result.metadata)
@@ -351,6 +370,66 @@ class AlphaTradeLoopRunner:
             "summary": summary_payload,
             "applied_adapters": list(decision_bundle.applied_adapters),
         }
+
+    async def _collect_performance_health(self) -> Mapping[str, Any] | None:
+        """Fetch and normalise the trading manager's performance health snapshot."""
+
+        assessor = getattr(self._trading_manager, "assess_performance_health", None)
+        if assessor is None or not callable(assessor):
+            return None
+
+        try:
+            snapshot = assessor()
+            if inspect.isawaitable(snapshot):
+                snapshot = await snapshot
+        except Exception:  # pragma: no cover - defensive diagnostic guard
+            logger.debug("Failed to collect performance health snapshot", exc_info=True)
+            return None
+
+        if snapshot is None:
+            return None
+
+        if isinstance(snapshot, Mapping):
+            items = snapshot.items()
+        else:
+            try:
+                items = dict(snapshot).items()  # type: ignore[arg-type]
+            except Exception:
+                logger.debug(
+                    "Unexpected performance health payload type %s; skipping",
+                    type(snapshot).__name__,
+                )
+                return None
+
+        normalised: dict[str, Any] = {}
+        for key, value in items:
+            normalised[str(key)] = self._normalise_metadata_value(value)
+        return normalised
+
+    @staticmethod
+    def _normalise_metadata_value(value: Any) -> Any:
+        if isinstance(value, datetime):
+            ref = value
+            if value.tzinfo is None:
+                ref = value.replace(tzinfo=timezone.utc)
+            else:
+                ref = value.astimezone(timezone.utc)
+            return ref.isoformat()
+        if isinstance(value, Decimal):
+            try:
+                return float(value)
+            except (TypeError, ValueError):  # pragma: no cover - defensive
+                return str(value)
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, Mapping):
+            return {
+                str(key): AlphaTradeLoopRunner._normalise_metadata_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [AlphaTradeLoopRunner._normalise_metadata_value(item) for item in value]
+        return value
 
     @staticmethod
     def _build_trade_intent_from_decision(

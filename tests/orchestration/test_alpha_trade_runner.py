@@ -26,6 +26,18 @@ class _FakeTradingManager:
         self.intents.append(dict(event))
         return TradeIntentOutcome(status="executed", executed=True, metadata={})
 
+    def assess_performance_health(self) -> dict[str, object]:
+        return {
+            "healthy": True,
+            "throughput": {"healthy": True},
+            "backlog": {"healthy": True, "evaluated": False},
+            "resource": {
+                "healthy": True,
+                "status": "not_configured",
+                "sample": {},
+            },
+        }
+
 
 class _ThrottleTradingManager:
     def __init__(self) -> None:
@@ -46,6 +58,19 @@ class _ThrottleTradingManager:
     async def on_trade_intent(self, event: dict[str, object]) -> TradeIntentOutcome:
         self.intents.append(dict(event))
         return self._outcome
+
+    def assess_performance_health(self) -> dict[str, object]:
+        return {
+            "healthy": False,
+            "throughput": {"healthy": True},
+            "backlog": {"healthy": True, "evaluated": False},
+            "resource": {
+                "healthy": True,
+                "status": "not_configured",
+                "sample": {},
+            },
+            "throttle": {"state": "rate_limited", "active": True},
+        }
 
 
 def _build_runner(
@@ -162,6 +187,10 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     trade_execution = entry.metadata.get("trade_execution")
     assert isinstance(trade_execution, dict)
     assert trade_execution["status"] == "executed"
+    performance_health = entry.metadata.get("performance_health")
+    assert isinstance(performance_health, dict)
+    assert performance_health.get("healthy") is True
+    assert result.trade_metadata.get("performance_health") == performance_health
 
 
 @pytest.mark.asyncio()
@@ -201,3 +230,10 @@ async def test_alpha_trade_loop_runner_records_throttle_metadata(
     assert isinstance(throttle_snapshot, dict)
     assert throttle_snapshot.get("state") == "rate_limited"
     assert "too many trades" in throttle_snapshot.get("message", "")
+    performance_health = entry.metadata.get("performance_health")
+    assert isinstance(performance_health, dict)
+    assert performance_health.get("healthy") is False
+    throttle_summary = performance_health.get("throttle")
+    assert isinstance(throttle_summary, dict)
+    assert throttle_summary.get("state") == "rate_limited"
+    assert result.trade_metadata.get("performance_health") == performance_health

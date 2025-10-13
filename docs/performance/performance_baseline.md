@@ -25,6 +25,10 @@ The returned dictionary contains:
 - `reports`: Markdown renderings that can be pasted directly into ops dossiers.
 - `throttle_scopes`: list of per-scope throttle snapshots captured at the time of
   baseline generation for downstream evidence packs.
+- `options`: the runtime budgets used for the capture (`max_processing_ms`,
+  `max_lag_ms`, CPU/memory guardrails) plus a normalised `trade_throttle`
+  configuration distilled from the trading manager so reviewers can see which
+  limits and scopes were active without rehydrating the runtime.
 
 The backlog snapshot now surfaces `latest_lag_ms`, `p95_lag_ms`, `breach_rate`,
 and `max_breach_streak` so trend analysis and drift detection can be done from a
@@ -49,7 +53,7 @@ PYTHONPATH=. python3 tools/performance_baseline.py \
   --output artifacts/perf_baseline.json
 ```
 
-Use `--throttle-max-notional` to bound total notional per window; the baseline payload will surface `throttle_consumed_notional`, `throttle_remaining_notional`, and `throttle_notional_utilisation` alongside the existing trade-count fields.
+Use `--throttle-max-notional` to bound total notional per window; the baseline payload will surface `throttle_consumed_notional`, `throttle_remaining_notional`, and `throttle_notional_utilisation` alongside the existing trade-count fields. The `options.trade_throttle` block is populated automatically with the active throttle name, trade count limits, time window, cooldown/min-spacing settings, multiplier, and scope hints so governance packs inherit the runtime guardrails verbatim.
 
 Sample (truncated) output:
 
@@ -63,8 +67,16 @@ Sample (truncated) output:
     "max_memory_percent": null,
     "max_processing_ms": 150.0,
     "trade_throttle": {
+      "name": "default",
       "max_trades": 1,
-      "window_seconds": 60.0
+      "window_seconds": 60.0,
+      "cooldown_seconds": 15.0,
+      "min_spacing_seconds": 2.5,
+      "multiplier": 1.0,
+      "scope": {
+        "strategy_id": "alpha",
+        "symbol": "EURUSD"
+      }
     },
     "trades": 6
   },

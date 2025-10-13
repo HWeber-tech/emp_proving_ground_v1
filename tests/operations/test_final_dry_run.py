@@ -586,6 +586,32 @@ async def test_final_dry_run_progress_updates_on_incident(tmp_path):
     assert final_payload["phase"] == "complete"
 
 
+def test_final_dry_run_progress_timeline(tmp_path):
+    progress_path = tmp_path / "progress.json"
+    timeline_dir = tmp_path / "timeline"
+    config = FinalDryRunConfig(
+        command=[sys.executable, "-c", _HEARTBEAT_SCRIPT],
+        duration=timedelta(seconds=0.6),
+        required_duration=timedelta(seconds=0.4),
+        log_directory=tmp_path,
+        minimum_uptime_ratio=0.0,
+        require_diary_evidence=False,
+        require_performance_evidence=False,
+        progress_path=progress_path,
+        progress_interval=timedelta(seconds=0.1),
+        progress_timeline_dir=timeline_dir,
+    )
+
+    result = run_final_dry_run(config)
+
+    assert result.progress_timeline_dir == timeline_dir
+    assert timeline_dir.exists()
+    snapshots = sorted(timeline_dir.glob("snapshot-*.json"))
+    assert snapshots, "timeline directory should contain at least one snapshot"
+    latest_snapshot = json.loads(snapshots[-1].read_text(encoding="utf-8"))
+    assert latest_snapshot["status"] == result.status.value
+
+
 @pytest.mark.slow
 def test_final_dry_run_diary_staleness_incident(tmp_path):
     diary_path = tmp_path / "diary.jsonl"

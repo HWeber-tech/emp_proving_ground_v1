@@ -150,6 +150,7 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
     wrap_up_json = run_dir / "wrap_up.json"
     wrap_up_md = run_dir / "wrap_up.md"
     log_dir = run_dir / "logs"
+    timeline_dir = run_dir / "progress_timeline"
     packet_dir = run_dir / "packet"
     packet_archive = run_dir / "packet.tar.gz"
 
@@ -161,6 +162,8 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
     assert wrap_up_md.exists()
     assert log_dir.exists()
     assert any(log_dir.glob("final_dry_run_*.jsonl"))
+    assert timeline_dir.exists()
+    assert list(timeline_dir.glob("snapshot-*.json"))
 
     payload = json.loads(summary_json.read_text(encoding="utf-8"))
     assert payload["status"] == "pass"
@@ -168,6 +171,7 @@ def test_orchestrator_creates_evidence_bundle(tmp_path, capsys):
     assert payload["review"]["status"] == "pass"
     assert payload["summary"]["metadata"]["run_label"] == "UAT rehearsal"
     assert payload["wrap_up"]["status"] == "pass"
+    assert payload["progress_timeline_dir"] == timeline_dir.as_posix()
 
     review_payload = json.loads(review_json.read_text(encoding="utf-8"))
     assert review_payload["status"] == "pass"
@@ -206,6 +210,7 @@ def test_orchestrator_skip_wrap_up(tmp_path, capsys):
         "--evidence-initial-grace-minutes",
         "0.0",
         "--no-wrap-up",
+        "--no-progress-timeline",
         "--",
         sys.executable,
         "-c",
@@ -225,10 +230,13 @@ def test_orchestrator_skip_wrap_up(tmp_path, capsys):
     summary_json = run_dir / "summary.json"
     wrap_up_json = run_dir / "wrap_up.json"
     wrap_up_md = run_dir / "wrap_up.md"
+    timeline_dir = run_dir / "progress_timeline"
 
     assert summary_json.exists()
     assert not wrap_up_json.exists()
     assert not wrap_up_md.exists()
+    assert not timeline_dir.exists()
 
     payload = json.loads(summary_json.read_text(encoding="utf-8"))
     assert "wrap_up" not in payload
+    assert payload.get("progress_timeline_dir") is None

@@ -74,6 +74,12 @@ def _load_notes(paths: Iterable[Path]) -> list[str]:
     help="Minutes between progress snapshots (0 to disable).",
 )
 @click.option(
+    "--progress-timeline-dir",
+    "progress_timeline_dir",
+    type=click.Path(path_type=Path),
+    help="Directory for immutable progress timeline snapshots (default: disabled).",
+)
+@click.option(
     "--required-duration-hours",
     "required_duration_hours",
     type=float,
@@ -336,6 +342,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     duration_hours: float,
     progress_path: Path | None,
     progress_interval_minutes: float,
+    progress_timeline_dir: Path | None,
     required_duration_hours: float | None,
     minimum_uptime_ratio: float,
     shutdown_grace_seconds: float,
@@ -425,6 +432,9 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         if progress_interval_minutes > 0.0
         else None
     )
+    progress_timeline = (
+        progress_timeline_dir if progress_interval is not None else None
+    )
     warn_gap = (
         timedelta(minutes=warn_gap_minutes)
         if warn_gap_minutes is not None
@@ -488,6 +498,7 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
         log_directory=log_dir,
         progress_path=progress_path,
         progress_interval=progress_interval,
+        progress_timeline_dir=progress_timeline,
         diary_path=diary,
         performance_path=performance,
         minimum_uptime_ratio=minimum_uptime_ratio,
@@ -546,6 +557,8 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
     click.echo(f"  Raw logs: {raw_display}")
     if result.progress_path is not None:
         click.echo(f"  Progress: {result.progress_path}")
+    if result.progress_timeline_dir is not None:
+        click.echo(f"  Progress timeline: {result.progress_timeline_dir}")
     if result.incidents:
         click.echo("  Harness incidents:")
         for incident in result.incidents:
@@ -597,6 +610,10 @@ def final_dry_run(  # noqa: PLR0913 - CLI fan-out handled by click
             "status": result.status.value,
             "summary": result.summary.as_dict(),
         }
+        if result.progress_path is not None:
+            payload["progress_path"] = str(result.progress_path)
+        if result.progress_timeline_dir is not None:
+            payload["progress_timeline_dir"] = str(result.progress_timeline_dir)
         if result.sign_off is not None:
             payload["sign_off"] = result.sign_off.as_dict()
         if result.incidents:

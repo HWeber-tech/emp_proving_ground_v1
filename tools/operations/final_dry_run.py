@@ -73,6 +73,11 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--progress-timeline-dir",
+        type=Path,
+        help="Directory for immutable progress timeline snapshots (default: disabled).",
+    )
+    parser.add_argument(
         "--required-duration-hours",
         type=float,
         default=None,
@@ -449,6 +454,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.progress_interval_minutes > 0
         else None
     )
+    progress_timeline = (
+        args.progress_timeline_dir if progress_interval is not None else None
+    )
     warn_gap = (
         timedelta(minutes=args.warn_gap_minutes)
         if args.warn_gap_minutes is not None
@@ -512,6 +520,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         log_directory=args.log_dir,
         progress_path=args.progress_path,
         progress_interval=progress_interval,
+        progress_timeline_dir=progress_timeline,
         diary_path=args.diary,
         performance_path=args.performance,
         minimum_uptime_ratio=args.minimum_uptime_ratio,
@@ -570,6 +579,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  Raw logs: {raw_display}")
     if result.progress_path is not None:
         print(f"  Progress: {result.progress_path}")
+    if result.progress_timeline_dir is not None:
+        print(f"  Progress timeline: {result.progress_timeline_dir}")
     if result.incidents:
         print("  Harness incidents:")
         for incident in result.incidents:
@@ -608,6 +619,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "status": result.status.value,
             "summary": result.summary.as_dict(),
         }
+        if result.progress_path is not None:
+            payload["progress_path"] = str(result.progress_path)
+        if result.progress_timeline_dir is not None:
+            payload["progress_timeline_dir"] = str(result.progress_timeline_dir)
         if result.sign_off is not None:
             payload["sign_off"] = result.sign_off.as_dict()
         if result.incidents:

@@ -48,6 +48,7 @@ class FinalDryRunConfig:
     log_directory: Path
     progress_path: Path | None = None
     progress_interval: timedelta | None = timedelta(minutes=5)
+    progress_timeline_dir: Path | None = None
     diary_path: Path | None = None
     performance_path: Path | None = None
     minimum_uptime_ratio: float = 0.98
@@ -111,6 +112,13 @@ class FinalDryRunConfig:
             Path(self.progress_path) if self.progress_path is not None else None
         )
         object.__setattr__(self, "progress_path", progress_path)
+
+        timeline_dir = (
+            Path(self.progress_timeline_dir)
+            if self.progress_timeline_dir is not None
+            else None
+        )
+        object.__setattr__(self, "progress_timeline_dir", timeline_dir)
 
         if self.progress_interval is not None and self.progress_interval <= timedelta(0):
             raise ValueError("progress_interval must be positive when provided")
@@ -285,6 +293,7 @@ class FinalDryRunResult:
     log_paths: tuple[Path, ...]
     raw_log_paths: tuple[Path, ...]
     progress_path: Path | None
+    progress_timeline_dir: Path | None = None
     incidents: tuple[HarnessIncident, ...] = field(default_factory=tuple)
 
     @property
@@ -770,6 +779,7 @@ class _ProgressReporter:
         stats: _LogStats,
         started_at: datetime,
         interval: timedelta,
+        timeline_dir: Path | None = None,
     ) -> None:
         self._path = Path(path)
         self._config = config
@@ -779,6 +789,9 @@ class _ProgressReporter:
         self._status = "pending"
         self._phase = "startup"
         self._highest_severity: DryRunStatus | None = None
+        self._timeline_dir = Path(timeline_dir) if timeline_dir else None
+        self._timeline_counter = 0
+        self._last_timeline_payload: str | None = None
         self._lock = asyncio.Lock()
 
     async def run(self) -> None:
@@ -891,6 +904,23 @@ class _ProgressReporter:
         async with self._lock:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             await asyncio.to_thread(self._path.write_text, data, encoding="utf-8")
+            if self._timeline_dir is not None:
+                self._timeline_dir.mkdir(parents=True, exist_ok=True)
+                if data != self._last_timeline_payload:
+                    timestamp_slug = now_value.astimezone(UTC).strftime(
+                        "%Y%m%dT%H%M%S"
+                    )
+                    filename = (
+                        f"snapshot-{timestamp_slug}-{self._timeline_counter:05d}.json"
+                    )
+                    target = self._timeline_dir / filename
+                    await asyncio.to_thread(
+                        target.write_text,
+                        data,
+                        encoding="utf-8",
+                    )
+                    self._timeline_counter += 1
+                self._last_timeline_payload = data
 
 
 class _LogGapMonitor:
@@ -1225,6 +1255,7 @@ async def perform_final_dry_run(
             stats=stats,
             started_at=started_at,
             interval=interval_value,
+            timeline_dir=config.progress_timeline_dir,
         )
         await progress_reporter.write(
             status="starting",
@@ -1580,6 +1611,7 @@ async def perform_final_dry_run(
         log_paths=structured_paths,
         raw_log_paths=raw_paths,
         progress_path=progress_path_value,
+        progress_timeline_dir=config.progress_timeline_dir,
         incidents=tuple(incidents),
     )
 

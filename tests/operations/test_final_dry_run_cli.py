@@ -51,6 +51,7 @@ def test_final_dry_run_cli_success(tmp_path: Path) -> None:
     runner = CliRunner()
     log_dir = tmp_path / "logs"
     progress_path = tmp_path / "progress.json"
+    timeline_dir = tmp_path / "timeline"
     json_report = tmp_path / "summary.json"
     markdown_report = tmp_path / "summary.md"
     review_output = tmp_path / "review.md"
@@ -71,6 +72,8 @@ def test_final_dry_run_cli_success(tmp_path: Path) -> None:
             "--no-performance-required",
             "--progress-path",
             str(progress_path),
+            "--progress-timeline-dir",
+            str(timeline_dir),
             "--json-report",
             str(json_report),
             "--markdown-report",
@@ -102,10 +105,13 @@ def test_final_dry_run_cli_success(tmp_path: Path) -> None:
     assert log_dir.exists()
     assert any(log_dir.glob("final_dry_run_*.jsonl"))
     assert progress_path.exists()
+    assert timeline_dir.exists()
+    assert list(timeline_dir.glob("snapshot-*.json"))
 
     payload = json.loads(json_report.read_text(encoding="utf-8"))
     assert payload["status"] == "pass"
     assert "summary" in payload
+    assert payload["progress_timeline_dir"] == str(timeline_dir)
     review_payload = payload.get("review")
     assert review_payload is not None
     assert review_payload["objectives"][0]["name"] == "governance"

@@ -107,6 +107,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Interval in minutes between progress snapshots (0 disables snapshots).",
     )
     parser.add_argument(
+        "--progress-timeline-dir",
+        type=Path,
+        help=(
+            "Directory for immutable progress timeline snapshots (default: RUN_DIR/progress_timeline)."
+        ),
+    )
+    parser.add_argument(
+        "--no-progress-timeline",
+        action="store_true",
+        help="Disable writing per-snapshot progress timeline files.",
+    )
+    parser.add_argument(
         "--shutdown-grace-seconds",
         type=float,
         default=60.0,
@@ -426,6 +438,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     log_dir = run_dir / "logs"
     log_dir.mkdir()
     progress_path = run_dir / "progress.json"
+    progress_timeline_dir: Path | None = None
+    if (
+        not args.no_progress_timeline
+        and args.progress_interval_minutes > 0
+    ):
+        progress_timeline_dir = (
+            args.progress_timeline_dir
+            or run_dir / "progress_timeline"
+        )
+        progress_timeline_dir.mkdir(parents=True, exist_ok=True)
     summary_json = run_dir / "summary.json"
     summary_markdown = run_dir / "summary.md"
 
@@ -507,6 +529,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.progress_interval_minutes > 0
             else None
         )
+        progress_timeline = (
+            progress_timeline_dir if progress_interval is not None else None
+        )
         shutdown_grace = _timedelta_from_seconds(args.shutdown_grace_seconds)
         warn_gap = _timedelta_from_minutes(args.warn_gap_minutes)
         fail_gap = _timedelta_from_minutes(args.fail_gap_minutes)
@@ -545,6 +570,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         log_directory=log_dir,
         progress_path=progress_path,
         progress_interval=progress_interval,
+        progress_timeline_dir=progress_timeline,
         diary_path=diary_path,
         performance_path=performance_path,
         minimum_uptime_ratio=args.minimum_uptime_ratio,
@@ -595,6 +621,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "run_directory": run_dir.as_posix(),
         "log_directory": log_dir.as_posix(),
         "progress_path": str(result.progress_path) if result.progress_path else None,
+        "progress_timeline_dir": (
+            result.progress_timeline_dir.as_posix()
+            if result.progress_timeline_dir is not None
+            else None
+        ),
         "incidents": [incident.as_dict() for incident in result.incidents],
         "metadata": dict(metadata),
         "started_at": result.started_at.astimezone(UTC).isoformat(),
@@ -663,6 +694,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"  Logs directory: {log_dir}")
     if result.progress_path is not None:
         print(f"  Progress: {result.progress_path}")
+    if result.progress_timeline_dir is not None:
+        print(f"  Progress timeline: {result.progress_timeline_dir}")
     if result.incidents:
         print("  Harness incidents:")
         for incident in result.incidents:

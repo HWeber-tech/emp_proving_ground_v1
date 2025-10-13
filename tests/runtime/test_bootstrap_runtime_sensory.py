@@ -244,6 +244,75 @@ async def test_bootstrap_runtime_rebinds_task_supervisor() -> None:
 
 
 @pytest.mark.asyncio()
+async def test_bootstrap_runtime_create_background_task_tracks_metadata() -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.0, max_ticks=0)
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _job() -> None:
+        started.set()
+        await release.wait()
+
+    task = runtime.create_background_task(
+        _job(),
+        name="unit-test-task",
+        metadata={"component": "test", "role": "helper"},
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+
+    metadata = runtime.get_background_task_metadata(task)
+    assert metadata is not None
+    assert metadata["component"] == "test"
+
+    snapshots = runtime.describe_background_tasks()
+    assert any(
+        snapshot.get("name") == "unit-test-task"
+        and (snapshot.get("metadata") or {}).get("component") == "test"
+        for snapshot in snapshots
+    )
+
+    release.set()
+    await asyncio.wait_for(task, timeout=1.0)
+
+    assert runtime.get_background_task_metadata(task) is None
+
+
+@pytest.mark.asyncio()
+async def test_bootstrap_runtime_register_background_task_tracks_metadata() -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.0, max_ticks=0)
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _job() -> None:
+        started.set()
+        await release.wait()
+
+    external_task = asyncio.create_task(_job())
+    runtime.register_background_task(
+        external_task,
+        metadata={"component": "external", "role": "listener"},
+    )
+
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+
+    metadata = runtime.get_background_task_metadata(external_task)
+    assert metadata is not None
+    assert metadata["component"] == "external"
+    assert runtime.task_supervisor is not None
+    assert runtime.task_supervisor.is_tracked(external_task)
+
+    release.set()
+    await asyncio.wait_for(external_task, timeout=1.0)
+
+    assert runtime.get_background_task_metadata(external_task) is None
+
+
+@pytest.mark.asyncio()
 async def test_bootstrap_runtime_publishes_sensory_telemetry(monkeypatch) -> None:
     import src.runtime.bootstrap_runtime as bootstrap_module
 

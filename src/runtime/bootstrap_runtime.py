@@ -8,7 +8,7 @@ import math
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Deque, Mapping, Sequence
+from typing import Any, Callable, Coroutine, Deque, Mapping, Sequence
 
 import pandas as pd
 
@@ -146,7 +146,7 @@ class BootstrapRuntime:
             owns_supervisor = True
         self._task_supervisor = supervisor
         self._owns_supervisor = owns_supervisor
-        self._task_metadata: dict[asyncio.Task[Any], Mapping[str, Any]] = {}
+        self._task_metadata: dict[asyncio.Task[Any], dict[str, Any]] = {}
 
         resolved_connectors: dict[str, MarketDataConnector] = {}
         if connectors:
@@ -640,7 +640,7 @@ class BootstrapRuntime:
             "evolution_interval": self._evolution_cycle_interval,
         }
 
-        self._run_task = supervisor.create(
+        self._run_task = self.create_background_task(
             self._run_loop(),
             name="bootstrap-runtime-loop",
             metadata=metadata,
@@ -648,7 +648,6 @@ class BootstrapRuntime:
             max_restarts=None,
             restart_backoff=self.tick_interval if self.tick_interval > 0 else 0.0,
         )
-        self._task_metadata[self._run_task] = metadata
         self._price_task = self._run_task
         logger.info(
             "BootstrapRuntime started for %s (tick interval %.2fs)",
@@ -678,12 +677,71 @@ class BootstrapRuntime:
 
         return self._task_supervisor
 
+    def create_background_task(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        *,
+        name: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+        restart_callback: Callable[[], Coroutine[Any, Any, Any]] | None = None,
+        max_restarts: int | None = 0,
+        restart_backoff: float = 0.0,
+        hang_timeout: float | None = None,
+    ) -> asyncio.Task[Any]:
+        """Create and track a supervised background task bound to the runtime."""
+
+        if not asyncio.iscoroutine(coro):
+            raise TypeError("BootstrapRuntime.create_background_task expects a coroutine")
+
+        supervisor = self._task_supervisor
+        if supervisor is None:
+            supervisor = TaskSupervisor(namespace="bootstrap-runtime")
+            self._task_supervisor = supervisor
+            self._owns_supervisor = True
+
+        metadata_payload = dict(metadata) if metadata is not None else None
+        task = supervisor.create(
+            coro,
+            name=name,
+            metadata=metadata_payload,
+            restart_callback=restart_callback,
+            max_restarts=max_restarts,
+            restart_backoff=restart_backoff,
+            hang_timeout=hang_timeout,
+        )
+        self._register_task_metadata(task, metadata_payload)
+        return task
+
+    def register_background_task(
+        self,
+        task: asyncio.Task[Any],
+        *,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Register an externally created task with the runtime supervisor."""
+
+        if not isinstance(task, asyncio.Task):
+            raise TypeError("BootstrapRuntime.register_background_task expects an asyncio.Task")
+
+        supervisor = self._task_supervisor
+        if supervisor is None:
+            supervisor = TaskSupervisor(namespace="bootstrap-runtime")
+            self._task_supervisor = supervisor
+            self._owns_supervisor = True
+
+        metadata_payload = dict(metadata) if metadata is not None else None
+        supervisor.track(task, metadata=metadata_payload)
+        self._register_task_metadata(task, metadata_payload)
+
     def get_background_task_metadata(
         self, task: asyncio.Task[Any]
     ) -> Mapping[str, Any] | None:
         """Expose metadata for registered background tasks."""
 
-        return self._task_metadata.get(task)
+        payload = self._task_metadata.get(task)
+        if payload is None:
+            return None
+        return dict(payload)
 
     def describe_background_tasks(self) -> tuple[dict[str, Any], ...]:
         """Return a serialisable snapshot of active supervised tasks."""
@@ -692,6 +750,18 @@ class BootstrapRuntime:
         if supervisor is None:
             return ()
         return tuple(supervisor.describe())
+
+    def _register_task_metadata(
+        self,
+        task: asyncio.Task[Any],
+        metadata: Mapping[str, Any] | None,
+    ) -> None:
+        stored = dict(metadata) if metadata is not None else {}
+        self._task_metadata[task] = stored
+        task.add_done_callback(self._cleanup_task_metadata)
+
+    def _cleanup_task_metadata(self, task: asyncio.Task[Any]) -> None:
+        self._task_metadata.pop(task, None)
 
     async def _run_loop(self) -> None:
         try:

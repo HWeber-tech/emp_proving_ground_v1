@@ -5,11 +5,11 @@
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-19T14:51:28.609619+00:00",
+      "created_at": "2025-10-19T16:40:46.353437+00:00",
       "evidence_id": "dd-alpha-policy-001",
       "history": [
         {
-          "applied_at": "2025-10-19T14:51:28.609619+00:00",
+          "applied_at": "2025-10-19T16:40:46.353437+00:00",
           "approvals": [
             "compliance",
             "risk"
@@ -22,8 +22,8 @@
       "policy_id": "alpha-policy",
       "stage": "paper",
       "tactic_id": "alpha-policy",
-      "updated_at": "2025-10-19T14:51:28.609619+00:00"
+      "updated_at": "2025-10-19T16:40:46.353437+00:00"
     }
   },
-  "updated_at": "2025-10-19T14:51:28.609837+00:00"
+  "updated_at": "2025-10-19T16:40:46.353565+00:00"
 }

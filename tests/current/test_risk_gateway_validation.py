@@ -221,6 +221,55 @@ async def test_risk_gateway_detects_synthetic_invariant_in_metadata(
 
 
 @pytest.mark.asyncio()
+async def test_risk_gateway_detects_synthetic_invariant_in_indicator_payload(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    policy = RiskPolicy.from_config(RiskConfig(min_position_size=1))
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["indicator_payloads"] = {
+        "syntheticInvariantKillSwitch": {
+            "status": "TRIGGERED",
+            "violations": ["kill_switch"],
+        }
+    }
+
+    result = await gateway.validate_trade_intent(Intent("EURUSD", Decimal("1")), state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "synthetic_invariant_breach"
+
+    guardrail_entry = next(
+        (
+            entry
+            for entry in decision.get("checks", [])
+            if entry.get("name") == "risk.synthetic_invariant_posture"
+        ),
+        None,
+    )
+    assert guardrail_entry is not None
+    assert guardrail_entry.get("status") == "violation"
+
+    metadata = guardrail_entry.get("metadata")
+    assert isinstance(metadata, Mapping)
+    assert metadata.get("indicator", "").startswith("indicator_payload")
+
+    incident = gateway.get_last_guardrail_incident()
+    assert incident is not None
+    assert incident.severity == "violation"
+    assert "risk.synthetic_invariant_posture" in incident.metadata.get("violations", [])
+
+
+@pytest.mark.asyncio()
 async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

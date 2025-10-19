@@ -935,6 +935,10 @@ class RiskGateway:
             "portfolio_metadata",
             "risk_metadata",
             "insights",
+            "indicator_payloads",
+            "indicator_payload",
+            "indicatorPayloads",
+            "indicatorPayload",
         )
 
         for indicator in targeted_indicators:

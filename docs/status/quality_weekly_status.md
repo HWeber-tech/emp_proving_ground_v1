@@ -33,6 +33,7 @@ at the top of the log.
   - Acknowledged: 2025-10-07T12:03:00+00:00 (via slack, by oncall-analyst)
   - Resolved: 2025-10-07T12:18:30+00:00 (via github, by maintainer)
   - Durations: MTTA 0:03:00; MTTR 0:18:30
+  - Progress: CI status digests now render the alert-response telemetry into the dashboard table and weekly log, ignore `unknown` acknowledgement/resolution channels, and capture MTTA/MTTR with channel evidence so observability records the firing, acknowledgement, and recovery path.
 - Evidence: tests/.telemetry/ci_metrics.json; coverage-reports/pytest-2025-10-07.xml
 
 ### 2025-10-06T18:13:30+00:00

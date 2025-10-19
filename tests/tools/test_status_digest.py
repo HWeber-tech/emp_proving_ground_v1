@@ -262,3 +262,47 @@ def test_cli_renders_to_file_and_stdout(
     assert content.startswith("# Weekly CI telemetry")
     assert "Status: WARN" in content
     assert "## Alert response" in content
+
+
+def test_alert_response_ignores_unknown_channels(metrics_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    data = json.loads(metrics_file.read_text())
+    entry = data["alert_response_trend"][0]
+    statuses = entry["statuses"]
+    statuses["ack_channel"] = "unknown"
+    statuses["resolve_channel"] = "UNKNOWN"
+    statuses["ack_actor"] = "unknown"
+    statuses["resolve_actor"] = "Unknown"
+    statuses.pop("mtta_minutes", None)
+    statuses.pop("mttr_minutes", None)
+    statuses.pop("mtta_readable", None)
+    statuses.pop("mttr_readable", None)
+    metrics_file.write_text(json.dumps(data))
+
+    monkeypatch.setattr(
+        ci_metrics,
+        "_now",
+        lambda: datetime(2024, 6, 8, 12, tzinfo=UTC),
+    )
+
+    table = render_ci_dashboard_table(
+        metrics_file,
+        dashboard=DASHBOARD_SAMPLE,
+        freshness_hours=24.0,
+    )
+    rows = _parse_table(table)
+    alert_value, alert_notes = rows["Alert response"]
+    assert alert_value.startswith("MTTA 5.00m / MTTR 17.00m")
+    assert "ack via" not in alert_value
+    assert "resolve via" not in alert_value
+    assert "oncall-analyst" not in alert_notes
+    assert "maintainer" not in alert_notes
+
+    summary = render_weekly_status_summary(
+        metrics_file,
+        dashboard=DASHBOARD_SAMPLE,
+        freshness_hours=168.0,
+    )
+    assert "- MTTA: 5.00 minutes (0:05:00)" in summary
+    assert "- MTTR: 17.00 minutes (0:17:00)" in summary
+    assert "Acknowledged: 2024-06-08T10:00:00+00:00 (" not in summary
+    assert "Resolved: 2024-06-08T10:12:00+00:00 (" not in summary

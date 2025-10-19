@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import timedelta
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
 
@@ -69,6 +70,18 @@ def _clean_label(label: object) -> str:
     if label in (None, ""):
         return ""
     return str(label).strip()
+
+
+def _is_unknown_label(label: str) -> bool:
+    if not label:
+        return False
+    return label.strip().casefold() == "unknown"
+
+
+def _normalize_unknown(label: str) -> str:
+    if _is_unknown_label(label):
+        return ""
+    return label
 
 
 def _format_value(primary: str, *extras: str) -> str:
@@ -208,17 +221,37 @@ def _alert_snapshot(metrics: Mapping[str, Any]) -> Mapping[str, Any] | None:
     statuses_obj = latest.get("statuses")
     statuses: Mapping[str, Any] = statuses_obj if isinstance(statuses_obj, Mapping) else {}
 
-    def _status_float(key: str) -> float | None:
+    def _status_value(key: str) -> object:
         value = statuses.get(key)
         if value in (None, ""):
             value = latest.get(key)
-        return _coerce_float(value)
+        return value
+
+    def _status_float(key: str) -> float | None:
+        return _coerce_float(_status_value(key))
 
     def _status_text(key: str) -> str:
-        value = statuses.get(key)
-        if value in (None, ""):
-            value = latest.get(key)
-        return _clean_label(value)
+        return _clean_label(_status_value(key))
+
+    def _duration_minutes(prefix: str) -> tuple[float | None, str]:
+        minutes = _status_float(f"{prefix}_minutes")
+        seconds = _status_float(f"{prefix}_seconds")
+        if minutes is None and seconds is not None:
+            minutes = seconds / 60.0
+        readable = _clean_label(_status_value(f"{prefix}_readable"))
+        if not readable and seconds is not None:
+            readable = str(timedelta(seconds=int(round(seconds))))
+        if not readable and minutes is not None:
+            readable = str(timedelta(seconds=int(round(minutes * 60))))
+        return minutes, readable
+
+    mtta_minutes, mtta_readable = _duration_minutes("mtta")
+    mttr_minutes, mttr_readable = _duration_minutes("mttr")
+
+    ack_channel = _normalize_unknown(_status_text("ack_channel"))
+    resolve_channel = _normalize_unknown(_status_text("resolve_channel"))
+    ack_actor = _normalize_unknown(_status_text("ack_actor"))
+    resolve_actor = _normalize_unknown(_status_text("resolve_actor"))
 
     snapshot: MutableMapping[str, Any] = {
         "label": _clean_label(latest.get("label")),
@@ -228,14 +261,14 @@ def _alert_snapshot(metrics: Mapping[str, Any]) -> Mapping[str, Any] | None:
         "acknowledged_at": _clean_label(latest.get("acknowledged_at")),
         "resolved_at": _clean_label(latest.get("resolved_at")),
         "generated_at": _clean_label(latest.get("generated_at")),
-        "ack_channel": _status_text("ack_channel"),
-        "ack_actor": _status_text("ack_actor"),
-        "resolve_channel": _status_text("resolve_channel"),
-        "resolve_actor": _status_text("resolve_actor"),
-        "mtta_minutes": _status_float("mtta_minutes"),
-        "mtta_readable": _clean_label(statuses.get("mtta_readable")),
-        "mttr_minutes": _status_float("mttr_minutes"),
-        "mttr_readable": _clean_label(statuses.get("mttr_readable")),
+        "ack_channel": ack_channel,
+        "ack_actor": ack_actor,
+        "resolve_channel": resolve_channel,
+        "resolve_actor": resolve_actor,
+        "mtta_minutes": mtta_minutes,
+        "mtta_readable": mtta_readable,
+        "mttr_minutes": mttr_minutes,
+        "mttr_readable": mttr_readable,
         "note": _clean_label(latest.get("note")),
         "source": _clean_label(latest.get("source")),
     }
@@ -416,10 +449,10 @@ def _render_rows(
 
         channel_notes: list[str] = []
         ack_channel = alerts.get("ack_channel")
-        if ack_channel and ack_channel != "unknown":
+        if ack_channel:
             channel_notes.append(f"ack via {ack_channel}")
         resolve_channel = alerts.get("resolve_channel")
-        if resolve_channel and resolve_channel != "unknown":
+        if resolve_channel:
             channel_notes.append(f"resolve via {resolve_channel}")
         if channel_notes:
             extras.append(", ".join(channel_notes))
@@ -434,14 +467,14 @@ def _render_rows(
         if acknowledged_at:
             ack_actor = alerts.get("ack_actor")
             entry = f"Acknowledged {acknowledged_at}"
-            if ack_actor and ack_actor != "unknown":
+            if ack_actor:
                 entry += f" by {ack_actor}"
             notes.append(entry)
         resolved_at = alerts.get("resolved_at")
         if resolved_at:
             resolve_actor = alerts.get("resolve_actor")
             entry = f"Resolved {resolved_at}"
-            if resolve_actor and resolve_actor != "unknown":
+            if resolve_actor:
                 entry += f" by {resolve_actor}"
             notes.append(entry)
 
@@ -698,10 +731,10 @@ def _alert_section(snapshot: Mapping[str, Any] | None) -> list[str]:
     if acknowledged_at:
         details: list[str] = []
         ack_channel = snapshot.get("ack_channel")
-        if ack_channel and ack_channel != "unknown":
+        if ack_channel:
             details.append(f"via {ack_channel}")
         ack_actor = snapshot.get("ack_actor")
-        if ack_actor and ack_actor != "unknown":
+        if ack_actor:
             details.append(f"by {ack_actor}")
         detail_suffix = f" ({', '.join(details)})" if details else ""
         lines.append(f"- Acknowledged: {acknowledged_at}{detail_suffix}")
@@ -710,10 +743,10 @@ def _alert_section(snapshot: Mapping[str, Any] | None) -> list[str]:
     if resolved_at:
         details = []
         resolve_channel = snapshot.get("resolve_channel")
-        if resolve_channel and resolve_channel != "unknown":
+        if resolve_channel:
             details.append(f"via {resolve_channel}")
         resolve_actor = snapshot.get("resolve_actor")
-        if resolve_actor and resolve_actor != "unknown":
+        if resolve_actor:
             details.append(f"by {resolve_actor}")
         detail_suffix = f" ({', '.join(details)})" if details else ""
         lines.append(f"- Resolved: {resolved_at}{detail_suffix}")

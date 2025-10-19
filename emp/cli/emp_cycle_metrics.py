@@ -63,7 +63,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 f"{breach.hours:.2f}h | {breach.created_at} | {breach.tested_at}"
             )
 
-    return 0
+    return 0 if stats.sla_met else 1
 
 
 if __name__ == "__main__":

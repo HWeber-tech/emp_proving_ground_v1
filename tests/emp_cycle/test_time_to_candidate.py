@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
-import math
+from emp.cli import emp_cycle_metrics
 
 from emp.core import findings_memory
 
@@ -89,3 +91,31 @@ def test_nearest_novelty_excludes_current_row(tmp_path):
     )
 
     assert math.isclose(recomputed, stored_novelty, rel_tol=1e-6)
+
+
+def test_metrics_cli_exit_code_on_sla_breach(tmp_path):
+    db_path = tmp_path / "experiments.sqlite"
+    conn = findings_memory.connect(db_path)
+
+    params = {"alpha": 3}
+    artefacts = findings_memory.compute_params_artifacts(params)
+    novelty = findings_memory.nearest_novelty(conn, params, artefacts=artefacts)
+    fid = findings_memory.add_idea(conn, params, novelty, artefacts=artefacts).id
+
+    with conn:
+        conn.execute(
+            "UPDATE findings SET created_at = ? WHERE id = ?",
+            ("2024-01-01 00:00:00", fid),
+        )
+
+    findings_memory.update_quick(conn, fid, {"score": 0.8}, 0.8)
+    findings_memory.promote_tested(conn, fid, {"sharpe": 0.6}, False)
+
+    with conn:
+        conn.execute(
+            "UPDATE findings SET tested_at = ? WHERE id = ?",
+            ("2024-01-03 01:00:00", fid),
+        )
+
+    exit_code = emp_cycle_metrics.main(["--db-path", str(db_path), "--threshold-hours", "24"])
+    assert exit_code == 1

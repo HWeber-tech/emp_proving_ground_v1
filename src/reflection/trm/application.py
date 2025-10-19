@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping, Sequence
 
@@ -220,8 +221,51 @@ def _extract_strategy_id(entry: Mapping[str, object]) -> str | None:
 def _auto_apply_succeeded(auto_apply_block: object) -> bool:
     if not isinstance(auto_apply_block, Mapping):
         return False
+
     applied = auto_apply_block.get("applied")
-    return bool(applied) is True
+    if bool(applied) is not True:
+        return False
+
+    reasons = auto_apply_block.get("reasons")
+    if isinstance(reasons, Sequence) and not isinstance(reasons, (str, bytes)):
+        if any(str(reason).strip() for reason in reasons):
+            return False
+
+    evaluation = auto_apply_block.get("evaluation")
+    if not isinstance(evaluation, Mapping):
+        return False
+
+    risk_hits = evaluation.get("risk_hits")
+    try:
+        risk_hits_value = int(risk_hits)
+    except (TypeError, ValueError):
+        return False
+    if risk_hits_value > 0:
+        return False
+
+    budget_remaining = _coerce_finite_float(evaluation.get("budget_remaining"))
+    budget_utilisation = _coerce_finite_float(evaluation.get("budget_utilisation"))
+
+    if budget_remaining is None or budget_utilisation is None:
+        return False
+
+    if budget_remaining <= 0.0:
+        return False
+
+    if not 0.0 <= budget_utilisation <= 1.0:
+        return False
+
+    return True
+
+
+def _coerce_finite_float(value: object) -> float | None:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(result):
+        return None
+    return result
 
 
 def _fetch_existing_rim_metadata(metadata: Mapping[str, object] | None) -> dict[str, Mapping[str, object]]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Mapping
 
 from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.policy_ledger import LedgerReleaseManager
@@ -15,7 +16,13 @@ def _write_queue_lines(path: Path, suggestions: list[dict[str, object]]) -> None
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _build_queue_entry(strategy_id: str, *, suggestion_id: str, delta: float) -> dict[str, object]:
+def _build_queue_entry(
+    strategy_id: str,
+    *,
+    suggestion_id: str,
+    delta: float,
+    evaluation_overrides: Mapping[str, object] | None = None,
+) -> dict[str, object]:
     run_id = "rim-run-001"
     applied_at = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
     timestamp = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
@@ -46,7 +53,7 @@ def _build_queue_entry(strategy_id: str, *, suggestion_id: str, delta: float) ->
             ],
         },
     }
-    return {
+    entry = {
         "suggestion_id": suggestion_id,
         "type": "WEIGHT_ADJUST",
         "input_hash": "batch-hash",
@@ -80,10 +87,18 @@ def _build_queue_entry(strategy_id: str, *, suggestion_id: str, delta: float) ->
                     "suggestion_id": suggestion_id,
                     "oos_uplift": 0.12,
                     "risk_hits": 0,
+                    "budget_remaining": 25.0,
+                    "budget_utilisation": 0.25,
                 },
             },
         },
     }
+
+    if evaluation_overrides:
+        evaluation = entry["governance"]["auto_apply"]["evaluation"]
+        evaluation.update(dict(evaluation_overrides))
+
+    return entry
 
 
 def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None:
@@ -165,3 +180,77 @@ def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None
         release_manager=release_manager,
     )
     assert reapplied == ()
+
+
+def test_auto_apply_skips_without_budget_context(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "ledger.json"
+    queue_path = tmp_path / "queue" / "reflection_queue.jsonl"
+
+    store = PolicyLedgerStore(ledger_path)
+    release_manager = LedgerReleaseManager(store)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="diary-001",
+    )
+
+    suggestion = _build_queue_entry("bootstrap-strategy", suggestion_id="rim-no-budget", delta=-0.05)
+    evaluation = suggestion["governance"]["auto_apply"]["evaluation"]
+    evaluation.pop("budget_remaining", None)
+    evaluation.pop("budget_utilisation", None)
+
+    _write_queue_lines(queue_path, [suggestion])
+
+    applied = apply_auto_applied_suggestions_to_ledger(
+        queue_path,
+        store,
+        release_manager=release_manager,
+    )
+
+    assert applied == ()
+
+    record = store.get("bootstrap-strategy")
+    assert record is not None
+    assert record.accepted_proposals == ()
+    metadata = record.metadata.get("rim_auto_apply") if record.metadata else None
+    assert not metadata or "rim-no-budget" not in metadata
+
+
+def test_auto_apply_skips_when_risk_hits_reported(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "ledger.json"
+    queue_path = tmp_path / "queue" / "reflection_queue.jsonl"
+
+    store = PolicyLedgerStore(ledger_path)
+    release_manager = LedgerReleaseManager(store)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="diary-001",
+    )
+
+    suggestion = _build_queue_entry(
+        "bootstrap-strategy",
+        suggestion_id="rim-risk-hit",
+        delta=-0.05,
+        evaluation_overrides={"risk_hits": 2},
+    )
+
+    _write_queue_lines(queue_path, [suggestion])
+
+    applied = apply_auto_applied_suggestions_to_ledger(
+        queue_path,
+        store,
+        release_manager=release_manager,
+    )
+
+    assert applied == ()
+
+    record = store.get("bootstrap-strategy")
+    assert record is not None
+    assert record.accepted_proposals == ()
+    metadata = record.metadata.get("rim_auto_apply") if record.metadata else None
+    assert not metadata or "rim-risk-hit" not in metadata

@@ -232,6 +232,8 @@ async def test_run_paper_trading_simulation_records_rim_auto_apply(tmp_path) -> 
                     "suggestion_id": "rim-applied",
                     "oos_uplift": 0.1,
                     "risk_hits": 0,
+                    "budget_remaining": 40.0,
+                    "budget_utilisation": 0.2,
                 },
             },
         },

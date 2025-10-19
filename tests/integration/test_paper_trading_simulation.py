@@ -427,6 +427,9 @@ async def test_paper_trading_simulation_handles_persistent_api_failure(tmp_path)
     failover_snapshot = metrics.get("failover", {})
     assert isinstance(failover_snapshot, Mapping)
     assert metrics.get("consecutive_failures", 0) >= 2
+    assert report.paper_failover is not None
+    assert report.paper_failover.get("threshold") == 2
+    assert report.paper_failover.get("consecutive_failures", 0) >= 2
 
     assert report.decisions >= 1
     assert report.diary_entries >= 1

@@ -338,6 +338,8 @@ async def run_paper_trading_simulation(
                 for record in history_records
             ]
 
+    paper_metrics_snapshot = _maybe_describe_mapping(paper_engine, "describe_metrics")
+
     order_summary = _summarise_orders(orders)
 
     report = PaperTradingSimulationReport(
@@ -348,8 +350,10 @@ async def run_paper_trading_simulation(
         runtime_seconds=runtime_seconds,
         order_summary=order_summary,
         paper_broker=_resolve_paper_broker_snapshot(runtime),
-        paper_metrics=paper_engine.describe_metrics(),
-        paper_failover=_resolve_paper_failover_snapshot(paper_engine),
+        paper_metrics=paper_metrics_snapshot,
+        paper_failover=_resolve_paper_failover_snapshot(
+            paper_engine, paper_metrics_snapshot
+        ),
         portfolio_state=portfolio_snapshot,
         performance=_build_performance_summary(portfolio_snapshot),
         execution_stats=execution_stats,
@@ -529,10 +533,16 @@ def _resolve_paper_broker_snapshot(runtime: Any) -> Mapping[str, Any] | None:
 
 def _resolve_paper_failover_snapshot(
     paper_engine: PaperBrokerExecutionAdapter,
+    metrics_snapshot: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any] | None:
     snapshot = _maybe_describe_mapping(paper_engine, "describe_failover")
     if snapshot is not None:
         return dict(snapshot)
+
+    if isinstance(metrics_snapshot, Mapping):
+        failover_payload = metrics_snapshot.get("failover")
+        if isinstance(failover_payload, Mapping):
+            return _serialise_runtime_value(failover_payload)
     return None
 
 

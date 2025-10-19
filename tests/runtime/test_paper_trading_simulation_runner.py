@@ -494,6 +494,13 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     assert payload.get("orders")
     assert payload.get("order_summary")
     assert payload["order_summary"].get("total_orders") == len(report.orders)
+    buy_summary = payload["order_summary"].get("sides", {}).get("BUY", {})
+    assert buy_summary.get("count", 0) >= 1
+    eurusd_summary = (
+        payload["order_summary"].get("symbols", {}).get("EURUSD", {})
+    )
+    eurusd_buy = eurusd_summary.get("sides", {}).get("BUY", {})
+    assert eurusd_buy.get("count", 0) >= 1
     assert payload.get("decisions") == report.decisions
     assert "paper_metrics" in payload
     assert "paper_failover" in payload
@@ -502,6 +509,7 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
     assert metrics_payload.get("failure_ratio", 0.0) >= 0.0
     failover_payload = payload.get("paper_failover", {})
     assert failover_payload.get("threshold") == 2
+    assert failover_payload.get("active") is False
     assert "execution_stats" in payload
     assert "performance_health" in payload
     assert "strategy_summary" in payload

@@ -106,6 +106,48 @@ class WhatSensor:
         directional = (positive - negative) / total_movement
         return max(-1.0, min(1.0, directional))
 
+    def _derive_synapse_probes(self, trend_strength: float) -> list[dict[str, object]]:
+        """Build synapse probes that reflect directional bias and magnitude."""
+
+        magnitude = abs(trend_strength)
+        if trend_strength > 0.05:
+            bias = "bullish"
+        elif trend_strength < -0.05:
+            bias = "bearish"
+        else:
+            bias = "neutral"
+
+        base_probes: list[tuple[str, float]] = [
+            ("opening_auction", 0.32),
+            ("sweep_risk", 0.28),
+            ("imbalance_surge", 0.26),
+            ("liquidity_gap", 0.22),
+            ("momentum_residual", 0.18),
+        ]
+
+        if magnitude > 0.55:
+            count = 5
+        elif magnitude > 0.25:
+            count = 4
+        else:
+            count = 3
+
+        scale = min(1.0, magnitude)
+        probes: list[dict[str, object]] = []
+        for idx, (name, base_weight) in enumerate(base_probes[:count]):
+            score = trend_strength * (1.0 + idx * 0.05)
+            probes.append(
+                {
+                    "id": name,
+                    "bias": bias,
+                    "trend_strength": trend_strength,
+                    "score": score,
+                    "weight": round(min(1.0, base_weight + scale * 0.4), 3),
+                }
+            )
+
+        return probes
+
     def process(self, df: pd.DataFrame | None) -> List[SensorSignal]:
         if df is None or df.empty or "close" not in df:
             return [self._default_signal(reason="insufficient_market_data")]
@@ -117,6 +159,7 @@ class WhatSensor:
         last = df["close"].iloc[-1]
 
         trend_strength = self._compute_trend_strength(recent["close"])
+        synapse_probes = self._derive_synapse_probes(trend_strength)
 
         # Simple breakout as baseline
         base_strength = 0.0
@@ -172,11 +215,13 @@ class WhatSensor:
                 "pattern_strength": float(strength),
                 "confidence": float(confidence),
                 "trend_strength": float(trend_strength),
+                "synapse_probes": synapse_probes,
             },
             metadata={
                 "timestamp": timestamp.isoformat(),
                 "mode": "pattern_analysis",
                 "pattern_details": details,
+                "synapse_probes": synapse_probes,
             },
         )
 
@@ -191,12 +236,14 @@ class WhatSensor:
             "pattern_payload": details,
             "quality": quality,
             "lineage": lineage.as_dict(),
+            "synapse_probes": synapse_probes,
         }
         value: dict[str, object] = {
             "pattern_strength": strength,
             "confidence": confidence,
             "last_close": last,
             "trend_strength": trend_strength,
+            "synapse_probes": synapse_probes,
         }
         if details:
             value["pattern_details"] = details
@@ -237,6 +284,7 @@ class WhatSensor:
             "source": "sensory.what",
             "reason": reason,
             "trend_strength": 0.0,
+            "synapse_probes": self._derive_synapse_probes(0.0),
             "quality": quality,
             "lineage": lineage.as_dict(),
         }
@@ -246,6 +294,7 @@ class WhatSensor:
                 "pattern_strength": 0.0,
                 "trend_strength": 0.0,
                 "confidence": confidence,
+                "synapse_probes": self._derive_synapse_probes(0.0),
             },
             confidence=confidence,
             metadata=metadata,

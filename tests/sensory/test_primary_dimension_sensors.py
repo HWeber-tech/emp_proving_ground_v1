@@ -81,6 +81,16 @@ def test_what_sensor_trend_strength_discriminates_direction(monkeypatch: pytest.
         bearish_signal.value["trend_strength"], rel=1e-6
     )
     assert bullish_signal.lineage.inputs["trend_strength"] > bearish_signal.lineage.inputs["trend_strength"]
+    bullish_probes = bullish_signal.value.get("synapse_probes")
+    bearish_probes = bearish_signal.value.get("synapse_probes")
+    assert isinstance(bullish_probes, list) and 3 <= len(bullish_probes) <= 5
+    assert isinstance(bearish_probes, list) and 3 <= len(bearish_probes) <= 5
+    assert {probe["bias"] for probe in bullish_probes} == {"bullish"}
+    assert {probe["bias"] for probe in bearish_probes} == {"bearish"}
+    assert bullish_signal.metadata.get("synapse_probes") == bullish_probes
+    assert bearish_signal.metadata.get("synapse_probes") == bearish_probes
+    assert bullish_signal.lineage.telemetry.get("synapse_probes") == bullish_probes
+    assert bearish_signal.lineage.telemetry.get("synapse_probes") == bearish_probes
 
 
 def test_why_sensor_adds_lineage_and_quality_metadata() -> None:

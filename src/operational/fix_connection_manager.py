@@ -19,7 +19,7 @@ import asyncio
 import importlib
 import logging
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from itertools import islice
 from typing import Optional, Protocol, SupportsFloat, cast
 
@@ -31,6 +31,11 @@ from src.operational.fix_types import (
     OrderBookLevelProtocol,
     OrderBookProtocol,
     OrderInfoProtocol,
+)
+from src.operational.live_broker_secrets import (
+    BrokerCredentialProfile,
+    LiveBrokerSecrets,
+    load_live_broker_secrets,
 )
 from src.operational.mock_fix import MockFIXManager
 
@@ -53,8 +58,9 @@ class SystemConfigProtocol(Protocol):
     """Subset of system config attributes referenced in this adapter."""
 
     environment: str
-    account_number: str
+    account_number: str | None
     password: str | None
+    extras: Mapping[str, object] | None
 
     def __getattr__(self, item: str) -> object: ...
 
@@ -166,6 +172,7 @@ class FIXConnectionManager:
         self._price_app = _FIXApplicationAdapter(session_type="quote")
         self._trade_app = _FIXApplicationAdapter(session_type="trade")
         self._initiator: _FIXInitiatorAdapter | None = None
+        self._live_broker_secrets: LiveBrokerSecrets | None = None
 
     def start_sessions(self) -> bool:
         """Create and start genuine FIX sessions."""
@@ -173,6 +180,9 @@ class FIXConnectionManager:
             # Prefer real FIX if credentials exist and genuine manager is available,
             # unless explicitly forced to mock via env.
             force_mock = os.environ.get("EMP_USE_MOCK_FIX", "0") in ("1", "true", "True")
+            secrets = self._resolve_live_broker_secrets()
+            active_profile = secrets.active_profile if secrets else None
+            profile_complete = bool(active_profile and active_profile.is_complete())
             creds_present = all(
                 bool(os.environ.get(k) or getattr(self._system_config, k.lower(), None))
                 for k in (
@@ -184,6 +194,7 @@ class FIXConnectionManager:
                     "FIX_TRADE_PASSWORD",
                 )
             )
+            creds_present = creds_present or profile_complete
             use_mock = bool(
                 force_mock
                 or not creds_present
@@ -200,6 +211,8 @@ class FIXConnectionManager:
                     str | None,
                     getattr(self._system_config, "default_account", None),
                 )
+                if not default_account and active_profile and active_profile.trade:
+                    default_account = active_profile.trade.username
                 default_order_type = cast(
                     str | None,
                     getattr(self._system_config, "default_order_type", None),
@@ -262,13 +275,22 @@ class FIXConnectionManager:
                 )
             else:
                 config_factory = cast(type[ICMarketsConfigLike], _IC_CONFIG_CLASS)
+                if active_profile is None or not active_profile.is_complete():
+                    raise RuntimeError("active live broker profile missing required credentials")
+
+                environment_name = self._map_environment_hint(secrets)
+                account_number = self._resolve_account_number(active_profile)
                 ic_cfg = config_factory(
-                    environment=self._system_config.environment,
-                    account_number=self._system_config.account_number,
+                    environment=environment_name,
+                    account_number=account_number,
                 )
-                ic_cfg.password = getattr(self._system_config, "password", None)
+                trade_password = active_profile.trade.password if active_profile.trade else None
+                fallback_password = getattr(self._system_config, "password", None)
+                ic_cfg.password = trade_password or fallback_password
+                self._apply_profile_to_config(ic_cfg, active_profile)
                 manager_factory = cast(FIXManagerFactory, _GENUINE_MANAGER_CLASS)
                 manager = manager_factory(ic_cfg)
+                self._apply_profile_to_manager(manager, active_profile)
 
             # Bridge market data: convert order book updates to queue-friendly messages
             def on_market_data(symbol: str, order_book: OrderBookProtocol) -> None:
@@ -584,6 +606,118 @@ class FIXConnectionManager:
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.error("Error starting FIX sessions: %s", exc)
             return False
+
+    def describe_live_broker_secrets(self, *, masked: bool = True) -> dict[str, object] | None:
+        """Expose a redacted summary of the resolved live broker credentials."""
+
+        secrets = self._live_broker_secrets
+        if secrets is None:
+            return None
+        return secrets.describe(masked=masked)
+
+    def get_active_broker_profile(self) -> BrokerCredentialProfile | None:
+        """Return the active broker credential profile if available."""
+
+        secrets = self._live_broker_secrets
+        if secrets is None:
+            return None
+        return secrets.active_profile
+
+    # Internal helpers -------------------------------------------------
+
+    def _resolve_live_broker_secrets(self) -> LiveBrokerSecrets:
+        extras = getattr(self._system_config, "extras", None)
+        fallback: dict[str, object] = {}
+        attr_keys = (
+            "FIX_PRICE_SENDER_COMP_ID",
+            "FIX_PRICE_USERNAME",
+            "FIX_PRICE_PASSWORD",
+            "FIX_TRADE_SENDER_COMP_ID",
+            "FIX_TRADE_USERNAME",
+            "FIX_TRADE_PASSWORD",
+        )
+        for key in attr_keys:
+            value = getattr(self._system_config, key.lower(), None)
+            if value not in (None, ""):
+                fallback[key] = value
+        if isinstance(extras, Mapping):
+            fallback.update(extras)
+
+        secrets = load_live_broker_secrets(
+            mapping=dict(os.environ),
+            environment=getattr(self._system_config, "environment", None),
+            fallback=fallback,
+        )
+        self._live_broker_secrets = secrets
+        return secrets
+
+    def _map_environment_hint(self, secrets: LiveBrokerSecrets | None) -> str:
+        if secrets is None or secrets.active_key is None:
+            return str(getattr(self._system_config, "environment", "demo"))
+        if secrets.active_key.upper() == "SANDBOX":
+            return "demo"
+        if secrets.active_key.upper() == "PROD":
+            return "production"
+        return str(getattr(self._system_config, "environment", "demo"))
+
+    def _resolve_account_number(self, profile: BrokerCredentialProfile) -> str:
+        candidates = (
+            getattr(profile.trade, "username", None),
+            getattr(profile.price, "username", None),
+            getattr(self._system_config, "account_number", None),
+        )
+        for candidate in candidates:
+            if candidate:
+                return str(candidate)
+        raise RuntimeError("live broker account number is not configured")
+
+    def _apply_profile_to_config(
+        self, config: ICMarketsConfigLike, profile: BrokerCredentialProfile
+    ) -> None:
+        if profile.price is not None:
+            self._maybe_setattr(config, "price_sender_comp_id", profile.price.sender_comp_id)
+            self._maybe_setattr(config, "price_username", profile.price.username)
+            self._maybe_setattr(config, "price_password", profile.price.password)
+        if profile.trade is not None:
+            self._maybe_setattr(config, "trade_sender_comp_id", profile.trade.sender_comp_id)
+            self._maybe_setattr(config, "trade_username", profile.trade.username)
+            self._maybe_setattr(config, "trade_password", profile.trade.password)
+
+    def _apply_profile_to_manager(
+        self, manager: FIXManagerProtocol, profile: BrokerCredentialProfile
+    ) -> None:
+        if profile.price is not None:
+            self._maybe_setattr(manager, "price_sender_comp_id", profile.price.sender_comp_id)
+            self._maybe_setattr(manager, "price_username", profile.price.username)
+        if profile.trade is not None:
+            self._maybe_setattr(manager, "trade_sender_comp_id", profile.trade.sender_comp_id)
+            self._maybe_setattr(manager, "trade_username", profile.trade.username)
+        configure = getattr(manager, "configure_credentials", None)
+        if callable(configure) and profile.trade and profile.price:
+            try:
+                configure(
+                    price_sender_comp_id=profile.price.sender_comp_id,
+                    price_username=profile.price.username,
+                    price_password=profile.price.password,
+                    trade_sender_comp_id=profile.trade.sender_comp_id,
+                    trade_username=profile.trade.username,
+                    trade_password=profile.trade.password,
+                )
+            except Exception:  # pragma: no cover - defensive
+                logger.debug("configure_credentials failed", exc_info=True)
+
+    @staticmethod
+    def _maybe_setattr(target: object, attr: str, value: object) -> None:
+        if value in (None, ""):
+            return
+        if not hasattr(target, attr):
+            return
+        try:
+            setattr(target, attr, value)
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug(
+                "Failed to set attribute %s on %s", attr, type(target).__name__, exc_info=True
+            )
 
     def stop_sessions(self) -> None:
         if self._manager:

@@ -88,6 +88,7 @@ from src.understanding import DecisionDiaryStore, ProbeRegistry
 from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager, SystemConfigProtocol
+from src.operational.live_broker_secrets import load_live_broker_secrets
 from src.operations.backup import BackupReadinessSnapshot, format_backup_markdown
 from src.compliance.workflow import ComplianceWorkflowSnapshot
 from src.operations.compliance_readiness import ComplianceReadinessSnapshot
@@ -2827,7 +2828,40 @@ async def build_professional_predator_app(
 
     cfg = config or SystemConfig.from_env()
     feature_toggles = AdaptationFeatureToggles.from_system_config(cfg)
-    extras_mapping = cfg.extras or {}
+    extras_mapping = cfg.extras
+    if extras_mapping is None:
+        extras_mapping = {}
+        cfg.extras = extras_mapping
+    try:
+        live_broker_secrets = load_live_broker_secrets(
+            mapping=extras_mapping,
+            environment=cfg.environment.value,
+        )
+    except Exception:  # pragma: no cover - defensive guard for optional secrets
+        logger.debug("Failed to resolve live broker secrets", exc_info=True)
+        live_broker_secrets = None
+    else:
+        if live_broker_secrets is not None:
+            active_key = live_broker_secrets.active_key
+            if active_key and "LIVE_BROKER_ACTIVE_ENVIRONMENT" not in extras_mapping:
+                extras_mapping["LIVE_BROKER_ACTIVE_ENVIRONMENT"] = active_key.lower()
+            active_profile = live_broker_secrets.active_profile
+            if (
+                active_profile
+                and active_profile.secret_reference
+                and "LIVE_BROKER_SECRET_REFERENCE" not in extras_mapping
+            ):
+                extras_mapping["LIVE_BROKER_SECRET_REFERENCE"] = active_profile.secret_reference
+            age_days = live_broker_secrets.credential_age_days()
+            if age_days is not None:
+                age_text = f"{age_days:.2f}"
+                extras_mapping.setdefault("SECURITY_CREDENTIAL_AGE_DAYS", age_text)
+                extras_mapping.setdefault("SECURITY_SECRETS_AGE_DAYS", age_text)
+            if "SECURITY_SECRETS_MANAGER_HEALTHY" not in extras_mapping:
+                extras_mapping["SECURITY_SECRETS_MANAGER_HEALTHY"] = (
+                    "true" if live_broker_secrets.healthy else "false"
+                )
+
     tracing_settings = parse_opentelemetry_settings(extras_mapping)
     event_bus_tracer = configure_event_bus_tracer(tracing_settings)
     runtime_tracer = configure_runtime_tracer(tracing_settings)

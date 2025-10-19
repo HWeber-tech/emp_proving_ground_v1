@@ -60,7 +60,7 @@
 **Budgeted, Safe Exploration**
 - [ ] `[adapt]` **Global exploration budget** (â‰¤ X% flow, mutate every K decisions) enforced in router.
 - [ ] `[adapt]` **Counterfactual guardrails** (passive vs aggro delta bounds) for live candidates. _Progress: AlphaTradeLoopRunner now merges counterfactual guardrail payloads with existing risk metadata so forced-paper actions propagate to trade intents, trade outcomes, and diaries under regression coverage.【F:src/orchestration/alpha_trade_runner.py†L190-L225】【F:tests/orchestration/test_alpha_trade_runner.py†L253-L365】【F:src/trading/execution/release_router.py†L447-L516】_
-- [ ] `[reflect]` **Autoâ€‘freeze** exploration on drift or risk warnings (hooks wired).
+- [ ] `[reflect]` **Autoâ€‘freeze** exploration on drift or risk warnings (hooks wired). _Progress: Drift sentry metadata now records triggered metrics, recommended freeze/size multiplier actions, and embeds theory packets that operational readiness carries through alerting drills under pytest coverage.【F:src/operations/drift_sentry.py†L337-L417】【F:tests/operations/test_drift_sentry.py†L73-L169】【F:tests/operations/test_operational_readiness.py†L221-L239】_
 
 **Provenance & Governance**
 - [ ] `[reflect]` **Policy Ledger**: promotion checklist (OOS regimeâ€‘grid, leakage checks, risk audit) enforced.
@@ -121,7 +121,7 @@
 
 ## Continuous Quality Bars (always on)
 
-- [ ] `[risk]` Weekly invariants audit & redâ€‘team scenarios (extreme volatility, symbol halts, bad prints).
+- [x] `[risk]` Weekly invariants audit & redâ€‘team scenarios (extreme volatility, symbol halts, bad prints). _Progress: Weekly audit harness now ingests red-team evidence for extreme volatility, symbol halts, and bad prints, flags stale or missing coverage, and captures guardrail violations into scenario snapshots with regression coverage across warning/fail paths.【F:src/operations/risk_invariants_audit.py†L1-L310】【F:tests/operations/test_risk_invariants_audit.py†L39-L200】_
 - [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts. _Progress: Observability dashboard now renders a decision diary panel that ingests loop metadata, reports coverage shortfalls, gap breaches, and sample deficits, and warns when telemetry is missing, with regression coverage ensuring alerts flip warn/fail states for coverage and gaps.【F:src/operations/observability_dashboard.py†L316-L344】【F:src/operations/observability_dashboard.py†L862-L982】【F:tests/operations/test_observability_dashboard.py†L438-L1027】_
 - [ ] `[obs]` Graph health in band: modularity, heavyâ€‘tail degree (alerts on collapse/overâ€‘smoothing).
 - [ ] `[docs]` Honest README & system diagram reflect current reality (mock vs real clearly labeled).
@@ -164,13 +164,13 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-19T14:48:55Z
+## Automation updates — 2025-10-19T15:03:27Z
 
 ### Last 4 commits
-- 7066138b refactor(data_foundation): tune 2 files (2025-10-19)
-- 0607b2e2 refactor(operations): tune 2 files (2025-10-19)
-- 92f08b90 refactor(trading): tune 2 files (2025-10-19)
-- 542d33b4 refactor(thinking): tune 4 files (2025-10-19)
+- 9b4f45b9 feat(artifacts): add 9 files (2025-10-19)
+- 4bbec995 refactor(operations): tune 3 files (2025-10-19)
+- 0687ccd0 feat(operations): add 2 files (2025-10-19)
+- 9511c118 test(artifacts): add 5 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T14:08:18Z
 

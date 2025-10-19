@@ -239,6 +239,7 @@ def evaluate_drift_sentry(
     metric_payloads: dict[str, DriftSentryMetric] = {}
     severity_counts: Counter[str] = Counter()
     detector_catalog: dict[str, dict[str, object]] = {}
+    triggered_metrics: list[dict[str, object]] = []
 
     window = cfg.baseline_window + cfg.evaluation_window
     if window <= 0:
@@ -333,6 +334,26 @@ def evaluate_drift_sentry(
             detector_entry["variance_ratio"] = variance_ratio
         detector_catalog[name] = detector_entry
 
+        if metric_severity is not DriftSeverity.normal:
+            trigger_entry: dict[str, object] = {
+                "metric": name,
+                "severity": metric_severity.value,
+                "delta_mean": evaluation_mean - baseline_mean,
+            }
+            if detectors:
+                trigger_entry["detectors"] = list(detectors)
+            if variance_ratio is not None:
+                trigger_entry["variance_ratio"] = variance_ratio
+            if page_stat is not None:
+                trigger_entry["page_hinkley_stat"] = page_stat
+            if cusum_stat is not None:
+                trigger_entry["cusum_stat"] = cusum_stat
+            trigger_entry["baseline_mean"] = baseline_mean
+            trigger_entry["evaluation_mean"] = evaluation_mean
+            trigger_entry["baseline_count"] = len(baseline)
+            trigger_entry["evaluation_count"] = len(evaluation)
+            triggered_metrics.append(trigger_entry)
+
     if not metric_payloads:
         raise ValueError("No metrics satisfied the drift sentry evaluation windows")
 
@@ -344,8 +365,48 @@ def evaluate_drift_sentry(
         snapshot_metadata["severity_counts"] = dict(severity_counts)
     if detector_catalog:
         snapshot_metadata["detectors"] = detector_catalog
+    if triggered_metrics:
+        snapshot_metadata["triggers"] = triggered_metrics
     if metadata:
         snapshot_metadata.update(dict(metadata))
+
+    recommended_actions: list[dict[str, object]] = []
+    if status in (DriftSeverity.warn, DriftSeverity.alert):
+        reason_suffix = status.value
+        recommended_actions = [
+            {
+                "action": "freeze_exploration",
+                "status": "recommended",
+                "reason": f"drift_sentry_{reason_suffix}",
+            },
+            {
+                "action": "size_multiplier",
+                "status": "recommended",
+                "value": 0.5,
+                "reason": f"drift_sentry_{reason_suffix}",
+            },
+        ]
+        snapshot_metadata["actions"] = recommended_actions
+
+        trigger_labels = ", ".join(
+            trigger["metric"] for trigger in triggered_metrics
+        )
+        trigger_clause = f" ({trigger_labels})" if trigger_labels else ""
+        theory_packet: dict[str, object] = {
+            "summary": (
+                "Drift sentry status "
+                f"{status.value} recommends freezing exploration and applying a 0.50x size multiplier"
+                f"{trigger_clause}"
+            ),
+            "generated_at": generated.isoformat(),
+            "severity": status.value,
+            "actions": recommended_actions,
+            "triggers": triggered_metrics,
+        }
+        runbook_path = snapshot_metadata.get("runbook")
+        if isinstance(runbook_path, str) and runbook_path.strip():
+            theory_packet["runbook"] = runbook_path.strip()
+        snapshot_metadata["theory_packet"] = theory_packet
 
     return DriftSentrySnapshot(
         generated_at=generated,

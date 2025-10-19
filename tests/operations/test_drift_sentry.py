@@ -70,6 +70,22 @@ def test_drift_sentry_detects_abrupt_shift() -> None:
     assert metric.variance_ratio is not None
     assert metric.cusum_stat is not None
 
+    metadata = snapshot.metadata
+    actions = metadata.get("actions")
+    assert isinstance(actions, list) and actions
+    action_labels = {entry.get("action") for entry in actions}
+    assert {"freeze_exploration", "size_multiplier"}.issubset(action_labels)
+    size_action = next(entry for entry in actions if entry.get("action") == "size_multiplier")
+    assert pytest.approx(size_action.get("value"), rel=1e-9) == 0.5
+
+    theory_packet = metadata.get("theory_packet")
+    assert isinstance(theory_packet, dict)
+    assert theory_packet.get("severity") == "alert"
+    assert theory_packet.get("actions") == actions
+    triggers = theory_packet.get("triggers")
+    assert isinstance(triggers, list) and triggers
+    assert triggers[0].get("metric") == "belief_confidence"
+
 
 def test_drift_sentry_variance_warn() -> None:
     config = DriftSentryConfig(
@@ -109,6 +125,14 @@ def test_drift_sentry_variance_warn() -> None:
     assert "variance_warn" in metric.detectors
     assert metric.page_hinkley_stat is not None
 
+    metadata = snapshot.metadata
+    theory_packet = metadata.get("theory_packet")
+    assert isinstance(theory_packet, dict)
+    assert theory_packet.get("severity") == "warn"
+    actions = metadata.get("actions")
+    assert isinstance(actions, list)
+    assert any(action.get("action") == "freeze_exploration" for action in actions)
+
 
 def test_drift_sentry_alert_generation_respects_threshold() -> None:
     config = DriftSentryConfig(
@@ -137,6 +161,12 @@ def test_drift_sentry_alert_generation_respects_threshold() -> None:
     categories = {event.category for event in events}
     assert categories == {"understanding.drift_sentry"}
     assert any("belief_bias" in event.tags for event in events)
+
+    metadata = snapshot.metadata
+    assert metadata.get("actions"), "expected drift sentry actions metadata"
+    packet = metadata.get("theory_packet")
+    assert isinstance(packet, dict)
+    assert packet.get("severity") == snapshot.status.value
 
     suppressed = derive_drift_sentry_alerts(
         snapshot,

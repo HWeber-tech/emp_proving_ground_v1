@@ -232,6 +232,10 @@ def test_operational_readiness_includes_understanding_drift_component() -> None:
     issue_details = metadata.get("issue_details")
     assert issue_details and "belief_confidence" in issue_details
     assert issue_details["belief_confidence"].get("severity") == DriftSeverity.alert.value
+    snapshot_metadata = metadata.get("snapshot", {}).get("metadata", {})
+    theory_packet = snapshot_metadata.get("theory_packet")
+    assert isinstance(theory_packet, dict)
+    assert theory_packet.get("severity") == "alert"
 
 
 def test_operational_readiness_alert_generation() -> None:

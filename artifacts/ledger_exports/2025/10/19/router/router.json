@@ -4,11 +4,11 @@
       "approvals": [
         "ops"
       ],
-      "created_at": "2025-10-19T19:03:09.238936+00:00",
+      "created_at": "2025-10-19T19:22:13.227156+00:00",
       "evidence_id": "ledger",
       "history": [
         {
-          "applied_at": "2025-10-19T19:03:09.238936+00:00",
+          "applied_at": "2025-10-19T19:22:13.227156+00:00",
           "approvals": [
             "ops"
           ],
@@ -20,8 +20,8 @@
       "policy_id": "alpha",
       "stage": "experiment",
       "tactic_id": "alpha",
-      "updated_at": "2025-10-19T19:03:09.238936+00:00"
+      "updated_at": "2025-10-19T19:22:13.227156+00:00"
     }
   },
-  "updated_at": "2025-10-19T19:03:09.239137+00:00"
+  "updated_at": "2025-10-19T19:22:13.227378+00:00"
 }

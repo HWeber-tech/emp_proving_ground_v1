@@ -869,9 +869,12 @@ def build_institutional_ingest_config(
     api_keys_summary = _api_key_metadata(extras)
     session_calendars = _resolve_session_calendars()
     macro_calendars = _configured_macro_calendars(extras)
+    symbols = _parse_csv(extras.get("TIMESCALE_SYMBOLS"), fallback)
 
     def _base_metadata() -> dict[str, object]:
-        return _metadata_base(api_keys_summary, session_calendars, macro_calendars)
+        metadata = _metadata_base(api_keys_summary, session_calendars, macro_calendars)
+        metadata["symbols"] = list(symbols)
+        return metadata
 
     reason: str | None = None
     if config.data_backbone_mode is not DataBackboneMode.institutional:
@@ -898,7 +901,6 @@ def build_institutional_ingest_config(
             enable_streaming=streaming_enabled,
         )
 
-    symbols = _parse_csv(extras.get("TIMESCALE_SYMBOLS"), fallback)
     daily_plan = None
     if symbols:
         daily_plan = DailyBarIngestPlan(

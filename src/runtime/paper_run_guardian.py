@@ -21,7 +21,8 @@ import sys
 import tracemalloc
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping, MutableMapping, Sequence
@@ -67,6 +68,30 @@ def _coerce_float(value: Any) -> float | None:
     if not math.isfinite(candidate):
         return None
     return candidate
+
+
+def _json_ready(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "to_dict") and callable(value.to_dict):
+        with contextlib.suppress(Exception):
+            return _json_ready(value.to_dict())
+    if isinstance(value, Mapping):
+        return {str(key): _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (set, frozenset, tuple, list)):
+        return [_json_ready(item) for item in value]
+    if hasattr(value, "isoformat") and callable(value.isoformat):
+        with contextlib.suppress(Exception):
+            return value.isoformat()
+    return str(value)
 
 
 class PaperRunStatus(Enum):
@@ -164,7 +189,7 @@ class PaperRunSummary:
         }
         if self.report is not None:
             summary_payload["report"] = dict(self.report)
-        return summary_payload
+        return _json_ready(summary_payload)
 
 
 class MemoryTracker:

@@ -153,16 +153,24 @@
 ## Commands & Artifacts (to standardize)
 
 - [x] `make run-sim` â€” deterministic sim/replay run (acceptance tests). _Progress: New tooling wraps the bootstrap runtime into `make run-sim`, wiring environment defaults, summary/diary exports, and pytest coverage so the acceptance drill is a single reproducible command.【F:Makefile†L103-L121】【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】_
-- [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, streams progress, and persists structured summaries for dashboards under pytest coverage.【F:Makefile†L90-L98】【F:src/runtime/cli.py†L1-L220】【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】_
-- [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger.
+- [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, enforces minimum runtime thresholds, streams progress, and persists structured summaries for dashboards while the CLI surfaces shortfall warnings under pytest coverage.【F:Makefile†L98-L100】【F:src/runtime/cli.py†L365-L414】【F:src/runtime/paper_run_guardian.py†L56-L128】【F:src/runtime/paper_run_guardian.py†L343-L399】【F:tests/runtime/test_paper_run_guardian.py†L100-L160】_
+- [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger. _Progress: `rebuild_strategy` now normalises ledger payloads into canonical JSON bytes, returns deterministic digests, and ships tests proving byte-identical rebuilds so CLI wrappers can emit audited runtime configs.【F:src/governance/strategy_rebuilder.py†L59-L205】【F:tests/governance/test_strategy_rebuilder.py†L57-L101】_
 - [x] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report. _Progress: The `rim-shadow` target now drives the governance-gated shadow runner, emitting suggestions plus queue/digest markdown artifacts with auto-apply annotations under pytest coverage so nightly cron jobs stay audit-ready.【F:Makefile†L67-L85】【F:tools/rim_shadow_run.py†L160-L222】【F:tests/tools/test_rim_shadow_run.py†L44-L139】_
-- [x] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders). _Progress: `archive_artifact` standardises dated evidence mirrors and now runs from the decision diary, nightly replay job, policy ledger, and evolution lab exporter with coverage so compliance packs auto-land in `artifacts/<kind>/<date>/<run>/` without manual curation.【F:src/artifacts/archive.py†L1-L95】【F:src/understanding/decision_diary.py†L447-L465】【F:src/governance/policy_ledger.py†L394-L420】【F:tools/operations/nightly_replay_job.py†L573-L590】【F:scripts/generate_evolution_lab.py†L171-L185】【F:tests/artifacts/test_archive.py†L1-L45】_
+- [x] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders). _Progress: `archive_artifact` standardises dated evidence mirrors and now runs from the decision diary, nightly replay job, policy ledger, and evolution lab exporter with coverage so compliance packs auto-land in `artifacts/<kind>/<date>/<run>/` without manual curation while deterministic diary snapshots strip runtime-only noise for replays.【F:src/artifacts/archive.py†L1-L95】【F:src/understanding/decision_diary.py†L42-L115】【F:src/understanding/decision_diary.py†L453-L606】【F:src/governance/policy_ledger.py†L394-L420】【F:tools/operations/nightly_replay_job.py†L573-L590】【F:scripts/generate_evolution_lab.py†L171-L185】【F:tests/artifacts/test_archive.py†L1-L45】_
 
 ---
 
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T13:45:52Z
+
+### Last 4 commits
+- 428567dc refactor(governance): tune 1 file (2025-10-19)
+- 1d351a0f refactor(runtime): tune 6 files (2025-10-19)
+- 10f9e871 refactor(runtime): tune 3 files (2025-10-19)
+- 4ecd3599 refactor(runtime): tune 3 files (2025-10-19)
 
 ## Automation updates — 2025-10-13T19:04:41Z
 

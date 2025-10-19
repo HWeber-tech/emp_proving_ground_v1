@@ -191,6 +191,35 @@ def _resolve_symbol_inventory() -> tuple[dict[str, object], ...]:
     return _SYMBOL_INVENTORY_CACHE
 
 
+def _symbol_inventory_for_symbols(
+    symbols: Sequence[str],
+) -> tuple[dict[str, object], ...]:
+    """Return inventory entries limited to the configured symbol list."""
+
+    inventory = _resolve_symbol_inventory()
+    if not symbols:
+        return inventory
+
+    lookup = _SYMBOL_LOOKUP_CACHE or {}
+    configured: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for symbol in symbols:
+        token = str(symbol).strip()
+        if not token:
+            continue
+        upper = token.upper()
+        if upper in seen:
+            continue
+        seen.add(upper)
+        entry = lookup.get(upper)
+        if entry is None:
+            configured.append({"symbol": token})
+            continue
+        configured.append(dict(entry))
+
+    return tuple(configured)
+
+
 def _resolve_symbol_metadata(symbols: Sequence[str]) -> tuple[dict[str, object], ...]:
     if not symbols:
         return tuple()
@@ -942,8 +971,8 @@ def build_institutional_ingest_config(
     api_keys_summary = _api_key_metadata(extras)
     session_calendars = _resolve_session_calendars()
     macro_calendars = _configured_macro_calendars(extras)
-    symbol_inventory = _resolve_symbol_inventory()
     symbols = _parse_csv(extras.get("TIMESCALE_SYMBOLS"), fallback)
+    symbol_inventory = _symbol_inventory_for_symbols(symbols)
     symbol_metadata = _resolve_symbol_metadata(symbols)
 
     def _base_metadata() -> dict[str, object]:

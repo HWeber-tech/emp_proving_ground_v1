@@ -319,7 +319,7 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
 
     inventory = metadata["symbol_inventory"]
     assert isinstance(inventory, list)
-    assert any(entry["symbol"] == "EURUSD" for entry in inventory)
+    assert {entry["symbol"] for entry in inventory} == {"EURUSD"}
     eurusd = next(entry for entry in inventory if entry["symbol"] == "EURUSD")
     assert eurusd["margin_currency"] == "USD"
     assert eurusd["pip_decimal_places"] == 4

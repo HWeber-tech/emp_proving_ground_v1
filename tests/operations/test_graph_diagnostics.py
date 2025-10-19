@@ -73,6 +73,7 @@ def test_compute_graph_metrics_chain(sample_graph: UnderstandingGraphDiagnostics
     assert metrics.periphery_nodes == ("policy", "sensory")
     assert metrics.core_ratio == pytest.approx(0.5)
     assert metrics.modularity == pytest.approx(1.0 / 6.0, abs=1e-6)
+    assert metrics.tail_index == pytest.approx(1.0 / 3.0)
 
 
 def test_evaluate_graph_metrics_thresholds(sample_graph: UnderstandingGraphDiagnostics) -> None:
@@ -115,3 +116,49 @@ def test_evaluate_graph_metrics_failure(sample_graph: UnderstandingGraphDiagnost
 
     assert evaluation.status is GraphHealthStatus.fail
     assert any("Average degree" in message for message in evaluation.messages)
+
+
+def test_evaluate_graph_metrics_tail_warning(sample_graph: UnderstandingGraphDiagnostics) -> None:
+    metrics = compute_graph_metrics(sample_graph)
+    thresholds = GraphThresholds(min_tail_index=0.5)
+
+    evaluation = evaluate_graph_metrics(metrics, thresholds)
+
+    assert evaluation.status is GraphHealthStatus.warn
+    assert any("tail index" in message for message in evaluation.messages)
+
+
+def test_evaluate_graph_metrics_tail_collapse_fail() -> None:
+    generated_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+
+    nodes = tuple(
+        UnderstandingNode(
+            node_id=f"node-{idx}",
+            name=f"Node {idx}",
+            kind=UnderstandingNodeKind.policy,
+            status=UnderstandingGraphStatus.ok,
+        )
+        for idx in range(4)
+    )
+    edges = (
+        UnderstandingEdge(source="node-0", target="node-1", relationship="link"),
+        UnderstandingEdge(source="node-1", target="node-2", relationship="link"),
+        UnderstandingEdge(source="node-2", target="node-3", relationship="link"),
+        UnderstandingEdge(source="node-3", target="node-0", relationship="link"),
+    )
+
+    graph = UnderstandingGraphDiagnostics(
+        status=UnderstandingGraphStatus.ok,
+        nodes=nodes,
+        edges=edges,
+        generated_at=generated_at,
+    )
+
+    metrics = compute_graph_metrics(graph)
+    assert metrics.tail_index == pytest.approx(0.0)
+
+    thresholds = GraphThresholds(min_tail_index=0.2)
+    evaluation = evaluate_graph_metrics(metrics, thresholds)
+
+    assert evaluation.status is GraphHealthStatus.fail
+    assert any("collapse" in message for message in evaluation.messages)

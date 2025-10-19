@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
+from math import sqrt
 from typing import Iterable, Mapping, Sequence
 
 from src.understanding.diagnostics import (
@@ -34,6 +35,7 @@ class GraphMetrics:
     periphery_nodes: Sequence[str]
     core_ratio: float
     communities: Mapping[str, str]
+    tail_index: float
 
     def as_dict(self) -> Mapping[str, object]:
         return {
@@ -45,6 +47,7 @@ class GraphMetrics:
             "periphery_nodes": list(self.periphery_nodes),
             "core_ratio": round(self.core_ratio, 6),
             "communities": dict(self.communities),
+            "tail_index": round(self.tail_index, 6),
         }
 
 
@@ -56,6 +59,7 @@ class GraphThresholds:
     min_modularity: float = 0.0
     min_core_ratio: float = 0.2
     max_core_ratio: float = 0.75
+    min_tail_index: float = 0.2
 
     def as_dict(self) -> Mapping[str, float]:
         return {
@@ -63,6 +67,7 @@ class GraphThresholds:
             "min_modularity": self.min_modularity,
             "min_core_ratio": self.min_core_ratio,
             "max_core_ratio": self.max_core_ratio,
+            "min_tail_index": self.min_tail_index,
         }
 
 
@@ -112,6 +117,7 @@ def compute_graph_metrics(graph: UnderstandingGraphDiagnostics) -> GraphMetrics:
     core_nodes = tuple(sorted(node_id for node_id, degree in degree_counter.items() if degree >= core_threshold))
     periphery_nodes = tuple(sorted(node_id for node_id in node_ids if node_id not in core_nodes))
     core_ratio = (len(core_nodes) / float(total_nodes)) if total_nodes else 0.0
+    tail_index = _calculate_tail_index(degree_counter.values())
 
     return GraphMetrics(
         node_degrees=dict(degree_counter),
@@ -122,6 +128,7 @@ def compute_graph_metrics(graph: UnderstandingGraphDiagnostics) -> GraphMetrics:
         periphery_nodes=periphery_nodes,
         core_ratio=core_ratio,
         communities=communities,
+        tail_index=tail_index,
     )
 
 
@@ -168,6 +175,17 @@ def evaluate_graph_metrics(metrics: GraphMetrics, thresholds: GraphThresholds) -
     if not metrics.core_nodes:
         messages.append("No core nodes detected; verify router and belief hubs remain connected.")
         status = GraphHealthStatus.fail
+
+    if metrics.tail_index < thresholds.min_tail_index:
+        messages.append(
+            "Degree tail index {:.3f} fell below {:.3f}; heavy-tail dispersion collapsed (collapse/over-smoothing risk).".format(
+                metrics.tail_index, thresholds.min_tail_index
+            )
+        )
+        if metrics.tail_index <= (thresholds.min_tail_index * 0.5):
+            status = GraphHealthStatus.fail
+        elif status is GraphHealthStatus.ok:
+            status = GraphHealthStatus.warn
 
     return GraphEvaluation(status=status, messages=tuple(messages), thresholds=thresholds)
 
@@ -223,6 +241,20 @@ def _calculate_modularity(
             modularity += adjacency - (degree_i * degree_j) / two_m
 
     return modularity / two_m
+
+
+def _calculate_tail_index(degrees: Iterable[int]) -> float:
+    values = [float(value) for value in degrees if value >= 0]
+    count = len(values)
+    if count < 2:
+        return 0.0
+
+    mean_value = sum(values) / float(count)
+    if mean_value == 0.0:
+        return 0.0
+
+    variance = sum((value - mean_value) ** 2 for value in values) / float(count)
+    return sqrt(variance) / mean_value
 
 
 __all__ = [

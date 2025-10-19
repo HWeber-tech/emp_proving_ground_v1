@@ -26,6 +26,7 @@ def test_run_graph_diagnostics_job_emits_artifacts(tmp_path: Path, monkeypatch: 
     summary = json.loads(result.context.metrics_path.read_text(encoding="utf-8"))
     assert summary["evaluation"]["status"] == GraphHealthStatus.ok.value
     assert "degree_histogram" in summary["metrics"]
+    assert "tail_index" in summary["metrics"]
 
     archived = list(archive_root.rglob("graph_metrics.json"))
     assert archived, "expected archived metrics artifact"

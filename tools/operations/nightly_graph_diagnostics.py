@@ -90,6 +90,12 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="Upper bound for the fraction of core nodes (default: 0.75).",
     )
     parser.add_argument(
+        "--min-tail-index",
+        type=float,
+        default=GraphThresholds.min_tail_index,
+        help="Minimum dispersion (coefficient of variation) for heavy-tail degrees before alerting (default: 0.2).",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"),
@@ -152,6 +158,7 @@ def _build_markdown(
         f"- Timestamp: {context.timestamp.isoformat()}",
         f"- Average degree: {metrics.average_degree:.3f}",
         f"- Modularity: {metrics.modularity:.3f}",
+        f"- Degree tail index: {metrics.tail_index:.3f}",
         f"- Core ratio: {metrics.core_ratio:.3f}",
         "",
         "## Degree Histogram",
@@ -261,6 +268,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         min_modularity=args.min_modularity,
         min_core_ratio=args.min_core_ratio,
         max_core_ratio=args.max_core_ratio,
+        min_tail_index=args.min_tail_index,
     )
 
     try:

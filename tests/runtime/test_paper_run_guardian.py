@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -12,6 +13,7 @@ from src.runtime.paper_run_guardian import (
     PaperRunConfig,
     PaperRunMonitor,
     PaperRunStatus,
+    persist_error_events,
     persist_summary,
 )
 from src.runtime.paper_simulation import (
@@ -176,3 +178,42 @@ def test_guardian_requests_stop_on_memory_growth_threshold() -> None:
     assert monitor.should_stop is True
     assert "memory-growth-threshold-exceeded" in monitor.stop_reasons
     assert any("Memory growth exceeded threshold" in alert for alert in monitor.alerts)
+
+
+def test_persist_error_events_writes_json(tmp_path: Path) -> None:
+    config = PaperRunConfig()
+    tracker = _iterating_sampler([100.0])
+    monitor = PaperRunMonitor(config, memory_tracker=tracker)
+
+    error_payload = {
+        "stage": "risk_validation",
+        "message": "Invariant breach detected",
+        "exception": "InvariantError",
+    }
+
+    monitor.record_progress(
+        _progress(
+            runtime_seconds=5.0,
+            orders=1,
+            p99_latency=0.02,
+            avg_latency=0.01,
+            last_error=error_payload,
+        )
+    )
+
+    report = PaperTradingSimulationReport(
+        orders=[],
+        errors=[error_payload],
+        decisions=1,
+        diary_entries=0,
+        runtime_seconds=10.0,
+    )
+
+    summary = monitor.finalise(report)
+
+    destination = tmp_path / "errors.json"
+    persist_error_events(summary, destination)
+
+    content = json.loads(destination.read_text(encoding="utf-8"))
+    assert isinstance(content, list)
+    assert content and content[0]["stage"] == "risk_validation"

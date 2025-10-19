@@ -229,6 +229,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path where the guardian summary JSON will be written",
     )
     paper_parser.add_argument(
+        "--errors-path",
+        default=None,
+        help="Path where guardian error-event snapshots will be written",
+    )
+    paper_parser.add_argument(
         "--json",
         action="store_true",
         help="Emit the guardian summary as JSON to stdout",
@@ -372,6 +377,7 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
         duration_seconds = float(args.duration_hours) * 3600.0
 
     report_path = Path(args.report_path).expanduser() if args.report_path else None
+    errors_path = Path(args.errors_path).expanduser() if args.errors_path else None
 
     run_config = PaperRunConfig(
         duration_seconds=duration_seconds,
@@ -380,6 +386,7 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
         memory_growth_threshold_mb=args.memory_growth_max,
         allow_invariant_errors=args.allow_invariant_errors,
         report_path=report_path,
+        error_events_path=errors_path,
         min_orders=args.min_orders,
     )
 
@@ -431,6 +438,8 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
 
         if report_path is not None:
             print(f"Summary persisted to {report_path}")
+        if errors_path is not None:
+            print(f"Error events persisted to {errors_path}")
 
     if summary.status is PaperRunStatus.FAILED:
         return 2

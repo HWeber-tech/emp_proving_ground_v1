@@ -48,6 +48,7 @@ __all__ = [
     "PaperRunSample",
     "PaperRunStatus",
     "PaperRunSummary",
+    "persist_error_events",
     "persist_summary",
     "run_guarded_paper_session",
 ]
@@ -115,6 +116,7 @@ class PaperRunConfig:
     memory_growth_threshold_mb: float | None = None
     allow_invariant_errors: bool = False
     report_path: Path | None = None
+    error_events_path: Path | None = None
     sample_history: int = 2048
     min_orders: int = 0
     minimum_runtime_seconds: float = DEFAULT_MINIMUM_RUNTIME_SECONDS
@@ -547,7 +549,24 @@ async def run_guarded_paper_session(
     if destination is not None:
         persist_summary(summary, destination)
 
+    errors_destination = run_config.error_events_path
+    if errors_destination is not None:
+        persist_error_events(summary, errors_destination)
+
     return summary
+
+
+def persist_error_events(summary: PaperRunSummary, destination: str | Path) -> None:
+    """Persist the guardian error events to ``destination`` as JSON."""
+
+    path = Path(destination)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:  # pragma: no cover - diagnostics only
+        logger.debug("Failed to create directories for %s", path, exc_info=True)
+    payload = [_json_ready(dict(event)) for event in summary.error_events]
+    json_payload = json.dumps(payload, indent=2, sort_keys=True)
+    path.write_text(json_payload, encoding="utf-8")
 
 
 def persist_summary(summary: PaperRunSummary, destination: str | Path) -> None:

@@ -874,15 +874,69 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
         )
 
     info = dict(coverage_payload)
+
     coverage_value = _coerce_float(info.get("coverage"))
+    coverage_percent_input = _coerce_float(info.get("coverage_percent"))
+    if coverage_value is None and coverage_percent_input is not None:
+        coverage_value = (
+            coverage_percent_input / 100.0
+            if coverage_percent_input > 1.0 + 1e-9
+            else coverage_percent_input
+        )
+        if coverage_value is not None:
+            info.setdefault("coverage_inferred", True)
+
+    iterations_raw = info.get("iterations")
+    iterations_value = _coerce_int(iterations_raw)
+    iterations_provided = iterations_value is not None
+    iterations = iterations_value or 0
+
+    recorded_raw = info.get("recorded")
+    recorded_value = _coerce_int(recorded_raw)
+    recorded_provided = recorded_value is not None
+    recorded = recorded_value or 0
+
+    if coverage_value is not None and "coverage" not in info:
+        info["coverage"] = coverage_value
+
+    if (
+        coverage_value is None
+        and iterations_provided
+        and recorded_provided
+        and iterations > 0
+    ):
+        coverage_value = min(max(recorded / iterations, 0.0), 1.0)
+        info.setdefault("coverage", coverage_value)
+        info.setdefault("coverage_inferred", True)
+
     target_value = _coerce_float(info.get("target"))
-    iterations = _coerce_int(info.get("iterations")) or 0
-    recorded = _coerce_int(info.get("recorded")) or 0
-    missing = _coerce_int(info.get("missing"))
-    if missing is None:
-        missing = max(iterations - recorded, 0)
-    else:
-        missing = max(missing, 0)
+    if target_value is None:
+        target_percent_input = _coerce_float(info.get("target_percent"))
+        if target_percent_input is not None:
+            target_value = (
+                target_percent_input / 100.0
+                if target_percent_input > 1.0 + 1e-9
+                else target_percent_input
+            )
+            info.setdefault("target", target_value)
+
+    if target_value is None:
+        target_value = 0.95
+        info.setdefault("target", target_value)
+        info.setdefault("target_inferred", True)
+
+    missing_raw = info.get("missing")
+    missing_value = _coerce_int(missing_raw)
+    if missing_value is not None:
+        missing_value = max(missing_value, 0)
+        info.setdefault("missing", missing_value)
+    elif iterations_provided and recorded_provided:
+        inferred_missing = max(iterations - recorded, 0)
+        info.setdefault("missing", inferred_missing)
+        missing_value = inferred_missing
+
+    missing = missing_value or 0
+
     minimum_samples = _coerce_int(info.get("minimum_samples")) or 0
     gap_threshold = _coerce_float(info.get("gap_threshold_seconds"))
     gap_breach = bool(info.get("gap_breach"))
@@ -908,17 +962,23 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
     status = DashboardStatus.ok
     details: list[str] = []
 
-    if iterations:
+    if iterations_provided and recorded_provided:
         detail_line = f"Recorded {recorded} of {iterations} iterations"
         if missing:
             detail_line += f"; missing {missing}"
         details.append(detail_line)
-    else:
-        details.append("No loop iterations recorded yet.")
+    elif iterations_provided:
+        if iterations:
+            details.append(f"Recorded telemetry missing for {iterations} iterations.")
+        else:
+            details.append("No loop iterations recorded yet.")
+        status = _escalate(status, DashboardStatus.warn)
+    elif recorded_provided:
+        details.append(f"Recorded {recorded} diary entries; iteration telemetry missing.")
         status = _escalate(status, DashboardStatus.warn)
 
     insufficient_samples = False
-    if minimum_samples and iterations < minimum_samples:
+    if minimum_samples and iterations_provided and iterations < minimum_samples:
         insufficient_samples = True
         details.append(
             f"Minimum sample {minimum_samples} not satisfied (observed {iterations})."
@@ -956,6 +1016,21 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
         if gap_threshold is not None:
             details.append(f"Gap threshold {gap_threshold:.0f}s monitored")
 
+    missing_telemetry_fields: list[str] = []
+    if coverage_value is None:
+        missing_telemetry_fields.append("coverage")
+    if not iterations_provided:
+        missing_telemetry_fields.append("iterations")
+    if not recorded_provided:
+        missing_telemetry_fields.append("recorded")
+
+    missing_telemetry = False
+    if missing_telemetry_fields:
+        missing_telemetry = True
+        fields = ", ".join(sorted(missing_telemetry_fields))
+        details.append(f"Missing diary telemetry: {fields}.")
+        status = _escalate(status, DashboardStatus.warn)
+
     if not details:
         details.append("No diary coverage telemetry available.")
 
@@ -966,6 +1041,7 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
                 "coverage_below_target": coverage_below_target,
                 "gap_breach": gap_breach,
                 "insufficient_samples": insufficient_samples,
+                "missing_telemetry": missing_telemetry,
             },
         }
     }

@@ -973,6 +973,11 @@ def test_diary_panel_reports_coverage_success() -> None:
     payload = panel.metadata["decision_diary"]
     assert payload["alerts"]["coverage_below_target"] is False
     assert payload["alerts"]["insufficient_samples"] is False
+    assert payload["alerts"]["missing_telemetry"] is False
+
+    coverage_meta = payload["coverage"]
+    assert coverage_meta["coverage_percent"] == pytest.approx(97.0)
+    assert coverage_meta["target_percent"] == pytest.approx(95.0)
 
 
 def test_diary_panel_flags_coverage_shortfall() -> None:
@@ -998,6 +1003,7 @@ def test_diary_panel_flags_coverage_shortfall() -> None:
     payload = panel.metadata["decision_diary"]
     assert payload["alerts"]["coverage_below_target"] is True
     assert payload["alerts"]["gap_breach"] is False
+    assert payload["alerts"]["missing_telemetry"] is False
 
 
 def test_diary_panel_marks_gap_breach() -> None:
@@ -1025,3 +1031,52 @@ def test_diary_panel_marks_gap_breach() -> None:
 
     payload = panel.metadata["decision_diary"]
     assert payload["alerts"]["gap_breach"] is True
+    assert payload["alerts"]["missing_telemetry"] is False
+
+
+def test_diary_panel_enforces_default_target() -> None:
+    coverage_snapshot = {
+        "iterations": 20,
+        "recorded": 18,
+        "minimum_samples": 10,
+    }
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.fail
+    assert any("shortfall" in detail for detail in panel.details)
+
+    payload = panel.metadata["decision_diary"]
+    alerts = payload["alerts"]
+    assert alerts["coverage_below_target"] is True
+    assert alerts["missing_telemetry"] is False
+
+    coverage_meta = payload["coverage"]
+    assert coverage_meta["coverage_percent"] == pytest.approx(90.0)
+    assert coverage_meta["target_percent"] == pytest.approx(95.0)
+    assert coverage_meta["target_inferred"] is True
+
+
+def test_diary_panel_warns_on_missing_telemetry() -> None:
+    coverage_snapshot: dict[str, Any] = {"iterations": None}
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.warn
+    assert any("missing diary telemetry" in detail.lower() for detail in panel.details)
+
+    payload = panel.metadata["decision_diary"]
+    alerts = payload["alerts"]
+    assert alerts["coverage_below_target"] is False
+    assert alerts["missing_telemetry"] is True
+    assert payload["coverage"]["target_inferred"] is True

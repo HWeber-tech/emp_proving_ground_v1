@@ -552,7 +552,7 @@ class AlphaTradeLoopOrchestrator:
             relative_passive_limit = self._coerce_guardrail_limit(
                 defaults.get("relative_passive")
             )
-        if relative_aggro_limit is None:
+        if relative_aggro_limit is None and relative_limit is None:
             relative_aggro_limit = self._coerce_guardrail_limit(
                 defaults.get("relative_aggro")
             )
@@ -562,7 +562,7 @@ class AlphaTradeLoopOrchestrator:
             absolute_passive_limit = self._coerce_guardrail_limit(
                 defaults.get("absolute_passive")
             )
-        if absolute_aggro_limit is None:
+        if absolute_aggro_limit is None and absolute_limit is None:
             absolute_aggro_limit = self._coerce_guardrail_limit(
                 defaults.get("absolute_aggro")
             )
@@ -680,20 +680,24 @@ class AlphaTradeLoopOrchestrator:
             relative_passive_limit = self._coerce_guardrail_limit(
                 defaults.get("relative_passive")
             )
-        if relative_aggro_limit is None:
+        if relative_aggro_limit is None and relative_default is None:
             relative_aggro_limit = self._coerce_guardrail_limit(
                 defaults.get("relative_aggro")
             )
+        if relative_aggro_limit is None and relative_default is not None:
+            relative_aggro_limit = relative_default
         if absolute_default is None:
             absolute_default = self._coerce_guardrail_limit(defaults.get("absolute"))
         if absolute_passive_limit is None:
             absolute_passive_limit = self._coerce_guardrail_limit(
                 defaults.get("absolute_passive")
             )
-        if absolute_aggro_limit is None:
+        if absolute_aggro_limit is None and absolute_default is None:
             absolute_aggro_limit = self._coerce_guardrail_limit(
                 defaults.get("absolute_aggro")
             )
+        if absolute_aggro_limit is None and absolute_default is not None:
+            absolute_aggro_limit = absolute_default
 
         def _directional_limit(
             default: float | None,
@@ -1072,6 +1076,96 @@ class AlphaTradeLoopOrchestrator:
 
         return tuple(events)
 
+    @staticmethod
+    def _sanitise_probe_metadata(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {
+                str(key): AlphaTradeLoopOrchestrator._sanitise_probe_metadata(sub_value)
+                for key, sub_value in value.items()
+            }
+        if isinstance(value, (list, tuple, set)):
+            return [AlphaTradeLoopOrchestrator._sanitise_probe_metadata(item) for item in value]
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc).isoformat()
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, Enum):
+            return value.value
+        return value
+
+    @classmethod
+    def _build_guardrail_probes(
+        cls,
+        guardrails: Mapping[str, Any] | None,
+    ) -> list[Mapping[str, Any]]:
+        if not isinstance(guardrails, Mapping) or not guardrails:
+            return []
+        snapshot: dict[str, Any] = {}
+        for key, value in guardrails.items():
+            snapshot[str(key)] = cls._sanitise_probe_metadata(value)
+
+        counterfactual = guardrails.get("counterfactual_guardrail")
+        status = "ok"
+        severity: str | None = None
+        if isinstance(counterfactual, Mapping):
+            breached = bool(counterfactual.get("breached"))
+            status = "breached" if breached else "ok"
+            severity_value = counterfactual.get("severity")
+            if isinstance(severity_value, str) and severity_value.strip():
+                severity = severity_value.strip()
+            elif breached:
+                severity = "alert"
+        elif guardrails.get("force_paper"):
+            status = "warn"
+            severity = "warn"
+        if severity is None:
+            severity = "info"
+
+        probe: dict[str, Any] = {
+            "probe_id": "governance.guardrails",
+            "status": status,
+            "metadata": {"guardrails": snapshot},
+        }
+        if severity:
+            probe["severity"] = severity
+        return [probe]
+
+    @classmethod
+    def _build_drift_probe(
+        cls,
+        drift_decision: DriftSentryDecision | None,
+    ) -> Mapping[str, Any] | None:
+        if drift_decision is None:
+            return None
+
+        status = "allowed" if drift_decision.allowed else "blocked"
+        severity = drift_decision.severity.value
+        metadata: dict[str, Any] = {
+            "allowed": drift_decision.allowed,
+            "force_paper": drift_decision.force_paper,
+            "blocked_dimensions": list(drift_decision.blocked_dimensions),
+        }
+        if drift_decision.reason:
+            metadata["reason"] = drift_decision.reason
+        metadata["evaluated_at"] = drift_decision.evaluated_at.astimezone(timezone.utc).isoformat()
+        requirements = drift_decision.requirements
+        if isinstance(requirements, Mapping) and requirements:
+            metadata["requirements"] = {
+                str(key): cls._sanitise_probe_metadata(value)
+                for key, value in requirements.items()
+            }
+        snapshot_metadata = drift_decision.snapshot_metadata
+        if isinstance(snapshot_metadata, Mapping) and snapshot_metadata:
+            metadata["snapshot"] = cls._sanitise_probe_metadata(snapshot_metadata)
+
+        probe: dict[str, Any] = {
+            "probe_id": "governance.drift_sentry",
+            "status": status,
+            "severity": severity,
+            "metadata": metadata,
+        }
+        return probe
+
     def _record_diary_entry(
         self,
         *,
@@ -1159,6 +1253,15 @@ class AlphaTradeLoopOrchestrator:
         )
         entry_id = _deterministic_entry_id(entry_timestamp, fingerprint)
 
+        guardrails_payload = decision_bundle.decision.guardrails
+        probes: list[Mapping[str, Any]] = []
+        probes.extend(self._build_guardrail_probes(guardrails_payload))
+        drift_probe = self._build_drift_probe(drift_decision)
+        if drift_probe is not None:
+            probes.append(drift_probe)
+        if not probes:
+            probes.append({"probe_id": "governance.guardrails", "status": "ok"})
+
         return self._diary_store.record(
             policy_id=policy_id,
             decision=decision_payload,
@@ -1167,6 +1270,7 @@ class AlphaTradeLoopOrchestrator:
             outcomes=outcomes_payload,
             notes=notes_tuple,
             metadata=metadata,
+            probes=probes,
             entry_id=entry_id,
             recorded_at=entry_timestamp,
         )

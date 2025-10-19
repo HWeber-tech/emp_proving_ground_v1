@@ -1,57 +1,51 @@
 {
   "records": {
-    "alpha.policy": {
+    "alpha": {
       "approvals": [
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-19T18:18:23.007199+00:00",
-      "evidence_id": "diary-alpha-001",
+      "created_at": "2025-10-19T18:27:20.692893+00:00",
+      "evidence_id": "diary-alpha",
       "history": [
         {
-          "applied_at": "2025-10-19T18:18:23.007199+00:00",
+          "applied_at": "2025-10-19T18:27:20.692893+00:00",
           "approvals": [
             "compliance",
             "risk"
           ],
-          "evidence_id": "diary-alpha-001",
-          "next_stage": "paper",
+          "evidence_id": "diary-alpha",
+          "next_stage": "pilot",
           "policy_delta": {
             "metadata": {},
             "notes": [],
+            "regime": "balanced",
             "risk_config": {
-              "max_leverage": 7,
-              "max_risk_per_trade_pct": 0.04
+              "max_leverage": 6
             },
             "router_guardrails": {
-              "max_latency_ms": 180
+              "requires_diary": true
             }
           },
           "prior_stage": null
         }
       ],
-      "metadata": {
-        "runtime": {
-          "deployment": "paper",
-          "strategy_id": "alpha.policy"
-        }
-      },
       "policy_delta": {
         "metadata": {},
         "notes": [],
+        "regime": "balanced",
         "risk_config": {
-          "max_leverage": 7,
-          "max_risk_per_trade_pct": 0.04
+          "max_leverage": 6
         },
         "router_guardrails": {
-          "max_latency_ms": 180
+          "requires_diary": true
         }
       },
-      "policy_id": "alpha.policy",
-      "stage": "paper",
-      "tactic_id": "tactic.alpha",
-      "updated_at": "2025-10-19T18:18:23.007199+00:00"
+      "policy_id": "alpha",
+      "stage": "pilot",
+      "tactic_id": "alpha",
+      "updated_at": "2025-10-19T18:27:20.692893+00:00"
     }
   },
-  "updated_at": "2025-10-19T18:18:23.007341+00:00"
+  "updated_at": "2025-10-19T18:27:20.693000+00:00"
 }

@@ -1,0 +1,145 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "coverage-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-policy",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251019T221608Z-77dba5b0",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-policy",
+      "probes": [],
+      "recorded_at": "2025-01-01T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.75,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2025-01-01T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "coverage-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-policy",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251019T221608Z-f9519036",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-policy",
+      "probes": [],
+      "recorded_at": "2025-01-01T00:01:00+00:00",
+      "regime_state": {
+        "confidence": 0.75,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2025-01-01T00:01:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "coverage-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-policy",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251019T221608Z-1367a28f",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.01
+      },
+      "policy_id": "alpha-policy",
+      "probes": [],
+      "recorded_at": "2025-01-01T00:10:00+00:00",
+      "regime_state": {
+        "confidence": 0.72,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2025-01-01T00:10:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "coverage-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-policy",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251019T221608Z-64c6af4a",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.01
+      },
+      "policy_id": "alpha-policy",
+      "probes": [],
+      "recorded_at": "2025-01-01T00:11:00+00:00",
+      "regime_state": {
+        "confidence": 0.72,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2025-01-01T00:11:00+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-19T22:16:08.548506+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-19T22:16:08.520372+00:00",
+    "probes": {}
+  }
+}

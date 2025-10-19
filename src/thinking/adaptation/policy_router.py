@@ -1795,7 +1795,188 @@ class PolicyRouter:
             freeze_state = exploration_context.get("freeze_state")
             if isinstance(freeze_state, Mapping):
                 summary["exploration"]["freeze_state"] = dict(freeze_state)
+        summary["counterfactuals"] = self._build_counterfactual_explainers(
+            ranked=ranked,
+            winner=winner,
+            exploration_context=exploration_context,
+        )
         return summary
+
+    def _build_counterfactual_explainers(
+        self,
+        *,
+        ranked: Sequence[Mapping[str, object]],
+        winner: Mapping[str, object],
+        exploration_context: Mapping[str, object] | None,
+    ) -> list[Mapping[str, object]]:
+        def _coerce_float(value: object, default: float) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _component_phrase(label: str, candidate_value: float, winner_value: float) -> str | None:
+            if math.isclose(candidate_value, winner_value, rel_tol=1e-6, abs_tol=1e-6):
+                return None
+            direction = "lower" if candidate_value < winner_value else "higher"
+            return f"{label} {candidate_value:.3f} ({direction} than {winner_value:.3f})"
+
+        selected_tactic: PolicyTactic = winner["tactic"]  # type: ignore[assignment]
+        selected_topology = self._topology_identifier(selected_tactic)
+        selected_score = _coerce_float(winner.get("score"), 0.0)
+        selected_base = _coerce_float(winner.get("base_score"), 0.0)
+        selected_multiplier = _coerce_float(winner.get("multiplier"), 1.0)
+        selected_breakdown = winner.get("breakdown")
+        if isinstance(selected_breakdown, Mapping):
+            selected_breakdown = dict(selected_breakdown)
+        else:
+            selected_breakdown = {}
+        selected_fast_weight = _coerce_float(
+            selected_breakdown.get("fast_weight_multiplier"),
+            1.0,
+        )
+        selected_confidence = _coerce_float(
+            selected_breakdown.get("confidence_multiplier"),
+            1.0,
+        )
+        selected_regime_bias = _coerce_float(
+            selected_breakdown.get("regime_bias"),
+            1.0,
+        )
+        winner_experiments = winner.get("experiments", ())
+        if isinstance(winner_experiments, Sequence):
+            selected_experiments: tuple[FastWeightExperiment, ...] = tuple(
+                exp for exp in winner_experiments if isinstance(exp, FastWeightExperiment)
+            )
+        else:
+            selected_experiments = ()
+
+        blocked_lookup: dict[str, Mapping[str, object]] = {}
+        if exploration_context:
+            blocked = exploration_context.get("blocked_candidates")
+            if isinstance(blocked, Sequence):
+                for candidate in blocked:
+                    if not isinstance(candidate, Mapping):
+                        continue
+                    tactic_id = candidate.get("tactic_id")
+                    if isinstance(tactic_id, str):
+                        blocked_lookup[tactic_id] = candidate
+
+        counterfactuals: list[Mapping[str, object]] = []
+        seen_topologies: set[str] = set()
+
+        for entry in ranked[: self._summary_top_k]:
+            tactic: PolicyTactic = entry["tactic"]  # type: ignore[assignment]
+            topology = self._topology_identifier(tactic)
+            if topology == selected_topology or topology in seen_topologies:
+                continue
+            seen_topologies.add(topology)
+
+            candidate_score = _coerce_float(entry.get("score"), 0.0)
+            candidate_base = _coerce_float(entry.get("base_score"), 0.0)
+            candidate_multiplier = _coerce_float(entry.get("multiplier"), 1.0)
+            breakdown = entry.get("breakdown")
+            if isinstance(breakdown, Mapping):
+                breakdown = dict(breakdown)
+            else:
+                breakdown = {}
+            candidate_fast_weight = _coerce_float(
+                breakdown.get("fast_weight_multiplier"),
+                1.0,
+            )
+            candidate_confidence = _coerce_float(
+                breakdown.get("confidence_multiplier"),
+                1.0,
+            )
+            candidate_regime_bias = _coerce_float(
+                breakdown.get("regime_bias"),
+                1.0,
+            )
+
+            experiments = entry.get("experiments", ())
+            if isinstance(experiments, Sequence):
+                candidate_experiments: tuple[FastWeightExperiment, ...] = tuple(
+                    exp for exp in experiments if isinstance(exp, FastWeightExperiment)
+                )
+            else:
+                candidate_experiments = ()
+
+            reason_bits: list[str] = []
+            base_phrase = _component_phrase("base score", candidate_base, selected_base)
+            if base_phrase:
+                reason_bits.append(base_phrase)
+            multiplier_phrase = _component_phrase(
+                "multiplier",
+                candidate_multiplier,
+                selected_multiplier,
+            )
+            if multiplier_phrase:
+                reason_bits.append(multiplier_phrase)
+            fast_weight_phrase = _component_phrase(
+                "fast-weight",
+                candidate_fast_weight,
+                selected_fast_weight,
+            )
+            if fast_weight_phrase:
+                reason_bits.append(fast_weight_phrase)
+            confidence_phrase = _component_phrase(
+                "confidence multiplier",
+                candidate_confidence,
+                selected_confidence,
+            )
+            if confidence_phrase:
+                reason_bits.append(confidence_phrase)
+            regime_bias_phrase = _component_phrase(
+                "regime bias",
+                candidate_regime_bias,
+                selected_regime_bias,
+            )
+            if regime_bias_phrase:
+                reason_bits.append(regime_bias_phrase)
+
+            candidate_exp_ids = tuple(exp.experiment_id for exp in candidate_experiments)
+            selected_exp_ids = tuple(exp.experiment_id for exp in selected_experiments)
+            if candidate_exp_ids != selected_exp_ids:
+                reason_bits.append(
+                    "experiments {} vs {}".format(
+                        ", ".join(candidate_exp_ids) if candidate_exp_ids else "none",
+                        ", ".join(selected_exp_ids) if selected_exp_ids else "none",
+                    )
+                )
+
+            blocked_entry = blocked_lookup.get(tactic.tactic_id)
+            if blocked_entry:
+                blocked_reason = blocked_entry.get("reason")
+                if isinstance(blocked_reason, str) and blocked_reason.strip():
+                    reason_bits.append(f"blocked: {blocked_reason.strip()}")
+                else:
+                    reason_bits.append("blocked by exploration guardrail")
+
+            score_gap = max(0.0, selected_score - candidate_score)
+            reason_text = (
+                f"Scored {candidate_score:.4f} vs {selected_score:.4f}"
+                f" (gap {score_gap:.4f})"
+            )
+            if reason_bits:
+                reason_text += "; " + "; ".join(reason_bits)
+
+            counterfactuals.append(
+                {
+                    "topology": topology,
+                    "tactic_id": tactic.tactic_id,
+                    "score": candidate_score,
+                    "score_gap": score_gap,
+                    "base_score": candidate_base,
+                    "multiplier": candidate_multiplier,
+                    "fast_weight_multiplier": candidate_fast_weight,
+                    "confidence_multiplier": candidate_confidence,
+                    "regime_bias": candidate_regime_bias,
+                    "experiments": candidate_exp_ids,
+                    "reason": reason_text,
+                }
+            )
+
+        return counterfactuals
 
     @staticmethod
     def _build_weight_breakdown(

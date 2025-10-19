@@ -122,6 +122,45 @@ def test_regime_flip_forces_topology_switch_and_records_transition() -> None:
     assert isinstance(candidates, list) and candidates[0]["tactic_id"] == "defensive_wall"
 
 
+def test_counterfactual_explainers_include_topology_details() -> None:
+    router = PolicyRouter(summary_top_k=5)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="primary",
+                base_weight=1.1,
+                regime_bias={"bull": 1.2},
+                topology="topo-primary",
+            ),
+            PolicyTactic(
+                tactic_id="alt",
+                base_weight=1.0,
+                regime_bias={"bull": 1.0},
+                topology="topo-alt",
+            ),
+            PolicyTactic(
+                tactic_id="alt_secondary",
+                base_weight=0.95,
+                regime_bias={"bull": 0.9},
+                topology="topo-hedge",
+            ),
+        )
+    )
+
+    decision = router.route(_regime())
+
+    counterfactuals = decision.reflection_summary["counterfactuals"]
+    assert len(counterfactuals) == 2
+    assert counterfactuals[0]["topology"] == "topo-alt"
+    assert counterfactuals[0]["tactic_id"] == "alt"
+    assert {item["topology"] for item in counterfactuals} == {"topo-alt", "topo-hedge"}
+    first_reason = counterfactuals[0]["reason"]
+    assert counterfactuals[0]["score_gap"] > 0
+    assert first_reason.startswith("Scored")
+    assert "gap" in first_reason
+    assert ("base" in first_reason) or ("multiplier" in first_reason)
+
+
 def test_fast_weight_experiment_overrides_base_score() -> None:
     router = PolicyRouter()
     router.register_tactic(

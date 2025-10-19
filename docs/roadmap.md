@@ -94,7 +94,7 @@
 
 **Deliverables**
 - [x] `[ops]` Containerized runtime (Docker) + deployment profile (dev/paper); health checks. _Progress: Docker profiles now package the production runtime with Timescale/Redis/Kafka dependencies, proactive health checks, shared env overlays, and matching SystemConfig presets under regression coverage and updated setup docs so operators can launch dev or paper stacks with one compose command.【F:docker/runtime/docker-compose.dev.yml†L1-L136】【F:config/deployment/runtime_paper.yaml†L1-L38】【F:docs/development/setup.md†L62-L93】【F:tests/governance/test_system_config_runtime_profiles.py†L1-L57】_
-- [ ] `[core]` Live market data ingest configured (API keys, symbols, session calendars). _Progress: Institutional ingest builder now surfaces API key posture, trading session calendars, and macro calendar configuration via ReferenceDataLoader metadata, with regression coverage confirming London FX schedules and env-key detection while live wiring remains outstanding.【F:src/data_foundation/ingest/configuration.py†L73-L155】【F:src/data_foundation/ingest/configuration.py†L864-L955】【F:tests/data_foundation/test_timescale_config.py†L292-L318】_
+- [ ] `[core]` Live market data ingest configured (API keys, symbols, session calendars). _Progress: Institutional ingest builder now surfaces API key posture, trading session calendars, and macro calendar configuration via ReferenceDataLoader metadata, with regression coverage confirming London FX schedules and env-key detection while live wiring remains outstanding; managed ingest connectors CLI now exports operator-facing configuration summaries (symbols, API keys, session calendars) with coverage verifying London FX calendars and API key posture.【F:src/data_foundation/ingest/configuration.py†L73-L155】【F:src/data_foundation/ingest/configuration.py†L864-L955】【F:tests/data_foundation/test_timescale_config.py†L292-L318】【F:tools/operations/managed_ingest_connectors.py†L403-L504】【F:tests/tools/test_managed_ingest_connectors.py†L42-L127】_
 - [x] `[sim]` **Paper broker** connector smokeâ€‘tested; failover & reconnect logic. _Progress: Paper trading simulation now snapshots broker failover state even when only exposed via metrics, persists enriched side/symbol order summaries, and regressions assert report JSON carries failover thresholds and consecutive failure counters so reconnect logic stays audit-ready.【F:src/runtime/paper_simulation.py†L341-L545】【F:tests/runtime/test_paper_trading_simulation_runner.py†L495-L514】【F:tests/integration/test_paper_trading_simulation.py†L422-L432】_
 - [x] `[obs]` Monitoring: dashboards (latency, throughput, P&L swings, memory); alerts on tail spikes and drift. _Progress: `build_observability_dashboard` now consumes a `MonitoringSnapshot`, renders latency/throughput/P&L/memory metrics, surfaces tail spike metadata, and annotates drift alerts across the latency panel with regression coverage proving the alert surface.【F:src/operations/observability_dashboard.py†L301-L448】【F:tests/operations/test_observability_dashboard.py†L388-L447】_
 - [x] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports). _Progress: The nightly replay job now emits diary, drift, and ledger artifacts per run, archives them into dated `artifacts/` mirrors, and is wired to the scheduled GitHub workflow/Make target with regression coverage proving the exports.【F:tools/operations/nightly_replay_job.py:526】【F:tests/tools/test_nightly_replay_job.py:11】【F:.github/workflows/replay-nightly.yml:4】【F:Makefile:137】_
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T17:57:30Z
+
+### Last 4 commits
+- 060c339e test(.telemetry): tune 3 files (2025-10-19)
+- b22faa80 feat(artifacts): add 41 files (2025-10-19)
+- f5458efc feat(_automation): add 2 files (2025-10-19)
+- 311a5130 feat(_automation): add 2 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T17:34:23Z
 

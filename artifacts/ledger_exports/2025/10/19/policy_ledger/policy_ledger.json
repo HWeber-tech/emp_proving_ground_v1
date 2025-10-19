@@ -1,29 +1,57 @@
 {
   "records": {
-    "catalogue/trend-alpha::0": {
+    "alpha.policy": {
       "approvals": [
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-19T18:00:39.474624+00:00",
-      "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
+      "created_at": "2025-10-19T18:18:23.007199+00:00",
+      "evidence_id": "diary-alpha-001",
       "history": [
         {
-          "applied_at": "2025-10-19T18:00:39.474624+00:00",
+          "applied_at": "2025-10-19T18:18:23.007199+00:00",
           "approvals": [
             "compliance",
             "risk"
           ],
-          "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
+          "evidence_id": "diary-alpha-001",
           "next_stage": "paper",
+          "policy_delta": {
+            "metadata": {},
+            "notes": [],
+            "risk_config": {
+              "max_leverage": 7,
+              "max_risk_per_trade_pct": 0.04
+            },
+            "router_guardrails": {
+              "max_latency_ms": 180
+            }
+          },
           "prior_stage": null
         }
       ],
-      "policy_id": "catalogue/trend-alpha::0",
+      "metadata": {
+        "runtime": {
+          "deployment": "paper",
+          "strategy_id": "alpha.policy"
+        }
+      },
+      "policy_delta": {
+        "metadata": {},
+        "notes": [],
+        "risk_config": {
+          "max_leverage": 7,
+          "max_risk_per_trade_pct": 0.04
+        },
+        "router_guardrails": {
+          "max_latency_ms": 180
+        }
+      },
+      "policy_id": "alpha.policy",
       "stage": "paper",
-      "tactic_id": "catalogue/trend-alpha::0",
-      "updated_at": "2025-10-19T18:00:39.474624+00:00"
+      "tactic_id": "tactic.alpha",
+      "updated_at": "2025-10-19T18:18:23.007199+00:00"
     }
   },
-  "updated_at": "2025-10-19T18:00:39.474746+00:00"
+  "updated_at": "2025-10-19T18:18:23.007341+00:00"
 }

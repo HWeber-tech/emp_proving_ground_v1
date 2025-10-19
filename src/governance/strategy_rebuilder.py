@@ -180,7 +180,8 @@ class StrategyRuntimeConfig:
     def as_dict(self) -> Mapping[str, Any]:
         """Return the canonical payload as a plain mapping."""
 
-        return dict(self.payload)
+        canonical_text = self.json_bytes.decode("utf-8")
+        return cast(Mapping[str, Any], json.loads(canonical_text))
 
     def json(self, *, indent: int | None = None) -> str:
         """Return the configuration as a JSON string.
@@ -190,9 +191,11 @@ class StrategyRuntimeConfig:
         payload with pretty-printing while preserving key ordering guarantees.
         """
 
+        canonical_text = self.json_bytes.decode("utf-8")
         if indent is None:
-            return self.json_bytes.decode("utf-8")
-        return json.dumps(self.payload, sort_keys=True, indent=indent, ensure_ascii=False)
+            return canonical_text
+        payload_dict = json.loads(canonical_text)
+        return json.dumps(payload_dict, sort_keys=True, indent=indent, ensure_ascii=False)
 
 
 def rebuild_strategy(

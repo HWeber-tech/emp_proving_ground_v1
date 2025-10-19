@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 from pathlib import Path
+from typing import Any, MutableMapping, cast
 
 import pytest
 
@@ -121,6 +122,26 @@ def test_rebuild_strategy_honours_base_config_and_guardrails(tmp_path: Path) -> 
     assert config.risk_config["max_leverage"] == pytest.approx(9.0)
     assert config.router_guardrails["max_latency_ms"] == 150
     assert config.router_guardrails["max_orders_per_minute"] == 120
+
+
+def test_strategy_runtime_config_canonical_output_resists_mutation(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "policy_ledger.json"
+    store, policy_hash = _seed_policy(ledger_path)
+
+    config = rebuild_strategy(policy_hash, store=store)
+
+    canonical_json = config.json()
+    canonical_dict = json.loads(canonical_json)
+
+    payload_mutable = cast(MutableMapping[str, Any], config.payload)
+    risk_config_mutable = cast(MutableMapping[str, Any], payload_mutable["risk_config"])
+    risk_config_mutable["max_leverage"] = 42
+
+    assert payload_mutable["risk_config"]["max_leverage"] == 42
+    assert config.json() == canonical_json
+    pretty_expected = json.dumps(canonical_dict, sort_keys=True, indent=2, ensure_ascii=False)
+    assert config.json(indent=2) == pretty_expected
+    assert config.as_dict() == canonical_dict
 
 
 def test_rebuild_strategy_unknown_hash(tmp_path: Path) -> None:

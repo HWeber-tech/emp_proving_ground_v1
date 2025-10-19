@@ -155,6 +155,7 @@ class PaperRunSummary:
     alerts: Sequence[str]
     stop_reasons: Sequence[str]
     invariant_breaches: Sequence[Mapping[str, Any]]
+    error_events: Sequence[Mapping[str, Any]]
     metrics: Mapping[str, Any]
     samples: Sequence[PaperRunSample]
     report: Mapping[str, Any] | None
@@ -184,6 +185,7 @@ class PaperRunSummary:
             "alerts": list(self.alerts),
             "stop_reasons": list(self.stop_reasons),
             "invariant_breaches": [dict(breach) for breach in self.invariant_breaches],
+            "error_events": [dict(event) for event in self.error_events],
             "metrics": dict(self.metrics),
             "samples": [_serialise_sample(sample) for sample in self.samples],
         }
@@ -426,6 +428,7 @@ class PaperRunMonitor:
             alerts=tuple(self.alerts),
             stop_reasons=tuple(self.stop_reasons),
             invariant_breaches=tuple(self.invariant_breaches),
+            error_events=tuple(self.error_events),
             metrics=metrics,
             samples=tuple(self.samples),
             report=report.to_dict(),

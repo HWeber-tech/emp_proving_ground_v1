@@ -414,6 +414,23 @@ def _ingest_configuration_metadata(
     if isinstance(symbols, (list, tuple)):
         summary["symbols"] = [str(symbol).strip() for symbol in symbols if str(symbol).strip()]
 
+    symbol_inventory = metadata.get("symbol_inventory")
+    if isinstance(symbol_inventory, (list, tuple)):
+        inventory_summary: list[dict[str, object]] = []
+        for entry in symbol_inventory:
+            if not isinstance(entry, Mapping):
+                continue
+            inventory_summary.append(
+                {
+                    "symbol": entry.get("symbol"),
+                    "margin_currency": entry.get("margin_currency"),
+                    "contract_size": entry.get("contract_size"),
+                    "pip_decimal_places": entry.get("pip_decimal_places"),
+                }
+            )
+        if inventory_summary:
+            summary["symbol_inventory"] = inventory_summary
+
     api_keys = metadata.get("api_keys")
     if isinstance(api_keys, Mapping):
         providers: dict[str, dict[str, object]] = {}

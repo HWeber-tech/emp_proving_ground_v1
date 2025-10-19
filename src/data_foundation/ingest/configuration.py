@@ -78,6 +78,7 @@ _API_KEY_ENV_CANDIDATES: dict[str, tuple[str, ...]] = {
 }
 
 _SESSION_CALENDAR_CACHE: tuple[dict[str, object], ...] | None = None
+_SYMBOL_INVENTORY_CACHE: tuple[dict[str, object], ...] | None = None
 
 
 def _api_key_metadata(extras: Mapping[str, str]) -> dict[str, dict[str, object]]:
@@ -148,15 +149,53 @@ def _resolve_session_calendars() -> tuple[dict[str, object], ...]:
     return _SESSION_CALENDAR_CACHE
 
 
+def _resolve_symbol_inventory() -> tuple[dict[str, object], ...]:
+    global _SYMBOL_INVENTORY_CACHE
+    if _SYMBOL_INVENTORY_CACHE is not None:
+        return _SYMBOL_INVENTORY_CACHE
+
+    try:
+        loader = ReferenceDataLoader()
+        instruments = loader.load_instruments()
+    except Exception:  # pragma: no cover - defensive guard for optional config
+        logger.debug("Failed to load instrument inventory", exc_info=True)
+        _SYMBOL_INVENTORY_CACHE = tuple()
+        return _SYMBOL_INVENTORY_CACHE
+
+    inventory: list[dict[str, object]] = []
+    for instrument in sorted(instruments.values(), key=lambda item: item.symbol):
+        payload: dict[str, object] = {
+            "symbol": instrument.symbol,
+            "contract_size": str(instrument.contract_size),
+            "pip_decimal_places": instrument.pip_decimal_places,
+            "margin_currency": instrument.margin_currency,
+        }
+
+        if instrument.long_swap_rate is not None:
+            payload["long_swap_rate"] = str(instrument.long_swap_rate)
+        if instrument.short_swap_rate is not None:
+            payload["short_swap_rate"] = str(instrument.short_swap_rate)
+        if instrument.swap_time is not None:
+            fmt = "%H:%M:%S" if instrument.swap_time.second else "%H:%M"
+            payload["swap_time"] = instrument.swap_time.strftime(fmt)
+
+        inventory.append(payload)
+
+    _SYMBOL_INVENTORY_CACHE = tuple(inventory)
+    return _SYMBOL_INVENTORY_CACHE
+
+
 def _metadata_base(
     api_keys: Mapping[str, Mapping[str, object]],
     session_calendars: Sequence[Mapping[str, object]],
     macro_calendars: Sequence[str],
+    symbol_inventory: Sequence[Mapping[str, object]],
 ) -> dict[str, object]:
     return {
         "api_keys": {provider: dict(details) for provider, details in api_keys.items()},
         "session_calendars": [dict(entry) for entry in session_calendars],
         "macro_calendars": list(macro_calendars),
+        "symbol_inventory": [dict(entry) for entry in symbol_inventory],
     }
 
 
@@ -869,10 +908,16 @@ def build_institutional_ingest_config(
     api_keys_summary = _api_key_metadata(extras)
     session_calendars = _resolve_session_calendars()
     macro_calendars = _configured_macro_calendars(extras)
+    symbol_inventory = _resolve_symbol_inventory()
     symbols = _parse_csv(extras.get("TIMESCALE_SYMBOLS"), fallback)
 
     def _base_metadata() -> dict[str, object]:
-        metadata = _metadata_base(api_keys_summary, session_calendars, macro_calendars)
+        metadata = _metadata_base(
+            api_keys_summary,
+            session_calendars,
+            macro_calendars,
+            symbol_inventory,
+        )
         metadata["symbols"] = list(symbols)
         return metadata
 

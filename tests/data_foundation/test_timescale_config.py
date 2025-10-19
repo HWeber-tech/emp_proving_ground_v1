@@ -317,6 +317,13 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
     assert london["close_time"] == "16:30"
     assert "Mon" in london["days"]
 
+    inventory = metadata["symbol_inventory"]
+    assert isinstance(inventory, list)
+    assert any(entry["symbol"] == "EURUSD" for entry in inventory)
+    eurusd = next(entry for entry in inventory if entry["symbol"] == "EURUSD")
+    assert eurusd["margin_currency"] == "USD"
+    assert eurusd["pip_decimal_places"] == 4
+
 
 def test_config_builder_detects_api_keys_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("FRED_API_KEY", "from-env")

@@ -57,6 +57,10 @@ def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch,
     assert configuration is not None
     assert configuration.get("symbols") == ["EURUSD"]
 
+    inventory = configuration.get("symbol_inventory")
+    assert isinstance(inventory, list)
+    assert any(entry.get("symbol") == "EURUSD" for entry in inventory)
+
     api_keys = configuration.get("api_keys")
     assert isinstance(api_keys, dict)
     assert api_keys["alpha_vantage"]["configured"] is False

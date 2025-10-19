@@ -121,6 +121,178 @@ def _normalise_proposal_ids(values: Iterable[str] | None) -> tuple[str, ...]:
     return tuple(cleaned)
 
 
+_PROMOTION_CHECKLIST_KEYS: tuple[str, ...] = (
+    "oos_regime_grid",
+    "leakage_checks",
+    "risk_audit",
+)
+
+_POSITIVE_CHECKLIST_VALUES: set[str] = {
+    "pass",
+    "passed",
+    "complete",
+    "completed",
+    "ok",
+    "okay",
+    "ready",
+    "approved",
+    "done",
+    "success",
+    "successful",
+    "green",
+    "satisfied",
+    "true",
+    "yes",
+    "y",
+    "1",
+}
+
+_NEGATIVE_CHECKLIST_VALUES: set[str] = {
+    "fail",
+    "failed",
+    "missing",
+    "todo",
+    "pending",
+    "blocked",
+    "false",
+    "no",
+    "n",
+    "0",
+    "incomplete",
+    "open",
+}
+
+
+def _normalise_checklist_key(raw_key: Any) -> str | None:
+    if raw_key is None:
+        return None
+    text = str(raw_key).strip().lower()
+    if not text:
+        return None
+    return text.replace(" ", "_").replace("-", "_")
+
+
+def _coerce_checklist_value(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        # Treat 0 as False and any other numeric value as True.
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if not lowered:
+            return None
+        if lowered in _POSITIVE_CHECKLIST_VALUES:
+            return True
+        if lowered in _NEGATIVE_CHECKLIST_VALUES:
+            return False
+        try:
+            numeric = float(lowered)
+        except ValueError:
+            return None
+        return bool(numeric)
+    if isinstance(value, Mapping):
+        # Prefer explicit status-style keys before falling back to booleans.
+        for key in ("status", "state", "result", "value", "verdict", "outcome"):
+            if key in value:
+                coerced = _coerce_checklist_value(value[key])
+                if coerced is not None:
+                    return coerced
+        for key in ("passed", "complete", "completed", "done", "ok", "ready", "approved", "success"):
+            if key in value:
+                coerced = _coerce_checklist_value(value[key])
+                if coerced is not None:
+                    return coerced
+        return None
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        for item in value:
+            coerced = _coerce_checklist_value(item)
+            if coerced is not None:
+                return coerced
+        return None
+    return None
+
+
+def _extract_checklist_statuses(metadata: Mapping[str, Any] | None) -> dict[str, bool]:
+    """Normalise promotion checklist metadata into boolean statuses."""
+
+    statuses: dict[str, bool] = {}
+    if not isinstance(metadata, Mapping):
+        metadata_payload: Mapping[str, Any] = {}
+    else:
+        metadata_payload = metadata
+
+    raw_checklist = metadata_payload.get("promotion_checklist")
+
+    def _record_status(raw_key: Any, value: Any) -> None:
+        key = _normalise_checklist_key(raw_key)
+        if key is None:
+            return
+        coerced = _coerce_checklist_value(value)
+        statuses[key] = bool(coerced) if coerced is not None else False
+
+    if isinstance(raw_checklist, Mapping):
+        for raw_key, value in raw_checklist.items():
+            if isinstance(value, Mapping):
+                # Some payloads embed the identifier inside the value mapping.
+                candidate = (
+                    value.get("key")
+                    or value.get("id")
+                    or value.get("item_id")
+                    or value.get("name")
+                )
+                resolved_key = _normalise_checklist_key(candidate) or raw_key
+            else:
+                resolved_key = raw_key
+            _record_status(resolved_key, value)
+    elif isinstance(raw_checklist, Sequence) and not isinstance(raw_checklist, (str, bytes)):
+        for item in raw_checklist:
+            if isinstance(item, Mapping):
+                raw_key = (
+                    item.get("key")
+                    or item.get("id")
+                    or item.get("item_id")
+                    or item.get("name")
+                )
+                if raw_key is None:
+                    continue
+                value = (
+                    item.get("status")
+                    or item.get("state")
+                    or item.get("result")
+                    or item.get("value")
+                    or item.get("verdict")
+                    or item.get("outcome")
+                    or item.get("passed")
+                    or item.get("complete")
+                    or item.get("completed")
+                    or item.get("done")
+                    or item.get("ok")
+                    or item.get("ready")
+                    or item.get("approved")
+                    or item.get("success")
+                )
+                _record_status(raw_key, value if value is not None else item)
+            else:
+                # A bare string entry implies completion of that checklist item.
+                _record_status(item, True)
+    elif isinstance(raw_checklist, str):
+        # Support comma-separated identifiers for convenience.
+        for token in raw_checklist.split(","):
+            _record_status(token, True)
+
+    # Allow top-level overrides when the checklist mapping is absent.
+    for required in _PROMOTION_CHECKLIST_KEYS:
+        if required in statuses:
+            continue
+        for alias in {required, required.replace("_", "-"), required.replace("_", " ")}:
+            if alias in metadata_payload:
+                statuses[required] = bool(_coerce_checklist_value(metadata_payload[alias]))
+                break
+
+    return statuses
+
+
 def _merge_proposal_ids(
     existing: Iterable[str],
     updates: Iterable[str] | None,
@@ -295,6 +467,27 @@ class PolicyLedgerRecord:
             payload["metadata"] = dict(self.metadata)
         return payload
 
+    def promotion_checklist_status(self) -> Mapping[str, bool]:
+        """Return normalised promotion checklist completion flags."""
+
+        return _extract_checklist_statuses(self.metadata)
+
+    def promotion_checklist_gaps(
+        self,
+        *,
+        required: Iterable[str] | None = None,
+    ) -> tuple[str, ...]:
+        """Identify promotion checklist items that remain incomplete."""
+
+        required_items = tuple(required) if required is not None else _PROMOTION_CHECKLIST_KEYS
+        statuses = self.promotion_checklist_status()
+        missing = [
+            item
+            for item in required_items
+            if not statuses.get(item, False)
+        ]
+        return tuple(missing)
+
     def audit_gaps(
         self,
         *,
@@ -321,6 +514,10 @@ class PolicyLedgerRecord:
                 gaps.append("missing_approvals")
             elif stage is PolicyLedgerStage.LIMITED_LIVE and len(self.approvals) < 2:
                 gaps.append("additional_approval_needed")
+
+        if stage is PolicyLedgerStage.LIMITED_LIVE:
+            for item in self.promotion_checklist_gaps():
+                gaps.append(f"missing_{item}")
 
         # De-duplicate while preserving order for deterministic payloads.
         return tuple(dict.fromkeys(gaps))

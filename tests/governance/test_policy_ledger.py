@@ -417,6 +417,13 @@ def test_release_manager_enforces_audit_coverage(tmp_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         evidence_id="diary-alpha",
         approvals=("risk", "ops"),
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": "pass",
+                "risk_audit": {"status": "complete"},
+            }
+        },
     )
 
     enforced_stage = manager.resolve_stage("alpha")
@@ -442,6 +449,48 @@ def test_release_manager_caps_default_stage_without_record(tmp_path: Path) -> No
     assert summary["stage"] == PolicyLedgerStage.PILOT.value
     assert summary["record_present"] is False
     assert summary["limited_live_authorised"] is False
+
+
+def test_policy_ledger_enforces_promotion_checklist(tmp_path: Path) -> None:
+    path = tmp_path / "policy_ledger.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
+
+    manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        evidence_id="diary-alpha",
+        approvals=("risk", "ops"),
+    )
+
+    summary = manager.describe("alpha")
+    gaps = set(summary.get("audit_gaps", []))
+    assert {"missing_oos_regime_grid", "missing_leakage_checks", "missing_risk_audit"} <= gaps
+
+    manager.apply_stage_transition(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        metadata={
+            "promotion_checklist": [
+                {"item_id": "oos-regime-grid", "status": "pass"},
+                {"item_id": "leakage_checks", "status": "complete"},
+                {"item_id": "risk_audit", "status": "approved"},
+            ]
+        },
+    )
+
+    updated_summary = manager.describe("alpha")
+    updated_gaps = set(updated_summary.get("audit_gaps", []))
+    assert "missing_oos_regime_grid" not in updated_gaps
+    assert "missing_leakage_checks" not in updated_gaps
+    assert "missing_risk_audit" not in updated_gaps
+
 
 def test_policy_ledger_feature_flags_env_parsing() -> None:
     enabled = PolicyLedgerFeatureFlags.from_env({"POLICY_LEDGER_REQUIRE_DIARY": "ON"})

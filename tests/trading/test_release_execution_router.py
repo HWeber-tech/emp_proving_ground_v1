@@ -66,6 +66,13 @@ async def test_release_router_routes_live_stage(tmp_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="diary-alpha",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     second = await router.process_order(intent)
@@ -184,6 +191,13 @@ async def test_release_router_falls_back_to_paper(tmp_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk",),
         evidence_id="diary-beta",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     intent: dict[str, Any] = {"strategy_id": "beta"}
@@ -231,6 +245,13 @@ async def test_release_router_enforces_missing_evidence(tmp_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id=None,
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     intent: dict[str, Any] = {"strategy_id": "gamma"}
@@ -325,6 +346,13 @@ async def test_release_router_counterfactual_guardrail_forces_paper(tmp_path: Pa
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="dd-alpha-guard",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     paper_engine = StubEngine("paper")
@@ -410,6 +438,13 @@ async def test_release_router_configure_engines_for_stage_routing(tmp_path: Path
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="dd-alpha-live",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     await router.process_order(intent)

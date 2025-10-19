@@ -799,6 +799,13 @@ async def test_guardrail_near_miss_forces_paper_release(
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("ops", "risk"),
         evidence_id="diary:123",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     paper_engine = RecordingExecutionEngine()
@@ -1552,6 +1559,13 @@ async def test_trading_manager_auto_installs_release_router(
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("ops", "risk"),
         evidence_id="diary-alpha",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     bus = RecordingBus()
@@ -1636,6 +1650,13 @@ def test_describe_release_posture(tmp_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="diary-alpha",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     bus = RecordingBus()
@@ -1743,6 +1764,13 @@ async def test_install_release_execution_router(tmp_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("ops", "risk"),
         evidence_id="diary-alpha",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     await router.process_order(intent)
@@ -1763,6 +1791,13 @@ async def test_release_router_forces_paper_on_drift_warn(tmp_path: Path) -> None
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("ops", "risk"),
         evidence_id="diary-alpha",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     paper_engine = RecordingExecutionEngine()
@@ -2198,6 +2233,13 @@ async def test_trading_manager_routes_limited_live_to_live_engine(
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="dd-alpha-live",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
     )
 
     paper_engine = RecordingExecutionEngine()

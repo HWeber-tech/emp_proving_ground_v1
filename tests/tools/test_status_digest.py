@@ -76,8 +76,10 @@ METRICS_SAMPLE = {
                 "mttr_readable": "0:17:00",
                 "ack_channel": "slack",
                 "ack_actor": "oncall-analyst",
+                "ack_channel_evidence": "slack://incidents/ci-alert-2024-06-08",
                 "resolve_channel": "github",
                 "resolve_actor": "maintainer",
+                "resolve_channel_evidence": "https://github.com/org/repo/issues/42",
             },
         }
     ],
@@ -166,11 +168,23 @@ def test_render_ci_dashboard_table_compiles_rows(
     alert_value, alert_notes = rows["Alert response"]
     assert alert_value.startswith("MTTA 5.00m / MTTR 17.00m")
     assert "ci-alert-2024-06-08" in alert_value
-    assert "ack via slack" in alert_value
-    assert "resolve via github" in alert_value
+    assert (
+        "ack via slack (evidence: slack://incidents/ci-alert-2024-06-08)"
+        in alert_value
+    )
+    assert (
+        "resolve via github (evidence: https://github.com/org/repo/issues/42)"
+        in alert_value
+    )
     assert "Opened 2024-06-08T09:55:00+00:00" in alert_notes
-    assert "Acknowledged 2024-06-08T10:00:00+00:00 by oncall-analyst" in alert_notes
-    assert "Resolved 2024-06-08T10:12:00+00:00 by maintainer" in alert_notes
+    assert (
+        "Acknowledged 2024-06-08T10:00:00+00:00 by oncall-analyst"
+        " (evidence: slack://incidents/ci-alert-2024-06-08)" in alert_notes
+    )
+    assert (
+        "Resolved 2024-06-08T10:12:00+00:00 by maintainer"
+        " (evidence: https://github.com/org/repo/issues/42)" in alert_notes
+    )
     assert "MTTA 0:05:00" in alert_notes
     assert "MTTR 0:17:00" in alert_notes
     assert "Source: drills/ci-alert-2024-06-08.json" in alert_notes
@@ -205,8 +219,14 @@ def test_render_weekly_status_summary_contains_sections(
     assert "## Alert response" in summary
     assert "Label: ci-alert-2024-06-08 (drill)" in summary
     assert "Opened: 2024-06-08T09:55:00+00:00" in summary
-    assert "Acknowledged: 2024-06-08T10:00:00+00:00 (via slack, by oncall-analyst)" in summary
-    assert "Resolved: 2024-06-08T10:12:00+00:00 (via github, by maintainer)" in summary
+    assert (
+        "Acknowledged: 2024-06-08T10:00:00+00:00 (via slack, by oncall-analyst,"
+        " evidence slack://incidents/ci-alert-2024-06-08)" in summary
+    )
+    assert (
+        "Resolved: 2024-06-08T10:12:00+00:00 (via github, by maintainer,"
+        " evidence https://github.com/org/repo/issues/42)" in summary
+    )
     assert "MTTA: 5.00 minutes (0:05:00)" in summary
     assert "MTTR: 17.00 minutes (0:17:00)" in summary
     assert "Evidence: drills/ci-alert-2024-06-08.json" in summary
@@ -272,6 +292,8 @@ def test_alert_response_ignores_unknown_channels(metrics_file: Path, monkeypatch
     statuses["resolve_channel"] = "UNKNOWN"
     statuses["ack_actor"] = "unknown"
     statuses["resolve_actor"] = "Unknown"
+    statuses["ack_channel_evidence"] = "unknown"
+    statuses["resolve_channel_evidence"] = "Unknown"
     statuses.pop("mtta_minutes", None)
     statuses.pop("mttr_minutes", None)
     statuses.pop("mtta_readable", None)
@@ -294,8 +316,10 @@ def test_alert_response_ignores_unknown_channels(metrics_file: Path, monkeypatch
     assert alert_value.startswith("MTTA 5.00m / MTTR 17.00m")
     assert "ack via" not in alert_value
     assert "resolve via" not in alert_value
+    assert "evidence" not in alert_value
     assert "oncall-analyst" not in alert_notes
     assert "maintainer" not in alert_notes
+    assert "evidence" not in alert_notes
 
     summary = render_weekly_status_summary(
         metrics_file,

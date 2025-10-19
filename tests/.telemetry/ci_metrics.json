@@ -241,8 +241,10 @@
         "mttr_readable": "0:18:30",
         "ack_channel": "slack",
         "ack_actor": "oncall-analyst",
+        "ack_channel_evidence": "slack://incidents/ci-alert-2025-10-07",
         "resolve_channel": "github",
         "resolve_actor": "maintainer",
+        "resolve_channel_evidence": "https://github.com/org/repo/issues/73",
         "drill": "true"
       },
       "note": "Ack via slack in 0:03:00; Resolve via github in 0:18:30"

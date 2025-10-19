@@ -252,6 +252,10 @@ def _alert_snapshot(metrics: Mapping[str, Any]) -> Mapping[str, Any] | None:
     resolve_channel = _normalize_unknown(_status_text("resolve_channel"))
     ack_actor = _normalize_unknown(_status_text("ack_actor"))
     resolve_actor = _normalize_unknown(_status_text("resolve_actor"))
+    ack_channel_evidence = _normalize_unknown(_status_text("ack_channel_evidence"))
+    resolve_channel_evidence = _normalize_unknown(
+        _status_text("resolve_channel_evidence")
+    )
 
     snapshot: MutableMapping[str, Any] = {
         "label": _clean_label(latest.get("label")),
@@ -263,8 +267,10 @@ def _alert_snapshot(metrics: Mapping[str, Any]) -> Mapping[str, Any] | None:
         "generated_at": _clean_label(latest.get("generated_at")),
         "ack_channel": ack_channel,
         "ack_actor": ack_actor,
+        "ack_channel_evidence": ack_channel_evidence,
         "resolve_channel": resolve_channel,
         "resolve_actor": resolve_actor,
+        "resolve_channel_evidence": resolve_channel_evidence,
         "mtta_minutes": mtta_minutes,
         "mtta_readable": mtta_readable,
         "mttr_minutes": mttr_minutes,
@@ -450,10 +456,18 @@ def _render_rows(
         channel_notes: list[str] = []
         ack_channel = alerts.get("ack_channel")
         if ack_channel:
-            channel_notes.append(f"ack via {ack_channel}")
+            ack_segment = f"ack via {ack_channel}"
+            ack_evidence = alerts.get("ack_channel_evidence")
+            if ack_evidence:
+                ack_segment += f" (evidence: {ack_evidence})"
+            channel_notes.append(ack_segment)
         resolve_channel = alerts.get("resolve_channel")
         if resolve_channel:
-            channel_notes.append(f"resolve via {resolve_channel}")
+            resolve_segment = f"resolve via {resolve_channel}"
+            resolve_evidence = alerts.get("resolve_channel_evidence")
+            if resolve_evidence:
+                resolve_segment += f" (evidence: {resolve_evidence})"
+            channel_notes.append(resolve_segment)
         if channel_notes:
             extras.append(", ".join(channel_notes))
 
@@ -466,16 +480,22 @@ def _render_rows(
         acknowledged_at = alerts.get("acknowledged_at")
         if acknowledged_at:
             ack_actor = alerts.get("ack_actor")
+            ack_evidence = alerts.get("ack_channel_evidence")
             entry = f"Acknowledged {acknowledged_at}"
             if ack_actor:
                 entry += f" by {ack_actor}"
+            if ack_evidence:
+                entry += f" (evidence: {ack_evidence})"
             notes.append(entry)
         resolved_at = alerts.get("resolved_at")
         if resolved_at:
             resolve_actor = alerts.get("resolve_actor")
+            resolve_evidence = alerts.get("resolve_channel_evidence")
             entry = f"Resolved {resolved_at}"
             if resolve_actor:
                 entry += f" by {resolve_actor}"
+            if resolve_evidence:
+                entry += f" (evidence: {resolve_evidence})"
             notes.append(entry)
 
         mtta_readable = alerts.get("mtta_readable")
@@ -736,6 +756,9 @@ def _alert_section(snapshot: Mapping[str, Any] | None) -> list[str]:
         ack_actor = snapshot.get("ack_actor")
         if ack_actor:
             details.append(f"by {ack_actor}")
+        ack_evidence = snapshot.get("ack_channel_evidence")
+        if ack_evidence:
+            details.append(f"evidence {ack_evidence}")
         detail_suffix = f" ({', '.join(details)})" if details else ""
         lines.append(f"- Acknowledged: {acknowledged_at}{detail_suffix}")
 
@@ -748,6 +771,9 @@ def _alert_section(snapshot: Mapping[str, Any] | None) -> list[str]:
         resolve_actor = snapshot.get("resolve_actor")
         if resolve_actor:
             details.append(f"by {resolve_actor}")
+        resolve_evidence = snapshot.get("resolve_channel_evidence")
+        if resolve_evidence:
+            details.append(f"evidence {resolve_evidence}")
         detail_suffix = f" ({', '.join(details)})" if details else ""
         lines.append(f"- Resolved: {resolved_at}{detail_suffix}")
 

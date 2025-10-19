@@ -463,6 +463,7 @@ def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
         timestamp_field: str | None = None,
         channel_field: str | None = None,
         actor_field: str | None = None,
+        evidence_field: str | None = None,
     ) -> tuple[datetime | None, Mapping[str, Any] | None]:
         candidate_set = {_normalise_event_type(value) for value in candidates}
         for event_timestamp, event in events:
@@ -478,6 +479,8 @@ def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
                     fallback_event["channel"] = timeline.get(channel_field)
                 if actor_field is not None:
                     fallback_event["actor"] = timeline.get(actor_field)
+                if evidence_field is not None:
+                    fallback_event["evidence"] = timeline.get(evidence_field)
                 return fallback_timestamp, fallback_event
 
         return None, None
@@ -506,6 +509,7 @@ def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
         timestamp_field="acknowledged_at",
         channel_field="ack_channel",
         actor_field="ack_actor",
+        evidence_field="ack_channel_evidence",
     )
 
     resolved_ts, resolved_event = pick_event(
@@ -519,6 +523,7 @@ def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
         timestamp_field="resolved_at",
         channel_field="resolve_channel",
         actor_field="resolve_actor",
+        evidence_field="resolve_channel_evidence",
     )
 
     mtta_seconds: float | None = None
@@ -533,17 +538,30 @@ def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
     incident_label = timeline.get("label") or incident_id
     generated_at = _parse_timestamp(timeline.get("generated_at"))
 
+    def _event_evidence(event: Mapping[str, Any] | None) -> str | None:
+        if not isinstance(event, Mapping):
+            return None
+        for key in ("evidence", "evidence_url", "link"):
+            value = event.get(key)
+            if value not in (None, ""):
+                return str(value)
+        return None
+
     ack_channel = None
     ack_actor = None
+    ack_channel_evidence = None
     if isinstance(ack_event, Mapping):
         ack_channel = ack_event.get("channel")
         ack_actor = ack_event.get("actor")
+        ack_channel_evidence = _event_evidence(ack_event)
 
     resolve_channel = None
     resolve_actor = None
+    resolve_channel_evidence = None
     if isinstance(resolved_event, Mapping):
         resolve_channel = resolved_event.get("channel")
         resolve_actor = resolved_event.get("actor")
+        resolve_channel_evidence = _event_evidence(resolved_event)
 
     note_parts: list[str] = []
     mtta_seconds_str, mtta_minutes_str, mtta_human = _format_duration(mtta_seconds)
@@ -576,11 +594,17 @@ def summarise_alert_timeline(timeline: Mapping[str, Any]) -> dict[str, Any]:
         "resolved_at": resolved_ts.isoformat(timespec="seconds") if resolved_ts else None,
         "ack_channel": str(ack_channel) if ack_channel not in (None, "") else None,
         "ack_actor": str(ack_actor) if ack_actor not in (None, "") else None,
+        "ack_channel_evidence": str(ack_channel_evidence)
+        if ack_channel_evidence not in (None, "")
+        else None,
         "resolve_channel": str(resolve_channel)
         if resolve_channel not in (None, "")
         else None,
         "resolve_actor": str(resolve_actor)
         if resolve_actor not in (None, "")
+        else None,
+        "resolve_channel_evidence": str(resolve_channel_evidence)
+        if resolve_channel_evidence not in (None, "")
         else None,
         "mtta_seconds": int(round(mtta_seconds)) if mtta_seconds is not None else None,
         "mtta_minutes": float(mtta_minutes_str) if mtta_minutes_str is not None else None,
@@ -625,11 +649,17 @@ def record_alert_response(
         "mttr_readable": _string_or_na(summary.get("mttr_readable")),
         "ack_channel": _string_or_na(summary.get("ack_channel"), fallback="unknown"),
         "ack_actor": _string_or_na(summary.get("ack_actor"), fallback="unknown"),
+        "ack_channel_evidence": _string_or_na(
+            summary.get("ack_channel_evidence"), fallback="unknown"
+        ),
         "resolve_channel": _string_or_na(
             summary.get("resolve_channel"), fallback="unknown"
         ),
         "resolve_actor": _string_or_na(
             summary.get("resolve_actor"), fallback="unknown"
+        ),
+        "resolve_channel_evidence": _string_or_na(
+            summary.get("resolve_channel_evidence"), fallback="unknown"
         ),
         "drill": "true" if summary.get("drill") else "false",
     }
@@ -644,6 +674,14 @@ def record_alert_response(
         "generated_at": summary.get("generated_at"),
         "statuses": statuses,
     }
+
+    ack_channel_evidence_summary = summary.get("ack_channel_evidence")
+    if ack_channel_evidence_summary not in (None, ""):
+        entry["ack_channel_evidence"] = str(ack_channel_evidence_summary)
+
+    resolve_channel_evidence_summary = summary.get("resolve_channel_evidence")
+    if resolve_channel_evidence_summary not in (None, ""):
+        entry["resolve_channel_evidence"] = str(resolve_channel_evidence_summary)
 
     entry_source = source or summary.get("source")
     if entry_source:

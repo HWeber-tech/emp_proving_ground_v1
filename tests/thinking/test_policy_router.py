@@ -260,11 +260,11 @@ def test_linear_attention_router_promotes_novel_candidate_when_enabled() -> None
 
     base_regime = _regime(confidence=0.6, volatility=0.25)
 
-    first = router.route(base_regime)
-    second = router.route(base_regime)
-
+    first = router.route(
+        base_regime,
+        linear_attention_enabled=True,
+    )
     assert first.tactic_id == "dominant"
-    assert second.tactic_id == "dominant"
 
     decision = router.route(
         _regime(confidence=0.6, volatility=0.25),
@@ -275,7 +275,7 @@ def test_linear_attention_router_promotes_novel_candidate_when_enabled() -> None
     la_context = decision.reflection_summary["linear_attention"]
     assert la_context["recommended_tactic_id"] == "novelty"
     assert la_context["overridden"] is False
-    assert la_context["history_before"]["counts"]["dominant"] >= 2
+    assert la_context["history_before"]["counts"]["dominant"] >= 1
     assert la_context["history_after"]["counts"]["novelty"] >= 1
     weights = {
         candidate["tactic_id"]: candidate["attention"]

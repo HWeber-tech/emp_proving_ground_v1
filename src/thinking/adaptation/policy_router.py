@@ -1089,6 +1089,7 @@ class PolicyRouter:
             working_entries = list(ranked_entries)
 
         linear_attention_context: dict[str, object] | None = None
+        linear_attention_applied = False
         if (
             linear_attention_enabled
             and self._linear_attention_router is not None
@@ -1106,6 +1107,7 @@ class PolicyRouter:
                     reordered.append(entry)
                 working_entries = reordered
                 linear_attention_context = dict(context)
+                linear_attention_applied = True
 
         if (
             exploration_context is not None
@@ -1222,14 +1224,14 @@ class PolicyRouter:
             tournament_snapshot.setdefault("regime", regime_state.regime)
             reflection_summary["tournament_selection"] = tournament_snapshot
 
-        if self._linear_attention_router is not None:
+        if linear_attention_applied and self._linear_attention_router is not None:
             self._linear_attention_router.observe_selection(tactic.tactic_id)
         if linear_attention_context is not None:
             linear_attention_context["final_tactic_id"] = tactic.tactic_id
             linear_attention_context["overridden"] = (
                 tactic.tactic_id != linear_attention_context.get("recommended_tactic_id")
             )
-            if self._linear_attention_router is not None:
+            if linear_attention_applied and self._linear_attention_router is not None:
                 linear_attention_context["history_after"] = self._linear_attention_router.snapshot_history()
             reflection_summary["linear_attention"] = linear_attention_context
 

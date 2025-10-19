@@ -34,6 +34,7 @@ from src.operations.quality_telemetry import (
 )
 from src.operations.roi import RoiStatus, RoiTelemetrySnapshot
 from src.operations.slo import OperationalSLOSnapshot, SLOStatus, ServiceSLO
+from src.operations.sensory_drift import DriftSeverity, SensoryDriftSnapshot
 from src.understanding.diagnostics import (
     UnderstandingGraphStatus,
     UnderstandingLoopSnapshot,
@@ -105,6 +106,93 @@ def _normalise_percent(value: float | None) -> float | None:
     if value > 1.0 + 1e-9:
         return value
     return value * 100.0
+
+
+def _format_ms(value: Any) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return "n/a"
+    if numeric >= 1000.0:
+        return f"{numeric / 1000.0:.2f}s"
+    if numeric >= 100.0:
+        return f"{numeric:.0f}ms"
+    return f"{numeric:.1f}ms"
+
+
+def _format_rate(value: Any, unit: str) -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return f"n/a {unit}"
+    return f"{numeric:.2f} {unit}"
+
+
+def _format_memory(value: Any, *, unit: str = "MiB") -> str:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return f"n/a {unit}"
+    return f"{numeric:.1f} {unit}"
+
+
+def _map_monitoring_status(value: Any) -> DashboardStatus:
+    if isinstance(value, DashboardStatus):
+        return value
+    if isinstance(value, DriftSeverity):
+        return _map_drift_status(value)
+    if value is None:
+        return DashboardStatus.ok
+    text = str(value).strip().lower()
+    if not text:
+        return DashboardStatus.ok
+    fail_tokens = {
+        "fail",
+        "critical",
+        "alert",
+        "severe",
+        "fatal",
+        "breach",
+        "error",
+    }
+    warn_tokens = {
+        "warn",
+        "warning",
+        "at_risk",
+        "caution",
+        "degraded",
+        "anomaly",
+    }
+    if text in fail_tokens:
+        return DashboardStatus.fail
+    if text in warn_tokens:
+        return DashboardStatus.warn
+    return DashboardStatus.ok
+
+
+def _map_drift_status(value: DriftSeverity | str | None) -> DashboardStatus:
+    if isinstance(value, DriftSeverity):
+        if value is DriftSeverity.alert:
+            return DashboardStatus.fail
+        if value is DriftSeverity.warn:
+            return DashboardStatus.warn
+        return DashboardStatus.ok
+    return _map_monitoring_status(value)
+
+
+def _normalise_drift_payload(value: Any) -> Mapping[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, SensoryDriftSnapshot):
+        return value.as_dict()
+    if isinstance(value, Mapping):
+        payload = dict(value)
+        dimensions = payload.get("dimensions")
+        if isinstance(dimensions, Mapping):
+            payload["dimensions"] = {
+                str(name): dict(dimension)
+                for name, dimension in dimensions.items()
+                if isinstance(dimension, Mapping)
+            }
+        return payload
+    return None
 
 
 @dataclass(frozen=True)
@@ -207,6 +295,42 @@ class ObservabilityDashboard:
             lines.append("")
 
         return "\n".join(lines).rstrip() + "\n"
+
+
+@dataclass(frozen=True)
+class MonitoringSnapshot:
+    """Telemetry slice capturing runtime monitoring metrics."""
+
+    generated_at: datetime
+    latency_ms: Mapping[str, Any] = field(default_factory=dict)
+    throughput: Mapping[str, Any] = field(default_factory=dict)
+    pnl: Mapping[str, Any] = field(default_factory=dict)
+    memory: Mapping[str, Any] = field(default_factory=dict)
+    tail_spikes: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
+    drift_summary: Mapping[str, Any] | SensoryDriftSnapshot | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "generated_at": self.generated_at.astimezone(UTC).isoformat(),
+            "latency_ms": dict(self.latency_ms),
+            "throughput": dict(self.throughput),
+            "pnl": dict(self.pnl),
+            "memory": dict(self.memory),
+            "metadata": dict(self.metadata),
+        }
+        tail_alerts = [dict(entry) for entry in self.tail_spikes if isinstance(entry, Mapping)]
+        if tail_alerts:
+            payload["tail_spikes"] = tail_alerts
+        else:
+            payload["tail_spikes"] = []
+
+        if self.drift_summary is not None:
+            if isinstance(self.drift_summary, SensoryDriftSnapshot):
+                payload["drift_summary"] = self.drift_summary.as_dict()
+            elif isinstance(self.drift_summary, Mapping):
+                payload["drift_summary"] = dict(self.drift_summary)
+        return payload
 
 
 def _map_roi_status(status: RoiStatus) -> DashboardStatus:
@@ -1355,6 +1479,7 @@ def build_observability_dashboard(
     evolution_kpis: EvolutionKpiSnapshot | Mapping[str, Any] | None = None,
     operator_leverage_snapshot: OperatorLeverageSnapshot | Mapping[str, Any] | None = None,
     event_bus_snapshot: EventBusHealthSnapshot | None = None,
+    monitoring_snapshot: MonitoringSnapshot | Mapping[str, Any] | None = None,
     slo_snapshot: OperationalSLOSnapshot | None = None,
     backbone_snapshot: DataBackboneReadinessSnapshot | None = None,
     operational_readiness_snapshot: OperationalReadinessSnapshot | None = None,
@@ -1380,6 +1505,12 @@ def build_observability_dashboard(
                 compliance_inputs.extend(events)
     if compliance_events:
         compliance_inputs.extend(compliance_events)
+
+    monitoring_payload: dict[str, Any] | None = None
+    if isinstance(monitoring_snapshot, MonitoringSnapshot):
+        monitoring_payload = monitoring_snapshot.as_dict()
+    elif isinstance(monitoring_snapshot, Mapping):
+        monitoring_payload = dict(monitoring_snapshot)
 
     if roi_snapshot is not None:
         roi_status = _map_roi_status(roi_snapshot.status)
@@ -1497,7 +1628,11 @@ def build_observability_dashboard(
     panels.append(_build_evolution_panel(evolution_kpis))
     panels.append(_build_operator_leverage_panel(operator_leverage_snapshot))
 
-    if event_bus_snapshot is not None or slo_snapshot is not None:
+    if (
+        event_bus_snapshot is not None
+        or slo_snapshot is not None
+        or monitoring_payload is not None
+    ):
         latency_status = DashboardStatus.ok
         details: list[str] = []
         latency_metadata: dict[str, Any] = {}
@@ -1543,7 +1678,213 @@ def build_observability_dashboard(
             latency_metadata["slos"] = slo_snapshot.as_dict()
             headline_parts.append(f"Ingest SLOs {slo_snapshot.status.value}")
 
-        headline = "; ".join(headline_parts) if headline_parts else "Latency overview"
+        if monitoring_payload is not None:
+            latency_metadata["monitoring"] = monitoring_payload
+            latency_status = _escalate(
+                latency_status,
+                _map_monitoring_status(monitoring_payload.get("status")),
+            )
+
+            latency_info = monitoring_payload.get("latency_ms") or monitoring_payload.get(
+                "latency"
+            )
+            if isinstance(latency_info, Mapping) and latency_info:
+                latency_status = _escalate(
+                    latency_status,
+                    _map_monitoring_status(latency_info.get("status")),
+                )
+                p95_value = latency_info.get("p95_ms") or latency_info.get("p95")
+                p99_value = latency_info.get("p99_ms") or latency_info.get("p99")
+                p95_text = _format_ms(p95_value)
+                p99_text = _format_ms(p99_value)
+                latency_line = f"Latency p95 {p95_text}, p99 {p99_text}"
+                target_value = (
+                    latency_info.get("p99_target_ms")
+                    or latency_info.get("target_p99_ms")
+                    or latency_info.get("p99_budget_ms")
+                    or latency_info.get("p99_threshold_ms")
+                )
+                if target_value is not None:
+                    latency_line += f" (target {_format_ms(target_value)})"
+                sample_count = latency_info.get("samples")
+                coerced_samples = _coerce_int(sample_count)
+                if coerced_samples is not None:
+                    latency_line += f" samples {coerced_samples}"
+                details.append(latency_line)
+                if _coerce_float(p99_value) is not None:
+                    headline_parts.append(f"p99 {_format_ms(p99_value)}")
+
+            throughput_info = monitoring_payload.get("throughput")
+            if isinstance(throughput_info, Mapping) and throughput_info:
+                latency_status = _escalate(
+                    latency_status,
+                    _map_monitoring_status(throughput_info.get("status")),
+                )
+                throughput_parts: list[str] = []
+                per_minute = (
+                    throughput_info.get("per_minute")
+                    or throughput_info.get("per_min")
+                    or throughput_info.get("orders_per_minute")
+                )
+                per_second = (
+                    throughput_info.get("per_second")
+                    or throughput_info.get("per_sec")
+                    or throughput_info.get("orders_per_second")
+                )
+                backlog = throughput_info.get("backlog")
+                per_minute_value = _coerce_float(per_minute)
+                if per_minute is not None:
+                    throughput_parts.append(_format_rate(per_minute, "per min"))
+                if per_second is not None:
+                    throughput_parts.append(_format_rate(per_second, "per sec"))
+                if backlog is not None:
+                    throughput_parts.append(f"backlog {int(_coerce_int(backlog) or 0)}")
+                if throughput_parts:
+                    details.append("Throughput " + ", ".join(throughput_parts))
+                if per_minute_value is not None:
+                    headline_parts.append(f"Throughput {per_minute_value:.1f}/min")
+
+            pnl_info = monitoring_payload.get("pnl") or monitoring_payload.get("pnl_swings")
+            if isinstance(pnl_info, Mapping) and pnl_info:
+                latency_status = _escalate(
+                    latency_status,
+                    _map_monitoring_status(pnl_info.get("status")),
+                )
+                pnl_parts: list[str] = []
+                daily = pnl_info.get("daily") or pnl_info.get("daily_pnl")
+                daily_value = _coerce_float(daily)
+                if daily_value is not None:
+                    pnl_parts.append(f"Daily P&L {_format_currency(daily_value)}")
+                    headline_parts.append(f"Daily P&L {_format_currency(daily_value)}")
+                swing = (
+                    pnl_info.get("swing")
+                    or pnl_info.get("volatility")
+                    or pnl_info.get("stdev")
+                )
+                swing_value = _coerce_float(swing)
+                if swing_value is not None:
+                    pnl_parts.append(f"σ {swing_value:.3f}")
+                drawdown = pnl_info.get("drawdown") or pnl_info.get("max_drawdown")
+                drawdown_value = _coerce_float(drawdown)
+                if drawdown_value is not None:
+                    pnl_parts.append(f"Drawdown {_format_percentage(drawdown_value)}")
+                if pnl_parts:
+                    details.append("P&L " + ", ".join(pnl_parts))
+
+            memory_info = monitoring_payload.get("memory")
+            if isinstance(memory_info, Mapping) and memory_info:
+                latency_status = _escalate(
+                    latency_status,
+                    _map_monitoring_status(memory_info.get("status")),
+                )
+                memory_parts: list[str] = []
+                current_mb = (
+                    memory_info.get("current_mb")
+                    or memory_info.get("current")
+                    or memory_info.get("used_mb")
+                )
+                peak_mb = memory_info.get("peak_mb") or memory_info.get("max_mb")
+                current_percent = memory_info.get("current_percent")
+                peak_percent = memory_info.get("peak_percent") or memory_info.get("max_percent")
+                if current_mb is not None:
+                    memory_parts.append(f"current {_format_memory(current_mb)}")
+                if peak_mb is not None:
+                    memory_parts.append(f"peak {_format_memory(peak_mb)}")
+                if current_percent is not None:
+                    memory_parts.append(f"curr {_format_percentage(current_percent)}")
+                if peak_percent is not None:
+                    memory_parts.append(f"peak {_format_percentage(peak_percent)}")
+                if memory_parts:
+                    details.append("Memory " + ", ".join(memory_parts))
+
+            tail_spikes = monitoring_payload.get("tail_spikes")
+            if isinstance(tail_spikes, Sequence):
+                for entry in tail_spikes:
+                    if not isinstance(entry, Mapping):
+                        continue
+                    severity = entry.get("severity")
+                    latency_status = _escalate(
+                        latency_status, _map_monitoring_status(severity)
+                    )
+                    name = str(entry.get("name") or entry.get("metric") or "tail")
+                    value = entry.get("value") or entry.get("magnitude")
+                    value_numeric = _coerce_float(value)
+                    unit = str(entry.get("unit") or "").strip()
+                    if value_numeric is None:
+                        value_text = str(value)
+                    else:
+                        if unit == "%" or entry.get("percent", False):
+                            value_text = _format_percentage(value_numeric)
+                        else:
+                            value_text = (
+                                f"{value_numeric:.3f}{unit}" if unit else f"{value_numeric:.3f}"
+                            )
+                    threshold_raw = entry.get("threshold") or entry.get("limit")
+                    threshold_text = ""
+                    if threshold_raw is not None:
+                        threshold_numeric = _coerce_float(threshold_raw)
+                        if threshold_numeric is None:
+                            threshold_text = str(threshold_raw)
+                        elif unit == "%" or entry.get("percent", False):
+                            threshold_text = _format_percentage(threshold_numeric)
+                        else:
+                            threshold_text = (
+                                f"{threshold_numeric:.3f}{unit}"
+                                if unit
+                                else f"{threshold_numeric:.3f}"
+                            )
+                    detail = f"Tail spike {name}: {value_text}"
+                    if threshold_text:
+                        detail += f" (threshold {threshold_text})"
+                    if severity:
+                        detail += f" [{severity}]"
+                    details.append(detail)
+
+            drift_payload = _normalise_drift_payload(
+                monitoring_payload.get("drift_summary")
+                or monitoring_payload.get("drift")
+            )
+            if drift_payload is not None:
+                latency_metadata["drift"] = drift_payload
+                drift_status = _map_drift_status(drift_payload.get("status"))
+                latency_status = _escalate(latency_status, drift_status)
+                drift_status_text = str(drift_payload.get("status") or "normal")
+                headline_parts.append(f"Drift {drift_status_text}")
+                dimensions = drift_payload.get("dimensions")
+                if isinstance(dimensions, Mapping) and dimensions:
+                    sorted_dims = sorted(
+                        dimensions.items(),
+                        key=lambda item: _STATUS_ORDER[
+                            _map_monitoring_status(
+                                item[1].get("severity") if isinstance(item[1], Mapping) else None
+                            )
+                        ],
+                        reverse=True,
+                    )
+                    for name, dimension in sorted_dims[:3]:
+                        if not isinstance(dimension, Mapping):
+                            continue
+                        severity = dimension.get("severity")
+                        delta_value = _coerce_float(
+                            dimension.get("delta") or dimension.get("drift_ratio")
+                        )
+                        variance_value = _coerce_float(dimension.get("variance_ratio"))
+                        samples_value = _coerce_int(dimension.get("samples"))
+                        line = f"Drift {name}: {severity or 'normal'}"
+                        if delta_value is not None:
+                            line += f" Δ {delta_value:.3f}"
+                        if variance_value is not None:
+                            line += f" σ² x{variance_value:.2f}"
+                        if samples_value is not None:
+                            line += f" (n={samples_value})"
+                        details.append(line)
+                        if _map_monitoring_status(severity) is DashboardStatus.fail:
+                            headline_parts.append(f"{name} drift alert")
+
+        if headline_parts:
+            headline = "; ".join(dict.fromkeys(headline_parts))
+        else:
+            headline = "Latency overview"
 
         panels.append(
             DashboardPanel(

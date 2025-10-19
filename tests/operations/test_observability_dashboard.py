@@ -44,6 +44,7 @@ import src.operations.observability_dashboard as dashboard_module
 from src.operations.observability_dashboard import (
     DashboardPanel,
     DashboardStatus,
+    MonitoringSnapshot,
     build_observability_dashboard,
 )
 from src.orchestration.alpha_trade_loop import (
@@ -382,6 +383,68 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "Decision diary",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
+
+
+def test_monitoring_snapshot_enriches_latency_panel() -> None:
+    monitoring = MonitoringSnapshot(
+        generated_at=_now(),
+        latency_ms={"p95_ms": 420.0, "p99_ms": 880.0, "samples": 120, "status": "ok"},
+        throughput={
+            "per_minute": 45.0,
+            "per_second": 0.75,
+            "backlog": 3,
+            "status": "ok",
+        },
+        pnl={
+            "daily_pnl": -1_250.0,
+            "drawdown": 0.12,
+            "volatility": 0.06,
+            "status": "warn",
+        },
+        memory={
+            "current_mb": 512.0,
+            "peak_mb": 768.0,
+            "peak_percent": 82.0,
+            "status": "ok",
+        },
+        tail_spikes=(
+            {
+                "name": "VAR",
+                "severity": "critical",
+                "value": 0.08,
+                "threshold": 0.05,
+            },
+        ),
+        drift_summary={
+            "status": "warn",
+            "dimensions": {
+                "alpha": {"severity": "alert", "delta": 0.42, "samples": 128},
+                "beta": {"severity": "warn", "delta": 0.18, "samples": 132},
+            },
+        },
+        metadata={"window": "5m"},
+    )
+
+    dashboard = build_observability_dashboard(
+        event_bus_snapshot=_event_bus_snapshot(),
+        monitoring_snapshot=monitoring,
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Latency & throughput")
+
+    assert panel.status is DashboardStatus.fail
+    joined_details = " ".join(panel.details)
+    assert "Latency p95" in joined_details
+    assert "Throughput" in joined_details
+    assert "P&L" in joined_details
+    assert "Memory" in joined_details
+    assert "Tail spike VAR" in joined_details
+    assert "Drift alpha" in joined_details
+    assert panel.metadata["monitoring"]["metadata"]["window"] == "5m"
+    assert panel.metadata["monitoring"]["tail_spikes"][0]["name"] == "VAR"
+    assert panel.metadata["drift"]["status"] == "warn"
+    assert "Daily P&L" in panel.headline
+    assert "Throughput" in panel.headline
 
 
 def test_compliance_panel_records_breach_event() -> None:

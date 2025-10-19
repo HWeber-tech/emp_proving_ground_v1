@@ -78,6 +78,31 @@ DEFAULT_INTERVAL_SECONDS = 3_600.0
 DEFAULT_JITTER_SECONDS = 120.0
 
 
+def _symbol_snapshot(entry: Mapping[str, object]) -> dict[str, object]:
+    """Return a sanitised snapshot of instrument metadata for operators."""
+
+    snapshot: dict[str, object] = {
+        "symbol": entry.get("symbol"),
+        "margin_currency": entry.get("margin_currency"),
+        "contract_size": entry.get("contract_size"),
+        "pip_decimal_places": entry.get("pip_decimal_places"),
+    }
+
+    swap_time = entry.get("swap_time")
+    if swap_time is not None:
+        snapshot["swap_time"] = swap_time
+
+    long_swap = entry.get("long_swap_rate")
+    if long_swap is not None:
+        snapshot["long_swap_rate"] = long_swap
+
+    short_swap = entry.get("short_swap_rate")
+    if short_swap is not None:
+        snapshot["short_swap_rate"] = short_swap
+
+    return snapshot
+
+
 class ConnectivityProbeError(RuntimeError):
     """Raised when a managed connector health probe hits an expected failure."""
 
@@ -894,6 +919,38 @@ def _build_managed_manifest(
         "url": _redacted_url(config.timescale_settings.url),
         "dimensions": list(_plan_dimensions(config)),
     }
+
+    ingest_metadata = config.metadata or {}
+    if isinstance(ingest_metadata, Mapping):
+        configured_symbols = ingest_metadata.get("symbols")
+        if isinstance(configured_symbols, (list, tuple)):
+            symbols_snapshot = [
+                str(symbol).strip()
+                for symbol in configured_symbols
+                if str(symbol).strip()
+            ]
+            if symbols_snapshot:
+                timescale_metadata["symbols"] = symbols_snapshot
+
+        symbol_inventory = ingest_metadata.get("symbol_inventory")
+        if isinstance(symbol_inventory, (list, tuple)):
+            inventory_snapshot = [
+                _symbol_snapshot(entry)
+                for entry in symbol_inventory
+                if isinstance(entry, Mapping)
+            ]
+            if inventory_snapshot:
+                timescale_metadata["symbol_inventory"] = inventory_snapshot
+
+        symbol_metadata = ingest_metadata.get("symbol_metadata")
+        if isinstance(symbol_metadata, (list, tuple)):
+            metadata_snapshot = [
+                _symbol_snapshot(entry)
+                for entry in symbol_metadata
+                if isinstance(entry, Mapping)
+            ]
+            if metadata_snapshot:
+                timescale_metadata["symbol_metadata"] = metadata_snapshot
 
     redis_summary: str | None = None
     if redis_settings is not None:

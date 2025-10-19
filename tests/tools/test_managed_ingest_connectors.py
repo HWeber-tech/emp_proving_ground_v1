@@ -92,6 +92,31 @@ def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch,
     assert manifest["redis"]["configured"] is True
     assert manifest["kafka"]["configured"] is True
 
+    timescale_manifest = manifest["timescale"]["metadata"]
+    assert timescale_manifest.get("symbols") == ["EURUSD"]
+
+    manifest_inventory = timescale_manifest.get("symbol_inventory")
+    assert isinstance(manifest_inventory, list)
+    manifest_eurusd = next(entry for entry in manifest_inventory if entry.get("symbol") == "EURUSD")
+    assert manifest_eurusd.get("margin_currency") == "USD"
+    assert manifest_eurusd.get("contract_size") == "100000"
+    assert manifest_eurusd.get("pip_decimal_places") == 4
+    assert manifest_eurusd.get("long_swap_rate") == "-0.0001"
+    assert manifest_eurusd.get("short_swap_rate") == "0.0001"
+    assert manifest_eurusd.get("swap_time") == "22:00"
+
+    manifest_symbol_metadata = timescale_manifest.get("symbol_metadata")
+    assert isinstance(manifest_symbol_metadata, list)
+    manifest_metadata_eurusd = next(
+        entry for entry in manifest_symbol_metadata if entry.get("symbol") == "EURUSD"
+    )
+    assert manifest_metadata_eurusd.get("margin_currency") == "USD"
+    assert manifest_metadata_eurusd.get("contract_size") == "100000"
+    assert manifest_metadata_eurusd.get("pip_decimal_places") == 4
+    assert manifest_metadata_eurusd.get("long_swap_rate") == "-0.0001"
+    assert manifest_metadata_eurusd.get("short_swap_rate") == "0.0001"
+    assert manifest_metadata_eurusd.get("swap_time") == "22:00"
+
     connectivity = {entry["name"]: entry for entry in report["connectivity"]}
     assert connectivity["timescale"]["healthy"] is True
     assert "error" not in connectivity["timescale"]

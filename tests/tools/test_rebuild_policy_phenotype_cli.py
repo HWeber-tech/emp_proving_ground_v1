@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from pathlib import Path
+
+import pytest
 
 from tools.governance.rebuild_policy_phenotype import main
 
@@ -10,9 +13,11 @@ from src.governance.policy_ledger import (
     PolicyLedgerStage,
     PolicyLedgerStore,
 )
+from src.governance.policy_phenotype import build_policy_phenotypes
+from src.governance.strategy_rebuilder import rebuild_strategy
 
 
-def _seed_policy(ledger_path: Path) -> str:
+def _seed_policy(ledger_path: Path) -> None:
     store = PolicyLedgerStore(ledger_path)
     manager = LedgerReleaseManager(store)
     manager.promote(
@@ -26,12 +31,14 @@ def _seed_policy(ledger_path: Path) -> str:
             "router_guardrails": {"max_latency_ms": 180},
         },
     )
-    return "alpha.policy"
 
 
 def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
     ledger_path = tmp_path / "policy_ledger.json"
-    policy_id = _seed_policy(ledger_path)
+    _seed_policy(ledger_path)
+
+    store = PolicyLedgerStore(ledger_path)
+    phenotype = build_policy_phenotypes(store)[0]
 
     output_path = tmp_path / "phenotype.json"
     exit_code = main(
@@ -39,21 +46,23 @@ def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
             "--ledger",
             str(ledger_path),
             "--policy-id",
-            policy_id,
+            phenotype.policy_id,
             "--output",
             str(output_path),
-            "--indent",
-            "0",
         ]
     )
     assert exit_code == 0
 
-    payload = json.loads(output_path.read_text())
-    phenotype = payload["phenotype"]
-    assert phenotype["policy_id"] == policy_id
-    assert phenotype["risk_config"]["max_leverage"] == 6.0
-    assert phenotype["router_guardrails"]["max_latency_ms"] == 180
-    assert phenotype["policy_hash"]
+    expected_config = rebuild_strategy(phenotype.policy_hash, store=store)
+    output_bytes = output_path.read_bytes()
+    assert output_bytes == expected_config.json_bytes
+
+    payload = json.loads(output_bytes.decode("utf-8"))
+    assert payload["policy_id"] == phenotype.policy_id
+    assert payload["policy_hash"] == phenotype.policy_hash
+    assert payload["risk_config"]["max_leverage"] == pytest.approx(6.0)
+    assert payload["router_guardrails"]["max_latency_ms"] == 180
+    assert sha256(output_bytes).hexdigest() == expected_config.digest
 
     hash_output = tmp_path / "phenotype_by_hash.json"
     exit_code = main(
@@ -61,16 +70,13 @@ def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
             "--ledger",
             str(ledger_path),
             "--policy-hash",
-            phenotype["policy_hash"],
+            phenotype.policy_hash,
             "--output",
             str(hash_output),
-            "--indent",
-            "0",
         ]
     )
     assert exit_code == 0
-    payload_by_hash = json.loads(hash_output.read_text())
-    assert payload_by_hash["phenotype"]["policy_hash"] == phenotype["policy_hash"]
+    assert hash_output.read_bytes() == expected_config.json_bytes
 
 
 def test_rebuild_policy_phenotype_cli_list(tmp_path: Path, capsys) -> None:
@@ -94,4 +100,3 @@ def test_rebuild_policy_phenotype_cli_list(tmp_path: Path, capsys) -> None:
     row = listing[0]
     assert row["policy_id"] == "alpha.policy"
     assert row["policy_hash"]
-

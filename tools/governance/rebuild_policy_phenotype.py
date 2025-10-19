@@ -1,11 +1,10 @@
-"""CLI to materialise a policy phenotype snapshot from the governance ledger."""
+"""CLI to regenerate canonical policy runtime payloads from the governance ledger."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -15,11 +14,7 @@ from src.governance.policy_phenotype import (
     build_policy_phenotypes,
     select_policy_phenotype,
 )
-
-try:  # Python < 3.11 compatibility
-    from datetime import UTC  # type: ignore[attr-defined]
-except ImportError:  # pragma: no cover - fallback for 3.10 runtimes
-    UTC = timezone.utc  # type: ignore[assignment]
+from src.governance.strategy_rebuilder import StrategyRuntimeConfig, rebuild_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -55,13 +50,19 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=Path,
-        help="Optional destination path for the phenotype payload (prints to stdout when omitted).",
+        help=(
+            "Optional path for the canonical runtime payload. When provided the "
+            "command writes byte-identical JSON generated from the ledger replay."
+        ),
     )
     parser.add_argument(
         "--indent",
         type=int,
-        default=2,
-        help="Pretty-print indentation for JSON output (default: 2).",
+        default=None,
+        help=(
+            "Pretty-print indentation for stdout output. When omitted the runtime "
+            "payload is emitted using canonical JSON bytes."
+        ),
     )
     parser.add_argument(
         "--list",
@@ -85,16 +86,23 @@ def _load_base_config(path: Path | None) -> RiskConfig | None:
     return RiskConfig(**payload)
 
 
-def _emit(payload: Mapping[str, object], output: Path | None, *, indent: int) -> None:
-    text = json.dumps(payload, indent=indent, sort_keys=True)
+def _emit_runtime_config(
+    config: StrategyRuntimeConfig,
+    output: Path | None,
+    *,
+    indent: int | None,
+) -> None:
     if output is None:
+        text = config.json(indent=indent)
         print(text)
         return
+
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(f"{text}\n", encoding="utf-8")
+    output.write_bytes(config.json_bytes)
 
 
-def _emit_listing(phenotypes, *, indent: int) -> None:
+def _emit_listing(phenotypes, *, indent: int | None) -> None:
+    listing_indent = 2 if indent is None else indent
     rows = [
         {
             "policy_id": phenotype.policy_id,
@@ -105,7 +113,7 @@ def _emit_listing(phenotypes, *, indent: int) -> None:
         }
         for phenotype in phenotypes
     ]
-    print(json.dumps(rows, indent=indent, sort_keys=True))
+    print(json.dumps(rows, indent=listing_indent, sort_keys=True))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -130,31 +138,54 @@ def main(argv: Sequence[str] | None = None) -> int:
         _emit_listing(phenotypes, indent=args.indent)
         return 0
 
+    target_hash: str | None = None
+    if args.policy_hash:
+        candidate = args.policy_hash.strip()
+        if not candidate:
+            logger.error("policy hash cannot be blank when provided")
+            return 1
+        target_hash = candidate
+    elif args.policy_id:
+        try:
+            phenotype = select_policy_phenotype(
+                phenotypes,
+                policy_id=args.policy_id,
+            )
+        except Exception as exc:
+            logger.error("Failed to select policy phenotype: %s", exc)
+            return 1
+        target_hash = phenotype.policy_hash
+    else:
+        logger.error("Either --policy-hash or --policy-id must be provided")
+        return 1
+
     try:
-        phenotype = select_policy_phenotype(
-            phenotypes,
-            policy_hash=args.policy_hash,
-            policy_id=args.policy_id,
+        runtime_config = rebuild_strategy(
+            target_hash,
+            store=store,
+            base_config=base_config,
         )
     except Exception as exc:
-        logger.error("Failed to select policy phenotype: %s", exc)
+        logger.error("Failed to rebuild runtime config: %s", exc)
         return 1
-
-    payload = {
-        "generated_at": datetime.now(tz=UTC).isoformat(),
-        "ledger_path": str(args.ledger),
-        "phenotype": phenotype.as_dict(),
-    }
 
     try:
-        _emit(payload, args.output, indent=args.indent)
+        _emit_runtime_config(runtime_config, args.output, indent=args.indent)
     except Exception as exc:
-        logger.error("Failed to emit phenotype payload: %s", exc)
+        logger.error("Failed to emit runtime config payload: %s", exc)
         return 1
+
+    if args.output is None:
+        return 0
+
+    logger.info(
+        "Runtime payload digest %s for policy %s",
+        runtime_config.digest,
+        runtime_config.policy_hash,
+    )
 
     return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

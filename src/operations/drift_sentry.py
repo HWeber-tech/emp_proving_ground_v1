@@ -177,16 +177,20 @@ class DriftSentrySnapshot:
     status: DriftSeverity
     metrics: Mapping[str, DriftSentryMetric]
     config: DriftSentryConfig
+    actions: tuple[Mapping[str, object], ...] = field(default_factory=tuple)
     metadata: Mapping[str, object] = field(default_factory=dict)
 
     def as_dict(self) -> Mapping[str, object]:
-        return {
+        payload: dict[str, object] = {
             "generated_at": self.generated_at.isoformat(),
             "status": self.status.value,
             "metrics": {name: metric.as_dict() for name, metric in self.metrics.items()},
             "config": dict(self.config.as_dict()),
             "metadata": dict(self.metadata),
         }
+        if self.actions:
+            payload["actions"] = [dict(action) for action in self.actions]
+        return payload
 
     def to_markdown(self) -> str:
         if not self.metrics:
@@ -371,6 +375,7 @@ def evaluate_drift_sentry(
         snapshot_metadata.update(dict(metadata))
 
     recommended_actions: list[dict[str, object]] = []
+    recommended_actions_tuple: tuple[dict[str, object], ...] = ()
     if status in (DriftSeverity.warn, DriftSeverity.alert):
         reason_suffix = status.value
         recommended_actions = [
@@ -408,11 +413,16 @@ def evaluate_drift_sentry(
             theory_packet["runbook"] = runbook_path.strip()
         snapshot_metadata["theory_packet"] = theory_packet
 
+        recommended_actions_tuple = tuple(dict(action) for action in recommended_actions)
+    else:
+        recommended_actions_tuple = ()
+
     return DriftSentrySnapshot(
         generated_at=generated,
         status=status,
         metrics=metric_payloads,
         config=cfg,
+        actions=recommended_actions_tuple,
         metadata=snapshot_metadata,
     )
 

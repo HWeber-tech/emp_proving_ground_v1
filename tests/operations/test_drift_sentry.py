@@ -78,6 +78,11 @@ def test_drift_sentry_detects_abrupt_shift() -> None:
     size_action = next(entry for entry in actions if entry.get("action") == "size_multiplier")
     assert pytest.approx(size_action.get("value"), rel=1e-9) == 0.5
 
+    snapshot_actions = snapshot.actions
+    assert snapshot_actions
+    snapshot_labels = {entry.get("action") for entry in snapshot_actions}
+    assert snapshot_labels == action_labels
+
     theory_packet = metadata.get("theory_packet")
     assert isinstance(theory_packet, dict)
     assert theory_packet.get("severity") == "alert"
@@ -132,6 +137,7 @@ def test_drift_sentry_variance_warn() -> None:
     actions = metadata.get("actions")
     assert isinstance(actions, list)
     assert any(action.get("action") == "freeze_exploration" for action in actions)
+    assert snapshot.actions
 
 
 def test_drift_sentry_alert_generation_respects_threshold() -> None:

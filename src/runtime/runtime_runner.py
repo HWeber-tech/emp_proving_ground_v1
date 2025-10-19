@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import signal
 from contextlib import suppress
@@ -112,6 +113,24 @@ async def run_runtime_application(
         for sig in registered_signals:
             with suppress(NotImplementedError):  # pragma: no cover - mirrors add_signal_handler
                 loop.remove_signal_handler(sig)
+        try:
+            await runtime_app.shutdown()
+        except asyncio.CancelledError:
+            with suppress(Exception):
+                await runtime_app.shutdown()
+        except Exception:
+            pass
+
+        if not getattr(runtime_app, "_shutdown_callbacks_executed", False):
+            for callback in reversed(runtime_app.shutdown_callbacks):
+                try:
+                    result = callback()
+                    if inspect.isawaitable(result):
+                        await result
+                except Exception:  # pragma: no cover - defensive guard
+                    managed_logger.exception(
+                        "Shutdown callback %r failed during runner fallback", callback
+                    )
 
 
 async def _cancel_pending(tasks: Iterable[asyncio.Task[object]]) -> None:

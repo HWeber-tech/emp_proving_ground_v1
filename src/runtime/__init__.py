@@ -87,6 +87,7 @@ def __getattr__(name: str) -> Any:
         "WorkloadRestartPolicy",
         "build_professional_runtime_application",
     }:
+        _ensure_real_module("src.runtime.runtime_builder")
         from .runtime_builder import (
             RuntimeApplication as _RuntimeApplication,
             RuntimeWorkload as _RuntimeWorkload,

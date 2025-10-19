@@ -979,6 +979,7 @@ class RuntimeApplication:
         self._task_supervisor: TaskSupervisor = supervisor
         self.task_supervisor = supervisor
         self.auxiliary = tuple(self._auxiliary_workloads)
+        self._shutdown_callbacks_executed = False
 
     def create_background_task(
         self,
@@ -1042,27 +1043,36 @@ class RuntimeApplication:
         self._shutdown_invoked = True
 
         try:
-            await self._task_supervisor.cancel_all()
-        except Exception:  # pragma: no cover - defensive logging
-            self._logger.exception("Failed to cancel runtime background tasks during shutdown")
+            try:
+                await self._task_supervisor.cancel_all()
+            except Exception:  # pragma: no cover - defensive logging
+                self._logger.exception(
+                    "Failed to cancel runtime background tasks during shutdown"
+                )
 
-        for callback in reversed(self.shutdown_callbacks):
-            callback_name = getattr(callback, "__name__", repr(callback))
-            with self._tracer.operation_span(
-                name="runtime.shutdown",
-                metadata={"callback": callback_name},
-            ) as span:
-                try:
-                    result = callback()
-                    if inspect.isawaitable(result):
-                        await result
-                except Exception:  # pragma: no cover - defensive logging
-                    if span is not None and hasattr(span, "set_attribute"):
-                        span.set_attribute("runtime.operation.status", "error")
-                    self._logger.exception("Runtime shutdown callback %s failed", callback)
-                else:
-                    if span is not None and hasattr(span, "set_attribute"):
-                        span.set_attribute("runtime.operation.status", "completed")
+            for callback in reversed(self.shutdown_callbacks):
+                callback_name = getattr(callback, "__name__", repr(callback))
+                with self._tracer.operation_span(
+                    name="runtime.shutdown",
+                    metadata={"callback": callback_name},
+                ) as span:
+                    try:
+                        result = callback()
+                        if inspect.isawaitable(result):
+                            await result
+                    except Exception:  # pragma: no cover - defensive logging
+                        if span is not None and hasattr(span, "set_attribute"):
+                            span.set_attribute("runtime.operation.status", "error")
+                        self._logger.exception(
+                            "Runtime shutdown callback %s failed", callback
+                        )
+                    else:
+                        if span is not None and hasattr(span, "set_attribute"):
+                            span.set_attribute("runtime.operation.status", "completed")
+            self._shutdown_callbacks_executed = True
+        except asyncio.CancelledError:
+            self._shutdown_invoked = False
+            raise
 
     async def _run_workload(self, workload: RuntimeWorkload) -> None:
         name = workload.name
@@ -1171,18 +1181,41 @@ class RuntimeApplication:
                             restart_factory = lambda workload=workload: self._run_workload(
                                 workload
                             )
+                        create_kwargs: dict[str, Any] = {
+                            "name": task_name,
+                            "metadata": metadata_payload,
+                        }
+                        try:
+                            create_params = inspect.signature(
+                                self._task_supervisor.create
+                            ).parameters
+                        except (TypeError, ValueError):  # pragma: no cover - best effort
+                            create_params = {}
+
+                        if "restart_callback" in create_params:
+                            create_kwargs["restart_callback"] = restart_factory
+                        elif restart_factory is not None:
+                            self._logger.debug(
+                                "Task supervisor %r does not support restart callbacks",
+                                self._task_supervisor,
+                            )
+
+                        if "max_restarts" in create_params:
+                            create_kwargs["max_restarts"] = (
+                                None if restart_policy is None else restart_policy.max_restarts
+                            )
+                        if "restart_backoff" in create_params:
+                            create_kwargs["restart_backoff"] = (
+                                0.0
+                                if restart_policy is None
+                                else restart_policy.backoff_seconds
+                            )
+                        if "hang_timeout" in create_params:
+                            create_kwargs["hang_timeout"] = workload.hang_timeout
+
                         task = self._task_supervisor.create(
                             run_coro,
-                            name=task_name,
-                            metadata=metadata_payload,
-                            restart_callback=restart_factory,
-                            max_restarts=None
-                            if restart_policy is None
-                            else restart_policy.max_restarts,
-                            restart_backoff=0.0
-                            if restart_policy is None
-                            else restart_policy.backoff_seconds,
-                            hang_timeout=workload.hang_timeout,
+                            **create_kwargs,
                         )
                         task_mapping[task] = workload
                         all_tasks.add(task)
@@ -1229,7 +1262,10 @@ class RuntimeApplication:
         finally:
             if loop_factory_installed:
                 self._task_supervisor.uninstall_loop_task_factory()
-            await self.shutdown()
+            try:
+                await asyncio.shield(self.shutdown())
+            except asyncio.CancelledError:
+                await self.shutdown()
 
     def task_snapshots(self) -> tuple[dict[str, object], ...]:
         """Expose metadata for the supervised runtime tasks.

@@ -13,6 +13,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, MutableMapping, Sequence
 
@@ -37,6 +38,81 @@ __all__ = [
     "DecisionDiaryEntry",
     "DecisionDiaryStore",
 ]
+
+_NUMERIC_NOISE_TOKENS = (
+    "latency",
+    "remaining",
+    "processing",
+    "lag",
+    "utilisation",
+    "throughput",
+)
+
+_COUNT_NORMALISATION_KEYS = {"recent_trades", "remaining_trades"}
+
+
+def _looks_like_iso_timestamp(value: str) -> bool:
+    text = value.strip()
+    if not text:
+        return False
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        datetime.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
+def _canonicalise_outcomes_for_replay(
+    outcomes: Mapping[str, Any],
+    *,
+    entry_id: str,
+    recorded_at: datetime,
+) -> Mapping[str, Any]:
+    """Normalise runtime-dependent outcome fields for deterministic replays."""
+
+    recorded_iso = recorded_at.isoformat()
+    recorded_http = recorded_at.astimezone(UTC).strftime("%a, %d %b %Y %H:%M:%S GMT")
+
+    def _normalise(value: Any, path: tuple[str, ...]) -> Any:
+        if isinstance(value, Mapping):
+            return {
+                key: _normalise(sub_value, path + (str(key),))
+                for key, sub_value in value.items()
+            }
+        if isinstance(value, list):
+            return [_normalise(item, path + (str(index),)) for index, item in enumerate(value)]
+        if isinstance(value, tuple):
+            return tuple(_normalise(item, path + (str(index),)) for index, item in enumerate(value))
+        if isinstance(value, str):
+            candidate = value.strip()
+            key = path[-1] if path else ""
+            lowered = key.lower()
+            if candidate and _looks_like_iso_timestamp(candidate):
+                return recorded_iso
+            if lowered == "client_order_id":
+                return "replay-order"
+            if "incident_id" in lowered:
+                return "replay-incident"
+            if lowered.endswith("_id") and "order" not in lowered and "strategy" not in lowered:
+                return "replay-identifier"
+            if "event_id" in lowered:
+                return "replay-event"
+            if lowered == "date":
+                return recorded_http
+            return value
+        if isinstance(value, (int, float, Decimal)):
+            key = path[-1] if path else ""
+            lowered = key.lower()
+            if any(token in lowered for token in _NUMERIC_NOISE_TOKENS) or lowered.endswith("_seconds"):
+                return type(value)(0)
+            if lowered in _COUNT_NORMALISATION_KEYS:
+                return type(value)(1 if value else 0)
+            return value
+        return value
+
+    return _normalise(dict(outcomes), ())
 
 
 def _normalise_timestamp(value: datetime | str | None, *, default: Callable[[], datetime]) -> datetime:
@@ -384,6 +460,7 @@ class DecisionDiaryStore:
         event_type: str = "governance.decision_diary.recorded",
         event_source: str = "understanding.decision_diary",
         publish_on_record: bool = True,
+        deterministic_snapshots: bool = False,
     ) -> None:
         self._path = Path(path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -394,6 +471,7 @@ class DecisionDiaryStore:
         self._event_type = event_type
         self._event_source = event_source
         self._publish_on_record = publish_on_record
+        self._deterministic_snapshots = bool(deterministic_snapshots)
         self._load()
 
     @property
@@ -492,6 +570,12 @@ class DecisionDiaryStore:
         decision_payload = _serialise_policy_decision(decision)
         regime_payload = _serialise_regime_state(regime_state)
         outcomes_payload = dict(outcomes or {})
+        if self._deterministic_snapshots and outcomes_payload:
+            outcomes_payload = _canonicalise_outcomes_for_replay(
+                outcomes_payload,
+                entry_id=entry_identifier,
+                recorded_at=timestamp,
+            )
         belief_payload = _serialise_belief_state(belief_state)
         notes_tuple: tuple[str, ...] = tuple(str(note).strip() for note in (notes or ()) if str(note).strip())
         metadata_payload: Mapping[str, Any] = {str(k): v for k, v in (metadata or {}).items()}

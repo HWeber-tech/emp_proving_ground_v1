@@ -24,7 +24,9 @@ class FinalDryRunPerformanceWriter:
     def __init__(self, path: Path, *, run_label: str | None = None) -> None:
         self._path = path
         self._run_label = (run_label or "").strip() or None
-        self._queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue(maxsize=32)
+        self._queue: asyncio.Queue[
+            tuple[dict[str, Any], asyncio.Future[None]] | None
+        ] = asyncio.Queue(maxsize=32)
         self._task: asyncio.Task[Any] | None = None
         self._subscription: SubscriptionHandle | None = None
         self._bus: EventBus | None = None
@@ -82,21 +84,14 @@ class FinalDryRunPerformanceWriter:
         }
         if self._run_label:
             payload["run_label"] = self._run_label
-        self._path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        self._atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
     async def _handle_event(self, event: Event) -> None:
         record = self._normalise_event(event)
-        try:
-            self._queue.put_nowait(record)
-        except asyncio.QueueFull:
-            try:
-                _ = self._queue.get_nowait()
-            except asyncio.QueueEmpty:  # pragma: no cover - defensive guard
-                pass
-            await self._queue.put(record)
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[None] = loop.create_future()
+        await self._queue.put((record, future))
+        await future
 
     def _normalise_event(self, event: Event) -> dict[str, Any]:
         snapshot: Mapping[str, Any]
@@ -128,21 +123,31 @@ class FinalDryRunPerformanceWriter:
 
     async def _drain_queue(self) -> None:
         while True:
-            record = await self._queue.get()
-            if record is None:
+            item = await self._queue.get()
+            if item is None:
                 break
+            record, future = item
             self._sequence += 1
             record["sequence"] = self._sequence
             record.setdefault("updated_at", datetime.now(tz=UTC).isoformat())
-            await self._write_payload(record)
+            try:
+                await self._write_payload(record)
+            except Exception as exc:
+                if not future.done():
+                    future.set_exception(exc)
+                raise
+            else:
+                if not future.done():
+                    future.set_result(None)
 
     async def _write_payload(self, payload: Mapping[str, Any]) -> None:
         text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-        await asyncio.to_thread(
-            self._path.write_text,
-            text,
-            encoding="utf-8",
-        )
+        await asyncio.to_thread(self._atomic_write_text, text)
+
+    def _atomic_write_text(self, text: str) -> None:
+        temp_path = self._path.with_name(f".{self._path.name}.tmp")
+        temp_path.write_text(text, encoding="utf-8")
+        temp_path.replace(self._path)
 
 
 def configure_final_dry_run_support(app: "ProfessionalPredatorApp") -> None:

@@ -2564,6 +2564,7 @@ def _build_bootstrap_runtime(
             }
             if diary_clock is not None:
                 kwargs["now"] = diary_clock
+                kwargs["deterministic_snapshots"] = True
             diary_store = DecisionDiaryStore(
                 diary_path,
                 **kwargs,

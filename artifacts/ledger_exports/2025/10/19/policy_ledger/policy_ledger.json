@@ -1,6 +1,6 @@
 {
   "records": {
-    "alpha": {
+    "catalogue/trend-alpha::0": {
       "approvals": [
         "compliance",
         "risk"
@@ -14,19 +14,8 @@
             "compliance",
             "risk"
           ],
-          "evidence_id": "diary-alpha",
-          "next_stage": "pilot",
-          "policy_delta": {
-            "metadata": {},
-            "notes": [],
-            "regime": "balanced",
-            "risk_config": {
-              "max_leverage": 6
-            },
-            "router_guardrails": {
-              "requires_diary": true
-            }
-          },
+          "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
+          "next_stage": "paper",
           "prior_stage": null
         }
       ],

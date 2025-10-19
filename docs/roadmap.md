@@ -100,7 +100,7 @@
 - [x] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports). _Progress: The nightly replay job now emits diary, drift, and ledger artifacts per run, archives them into dated `artifacts/` mirrors, and is wired to the scheduled GitHub workflow/Make target with regression coverage proving the exports.【F:tools/operations/nightly_replay_job.py:526】【F:tests/tools/test_nightly_replay_job.py:11】【F:.github/workflows/replay-nightly.yml:4】【F:Makefile:137】_
 
 **Acceptance (DoD)**
-- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, and persists summaries for governance review via the runtime CLI with pytest coverage for breach detection and exports.【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】【F:src/runtime/cli.py†L1-L220】_
+- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, persists summaries for governance review via the runtime CLI, and auto-stops runs as failed when operator-set memory growth exceeds thresholds so leaks surface immediately under regression coverage for stop requests and failure summaries.【F:src/runtime/paper_run_guardian.py†L250-L414】【F:tests/runtime/test_paper_run_guardian.py†L119-L178】【F:src/runtime/cli.py†L365-L438】_
 - [ ] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics. _Progress: CI status digests now render alert-response telemetry into the dashboard table and weekly log, ignore `unknown` acknowledgement/resolution channels, and record MTTA/MTTR plus channel evidence so observability captures alert firing, acknowledgement, and recovery.【F:tools/telemetry/status_digest.py†L400-L519】【F:tools/telemetry/status_digest.py†L681-L769】【F:tests/tools/test_status_digest.py†L121-L213】【F:docs/status/ci_health.md†L10-L19】【F:docs/status/quality_weekly_status.md†L18-L36】【F:tests/.telemetry/ci_metrics.json†L1-L224】_
 - [x] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback). _Progress: Dedicated validator CLI now executes kill-switch, nightly replay, and trade rollback drills, writes evidence packs, and is paired with a refreshed runbook and regression coverage so incident rehearsals consistently capture pass/fail artifacts.【F:tools/operations/incident_playbook_validation.py†L44-L255】【F:docs/operations/runbooks/incident_playbook_validation.md†L1-L66】【F:tests/tools/test_incident_playbook_validation.py†L9-L48】_
 
@@ -153,7 +153,7 @@
 ## Commands & Artifacts (to standardize)
 
 - [x] `make run-sim` â€” deterministic sim/replay run (acceptance tests). _Progress: New tooling wraps the bootstrap runtime into `make run-sim`, wiring environment defaults, summary/diary exports, and pytest coverage so the acceptance drill is a single reproducible command.【F:Makefile†L103-L121】【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】_
-- [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, enforces minimum runtime thresholds, streams progress, and persists structured summaries for dashboards while the CLI surfaces shortfall warnings under pytest coverage.【F:Makefile†L98-L100】【F:src/runtime/cli.py†L365-L414】【F:src/runtime/paper_run_guardian.py†L56-L128】【F:src/runtime/paper_run_guardian.py†L343-L399】【F:tests/runtime/test_paper_run_guardian.py†L100-L160】_
+- [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, enforces minimum runtime thresholds, streams progress, and persists structured summaries for dashboards while the guardian now fails runs and surfaces stop reasons when memory growth thresholds trigger in CLI output under pytest coverage.【F:Makefile†L98-L100】【F:src/runtime/cli.py†L365-L438】【F:src/runtime/paper_run_guardian.py†L250-L414】【F:tests/runtime/test_paper_run_guardian.py†L119-L178】_
 - [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger. _Progress: `rebuild_strategy` now normalises ledger payloads into canonical JSON bytes, returns deterministic digests, and ships tests proving byte-identical rebuilds so CLI wrappers can emit audited runtime configs.【F:src/governance/strategy_rebuilder.py†L59-L205】【F:tests/governance/test_strategy_rebuilder.py†L57-L101】_
 - [x] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report. _Progress: The `rim-shadow` target now drives the governance-gated shadow runner, emitting suggestions plus queue/digest markdown artifacts with auto-apply annotations under pytest coverage so nightly cron jobs stay audit-ready.【F:Makefile†L67-L85】【F:tools/rim_shadow_run.py†L160-L222】【F:tests/tools/test_rim_shadow_run.py†L44-L139】_
 - [x] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders). _Progress: `archive_artifact` standardises dated evidence mirrors and now runs from the decision diary, nightly replay job, policy ledger, and evolution lab exporter with coverage so compliance packs auto-land in `artifacts/<kind>/<date>/<run>/` without manual curation while deterministic diary snapshots strip runtime-only noise for replays.【F:src/artifacts/archive.py†L1-L95】【F:src/understanding/decision_diary.py†L42-L115】【F:src/understanding/decision_diary.py†L453-L606】【F:src/governance/policy_ledger.py†L394-L420】【F:tools/operations/nightly_replay_job.py†L573-L590】【F:scripts/generate_evolution_lab.py†L171-L185】【F:tests/artifacts/test_archive.py†L1-L45】_
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T18:04:43Z
+
+### Last 4 commits
+- a953b26 refactor(runtime): tune 3 files (2025-10-19)
+- 7e5d00a test(artifacts): add 5 files (2025-10-19)
+- 343a394 test(artifacts): add 7 files (2025-10-19)
+- 5e10d80 docs(docs): tune 1 file (2025-10-19)
 
 ## Automation updates — 2025-10-19T17:57:30Z
 

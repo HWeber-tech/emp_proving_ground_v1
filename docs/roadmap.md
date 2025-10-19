@@ -100,8 +100,8 @@
 - [x] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports). _Progress: The nightly replay job now emits diary, drift, and ledger artifacts per run, archives them into dated `artifacts/` mirrors, and is wired to the scheduled GitHub workflow/Make target with regression coverage proving the exports.【F:tools/operations/nightly_replay_job.py:526】【F:tests/tools/test_nightly_replay_job.py:11】【F:.github/workflows/replay-nightly.yml:4】【F:Makefile:137】_
 
 **Acceptance (DoD)**
-- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, persists error-event snapshots and summaries for governance review via the runtime CLI, and auto-stops runs as failed when operator-set memory growth exceeds thresholds so leaks surface immediately under regression coverage for stop requests and failure summaries.【F:src/runtime/paper_run_guardian.py†L148-L195】【F:src/runtime/paper_run_guardian.py†L423-L450】【F:tests/runtime/test_paper_run_guardian.py†L119-L178】【F:src/runtime/cli.py†L365-L438】_
-- [x] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics. _Progress: CI status digests now surface alert-response telemetry with acknowledgement and resolution channel evidence URIs across the dashboard table and weekly digest, while `ci_metrics` persists the evidence metadata so drills track MTTA/MTTR plus channel artefacts; pytest snapshots lock the Markdown output and JSON feed alongside the CI health log entries for the latest drill.【F:tools/telemetry/status_digest.py†L456-L515】【F:tools/telemetry/status_digest.py†L750-L778】【F:tools/telemetry/ci_metrics.py†L541-L608】【F:tests/tools/test_status_digest.py†L168-L228】【F:docs/status/ci_health.md†L12-L18】【F:docs/status/quality_weekly_status.md†L18-L36】【F:tests/.telemetry/ci_metrics.json†L224-L252】_
+- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, persists error-event snapshots and summaries for governance review via the runtime CLI, and auto-stops runs as failed when operator-set memory growth exceeds thresholds so leaks surface immediately under regression coverage for stop requests and failure summaries.【F:src/runtime/paper_run_guardian.py†L110-L195】【F:src/runtime/paper_run_guardian.py†L500-L569】【F:tests/runtime/test_paper_run_guardian.py†L119-L219】【F:src/runtime/cli.py†L232-L442】_
+- [x] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics. _Progress: CI status digests now surface alert-response telemetry with acknowledgement and resolution channel evidence URIs across the dashboard table and weekly digest, while `ci_metrics` persists the evidence metadata so drills track MTTA/MTTR plus channel artefacts; pytest snapshots lock the Markdown output and JSON feed alongside the CI health log entries for the latest drill.【F:tools/telemetry/status_digest.py†L456-L515】【F:tools/telemetry/status_digest.py†L734-L778】【F:tools/telemetry/ci_metrics.py†L520-L608】【F:tests/tools/test_status_digest.py†L168-L228】【F:docs/status/ci_health.md†L12-L18】【F:docs/status/quality_weekly_status.md†L20-L36】【F:tests/.telemetry/ci_metrics.json†L224-L252】_
 - [x] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback). _Progress: Dedicated validator CLI now executes kill-switch, nightly replay, and trade rollback drills, writes evidence packs, and is paired with a refreshed runbook and regression coverage so incident rehearsals consistently capture pass/fail artifacts.【F:tools/operations/incident_playbook_validation.py†L44-L255】【F:docs/operations/runbooks/incident_playbook_validation.md†L1-L66】【F:tests/tools/test_incident_playbook_validation.py†L9-L48】_
 
 ---
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T20:19:48Z
+
+### Last 4 commits
+- dedcdee0 refactor(runtime): tune 4 files (2025-10-19)
+- 1a8fb335 test(.telemetry): tune 1 file (2025-10-19)
+- fa1f9dd9 docs(docs): tune 1 file (2025-10-19)
+- 66126a53 docs(docs): tune 6 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T20:06:38Z
 

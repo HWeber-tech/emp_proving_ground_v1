@@ -18,7 +18,7 @@
 - [x] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table. _Progress: CONTRIBUTING.md now documents simulation, paper, and liveâ€‘shadow launch recipes alongside a featureâ€‘flag matrix that complements the workflow guide in `docs/development/contributing.md`, giving operators the runtime posture and evidence checklist they need for roadmap gates.【F:CONTRIBUTING.md†L1-L96】_
 
 **Acceptance (DoD)**
-- [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes.
+- [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes. _Progress: RiskGateway now inspects portfolio-state metadata for synthetic invariant signals, records guardrail violations, rejects offending trade intents, and regression coverage exercises the guardrail incident flow while kill-switch validation remains pending.【F:src/trading/risk/risk_gateway.py†L297-L1152】【F:tests/current/test_risk_gateway_validation.py†L128-L174】_
 - [x] `[obs]` Heartbeat visible during a 30â€‘minute run; latency counters populated. _Progress: Runtime smoke tests exercise the bootstrap loop until status snapshots expose populated heartbeat ticks while stack-level tests confirm ingest and ack percentiles accumulate across ticks, proving the counters fill during multi-tick rehearsals.【F:tests/current/test_bootstrap_runtime_integration.py†L167-L169】【F:tests/current/test_bootstrap_stack.py†L170-L176】_
 - [x] `[ops]` Deterministic run reproducible via one command (`make run-sim` or equivalent). _Progress: The `run-sim` wrapper now boots the bootstrap runtime with deterministic defaults, writes summaries/diaries, exposes CLI overrides, and ships a Makefile target plus regression coverage so a single command reproduces the acceptance drill with evidence artifacts.【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】【F:Makefile†L103-L121】_
 
@@ -54,7 +54,7 @@
 
 **Search & Selection**
 - [x] `[adapt]` **Tournament selection** over **regime grid** (multiâ€‘regime fitness table). _Progress: PolicyRouter now runs regime-grid tournaments once sufficient decisions accrue, using RegimeFitnessTable aggregates to normalise per-regime and global performance while reflection snapshots capture composite bonuses under guardrail coverage.【F:src/thinking/adaptation/policy_router.py†L582-L740】【F:src/thinking/adaptation/regime_fitness.py†L17-L207】【F:tests/thinking/test_policy_router.py†L530-L623】_
-- [ ] `[adapt]` **Novelty archive** (genotype signature + probe vector; novelty score).
+- [x] `[adapt]` **Novelty archive** (genotype signature + probe vector; novelty score). _Progress: `NoveltyArchive` fingerprints strategy genotypes via deterministic SHA-1 signatures, builds fixed-dimension probe vectors, retains a bounded archive with cosine-derived novelty scoring, and regression coverage locks probe immutability, duplicate suppression, variation scoring, and eviction semantics for adaptation workflows.【F:src/thinking/adaptation/novelty_archive.py†L1-L196】【F:tests/thinking/adaptation/test_novelty_archive.py†L1-L111】_
 - [ ] `[sim]` **Compute scheduler** for candidate replays (budgeted batches, fairâ€‘share across instruments). _Progress: The `emp_cycle_scheduler` CLI drains idea queues through quick-screening, UCB-lite promotion, and `--max-quick`/`--max-full` budgets while persisting baselines and metadata so replay candidates progress without bespoke scripts under regression coverage.【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:emp/cli/_emp_cycle_common.py†L1-L216】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】_
 
 **Budgeted, Safe Exploration**
@@ -65,7 +65,7 @@
 **Provenance & Governance**
 - [ ] `[reflect]` **Policy Ledger**: promotion checklist (OOS regimeâ€‘grid, leakage checks, risk audit) enforced.
 - [ ] `[reflect]` `rebuild_strategy(policy_hash)` produces byteâ€‘identical runtime config.
-- [ ] `[docs]` Promotion gate documented (thresholds, required artifacts).
+- [x] `[docs]` Promotion gate documented (thresholds, required artifacts). _Progress: Promotion gate guide now pairs telemetry thresholds with an evidence table detailing required artifacts and storage paths so governance promotions stay auditable end to end.【F:docs/operations/promotion_gate.md†L28-L45】_
 
 **Acceptance (DoD)**
 - [x] `[sim]` Spawn â†’ score â†’ **promote** a **new topology** (not just parameter tweak) via ledger gates. _Progress: Tactic replay harness now stamps execution topologies onto evaluation results, the adaptive governance gate records them in ledger metadata, and the nightly replay job threads the topology into diary artifacts with regression coverage promoting an experiment strategy to paper.【F:src/thinking/adaptation/replay_harness.py†L243-L269】【F:src/governance/adaptive_gate.py†L82-L103】【F:tools/operations/nightly_replay_job.py†L300-L363】【F:tests/thinking/test_adaptive_replay_harness.py†L113-L158】_
@@ -109,7 +109,7 @@
 ## M5 â€” Tinyâ€‘Capital Live Pilot (Weeks 10â€“12, gated)
 
 **Deliverables**
-- [ ] `[ops]` Live broker integration (sandbox/prod) behind same interfaces; credential rotation & secrets mgmt.
+- [x] `[ops]` Live broker integration (sandbox/prod) behind same interfaces; credential rotation & secrets mgmt. _Progress: `LiveBrokerSecrets` now loads sandbox and production credential profiles with rotation metadata, `FIXConnectionManager` consumes the active profile for genuine sessions while surfacing health summaries, `predator_app` exports secret descriptors, and regression coverage validates selection, legacy fallbacks, and operator summaries so credential rotation stays governed.【F:src/operational/live_broker_secrets.py†L1-L318】【F:src/operational/fix_connection_manager.py†L1-L392】【F:src/runtime/predator_app.py†L2836-L2862】【F:tests/operational/test_live_broker_secrets.py†L1-L94】_
 - [x] `[risk]` â€œLimitedâ€‘liveâ€ governance gate (explicit ledger entry required to enable any real trades). _Progress: Ledger release manager now caps default limited-live stages to pilot without a policy record, the release router forces paper routes until a ledger entry exists, and regression coverage asserts forced-paper metadata for missing governance approvals so real trading stays disabled by default.【F:src/governance/policy_ledger.py†L550-L623】【F:src/trading/execution/release_router.py†L86-L310】【F:tests/governance/test_policy_ledger.py†L331-L345】【F:tests/trading/test_release_execution_router.py†L88-L167】_
 - [x] `[ops]` Endâ€‘toâ€‘end audit log export; compliance artifact pack. _Progress: Compliance artifact pack builder exports audit logs with manifests, compliance and regulatory snapshots, optional archives, and CLI wiring, with regression coverage for full evidence packs and missing-log fallbacks to keep compliance artifacts reproducible.【F:src/operations/compliance_artifact_pack.py†L1-L188】【F:tools/operations/compliance_artifact_pack.py†L1-L103】【F:tests/operations/test_compliance_artifact_pack.py†L18-L122】_
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T14:08:18Z
+
+### Last 4 commits
+- 498096d9 refactor(trading): tune 2 files (2025-10-19)
+- 0f261821 feat(thinking): add 4 files (2025-10-19)
+- 9ca1fe3f feat(operational): add 4 files (2025-10-19)
+- 3d8b9204 docs(docs): tune 1 file (2025-10-19)
 
 ## Automation updates — 2025-10-19T13:45:52Z
 

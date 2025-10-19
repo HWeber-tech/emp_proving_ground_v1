@@ -1176,7 +1176,30 @@ async def test_trading_manager_requires_complete_attribution_components(
         },
     }
 
-    validate_mock: AsyncMock = AsyncMock(side_effect=[partial_event, complete_event])
+    missing_belief_event: dict[str, Any] = {
+        "strategy_id": "alpha.paper",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "quantity": 1.0,
+        "price": 1.113,
+        "confidence": 0.87,
+        "metadata": {
+            "attribution": {
+                "policy_id": "alpha.paper",
+                "belief": {
+                    "symbol": "EURUSD",
+                    "regime": "balanced",
+                    "confidence": 0.88,
+                },
+                "probes": [{"probe_id": "probe.health", "status": "ok"}],
+                "explanation": "Missing belief id should not count",
+            },
+        },
+    }
+
+    validate_mock: AsyncMock = AsyncMock(
+        side_effect=[partial_event, complete_event, missing_belief_event]
+    )
     manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
 
     first_outcome = await manager.on_trade_intent(partial_event)
@@ -1194,6 +1217,16 @@ async def test_trading_manager_requires_complete_attribution_components(
     second_stats = manager.get_execution_stats()
     assert second_stats.get("orders_with_attribution") == 1
     assert second_stats.get("attribution_coverage") == pytest.approx(0.5)
+
+    third_outcome = await manager.on_trade_intent(missing_belief_event)
+    assert third_outcome.executed is True
+    assert third_outcome.metadata.get("attribution") == missing_belief_event["metadata"][
+        "attribution"
+    ]
+
+    third_stats = manager.get_execution_stats()
+    assert third_stats.get("orders_with_attribution") == 1
+    assert third_stats.get("attribution_coverage") == pytest.approx(1 / 3, rel=1e-4)
 
 
 def test_trading_manager_bounds_attribution_norms() -> None:

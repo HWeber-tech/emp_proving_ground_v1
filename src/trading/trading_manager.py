@@ -4043,10 +4043,21 @@ class TradingManager:
         if not isinstance(belief_block, Mapping) or not belief_block:
             return False
 
+        belief_id = str(belief_block.get("belief_id", "")).strip()
+        if not belief_id:
+            return False
+
         probes_block = payload.get("probes")
         if not isinstance(probes_block, Sequence) or isinstance(probes_block, (str, bytes)):
             return False
         if not probes_block:
+            return False
+        if not any(
+            isinstance(probe, Mapping)
+            and str(probe.get("probe_id", "")).strip()
+            and str(probe.get("status", "")).strip()
+            for probe in probes_block
+        ):
             return False
 
         explanation = payload.get("explanation")

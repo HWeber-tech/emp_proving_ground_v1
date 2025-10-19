@@ -529,14 +529,6 @@ class ReleaseAwareExecutionRouter:
         if not isinstance(risk_payload, Mapping):
             return False, None
 
-        force_flag_raw = risk_payload.get("force_paper")
-        explicit_force = isinstance(force_flag_raw, bool)
-        if explicit_force:
-            force_flag = force_flag_raw
-        else:
-            active_flag = risk_payload.get("active")
-            force_flag = bool(active_flag)
-
         reason_raw = risk_payload.get("reason")
         reason = str(reason_raw).strip() if isinstance(reason_raw, str) else ""
         severity_raw = risk_payload.get("severity")
@@ -546,7 +538,14 @@ class ReleaseAwareExecutionRouter:
             else ""
         )
 
-        if (not explicit_force) and (
+        force_flag_raw = risk_payload.get("force_paper")
+        if isinstance(force_flag_raw, bool):
+            force_flag = force_flag_raw
+        else:
+            active_flag = risk_payload.get("active")
+            force_flag = bool(active_flag)
+
+        if force_flag and (
             severity in {"near_miss", "near-miss", "warn", "warning"}
             or (reason and reason.endswith("near_miss"))
         ):

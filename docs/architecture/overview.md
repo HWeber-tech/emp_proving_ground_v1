@@ -16,8 +16,8 @@ services or persist real data.
   and executions; there is no live venue connectivity shipped in this
   repository.
 - Institutional backbone (feature-flagged): Timescale, Redis, and Kafka
-  connectors exist for credentialed downstream deployments but remain disabled
-  without secrets; the public build never instantiates them.
+  connectors ship with the repository but remain inert without injected
+  secrets; default bootstrap runs fall back to the DuckDB/Yahoo Tier-0 ingest.
 - Trading scaffolding (mock-aware): `src/trading/` provides interfaces and
   telemetry routing but delegates to logging or TODO blocks for real decision
   logic.
@@ -35,7 +35,7 @@ flowchart TD
     runtime --> bridge["FIXConnectionManager\n(defaults to mock)"]
     bridge --> mock["Mock FIX stack\n`MockFIXManager`\n*mock only*"]
     mock --> sensors
-    runtime -.-> institutional["Timescale / Redis / Kafka connectors<br/>(feature-flag, secrets required)<br/>*not shipped*"]
+    runtime -.-> institutional["Timescale / Redis / Kafka connectors<br/>(feature-flag, secrets required)<br/>*disabled by default*"]
     sensors --> observability["Telemetry snapshots\n(structured logs & markdown)"]
     runtime --> trading["Trading layer\n(strategy/risk stubs)"]
     runtime --> evolution["Evolution engine\n(interfaces only)"]

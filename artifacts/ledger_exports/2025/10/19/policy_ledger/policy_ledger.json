@@ -1,0 +1,29 @@
+{
+  "records": {
+    "catalogue/trend-alpha::0": {
+      "approvals": [
+        "compliance",
+        "risk"
+      ],
+      "created_at": "2025-10-19T14:51:28.559549+00:00",
+      "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
+      "history": [
+        {
+          "applied_at": "2025-10-19T14:51:28.559549+00:00",
+          "approvals": [
+            "compliance",
+            "risk"
+          ],
+          "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
+          "next_stage": "paper",
+          "prior_stage": null
+        }
+      ],
+      "policy_id": "catalogue/trend-alpha::0",
+      "stage": "paper",
+      "tactic_id": "catalogue/trend-alpha::0",
+      "updated_at": "2025-10-19T14:51:28.559549+00:00"
+    }
+  },
+  "updated_at": "2025-10-19T14:51:28.559772+00:00"
+}

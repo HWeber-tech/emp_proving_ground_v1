@@ -101,7 +101,7 @@
 
 **Acceptance (DoD)**
 - [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, and persists summaries for governance review via the runtime CLI with pytest coverage for breach detection and exports.【F:src/runtime/paper_run_guardian.py†L1-L360】【F:tests/runtime/test_paper_run_guardian.py†L1-L184】【F:src/runtime/cli.py†L1-L220】_
-- [ ] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics.
+- [ ] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics. _Progress: CI status digests now render alert-response telemetry into the dashboard table and weekly log, recording MTTA/MTTR plus acknowledgement and resolution channels from drill snapshots so observability evidence captures alert firing, acknowledgement, and recovery.【F:tools/telemetry/status_digest.py†L389-L462】【F:tools/telemetry/status_digest.py†L681-L769】【F:tests/tools/test_status_digest.py†L121-L213】【F:docs/status/ci_health.md†L10-L19】【F:docs/status/quality_weekly_status.md†L18-L36】【F:tests/.telemetry/ci_metrics.json†L1-L224】_
 - [x] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback). _Progress: Dedicated validator CLI now executes kill-switch, nightly replay, and trade rollback drills, writes evidence packs, and is paired with a refreshed runbook and regression coverage so incident rehearsals consistently capture pass/fail artifacts.【F:tools/operations/incident_playbook_validation.py†L44-L255】【F:docs/operations/runbooks/incident_playbook_validation.md†L1-L66】【F:tests/tools/test_incident_playbook_validation.py†L9-L48】_
 
 ---
@@ -122,7 +122,7 @@
 ## Continuous Quality Bars (always on)
 
 - [x] `[risk]` Weekly invariants audit & redâ€‘team scenarios (extreme volatility, symbol halts, bad prints). _Progress: Weekly audit harness now ingests red-team evidence for extreme volatility, symbol halts, and bad prints, flags stale or missing coverage, and captures guardrail violations into scenario snapshots with regression coverage across warning/fail paths.【F:src/operations/risk_invariants_audit.py†L1-L310】【F:tests/operations/test_risk_invariants_audit.py†L39-L200】_
-- [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts. _Progress: Decision diary panel now infers coverage from percentages or recorded counts, auto-fills default targets, and explicitly lists missing telemetry fields while still flagging shortfalls and gap breaches, with regression coverage exercising the inferred metrics and warn/fail escalations.【F:src/operations/observability_dashboard.py†L880-L1058】【F:tests/operations/test_observability_dashboard.py†L973-L1082】_
+- [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts. _Progress: Decision diary panel now infers coverage from percentages or recorded counts, auto-fills default targets, and explicitly lists missing telemetry fields while still flagging shortfalls and gap breaches, with regression coverage exercising the inferred metrics and warn/fail escalations.【F:src/operations/observability_dashboard.py†L980-L1063】【F:tests/operations/test_observability_dashboard.py†L983-L1138】_
 - [ ] `[obs]` Graph health in band: modularity, heavyâ€‘tail degree (alerts on collapse/overâ€‘smoothing).
 - [ ] `[docs]` Honest README & system diagram reflect current reality (mock vs real clearly labeled).
 

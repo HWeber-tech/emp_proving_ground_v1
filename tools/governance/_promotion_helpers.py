@@ -30,6 +30,12 @@ def build_log_entry(
         payload["threshold_overrides"] = dict(record.threshold_overrides)
     if record.policy_delta is not None and not record.policy_delta.is_empty():
         payload["policy_delta"] = dict(record.policy_delta.as_dict())
+    if record.accepted_proposals:
+        payload["accepted_proposals"] = list(record.accepted_proposals)
+    if record.rejected_proposals:
+        payload["rejected_proposals"] = list(record.rejected_proposals)
+    if record.human_signoffs:
+        payload["human_signoffs"] = [dict(entry) for entry in record.human_signoffs]
     if record.metadata:
         payload["metadata"] = dict(record.metadata)
     return payload
@@ -64,6 +70,14 @@ def format_markdown_summary(
     ]
     if record.evidence_id:
         lines.append(f"- Evidence ID: `{record.evidence_id}`")
+    if record.accepted_proposals:
+        lines.append(
+            "- Accepted Proposals: " + ", ".join(record.accepted_proposals)
+        )
+    if record.rejected_proposals:
+        lines.append(
+            "- Rejected Proposals: " + ", ".join(record.rejected_proposals)
+        )
     lines.append(f"- Updated At: {record.updated_at.isoformat()}")
 
     thresholds = posture.get("thresholds", {})
@@ -91,6 +105,31 @@ def format_markdown_summary(
         lines.append("## Metadata")
         for key, value in sorted(record.metadata.items()):
             lines.append(f"- `{key}`: {json.dumps(value, sort_keys=True)}")
+
+    if record.human_signoffs:
+        lines.append("")
+        lines.append("## Human Sign-offs")
+        for raw_entry in record.human_signoffs:
+            entry = dict(raw_entry)
+            summary_parts = []
+            reviewer = entry.get("reviewer") or entry.get("name")
+            if reviewer:
+                summary_parts.append(str(reviewer))
+            role = entry.get("role")
+            if role:
+                summary_parts.append(f"role={role}")
+            verdict = entry.get("verdict")
+            if verdict:
+                summary_parts.append(f"verdict={verdict}")
+            signed_at = entry.get("signed_at")
+            if signed_at:
+                summary_parts.append(f"signed_at={signed_at}")
+            if summary_parts:
+                lines.append("- " + ", ".join(summary_parts))
+            else:
+                lines.append(
+                    "- " + json.dumps(entry, sort_keys=True, default=str)
+                )
 
     declared_stage = posture.get("declared_stage")
     audit_stage = posture.get("audit_stage")

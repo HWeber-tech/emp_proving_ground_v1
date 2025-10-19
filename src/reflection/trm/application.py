@@ -85,11 +85,8 @@ def apply_auto_applied_suggestions_to_ledger(
         governance = entry.get("governance")
         if not isinstance(governance, Mapping):
             continue
-        if str(governance.get("status", "")).lower() != "auto_applied":
-            continue
+        status = str(governance.get("status", "")).lower()
         auto_apply = governance.get("auto_apply")
-        if not _auto_apply_succeeded(auto_apply):
-            continue
 
         strategy_id = _extract_strategy_id(entry)
         if strategy_id is None:
@@ -106,37 +103,78 @@ def apply_auto_applied_suggestions_to_ledger(
             )
             continue
 
-        existing_entries = _fetch_existing_rim_metadata(record.metadata)
-        if suggestion_id in existing_entries:
+        if status == "auto_applied" and _auto_apply_succeeded(auto_apply):
+            existing_entries = _fetch_existing_rim_metadata(record.metadata)
+            if suggestion_id in existing_entries:
+                continue
+
+            metadata_payload = _build_metadata_payload(entry, governance, auto_apply)
+            metadata_update = {
+                "rim_auto_apply": existing_entries | {suggestion_id: metadata_payload}
+            }
+
+            approvals = list(record.approvals)
+            if auto_approval_tag not in approvals:
+                approvals.append(auto_approval_tag)
+
+            threshold_overrides: MutableMapping[str, float | str] | None = None
+            override_key, override_value = _derive_threshold_override(entry, strategy_id)
+            if override_key is not None and override_value is not None:
+                overrides = dict(record.threshold_overrides)
+                overrides[override_key] = override_value
+                threshold_overrides = overrides
+
+            try:
+                release_manager.apply_stage_transition(
+                    policy_id=strategy_id,
+                    tactic_id=record.tactic_id,
+                    stage=record.stage,
+                    approvals=approvals,
+                    evidence_id=record.evidence_id,
+                    threshold_overrides=threshold_overrides,
+                    metadata=metadata_update,
+                    accepted_proposals=(suggestion_id,),
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.warning(
+                    "Failed to record RIM auto-apply suggestion: %s",
+                    exc,
+                    extra={
+                        "rim.auto.suggestion_id": suggestion_id,
+                        "rim.auto.strategy_id": strategy_id,
+                    },
+                )
+                continue
+
+            applied.append(suggestion_id)
             continue
 
-        metadata_payload = _build_metadata_payload(entry, governance, auto_apply)
-        metadata_update = {"rim_auto_apply": existing_entries | {suggestion_id: metadata_payload}}
+        rejection_payload = _build_rejection_payload(entry, governance, auto_apply)
+        if rejection_payload is None:
+            continue
 
-        approvals = list(record.approvals)
-        if auto_approval_tag not in approvals:
-            approvals.append(auto_approval_tag)
+        existing_rejections = _fetch_existing_rejection_metadata(record.metadata)
+        if suggestion_id in existing_rejections:
+            continue
 
-        threshold_overrides: MutableMapping[str, float | str] | None = None
-        override_key, override_value = _derive_threshold_override(entry, strategy_id)
-        if override_key is not None and override_value is not None:
-            overrides = dict(record.threshold_overrides)
-            overrides[override_key] = override_value
-            threshold_overrides = overrides
+        rejection_update = {
+            "rim_auto_apply_rejections": existing_rejections
+            | {suggestion_id: rejection_payload}
+        }
 
         try:
             release_manager.apply_stage_transition(
                 policy_id=strategy_id,
                 tactic_id=record.tactic_id,
                 stage=record.stage,
-                approvals=approvals,
+                approvals=record.approvals,
                 evidence_id=record.evidence_id,
-                threshold_overrides=threshold_overrides,
-                metadata=metadata_update,
+                metadata=rejection_update,
+                rejected_proposals=(suggestion_id,),
             )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.warning(
-                "Failed to record RIM auto-apply suggestion: %s",
+                "Failed to record RIM suggestion rejection: %s",
                 exc,
                 extra={
                     "rim.auto.suggestion_id": suggestion_id,
@@ -144,8 +182,6 @@ def apply_auto_applied_suggestions_to_ledger(
                 },
             )
             continue
-
-        applied.append(suggestion_id)
 
     if applied:
         logger.info(
@@ -201,6 +237,21 @@ def _fetch_existing_rim_metadata(metadata: Mapping[str, object] | None) -> dict[
     return {}
 
 
+def _fetch_existing_rejection_metadata(
+    metadata: Mapping[str, object] | None,
+) -> dict[str, Mapping[str, object]]:
+    if not metadata:
+        return {}
+    rejection_block = metadata.get("rim_auto_apply_rejections")
+    if isinstance(rejection_block, Mapping):
+        result: dict[str, Mapping[str, object]] = {}
+        for key, value in rejection_block.items():
+            if isinstance(key, str) and isinstance(value, Mapping):
+                result[key] = dict(value)
+        return result
+    return {}
+
+
 def _build_metadata_payload(
     entry: Mapping[str, object],
     governance: Mapping[str, object],
@@ -237,6 +288,53 @@ def _build_metadata_payload(
     if isinstance(reasons, Iterable) and not isinstance(reasons, (str, bytes)):
         metadata_block["reasons"] = [str(reason) for reason in reasons]
     metadata_block["applied"] = True
+    payload["auto_apply"] = metadata_block
+    return payload
+
+
+def _build_rejection_payload(
+    entry: Mapping[str, object],
+    governance: Mapping[str, object],
+    auto_apply: Mapping[str, object] | None,
+) -> Mapping[str, object] | None:
+    if not isinstance(auto_apply, Mapping):
+        return None
+    applied_flag = auto_apply.get("applied")
+    if isinstance(applied_flag, bool) and applied_flag:
+        return None
+
+    payload: MutableMapping[str, object] = {
+        "type": entry.get("type"),
+        "confidence": entry.get("confidence"),
+        "payload": entry.get("payload"),
+        "status": governance.get("status"),
+    }
+    audit_ids = entry.get("audit_ids")
+    if isinstance(audit_ids, Sequence) and audit_ids:
+        payload["audit_ids"] = list(audit_ids)
+    affected_regimes = entry.get("affected_regimes")
+    if isinstance(affected_regimes, Sequence) and affected_regimes:
+        payload["affected_regimes"] = [str(regime) for regime in affected_regimes]
+    evidence_block = entry.get("evidence")
+    if isinstance(evidence_block, Mapping):
+        payload["evidence"] = json.loads(json.dumps(evidence_block))
+    run_id = governance.get("run_id")
+    if run_id:
+        payload["run_id"] = run_id
+    evaluated_at = governance.get("enqueued_at")
+    if evaluated_at:
+        payload["evaluated_at"] = evaluated_at
+    trace = entry.get("trace")
+    if isinstance(trace, Mapping):
+        payload["trace"] = json.loads(json.dumps(trace))
+
+    metadata_block: MutableMapping[str, object] = {"applied": False}
+    evaluation = auto_apply.get("evaluation")
+    if isinstance(evaluation, Mapping):
+        metadata_block["evaluation"] = dict(evaluation)
+    reasons = auto_apply.get("reasons")
+    if isinstance(reasons, Iterable) and not isinstance(reasons, (str, bytes)):
+        metadata_block["reasons"] = [str(reason) for reason in reasons]
     payload["auto_apply"] = metadata_block
     return payload
 

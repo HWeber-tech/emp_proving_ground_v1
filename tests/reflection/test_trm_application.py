@@ -101,14 +101,18 @@ def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None
     )
 
     suggestion = _build_queue_entry("bootstrap-strategy", suggestion_id="rim-abc", delta=-0.07)
-    pending = {
-        "suggestion_id": "rim-pending",
-        "type": "WEIGHT_ADJUST",
-        "payload": {"strategy_id": "bootstrap-strategy", "proposed_weight_delta": -0.02},
-        "confidence": 0.6,
-        "governance": {"status": "pending"},
-    }
-    _write_queue_lines(queue_path, [suggestion, pending])
+    rejected = _build_queue_entry("bootstrap-strategy", suggestion_id="rim-reject", delta=-0.02)
+    rejected_governance = rejected["governance"]
+    rejected_governance["status"] = "pending"
+    rejected_governance.pop("applied_at", None)
+    auto_apply_block = rejected_governance["auto_apply"]
+    auto_apply_block["applied"] = False
+    auto_apply_block["reasons"] = ["risk_hits_exceeded:2>0"]
+    evaluation_block = auto_apply_block.get("evaluation", {})
+    evaluation_block["risk_hits"] = 2
+    evaluation_block["oos_uplift"] = 0.05
+    auto_apply_block["evaluation"] = evaluation_block
+    _write_queue_lines(queue_path, [suggestion, rejected])
 
     applied = apply_auto_applied_suggestions_to_ledger(
         queue_path,
@@ -145,6 +149,14 @@ def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None
     assert trace.get("code_hash") == "test-code"
     diary_slice = trace.get("diary_slice")
     assert diary_slice is not None and diary_slice.get("strategy_entries")
+    assert record.accepted_proposals == ("rim-abc",)
+
+    rejections = record.metadata.get("rim_auto_apply_rejections") if record.metadata else None
+    assert rejections is not None
+    rejection_payload = rejections.get("rim-reject")
+    assert rejection_payload is not None
+    assert rejection_payload["auto_apply"]["reasons"] == ["risk_hits_exceeded:2>0"]
+    assert record.rejected_proposals == ("rim-reject",)
 
     # Re-running should be idempotent.
     reapplied = apply_auto_applied_suggestions_to_ledger(

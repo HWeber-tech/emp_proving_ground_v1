@@ -17,6 +17,7 @@ shadow mode, paper trading, or eligible for limited live deployment.
 from __future__ import annotations
 
 import contextlib
+import copy
 import os
 import tempfile
 import time
@@ -106,6 +107,74 @@ def _normalise_evidence_id(value: str | None) -> str | None:
     return normalised or None
 
 
+def _normalise_proposal_ids(values: Iterable[str] | None) -> tuple[str, ...]:
+    if not values:
+        return tuple()
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        text = str(raw).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        cleaned.append(text)
+    return tuple(cleaned)
+
+
+def _merge_proposal_ids(
+    existing: Iterable[str],
+    updates: Iterable[str] | None,
+) -> tuple[str, ...]:
+    merged: list[str] = list(existing)
+    if not updates:
+        return tuple(merged)
+    seen: set[str] = set(merged)
+    for proposal in _normalise_proposal_ids(updates):
+        if proposal in seen:
+            continue
+        seen.add(proposal)
+        merged.append(proposal)
+    return tuple(merged)
+
+
+def _normalise_signoffs(
+    values: Iterable[Mapping[str, Any]] | None,
+) -> tuple[Mapping[str, Any], ...]:
+    if not values:
+        return tuple()
+    normalised: list[Mapping[str, Any]] = []
+    seen: set[str] = set()
+    for entry in values:
+        if not isinstance(entry, Mapping):
+            continue
+        snapshot = copy.deepcopy({str(key): value for key, value in entry.items()})
+        fingerprint = json.dumps(snapshot, sort_keys=True, default=str)
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        normalised.append(snapshot)
+    return tuple(normalised)
+
+
+def _merge_signoffs(
+    existing: Iterable[Mapping[str, Any]],
+    updates: Iterable[Mapping[str, Any]] | None,
+) -> tuple[Mapping[str, Any], ...]:
+    merged = [dict(entry) for entry in existing]
+    if not updates:
+        return tuple(merged)
+    seen: set[str] = {
+        json.dumps(entry, sort_keys=True, default=str) for entry in merged
+    }
+    for entry in _normalise_signoffs(updates):
+        fingerprint = json.dumps(entry, sort_keys=True, default=str)
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        merged.append(entry)
+    return tuple(merged)
+
+
 @dataclass(slots=True)
 class PolicyLedgerRecord:
     """Ledger entry tying a tactic to its promotion posture."""
@@ -118,6 +187,9 @@ class PolicyLedgerRecord:
     threshold_overrides: Mapping[str, float | str] = field(default_factory=dict)
     policy_delta: PolicyDelta | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    accepted_proposals: tuple[str, ...] = ()
+    rejected_proposals: tuple[str, ...] = ()
+    human_signoffs: tuple[Mapping[str, Any], ...] = ()
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     history: tuple[Mapping[str, Any], ...] = ()
@@ -131,6 +203,9 @@ class PolicyLedgerRecord:
         threshold_overrides: Mapping[str, float | str] | None = None,
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        accepted_proposals: Iterable[str] | None = None,
+        rejected_proposals: Iterable[str] | None = None,
+        human_signoffs: Iterable[Mapping[str, Any]] | None = None,
         timestamp: datetime | None = None,
         allow_regression: bool = False,
     ) -> "PolicyLedgerRecord":
@@ -143,6 +218,24 @@ class PolicyLedgerRecord:
             resolved_approvals = self.approvals
         else:
             resolved_approvals = _normalise_approvals(approvals)
+        if accepted_proposals is None:
+            accepted_added: tuple[str, ...] = tuple()
+            resolved_accepted = self.accepted_proposals
+        else:
+            accepted_added = _normalise_proposal_ids(accepted_proposals)
+            resolved_accepted = _merge_proposal_ids(self.accepted_proposals, accepted_added)
+        if rejected_proposals is None:
+            rejected_added: tuple[str, ...] = tuple()
+            resolved_rejected = self.rejected_proposals
+        else:
+            rejected_added = _normalise_proposal_ids(rejected_proposals)
+            resolved_rejected = _merge_proposal_ids(self.rejected_proposals, rejected_added)
+        if human_signoffs is None:
+            signoffs_added: tuple[Mapping[str, Any], ...] = tuple()
+            resolved_signoffs = self.human_signoffs
+        else:
+            signoffs_added = _normalise_signoffs(human_signoffs)
+            resolved_signoffs = _merge_signoffs(self.human_signoffs, signoffs_added)
         history_entry = {
             "prior_stage": self.stage.value,
             "next_stage": stage.value,
@@ -152,6 +245,12 @@ class PolicyLedgerRecord:
         }
         if delta is not None and not delta.is_empty():
             history_entry["policy_delta"] = dict(delta.as_dict())
+        if accepted_added:
+            history_entry["accepted_proposals"] = list(accepted_added)
+        if rejected_added:
+            history_entry["rejected_proposals"] = list(rejected_added)
+        if signoffs_added:
+            history_entry["human_signoffs"] = [dict(entry) for entry in signoffs_added]
         new_history = self.history + (history_entry,)
         return PolicyLedgerRecord(
             policy_id=self.policy_id,
@@ -162,6 +261,9 @@ class PolicyLedgerRecord:
             threshold_overrides=dict(threshold_overrides or self.threshold_overrides),
             policy_delta=delta,
             metadata=dict(self.metadata) | (dict(metadata) if metadata else {}),
+            accepted_proposals=resolved_accepted,
+            rejected_proposals=resolved_rejected,
+            human_signoffs=resolved_signoffs,
             created_at=self.created_at,
             updated_at=applied_timestamp,
             history=new_history,
@@ -183,6 +285,12 @@ class PolicyLedgerRecord:
             payload["threshold_overrides"] = dict(self.threshold_overrides)
         if self.policy_delta is not None and not self.policy_delta.is_empty():
             payload["policy_delta"] = dict(self.policy_delta.as_dict())
+        if self.accepted_proposals:
+            payload["accepted_proposals"] = list(self.accepted_proposals)
+        if self.rejected_proposals:
+            payload["rejected_proposals"] = list(self.rejected_proposals)
+        if self.human_signoffs:
+            payload["human_signoffs"] = [dict(entry) for entry in self.human_signoffs]
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
         return payload
@@ -248,6 +356,27 @@ class PolicyLedgerRecord:
                     exc,
                 )
         metadata = dict(data.get("metadata") or {})
+        raw_accepted = data.get("accepted_proposals")
+        if isinstance(raw_accepted, Iterable) and not isinstance(raw_accepted, (str, bytes)):
+            accepted_proposals = _normalise_proposal_ids(raw_accepted)
+        else:
+            accepted_proposals = tuple()
+        raw_rejected = data.get("rejected_proposals")
+        if isinstance(raw_rejected, Iterable) and not isinstance(raw_rejected, (str, bytes)):
+            rejected_proposals = _normalise_proposal_ids(raw_rejected)
+        else:
+            rejected_proposals = tuple()
+        human_signoffs_payload = data.get("human_signoffs")
+        if isinstance(human_signoffs_payload, Iterable) and not isinstance(
+            human_signoffs_payload, (str, bytes)
+        ):
+            entries: list[Mapping[str, Any]] = []
+            for item in human_signoffs_payload:
+                if isinstance(item, Mapping):
+                    entries.append(dict(item))
+            human_signoffs = _normalise_signoffs(entries)
+        else:
+            human_signoffs = tuple()
         created_at_raw = data.get("created_at")
         updated_at_raw = data.get("updated_at")
         created_at = (
@@ -278,6 +407,9 @@ class PolicyLedgerRecord:
             threshold_overrides=threshold_overrides,
             policy_delta=policy_delta,
             metadata=metadata,
+            accepted_proposals=accepted_proposals,
+            rejected_proposals=rejected_proposals,
+            human_signoffs=human_signoffs,
             created_at=created_at,
             updated_at=updated_at,
             history=history_payload,
@@ -427,6 +559,9 @@ class PolicyLedgerStore:
         threshold_overrides: Mapping[str, float | str] | None = None,
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        accepted_proposals: Iterable[str] | None = None,
+        rejected_proposals: Iterable[str] | None = None,
+        human_signoffs: Iterable[Mapping[str, Any]] | None = None,
         allow_regression: bool = False,
     ) -> PolicyLedgerRecord:
         approvals_tuple = _normalise_approvals(approvals)
@@ -436,6 +571,21 @@ class PolicyLedgerStore:
             delta = None
         if delta is not None and not approvals_tuple:
             raise ValueError("Policy delta updates require reviewer approvals metadata")
+        accepted_updates = (
+            _normalise_proposal_ids(accepted_proposals)
+            if accepted_proposals is not None
+            else tuple()
+        )
+        rejected_updates = (
+            _normalise_proposal_ids(rejected_proposals)
+            if rejected_proposals is not None
+            else tuple()
+        )
+        signoff_updates = (
+            _normalise_signoffs(human_signoffs)
+            if human_signoffs is not None
+            else tuple()
+        )
         timestamp = self._now()
         with self._exclusive_lock():
             # Refresh in-memory records to avoid clobbering concurrent writers.
@@ -450,6 +600,9 @@ class PolicyLedgerStore:
                     threshold_overrides=threshold_overrides,
                     policy_delta=delta,
                     metadata=metadata,
+                    accepted_proposals=accepted_proposals,
+                    rejected_proposals=rejected_proposals,
+                    human_signoffs=human_signoffs,
                     timestamp=timestamp,
                     allow_regression=allow_regression,
                 )
@@ -463,6 +616,12 @@ class PolicyLedgerStore:
                 }
                 if delta is not None:
                     history_entry["policy_delta"] = dict(delta.as_dict())
+                if accepted_updates:
+                    history_entry["accepted_proposals"] = list(accepted_updates)
+                if rejected_updates:
+                    history_entry["rejected_proposals"] = list(rejected_updates)
+                if signoff_updates:
+                    history_entry["human_signoffs"] = [dict(entry) for entry in signoff_updates]
                 updated = PolicyLedgerRecord(
                     policy_id=policy_id,
                     tactic_id=tactic_id,
@@ -472,6 +631,9 @@ class PolicyLedgerStore:
                     threshold_overrides=dict(threshold_overrides or {}),
                     policy_delta=delta,
                     metadata=dict(metadata or {}),
+                    accepted_proposals=accepted_updates,
+                    rejected_proposals=rejected_updates,
+                    human_signoffs=signoff_updates,
                     created_at=timestamp,
                     updated_at=timestamp,
                     history=(history_entry,),
@@ -620,6 +782,12 @@ class LedgerReleaseManager:
                 payload["metadata"] = dict(record.metadata)
             if record.policy_delta is not None and not record.policy_delta.is_empty():
                 payload["policy_delta"] = dict(record.policy_delta.as_dict())
+            if record.accepted_proposals:
+                payload["accepted_proposals"] = list(record.accepted_proposals)
+            if record.rejected_proposals:
+                payload["rejected_proposals"] = list(record.rejected_proposals)
+            if record.human_signoffs:
+                payload["human_signoffs"] = [dict(entry) for entry in record.human_signoffs]
         else:
             payload["limited_live_authorised"] = False
         return payload
@@ -635,6 +803,9 @@ class LedgerReleaseManager:
         threshold_overrides: Mapping[str, float | str] | None = None,
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        accepted_proposals: Iterable[str] | None = None,
+        rejected_proposals: Iterable[str] | None = None,
+        human_signoffs: Iterable[Mapping[str, Any]] | None = None,
         allow_regression: bool,
         log_action: str,
     ) -> PolicyLedgerRecord:
@@ -662,6 +833,9 @@ class LedgerReleaseManager:
             threshold_overrides=threshold_overrides,
             policy_delta=policy_delta,
             metadata=metadata,
+            accepted_proposals=accepted_proposals,
+            rejected_proposals=rejected_proposals,
+            human_signoffs=human_signoffs,
             allow_regression=allow_regression,
         )
 
@@ -684,6 +858,9 @@ class LedgerReleaseManager:
                 "evidence_id": record.evidence_id,
                 "prior_stage": prior_stage.value if prior_stage else None,
                 "allow_regression": allow_regression,
+                "accepted_proposals": list(record.accepted_proposals),
+                "rejected_proposals": list(record.rejected_proposals),
+                "human_signoffs": [dict(entry) for entry in record.human_signoffs],
             },
         )
         return record
@@ -699,6 +876,9 @@ class LedgerReleaseManager:
         threshold_overrides: Mapping[str, float | str] | None = None,
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
+        accepted_proposals: Iterable[str] | None = None,
+        rejected_proposals: Iterable[str] | None = None,
+        human_signoffs: Iterable[Mapping[str, Any]] | None = None,
     ) -> PolicyLedgerRecord:
         return self._apply_stage(
             policy_id=policy_id,
@@ -709,6 +889,9 @@ class LedgerReleaseManager:
             threshold_overrides=threshold_overrides,
             policy_delta=policy_delta,
             metadata=metadata,
+            accepted_proposals=accepted_proposals,
+            rejected_proposals=rejected_proposals,
+            human_signoffs=human_signoffs,
             allow_regression=False,
             log_action="promotion",
         )
@@ -725,6 +908,9 @@ class LedgerReleaseManager:
         policy_delta: PolicyDelta | Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
         allow_regression: bool = False,
+        accepted_proposals: Iterable[str] | None = None,
+        rejected_proposals: Iterable[str] | None = None,
+        human_signoffs: Iterable[Mapping[str, Any]] | None = None,
     ) -> PolicyLedgerRecord:
         return self._apply_stage(
             policy_id=policy_id,
@@ -736,6 +922,9 @@ class LedgerReleaseManager:
             policy_delta=policy_delta,
             metadata=metadata,
             allow_regression=allow_regression,
+            accepted_proposals=accepted_proposals,
+            rejected_proposals=rejected_proposals,
+            human_signoffs=human_signoffs,
             log_action="transition",
         )
 
@@ -790,6 +979,14 @@ def build_policy_governance_workflow(
             summary_parts.append("evidence=missing")
         if record.policy_delta and record.policy_delta.regime:
             summary_parts.append(f"regime={record.policy_delta.regime}")
+        if record.accepted_proposals:
+            summary_parts.append(
+                "accepted=" + ",".join(record.accepted_proposals)
+            )
+        if record.rejected_proposals:
+            summary_parts.append(
+                "rejected=" + ",".join(record.rejected_proposals)
+            )
         severity = "high" if status is WorkflowTaskStatus.blocked else "medium"
         metadata: dict[str, Any] = {
             "policy_id": record.policy_id,
@@ -800,6 +997,12 @@ def build_policy_governance_workflow(
         }
         if record.policy_delta is not None and not record.policy_delta.is_empty():
             metadata["policy_delta"] = dict(record.policy_delta.as_dict())
+        if record.accepted_proposals:
+            metadata["accepted_proposals"] = list(record.accepted_proposals)
+        if record.rejected_proposals:
+            metadata["rejected_proposals"] = list(record.rejected_proposals)
+        if record.human_signoffs:
+            metadata["human_signoffs"] = [dict(entry) for entry in record.human_signoffs]
         task = ComplianceWorkflowTask(
             task_id=f"policy::{record.policy_id}",
             title=f"{record.policy_id} → {record.stage.value}",

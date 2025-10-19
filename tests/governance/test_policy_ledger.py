@@ -55,6 +55,9 @@ def test_policy_ledger_promotion_progression(tmp_path: Path) -> None:
     assert first.approvals == ("compliance", "risk")
     assert first.evidence_id == "diary-001"
     assert first.threshold_overrides["warn_confidence_floor"] == 0.8
+    assert first.accepted_proposals == ()
+    assert first.rejected_proposals == ()
+    assert first.human_signoffs == ()
     assert first.history
     history_entry = first.history[0]
     assert history_entry["prior_stage"] is None
@@ -86,6 +89,75 @@ def test_policy_ledger_promotion_progression(tmp_path: Path) -> None:
     assert persisted.stage is PolicyLedgerStage.PILOT
     assert persisted.policy_delta is not None
     assert persisted.policy_delta.risk_config["max_total_exposure_pct"] == 0.45
+
+
+def test_policy_ledger_records_proposals_and_signoffs(tmp_path: Path) -> None:
+    path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
+
+    signoffs = (
+        {
+            "reviewer": "alice",
+            "role": "risk",
+            "verdict": "approved",
+            "signed_at": "2024-01-01T00:00:00Z",
+        },
+    )
+
+    record = manager.promote(
+        policy_id="alpha.policy",
+        tactic_id="tactic.alpha",
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk",),
+        evidence_id="diary-001",
+        accepted_proposals=("rim-001",),
+        rejected_proposals=("rim-002",),
+        human_signoffs=signoffs,
+        metadata={"context": "initial"},
+    )
+
+    assert record.accepted_proposals == ("rim-001",)
+    assert record.rejected_proposals == ("rim-002",)
+    assert record.human_signoffs and record.human_signoffs[0]["reviewer"] == "alice"
+    history_entry = record.history[-1]
+    assert history_entry["accepted_proposals"] == ["rim-001"]
+    assert history_entry["rejected_proposals"] == ["rim-002"]
+    assert history_entry["human_signoffs"][0]["verdict"] == "approved"
+
+    manager.apply_stage_transition(
+        policy_id="alpha.policy",
+        tactic_id="tactic.alpha",
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk", "ops"),
+        human_signoffs=(
+            {
+                "reviewer": "bob",
+                "role": "compliance",
+                "verdict": "approved",
+            },
+        ),
+        accepted_proposals=("rim-001", "rim-003"),
+        rejected_proposals=("rim-004",),
+    )
+
+    persisted = store.get("alpha.policy")
+    assert persisted is not None
+    assert persisted.accepted_proposals == ("rim-001", "rim-003")
+    assert persisted.rejected_proposals == ("rim-002", "rim-004")
+    assert len(persisted.human_signoffs) == 2
+    assert {entry["reviewer"] for entry in persisted.human_signoffs} == {
+        "alice",
+        "bob",
+    }
+
+    description = manager.describe("alpha.policy")
+    assert description["accepted_proposals"] == ["rim-001", "rim-003"]
+    assert description["rejected_proposals"] == ["rim-002", "rim-004"]
+    assert description["human_signoffs"][0]["reviewer"] == "alice"
 
 
 def test_policy_ledger_rejects_stage_regression(tmp_path: Path) -> None:
@@ -250,6 +322,33 @@ def test_policy_ledger_from_dict_normalises_approvals() -> None:
     assert record.policy_id == "alpha.policy"
     assert record.tactic_id == "tactic.alpha"
     assert record.approvals == ("OPS", "risk")
+
+
+def test_policy_ledger_from_dict_parses_proposals_and_signoffs() -> None:
+    payload = {
+        "policy_id": "alpha.policy",
+        "tactic_id": "tactic.alpha",
+        "stage": "pilot",
+        "approvals": ["risk"],
+        "accepted_proposals": ["rim-001", "rim-001"],
+        "rejected_proposals": ["rim-002"],
+        "human_signoffs": [
+            {
+                "reviewer": "alice",
+                "role": "risk",
+            },
+            {
+                "reviewer": "alice",
+                "role": "risk",
+            },
+        ],
+    }
+
+    record = PolicyLedgerRecord.from_dict(payload)
+
+    assert record.accepted_proposals == ("rim-001",)
+    assert record.rejected_proposals == ("rim-002",)
+    assert record.human_signoffs and record.human_signoffs[0]["reviewer"] == "alice"
 
 
 def test_policy_ledger_trims_evidence_identifiers(tmp_path: Path) -> None:

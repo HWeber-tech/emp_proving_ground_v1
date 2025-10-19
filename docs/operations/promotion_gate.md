@@ -31,6 +31,15 @@ its current stage and reports the failing checks.【F:src/governance/policy_grad
 | Paper → Pilot | ≥ 40 paper-stage decisions | No alerts, forced_ratio ≤ 0.25, warn_ratio ≤ 0.20, normal_ratio ≥ 0.65, ≥ 8 consecutive "normal" decisions if still in paper | — |
 | Pilot → Limited Live | ≥ 60 pilot-stage decisions | No alerts, forced_ratio ≤ 0.10, warn_ratio ≤ 0.10, normal_ratio ≥ 0.80, ≥ 15 consecutive "normal" decisions if still in pilot | At least two distinct approvals and zero audit gaps in the ledger |
 
+Operators must pair these telemetry checks with a consistent evidence packet so
+auditors can reconstruct each promotion.
+
+| Gate | Required artifacts | Storage location |
+| --- | --- | --- |
+| Experiment → Paper | DecisionDiary export (`evidence_id`) covering ≥ 20 experiment decisions | `artifacts/governance/decision_diary.json` |
+| Paper → Pilot | DecisionDiary export covering ≥ 40 paper decisions; ledger record with stage `pilot`; risk & compliance sign-offs | `artifacts/governance/decision_diary.json`, `artifacts/governance/policy_ledger.json` |
+| Pilot → Limited Live | DecisionDiary export covering ≥ 60 pilot decisions; ledger record updated to `limited_live`; signed approvals from ≥ 2 roles; promotion log entry; performance packet (Sharpe, drawdown, expectancy, latency/error posture) | `artifacts/governance/decision_diary.json`, `artifacts/governance/policy_ledger.json`, `artifacts/governance/policy_promotions.log`, `artifacts/governance/performance/` |
+
 The evaluator also reports global metrics (total decisions, forced ratio,
 latest stage) so governance reviewers can spot deteriorating quality before a
 promotion attempt.【F:tools/governance/alpha_trade_graduation.py†L119-L163】

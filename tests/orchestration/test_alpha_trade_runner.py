@@ -27,6 +27,7 @@ from src.understanding.router import UnderstandingRouter
 from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.thinking.adaptation.policy_router import (
     FastWeightExperiment,
+    PolicyDecision,
     PolicyRouter,
     PolicyTactic,
 )
@@ -453,6 +454,75 @@ async def test_alpha_trade_runner_merges_counterfactual_guardrail(monkeypatch, t
 
     assert intent_metadata.get("guardrails") == guardrails
     assert result.trade_outcome.metadata.get("guardrails") == guardrails
+
+
+def test_alpha_trade_orchestrator_respects_passive_counterfactual_bound(tmp_path) -> None:
+    store = PolicyLedgerStore(tmp_path / "passive_guardrail_ledger.json")
+    release_manager = LedgerReleaseManager(store)
+
+    policy_router = PolicyRouter()
+    understanding_router = UnderstandingRouter(policy_router)
+    diary_store = DecisionDiaryStore(
+        tmp_path / "passive_guardrail_diary.json",
+        publish_on_record=False,
+    )
+    drift_gate = DriftSentryGate()
+
+    orchestrator = AlphaTradeLoopOrchestrator(
+        router=understanding_router,
+        diary_store=diary_store,
+        drift_gate=drift_gate,
+        release_manager=release_manager,
+    )
+
+    decision = PolicyDecision(
+        tactic_id="alpha.live",
+        parameters={},
+        selected_weight=0.75,
+        guardrails={},
+        rationale="",
+        experiments_applied=(),
+        reflection_summary={},
+        weight_breakdown={"base_score": 1.0, "final_score": 0.75},
+    )
+
+    guardrails: dict[str, Any] = {"force_paper": False}
+    limits = {"relative": 0.20, "relative_passive": 0.4}
+
+    updated = orchestrator._apply_counterfactual_guardrail(
+        guardrails,
+        decision,
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        limits=limits,
+    )
+
+    payload = updated.get("counterfactual_guardrail")
+    assert isinstance(payload, dict)
+    assert payload.get("delta_direction") == "passive"
+    assert payload.get("score_delta") == pytest.approx(-0.25)
+    assert payload.get("relative_breach") is False
+    assert payload.get("breached") is False
+    assert payload.get("max_relative_delta") == pytest.approx(0.4)
+    assert payload.get("severity") is None
+    assert updated.get("force_paper") is False
+
+    guardrails_second: dict[str, Any] = {"force_paper": False}
+    tighter_limits = {"relative": 0.20, "relative_passive": 0.1}
+
+    updated_second = orchestrator._apply_counterfactual_guardrail(
+        guardrails_second,
+        decision,
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        limits=tighter_limits,
+    )
+
+    second_payload = updated_second.get("counterfactual_guardrail")
+    assert isinstance(second_payload, dict)
+    assert second_payload.get("breached") is True
+    assert second_payload.get("relative_breach") is True
+    assert second_payload.get("max_relative_delta") == pytest.approx(0.1)
+    assert second_payload.get("severity") == "passive"
+    assert updated_second.get("force_paper") is False
 
 
 @pytest.mark.asyncio()

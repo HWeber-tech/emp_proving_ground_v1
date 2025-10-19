@@ -957,6 +957,7 @@ _DEFAULT_THRESHOLD_PROFILES: Mapping[PolicyLedgerStage, Mapping[str, float | str
         "warn_notional_limit": 100_000.0,
         "block_severity": "alert",
         "counterfactual_relative_delta_limit": 0.20,
+        "counterfactual_relative_delta_limit_passive": 0.35,
     },
 }
 

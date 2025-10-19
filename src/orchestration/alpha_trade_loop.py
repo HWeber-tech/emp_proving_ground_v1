@@ -260,7 +260,11 @@ class AlphaTradeLoopOrchestrator:
 
     _COUNTERFACTUAL_LIMITS: Mapping[PolicyLedgerStage, Mapping[str, float]] = {
         PolicyLedgerStage.PILOT: {"relative": 0.35},
-        PolicyLedgerStage.LIMITED_LIVE: {"relative": 0.20},
+        PolicyLedgerStage.LIMITED_LIVE: {
+            "relative": 0.20,
+            "relative_aggro": 0.20,
+            "relative_passive": 0.35,
+        },
     }
     _COUNTERFACTUAL_RELATIVE_KEYS: tuple[str, ...] = (
         "counterfactual_relative_delta_limit",
@@ -270,6 +274,20 @@ class AlphaTradeLoopOrchestrator:
         "counterfactual_relative_delta_cap",
         "counterfactual_relative_delta_max",
     )
+    _COUNTERFACTUAL_RELATIVE_PASSIVE_KEYS: tuple[str, ...] = (
+        "counterfactual_relative_delta_limit_passive",
+        "counterfactual_passive_relative_delta_limit",
+        "counterfactual_passive_relative_limit",
+        "counterfactual_guardrail_relative_limit_passive",
+        "counterfactual_guardrail_passive_relative_limit",
+    )
+    _COUNTERFACTUAL_RELATIVE_AGGRO_KEYS: tuple[str, ...] = (
+        "counterfactual_relative_delta_limit_aggro",
+        "counterfactual_aggro_relative_delta_limit",
+        "counterfactual_aggro_relative_limit",
+        "counterfactual_guardrail_relative_limit_aggro",
+        "counterfactual_guardrail_aggro_relative_limit",
+    )
     _COUNTERFACTUAL_ABSOLUTE_KEYS: tuple[str, ...] = (
         "counterfactual_absolute_delta_limit",
         "counterfactual_absolute_limit",
@@ -277,6 +295,18 @@ class AlphaTradeLoopOrchestrator:
         "counterfactual_max_absolute_delta",
         "counterfactual_absolute_delta_cap",
         "counterfactual_absolute_delta_max",
+    )
+    _COUNTERFACTUAL_ABSOLUTE_PASSIVE_KEYS: tuple[str, ...] = (
+        "counterfactual_absolute_delta_limit_passive",
+        "counterfactual_passive_absolute_delta_limit",
+        "counterfactual_passive_absolute_limit",
+        "counterfactual_guardrail_absolute_limit_passive",
+    )
+    _COUNTERFACTUAL_ABSOLUTE_AGGRO_KEYS: tuple[str, ...] = (
+        "counterfactual_absolute_delta_limit_aggro",
+        "counterfactual_aggro_absolute_delta_limit",
+        "counterfactual_aggro_absolute_limit",
+        "counterfactual_guardrail_absolute_limit_aggro",
     )
 
     def __init__(
@@ -468,7 +498,11 @@ class AlphaTradeLoopOrchestrator:
         candidates.sort(key=lambda item: item[0])
 
         relative_limit: float | None = None
+        relative_passive_limit: float | None = None
+        relative_aggro_limit: float | None = None
         absolute_limit: float | None = None
+        absolute_passive_limit: float | None = None
+        absolute_aggro_limit: float | None = None
 
         for _, thresholds in candidates:
             if relative_limit is None:
@@ -476,25 +510,76 @@ class AlphaTradeLoopOrchestrator:
                     thresholds,
                     self._COUNTERFACTUAL_RELATIVE_KEYS,
                 )
+            if relative_passive_limit is None:
+                relative_passive_limit = self._coerce_counterfactual_limit(
+                    thresholds,
+                    self._COUNTERFACTUAL_RELATIVE_PASSIVE_KEYS,
+                )
+            if relative_aggro_limit is None:
+                relative_aggro_limit = self._coerce_counterfactual_limit(
+                    thresholds,
+                    self._COUNTERFACTUAL_RELATIVE_AGGRO_KEYS,
+                )
             if absolute_limit is None:
                 absolute_limit = self._coerce_counterfactual_limit(
                     thresholds,
                     self._COUNTERFACTUAL_ABSOLUTE_KEYS,
                 )
-            if relative_limit is not None and absolute_limit is not None:
+            if absolute_passive_limit is None:
+                absolute_passive_limit = self._coerce_counterfactual_limit(
+                    thresholds,
+                    self._COUNTERFACTUAL_ABSOLUTE_PASSIVE_KEYS,
+                )
+            if absolute_aggro_limit is None:
+                absolute_aggro_limit = self._coerce_counterfactual_limit(
+                    thresholds,
+                    self._COUNTERFACTUAL_ABSOLUTE_AGGRO_KEYS,
+                )
+            if (
+                relative_limit is not None
+                and absolute_limit is not None
+                and relative_passive_limit is not None
+                and relative_aggro_limit is not None
+                and absolute_passive_limit is not None
+                and absolute_aggro_limit is not None
+            ):
                 break
 
         defaults = self._COUNTERFACTUAL_LIMITS.get(effective_stage, {})
         if relative_limit is None:
-            relative_limit = defaults.get("relative")
+            relative_limit = self._coerce_guardrail_limit(defaults.get("relative"))
+        if relative_passive_limit is None:
+            relative_passive_limit = self._coerce_guardrail_limit(
+                defaults.get("relative_passive")
+            )
+        if relative_aggro_limit is None:
+            relative_aggro_limit = self._coerce_guardrail_limit(
+                defaults.get("relative_aggro")
+            )
         if absolute_limit is None:
-            absolute_limit = defaults.get("absolute")
+            absolute_limit = self._coerce_guardrail_limit(defaults.get("absolute"))
+        if absolute_passive_limit is None:
+            absolute_passive_limit = self._coerce_guardrail_limit(
+                defaults.get("absolute_passive")
+            )
+        if absolute_aggro_limit is None:
+            absolute_aggro_limit = self._coerce_guardrail_limit(
+                defaults.get("absolute_aggro")
+            )
 
         payload: dict[str, float] = {}
         if relative_limit is not None:
             payload["relative"] = float(relative_limit)
+        if relative_passive_limit is not None:
+            payload["relative_passive"] = float(relative_passive_limit)
+        if relative_aggro_limit is not None:
+            payload["relative_aggro"] = float(relative_aggro_limit)
         if absolute_limit is not None:
             payload["absolute"] = float(absolute_limit)
+        if absolute_passive_limit is not None:
+            payload["absolute_passive"] = float(absolute_passive_limit)
+        if absolute_aggro_limit is not None:
+            payload["absolute_aggro"] = float(absolute_aggro_limit)
         return payload
 
     @staticmethod
@@ -514,6 +599,18 @@ class AlphaTradeLoopOrchestrator:
                 continue
             return numeric
         return None
+
+    @staticmethod
+    def _coerce_guardrail_limit(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric) or numeric < 0.0:
+            return None
+        return numeric
 
     def _apply_counterfactual_guardrail(
         self,
@@ -547,17 +644,82 @@ class AlphaTradeLoopOrchestrator:
         if passive_score_value != 0.0:
             relative_delta = delta / passive_score_value
 
-        max_relative = None
-        max_absolute = None
+        delta_direction = "flat"
+        if delta > 0:
+            delta_direction = "aggro"
+        elif delta < 0:
+            delta_direction = "passive"
+
+        relative_default = None
+        relative_passive_limit = None
+        relative_aggro_limit = None
+        absolute_default = None
+        absolute_passive_limit = None
+        absolute_aggro_limit = None
+
         if limits:
-            max_relative = limits.get("relative")
-            max_absolute = limits.get("absolute")
-        if max_relative is None or max_absolute is None:
-            defaults = self._COUNTERFACTUAL_LIMITS.get(stage, {})
-            if max_relative is None:
-                max_relative = defaults.get("relative")
-            if max_absolute is None:
-                max_absolute = defaults.get("absolute")
+            relative_default = self._coerce_guardrail_limit(limits.get("relative"))
+            relative_passive_limit = self._coerce_guardrail_limit(
+                limits.get("relative_passive")
+            )
+            relative_aggro_limit = self._coerce_guardrail_limit(
+                limits.get("relative_aggro")
+            )
+            absolute_default = self._coerce_guardrail_limit(limits.get("absolute"))
+            absolute_passive_limit = self._coerce_guardrail_limit(
+                limits.get("absolute_passive")
+            )
+            absolute_aggro_limit = self._coerce_guardrail_limit(
+                limits.get("absolute_aggro")
+            )
+
+        defaults = self._COUNTERFACTUAL_LIMITS.get(stage, {})
+        if relative_default is None:
+            relative_default = self._coerce_guardrail_limit(defaults.get("relative"))
+        if relative_passive_limit is None:
+            relative_passive_limit = self._coerce_guardrail_limit(
+                defaults.get("relative_passive")
+            )
+        if relative_aggro_limit is None:
+            relative_aggro_limit = self._coerce_guardrail_limit(
+                defaults.get("relative_aggro")
+            )
+        if absolute_default is None:
+            absolute_default = self._coerce_guardrail_limit(defaults.get("absolute"))
+        if absolute_passive_limit is None:
+            absolute_passive_limit = self._coerce_guardrail_limit(
+                defaults.get("absolute_passive")
+            )
+        if absolute_aggro_limit is None:
+            absolute_aggro_limit = self._coerce_guardrail_limit(
+                defaults.get("absolute_aggro")
+            )
+
+        def _directional_limit(
+            default: float | None,
+            *,
+            passive: float | None,
+            aggro: float | None,
+            direction: str,
+        ) -> float | None:
+            if direction == "aggro":
+                return aggro if aggro is not None else default
+            if direction == "passive":
+                return passive if passive is not None else default
+            return default
+
+        max_relative = _directional_limit(
+            relative_default,
+            passive=relative_passive_limit,
+            aggro=relative_aggro_limit,
+            direction=delta_direction,
+        )
+        max_absolute = _directional_limit(
+            absolute_default,
+            passive=absolute_passive_limit,
+            aggro=absolute_aggro_limit,
+            direction=delta_direction,
+        )
 
         relative_breached = False
         absolute_breached = False
@@ -569,11 +731,6 @@ class AlphaTradeLoopOrchestrator:
                 absolute_breached = True
 
         breached = relative_breached or absolute_breached
-        delta_direction = "flat"
-        if delta > 0:
-            delta_direction = "aggro"
-        elif delta < 0:
-            delta_direction = "passive"
 
         initial_force = bool(guardrails.get("force_paper"))
 
@@ -590,6 +747,19 @@ class AlphaTradeLoopOrchestrator:
             "breached": breached,
             "delta_direction": delta_direction,
         }
+
+        if relative_default is not None:
+            guardrail_payload.setdefault("max_relative_delta_default", relative_default)
+        if relative_passive_limit is not None:
+            guardrail_payload["max_relative_delta_passive"] = relative_passive_limit
+        if relative_aggro_limit is not None:
+            guardrail_payload["max_relative_delta_aggro"] = relative_aggro_limit
+        if absolute_default is not None:
+            guardrail_payload.setdefault("max_absolute_delta_default", absolute_default)
+        if absolute_passive_limit is not None:
+            guardrail_payload["max_absolute_delta_passive"] = absolute_passive_limit
+        if absolute_aggro_limit is not None:
+            guardrail_payload["max_absolute_delta_aggro"] = absolute_aggro_limit
 
         if breached:
             guardrail_payload["reason"] = "counterfactual_guardrail_delta_exceeded"

@@ -324,6 +324,8 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
     assert eurusd["margin_currency"] == "USD"
     assert eurusd["pip_decimal_places"] == 4
     assert eurusd["contract_size"] == "100000"
+    assert eurusd["long_swap_rate"] == "-0.0001"
+    assert eurusd["short_swap_rate"] == "0.0001"
     assert eurusd["swap_time"] == "22:00"
 
     symbol_metadata = metadata["symbol_metadata"]
@@ -333,6 +335,8 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
     assert eurusd_metadata["margin_currency"] == "USD"
     assert eurusd_metadata["pip_decimal_places"] == 4
     assert eurusd_metadata["contract_size"] == "100000"
+    assert eurusd_metadata["long_swap_rate"] == "-0.0001"
+    assert eurusd_metadata["short_swap_rate"] == "0.0001"
     assert eurusd_metadata["swap_time"] == "22:00"
 
 

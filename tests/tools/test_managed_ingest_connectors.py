@@ -64,6 +64,8 @@ def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch,
     assert eurusd_inventory.get("margin_currency") == "USD"
     assert eurusd_inventory.get("contract_size") == "100000"
     assert eurusd_inventory.get("pip_decimal_places") == 4
+    assert eurusd_inventory.get("long_swap_rate") == "-0.0001"
+    assert eurusd_inventory.get("short_swap_rate") == "0.0001"
     assert eurusd_inventory.get("swap_time") == "22:00"
 
     symbol_metadata = configuration.get("symbol_metadata")
@@ -73,6 +75,8 @@ def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch,
     assert eurusd_metadata.get("margin_currency") == "USD"
     assert eurusd_metadata.get("contract_size") == "100000"
     assert eurusd_metadata.get("pip_decimal_places") == 4
+    assert eurusd_metadata.get("long_swap_rate") == "-0.0001"
+    assert eurusd_metadata.get("short_swap_rate") == "0.0001"
     assert eurusd_metadata.get("swap_time") == "22:00"
 
     api_keys = configuration.get("api_keys")

@@ -271,9 +271,11 @@ class ReleaseAwareExecutionRouter:
 
         posture: Mapping[str, Any] | None = None
         has_record = False
+        resolved_stage: PolicyLedgerStage | None = None
 
         record_check = getattr(self.release_manager, "has_record", None)
-        if callable(record_check):
+        record_check_callable = callable(record_check)
+        if record_check_callable:
             try:
                 has_record = bool(record_check(policy_id))
             except Exception:  # pragma: no cover - defensive guard
@@ -298,18 +300,26 @@ class ReleaseAwareExecutionRouter:
                         if not has_record:
                             has_record = self._posture_implies_record(candidate)
                     try:
-                        stage_value = PolicyLedgerStage.from_value(candidate["stage"])
+                        resolved_stage = PolicyLedgerStage.from_value(candidate["stage"])
                     except Exception:
                         posture = None
-                    else:
-                        return stage_value, posture, has_record
+                        resolved_stage = None
 
-        try:
-            stage = self.release_manager.resolve_stage(policy_id)
-        except Exception as exc:  # pragma: no cover - defensive logging guard
-            logger.warning("Failed to resolve release stage for %s: %s", policy_id, exc)
-            return self.default_stage, posture, has_record
-        return (stage or self.default_stage), posture, has_record
+        if resolved_stage is None:
+            try:
+                resolved_stage = self.release_manager.resolve_stage(policy_id)
+            except Exception as exc:  # pragma: no cover - defensive logging guard
+                logger.warning("Failed to resolve release stage for %s: %s", policy_id, exc)
+                return self.default_stage, posture, has_record
+
+        resolved_stage = resolved_stage or self.default_stage
+        if (
+            not has_record
+            and resolved_stage in (PolicyLedgerStage.PILOT, PolicyLedgerStage.LIMITED_LIVE)
+            and not record_check_callable
+        ):
+            has_record = True
+        return resolved_stage, posture, has_record
 
     @staticmethod
     def _audit_enforcement(

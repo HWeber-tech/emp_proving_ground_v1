@@ -400,6 +400,68 @@ def _provision_kafka_topics(
     return payload
 
 
+def _ingest_configuration_metadata(
+    metadata: Mapping[str, object] | None,
+) -> dict[str, object]:
+    """Extract human-friendly ingest configuration details for operators."""
+
+    if not metadata:
+        return {}
+
+    summary: dict[str, object] = {}
+
+    symbols = metadata.get("symbols")
+    if isinstance(symbols, (list, tuple)):
+        summary["symbols"] = [str(symbol).strip() for symbol in symbols if str(symbol).strip()]
+
+    api_keys = metadata.get("api_keys")
+    if isinstance(api_keys, Mapping):
+        providers: dict[str, dict[str, object]] = {}
+        for name, details in api_keys.items():
+            if not isinstance(details, Mapping):
+                continue
+            providers[str(name)] = {
+                "configured": bool(details.get("configured")),
+                "source": details.get("source"),
+            }
+        if providers:
+            summary["api_keys"] = providers
+
+    session_calendars = metadata.get("session_calendars")
+    if isinstance(session_calendars, (list, tuple)):
+        calendars: list[dict[str, object]] = []
+        for entry in session_calendars:
+            if not isinstance(entry, Mapping):
+                continue
+            payload: dict[str, object] = {
+                "id": entry.get("id"),
+                "name": entry.get("name"),
+                "timezone": entry.get("timezone"),
+                "open_time": entry.get("open_time"),
+                "close_time": entry.get("close_time"),
+                "days": list(entry.get("days", [])) if isinstance(entry.get("days"), (list, tuple)) else entry.get("days"),
+                "venue": entry.get("venue"),
+                "description": entry.get("description"),
+            }
+            calendars.append(payload)
+        if calendars:
+            summary["session_calendars"] = calendars
+
+    macro_calendars = metadata.get("macro_calendars")
+    if isinstance(macro_calendars, (list, tuple)):
+        summary["macro_calendars"] = [
+            str(calendar).strip()
+            for calendar in macro_calendars
+            if str(calendar).strip()
+        ]
+
+    macro_mode = metadata.get("macro_mode")
+    if macro_mode is not None:
+        summary["macro_mode"] = macro_mode
+
+    return summary
+
+
 def build_report_for_ingest_config(
     ingest_config: InstitutionalIngestConfig,
     kafka_mapping: Mapping[str, str],
@@ -435,6 +497,10 @@ def build_report_for_ingest_config(
         "manifest": [snapshot.as_dict() for snapshot in manifest_snapshots],
         "failover": failover_summary,
     }
+
+    configuration_summary = _ingest_configuration_metadata(ingest_config.metadata)
+    if configuration_summary:
+        report["configuration"] = configuration_summary
 
     if connectivity:
         _ensure_sqlite_directory(ingest_config.timescale_settings.url)

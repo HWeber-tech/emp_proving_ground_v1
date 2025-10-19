@@ -53,6 +53,18 @@ def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch,
 
     assert report["should_run"] is True
 
+    configuration = report.get("configuration")
+    assert configuration is not None
+    assert configuration.get("symbols") == ["EURUSD"]
+
+    api_keys = configuration.get("api_keys")
+    assert isinstance(api_keys, dict)
+    assert api_keys["alpha_vantage"]["configured"] is False
+
+    sessions = configuration.get("session_calendars")
+    assert isinstance(sessions, list)
+    assert any(entry.get("id") == "london_fx" for entry in sessions)
+
     manifest = {entry["name"]: entry for entry in report["manifest"]}
     assert manifest["timescale"]["configured"] is True
     assert manifest["redis"]["configured"] is True

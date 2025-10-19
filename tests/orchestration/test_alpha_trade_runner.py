@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from datetime import datetime, timezone, timedelta
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 
 from typing import Any, Mapping
 
@@ -320,6 +320,59 @@ def test_alpha_trade_runner_builds_brief_explanation() -> None:
     assert trimmed.endswith("...")
     assert "  " not in trimmed
 
+
+def test_alpha_trade_runner_attribution_fallback_explanation() -> None:
+    runner = AlphaTradeLoopRunner.__new__(AlphaTradeLoopRunner)
+
+    belief_state = SimpleNamespace(
+        belief_id="belief-fallback",
+        metadata=None,
+        symbol="EURUSD",
+        generated_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+    )
+
+    regime_state = SimpleNamespace(confidence=0.72, regime="balanced")
+    belief_snapshot = SimpleNamespace(
+        regime_state=regime_state,
+        features={"sigma_norm": 1_000.0},
+    )
+    decision = SimpleNamespace(
+        rationale="   \n\t  ",
+        tactic_id="alpha.trade",
+        guardrails={"requires_diary": True},
+    )
+    decision_bundle = SimpleNamespace(
+        decision=decision,
+        belief_snapshot=belief_snapshot,
+    )
+
+    diary_entry = SimpleNamespace(
+        entry_id="dd-fallback",
+        policy_id="alpha.trade",
+        probes=(),
+        metadata={"guardrails": {"requires_diary": True}},
+    )
+
+    attribution = runner._build_order_attribution(
+        belief_state=belief_state,
+        decision_bundle=decision_bundle,
+        diary_entry=diary_entry,
+    )
+
+    assert attribution is not None
+    explanation = attribution["explanation"]
+    assert explanation == "alpha.trade routed under balanced"
+    assert len(explanation) <= AlphaTradeLoopRunner._ATTRIBUTION_EXPLANATION_LIMIT
+
+    belief_summary = attribution["belief"]
+    assert belief_summary["belief_id"] == "belief-fallback"
+    assert belief_summary["confidence"] == pytest.approx(0.72)
+    assert belief_summary["regime"] == "balanced"
+
+    probes = attribution["probes"]
+    assert probes and {probe.get("probe_id") for probe in probes} == {
+        "guardrail.requires_diary"
+    }
 
 @pytest.mark.asyncio()
 async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> None:

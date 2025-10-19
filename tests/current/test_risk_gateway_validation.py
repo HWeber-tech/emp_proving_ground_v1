@@ -129,6 +129,46 @@ async def test_risk_gateway_rejects_when_drawdown_exceeded(
 
 
 @pytest.mark.asyncio()
+async def test_risk_gateway_rejects_on_synthetic_invariant_breach(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    policy = RiskPolicy.from_config(RiskConfig(min_position_size=1))
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+    )
+
+    state = portfolio_monitor.get_state()
+    state["synthetic_invariant_breach"] = True
+
+    result = await gateway.validate_trade_intent(Intent("EURUSD", Decimal("1")), state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "synthetic_invariant_breach"
+    checks = decision.get("checks")
+    assert isinstance(checks, list)
+    guardrail = next(
+        (entry for entry in checks if entry.get("name") == "risk.synthetic_invariant_posture"),
+        None,
+    )
+    assert guardrail is not None
+    assert guardrail.get("status") == "violation"
+    metadata = guardrail.get("metadata")
+    assert isinstance(metadata, Mapping)
+    assert metadata.get("indicator") == "synthetic_invariant_breach"
+    incident = gateway.get_last_guardrail_incident()
+    assert incident is not None
+    assert incident.severity == "violation"
+    assert "risk.synthetic_invariant_posture" in incident.metadata.get("violations", [])
+    assert gateway.telemetry["guardrail_violations"] >= 1
+
+
+@pytest.mark.asyncio()
 async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

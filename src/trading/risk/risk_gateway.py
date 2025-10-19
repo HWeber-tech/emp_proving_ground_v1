@@ -17,6 +17,7 @@ import logging
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from decimal import Decimal
+from collections.abc import Sequence
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -296,6 +297,10 @@ class RiskGateway:
                 return None
 
             portfolio_state = portfolio_state or {}
+            if not self._check_synthetic_invariant(portfolio_state, decision):
+                decision.update(status="rejected", reason="synthetic_invariant_breach")
+                await self._reject_and_maybe_publish(decision)
+                return None
             if not self._check_drawdown(portfolio_state, decision):
                 decision.update(status="rejected", reason="max_drawdown_exceeded")
                 await self._reject_and_maybe_publish(decision)
@@ -892,6 +897,161 @@ class RiskGateway:
             }
         )
         return current <= self.max_daily_drawdown
+
+    def _check_synthetic_invariant(
+        self,
+        portfolio_state: Mapping[str, Any],
+        decision: dict[str, Any],
+    ) -> bool:
+        """Detect synthetic invariant breaches supplied via ``portfolio_state``."""
+
+        metadata = self._resolve_synthetic_invariant_breach(portfolio_state)
+        entry: dict[str, Any] = {
+            "name": "risk.synthetic_invariant_posture",
+            "status": "ok" if metadata is None else "violation",
+        }
+        if metadata is not None:
+            entry["metadata"] = metadata
+        decision.setdefault("checks", []).append(entry)
+        return metadata is None
+
+    @staticmethod
+    def _resolve_synthetic_invariant_breach(
+        portfolio_state: Mapping[str, Any]
+    ) -> dict[str, Any] | None:
+        for key, value in portfolio_state.items():
+            if not isinstance(key, str):
+                continue
+            lowered = key.lower()
+            if "synthetic" in lowered and "invariant" in lowered:
+                metadata = RiskGateway._format_invariant_metadata(key, value)
+                if metadata is not None:
+                    return metadata
+
+        for indicator in ("invariant_breaches", "invariant_assessment"):
+            payload = portfolio_state.get(indicator)
+            metadata = RiskGateway._search_invariant_payload(payload, base=indicator)
+            if metadata is not None:
+                return metadata
+
+        return None
+
+    @staticmethod
+    def _search_invariant_payload(payload: object, *, base: str) -> dict[str, Any] | None:
+        if payload is None:
+            return None
+
+        if isinstance(payload, Mapping):
+            if RiskGateway._mapping_describes_synthetic(payload):
+                metadata = RiskGateway._format_invariant_metadata(base, payload)
+                if metadata is not None:
+                    return metadata
+            for key, value in payload.items():
+                key_str = str(key)
+                indicator = f"{base}.{key_str}" if key_str else base
+                metadata = RiskGateway._search_invariant_payload(value, base=indicator)
+                if metadata is not None:
+                    return metadata
+            return None
+
+        if isinstance(payload, (list, tuple)):
+            for index, entry in enumerate(payload):
+                indicator = f"{base}[{index}]"
+                metadata = RiskGateway._search_invariant_payload(entry, base=indicator)
+                if metadata is not None:
+                    return metadata
+            return None
+
+        if isinstance(payload, str):
+            if "synthetic" in payload.lower():
+                return RiskGateway._format_invariant_metadata(base, payload)
+            return None
+
+        return None
+
+    @staticmethod
+    def _format_invariant_metadata(indicator: str, value: object) -> dict[str, Any] | None:
+        if not RiskGateway._value_indicates_breach(value):
+            return None
+
+        metadata: dict[str, Any] = {"indicator": indicator}
+        details = RiskGateway._coerce_invariant_details(value)
+        if details is not None:
+            metadata["details"] = details
+        return metadata
+
+    @staticmethod
+    def _mapping_describes_synthetic(mapping: Mapping[str, Any]) -> bool:
+        for key, value in mapping.items():
+            if isinstance(key, str) and "synthetic" in key.lower():
+                return True
+            if isinstance(value, str) and "synthetic" in value.lower():
+                return True
+            if isinstance(value, Mapping) and RiskGateway._mapping_describes_synthetic(value):
+                return True
+            if isinstance(value, (list, tuple)) and RiskGateway._sequence_contains_synthetic(value):
+                return True
+        return False
+
+    @staticmethod
+    def _sequence_contains_synthetic(sequence: Sequence[Any]) -> bool:
+        for entry in sequence:
+            if isinstance(entry, str) and "synthetic" in entry.lower():
+                return True
+            if isinstance(entry, Mapping) and RiskGateway._mapping_describes_synthetic(entry):
+                return True
+            if isinstance(entry, (list, tuple)) and RiskGateway._sequence_contains_synthetic(entry):
+                return True
+        return False
+
+    @staticmethod
+    def _value_indicates_breach(value: object) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value > 0
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if not lowered:
+                return False
+            if lowered in {"false", "0", "none", "ok", "clear", "passed", "nominal"}:
+                return False
+            return any(token in lowered for token in ("breach", "breached", "violation", "fail", "failed", "trigger", "triggered", "engaged"))
+        if isinstance(value, Mapping):
+            status = value.get("status")
+            if isinstance(status, str) and RiskGateway._value_indicates_breach(status):
+                return True
+            count = value.get("count")
+            if isinstance(count, (int, float)) and count > 0:
+                return True
+            breaches = value.get("breaches")
+            if isinstance(breaches, (list, tuple)) and breaches:
+                return True
+            for candidate_key in ("breach", "breached", "violations", "violation", "active", "engaged", "triggered"):
+                if candidate_key in value and RiskGateway._value_indicates_breach(value[candidate_key]):
+                    return True
+            for nested in value.values():
+                if isinstance(nested, (Mapping, list, tuple, str)) and RiskGateway._value_indicates_breach(nested):
+                    return True
+            return False
+        if isinstance(value, (list, tuple, set)):
+            return any(RiskGateway._value_indicates_breach(item) for item in value)
+        return bool(value)
+
+    @staticmethod
+    def _coerce_invariant_details(value: object) -> object | None:
+        if isinstance(value, Mapping):
+            return {
+                str(key): RiskGateway._coerce_invariant_details(inner)
+                for key, inner in value.items()
+            }
+        if isinstance(value, (list, tuple, set)):
+            return [RiskGateway._coerce_invariant_details(entry) for entry in value]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
 
     def _check_open_positions(
         self, portfolio_state: Mapping[str, Any], decision: dict[str, Any]

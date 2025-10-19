@@ -63,7 +63,7 @@
 - [x] `[reflect]` **Autoâ€‘freeze** exploration on drift or risk warnings (hooks wired). _Progress: AlphaTradeLoopRunner now fuses drift sentry outcomes, risk gateway rejections, and compliance risk warning/breach events into exploration freezes with trigger metadata, and regression coverage proves compliance events raise freezes with preserved evidence payloads.【F:src/orchestration/alpha_trade_runner.py†L600-L744】【F:tests/orchestration/test_alpha_trade_runner.py†L710-L771】【F:src/operations/drift_sentry.py†L337-L417】_
 
 **Provenance & Governance**
-- [ ] `[reflect]` **Policy Ledger**: promotion checklist (OOS regimeâ€‘grid, leakage checks, risk audit) enforced.
+- [x] `[reflect]` **Policy Ledger**: promotion checklist (OOS regimeâ€‘grid, leakage checks, risk audit) enforced. _Progress: PolicyLedgerRecord now normalises checklist metadata into `PromotionChecklistStatus`, blocks Limited Live promotions until regime-grid, leakage, and risk audit prerequisites are satisfied, and surfaces readiness in governance snapshots and release routing with regression coverage spanning ledger, router, and trading manager paths.【F:src/governance/policy_ledger.py†L351-L1349】【F:tests/governance/test_policy_ledger.py†L439-L535】【F:tests/trading/test_release_execution_router.py†L64-L134】【F:tests/trading/test_trading_manager_execution.py†L788-L880】_
 - [ ] `[reflect]` `rebuild_strategy(policy_hash)` produces byteâ€‘identical runtime config.
 - [x] `[docs]` Promotion gate documented (thresholds, required artifacts). _Progress: Promotion gate guide now pairs telemetry thresholds with an evidence table detailing required artifacts and storage paths so governance promotions stay auditable end to end.【F:docs/operations/promotion_gate.md†L28-L45】_
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T15:56:34Z
+
+### Last 4 commits
+- 64ec9318 feat(artifacts): add 12 files (2025-10-19)
+- e2c7bb86 refactor(trading): tune 1 file (2025-10-19)
+- 780a68bf feat(governance): add 13 files (2025-10-19)
+- 260d6615 refactor(governance): tune 4 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T15:27:32Z
 

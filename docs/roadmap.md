@@ -33,7 +33,7 @@
 - [x] `[adapt]` **Fastâ€‘weights (Ïƒ) kernel** (Hebbian decay + potentiation); **lowâ€‘rank** implementation; clamps/decay. _Progress: UnderstandingRouter now applies feature-gated Hebbian adapters with deterministic decay, persists multiplier history, and exposes fast-weight metrics so governance can audit adaptive runs under regression coverage.【F:src/understanding/router.py†L70-L240】【F:tests/understanding/test_understanding_router.py†L1-L185】_
 - [x] `[reflect]` **Decision Diary** table + writer (belief, policy_hash, exec_topo, risk_template, features, decision, ex_post). _Progress: DecisionDiaryStore normalises policy decisions, attaches probe ownership, records reflection summaries, and the CLI exports Markdown/JSON transcripts with guardrail tests for governance evidence.【F:src/understanding/decision_diary.py†L1-L240】【F:tests/tools/test_decision_diary_cli.py†L1-L188】_
 - [x] `[reflect]` 3â€“5 **synapse probes** (e.g., opening auction, sweep risk, imbalance surge). _Progress: WHAT sensor now derives directional synapse probes from trend strength, emits them alongside signal value/metadata/lineage defaults, and regression coverage asserts bullish/bearish probe bias plus telemetry parity.【F:src/sensory/what/what_sensor.py†L109-L219】【F:tests/sensory/test_primary_dimension_sensors.py†L60-L93】_
-- [ ] `[reflect]` **Drift Sentry** (Pageâ€“Hinkley/CUSUM) + actions (freeze exploration, halve size) + â€œtheory packetâ€.
+- [x] `[reflect]` **Drift Sentry** (Page-Hinkley/CUSUM) + actions (freeze exploration, halve size) + "theory packet". _Progress: DriftSentrySnapshot now surfaces Page-Hinkley and CUSUM triggers with freeze and size actions in both metadata and structured tuples, attaches a runbook-backed theory packet, and regression coverage proves the alert path records the actions and triggers for operators.【F:src/operations/drift_sentry.py†L172-L426】【F:tests/operations/test_drift_sentry.py†L60-L109】_
 - [x] `[obs]` Graph diagnostics nightly job: degree hist, modularity, coreâ€“periphery (thresholds set). _Progress: Nightly graph diagnostics job now computes degree histograms, modularity, and core ratios, evaluates thresholds, archives JSON/DOT/markdown snapshots, and exports CLI wiring with pytest coverage so observability packs inherit deterministic graph health evidence each run.【F:src/operations/graph_diagnostics.py†L1-L268】【F:tools/operations/nightly_graph_diagnostics.py†L1-L268】【F:tests/operations/test_graph_diagnostics.py†L1-L164】【F:tests/tools/test_nightly_graph_diagnostics.py†L20-L33】_
 
 **Acceptance (DoD)**
@@ -154,7 +154,7 @@
 
 - [x] `make run-sim` â€” deterministic sim/replay run (acceptance tests). _Progress: New tooling wraps the bootstrap runtime into `make run-sim`, wiring environment defaults, summary/diary exports, and pytest coverage so the acceptance drill is a single reproducible command.【F:Makefile†L103-L121】【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】_
 - [x] `make run-paper` â€” paper 24/7 profile with dashboards. _Progress: Makefile routes to the runtime CLI `paper-run` subcommand which boots the guardian, enforces minimum runtime thresholds, streams progress, and persists structured summaries for dashboards while the guardian now fails runs and surfaces stop reasons when memory growth thresholds trigger in CLI output under pytest coverage.【F:Makefile†L98-L100】【F:src/runtime/cli.py†L365-L438】【F:src/runtime/paper_run_guardian.py†L250-L414】【F:tests/runtime/test_paper_run_guardian.py†L119-L178】_
-- [ ] `make rebuild-policy HASH=...` â€” reproduce phenotype from ledger. _Progress: `rebuild_strategy` now normalises ledger payloads into canonical JSON bytes, returns deterministic digests, and ships tests proving byte-identical rebuilds so CLI wrappers can emit audited runtime configs.【F:src/governance/strategy_rebuilder.py†L59-L205】【F:tests/governance/test_strategy_rebuilder.py†L57-L101】_
+- [x] `make rebuild-policy HASH=...` — reproduce phenotype from ledger. _Progress: Makefile wiring now shells to the rebuild CLI, which resolves hashes or policy ids from the ledger, emits canonical runtime payload bytes, and logs digests, while tests assert the exported JSON matches `rebuild_strategy` outputs for both selectors.【F:Makefile†L133-L142】【F:tools/governance/rebuild_policy_phenotype.py†L22-L195】【F:tests/tools/test_rebuild_policy_phenotype_cli.py†L41-L109】_
 - [x] `make rim-shadow` â€” nightly RIM/TRM proposals + governance report. _Progress: The `rim-shadow` target now drives the governance-gated shadow runner, emitting suggestions plus queue/digest markdown artifacts with auto-apply annotations under pytest coverage so nightly cron jobs stay audit-ready.【F:Makefile†L67-L85】【F:tools/rim_shadow_run.py†L160-L222】【F:tests/tools/test_rim_shadow_run.py†L44-L139】_
 - [x] `artifacts/` â€” diaries, drift reports, ledger exports, evolution KPIs (dated folders). _Progress: `archive_artifact` standardises dated evidence mirrors and now runs from the decision diary, nightly replay job, policy ledger, and evolution lab exporter with coverage so compliance packs auto-land in `artifacts/<kind>/<date>/<run>/` without manual curation while deterministic diary snapshots strip runtime-only noise for replays.【F:src/artifacts/archive.py†L1-L95】【F:src/understanding/decision_diary.py†L42-L115】【F:src/understanding/decision_diary.py†L453-L606】【F:src/governance/policy_ledger.py†L394-L420】【F:tools/operations/nightly_replay_job.py†L573-L590】【F:scripts/generate_evolution_lab.py†L171-L185】【F:tests/artifacts/test_archive.py†L1-L45】_
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T19:51:53Z
+
+### Last 4 commits
+- d967bfec test(Makefile): tune 5 files (2025-10-19)
+- bf1592bb feat(artifacts): add 11 files (2025-10-19)
+- c7e6b240 test(artifacts): tune 4 files (2025-10-19)
+- d507ef4e docs(docs): tune 1 file (2025-10-19)
 
 ## Automation updates — 2025-10-19T19:43:45Z
 

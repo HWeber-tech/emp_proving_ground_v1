@@ -1084,7 +1084,7 @@ def test_diary_panel_infers_coverage_from_counts() -> None:
     )
 
     panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
-    assert panel.status is DashboardStatus.ok
+    assert panel.status is DashboardStatus.warn
     assert any("Recorded 19 of 20" in detail for detail in panel.details)
 
     payload = panel.metadata["decision_diary"]
@@ -1092,6 +1092,8 @@ def test_diary_panel_infers_coverage_from_counts() -> None:
     assert coverage_meta["coverage_inferred"] is True
     assert coverage_meta["coverage"] == pytest.approx(0.95)
     assert coverage_meta["coverage_percent"] == pytest.approx(95.0)
+    assert payload["alerts"]["missing_telemetry"] is True
+    assert coverage_meta["missing_telemetry_fields"] == ("coverage",)
 
 
 def test_diary_panel_flags_coverage_shortfall() -> None:
@@ -1168,7 +1170,7 @@ def test_diary_panel_enforces_default_target() -> None:
     payload = panel.metadata["decision_diary"]
     alerts = payload["alerts"]
     assert alerts["coverage_below_target"] is True
-    assert alerts["missing_telemetry"] is False
+    assert alerts["missing_telemetry"] is True
 
     coverage_meta = payload["coverage"]
     assert coverage_meta["coverage_percent"] == pytest.approx(90.0)
@@ -1198,4 +1200,5 @@ def test_diary_panel_warns_on_missing_telemetry() -> None:
         "coverage",
         "iterations",
         "recorded",
+        "target",
     )

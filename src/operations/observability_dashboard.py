@@ -1001,14 +1001,20 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
 
     coverage_value = _coerce_float(info.get("coverage"))
     coverage_percent_input = _coerce_float(info.get("coverage_percent"))
+    coverage_inferred = info.get("coverage_inferred") is True
+    coverage_reported = coverage_value is not None or coverage_percent_input is not None
+
+    if coverage_value is not None and coverage_value > 1.0 + 1e-9:
+        coverage_value = coverage_value / 100.0
+        coverage_inferred = True
+
     if coverage_value is None and coverage_percent_input is not None:
         coverage_value = (
             coverage_percent_input / 100.0
             if coverage_percent_input > 1.0 + 1e-9
             else coverage_percent_input
         )
-        if coverage_value is not None:
-            info.setdefault("coverage_inferred", True)
+        coverage_inferred = True
 
     iterations_raw = info.get("iterations")
     iterations_value = _coerce_int(iterations_raw)
@@ -1020,9 +1026,6 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
     recorded_provided = recorded_value is not None
     recorded = recorded_value or 0
 
-    if coverage_value is not None and "coverage" not in info:
-        info["coverage"] = coverage_value
-
     if (
         coverage_value is None
         and iterations_provided
@@ -1030,24 +1033,35 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
         and iterations > 0
     ):
         coverage_value = min(max(recorded / iterations, 0.0), 1.0)
-        info.setdefault("coverage", coverage_value)
-        info.setdefault("coverage_inferred", True)
+        coverage_inferred = True
+
+    if coverage_value is not None:
+        info["coverage"] = coverage_value
+    if coverage_inferred:
+        info["coverage_inferred"] = True
 
     target_value = _coerce_float(info.get("target"))
-    if target_value is None:
-        target_percent_input = _coerce_float(info.get("target_percent"))
-        if target_percent_input is not None:
-            target_value = (
-                target_percent_input / 100.0
-                if target_percent_input > 1.0 + 1e-9
-                else target_percent_input
-            )
-            info.setdefault("target", target_value)
+    target_percent_input = _coerce_float(info.get("target_percent"))
+    target_inferred = info.get("target_inferred") is True
+    target_reported = target_value is not None or target_percent_input is not None
+
+    if target_value is not None and target_value > 1.0 + 1e-9:
+        target_value = target_value / 100.0
+
+    if target_value is None and target_percent_input is not None:
+        target_value = (
+            target_percent_input / 100.0
+            if target_percent_input > 1.0 + 1e-9
+            else target_percent_input
+        )
 
     if target_value is None:
         target_value = 0.95
-        info.setdefault("target", target_value)
-        info.setdefault("target_inferred", True)
+        target_inferred = True
+
+    info["target"] = target_value
+    if target_inferred:
+        info["target_inferred"] = True
 
     missing_raw = info.get("missing")
     missing_value = _coerce_int(missing_raw)
@@ -1141,12 +1155,14 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
             details.append(f"Gap threshold {gap_threshold:.0f}s monitored")
 
     missing_telemetry_fields: list[str] = []
-    if coverage_value is None:
+    if not coverage_reported:
         missing_telemetry_fields.append("coverage")
     if not iterations_provided:
         missing_telemetry_fields.append("iterations")
     if not recorded_provided:
         missing_telemetry_fields.append("recorded")
+    if not target_reported:
+        missing_telemetry_fields.append("target")
 
     missing_telemetry = False
     missing_field_names: tuple[str, ...] = ()

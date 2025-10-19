@@ -196,10 +196,10 @@ def _symbol_inventory_for_symbols(
 ) -> tuple[dict[str, object], ...]:
     """Return inventory entries limited to the configured symbol list."""
 
-    inventory = _resolve_symbol_inventory()
     if not symbols:
-        return inventory
+        return tuple()
 
+    _resolve_symbol_inventory()
     lookup = _SYMBOL_LOOKUP_CACHE or {}
     configured: list[dict[str, object]] = []
     seen: set[str] = set()

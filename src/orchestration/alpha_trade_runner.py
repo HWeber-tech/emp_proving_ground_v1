@@ -33,6 +33,7 @@ from src.operations.sensory_drift import DriftSeverity
 from src.orchestration.alpha_trade_loop import (
     AlphaTradeLoopOrchestrator,
     AlphaTradeLoopResult,
+    ComplianceEventType,
 )
 from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
 from src.understanding.belief import BeliefEmitter, BeliefState, RegimeFSM, RegimeSignal
@@ -650,6 +651,69 @@ class AlphaTradeLoopRunner:
                         "metadata": risk_trigger_metadata,
                     }
                 )
+
+        compliance_events = getattr(loop_result, "compliance_events", ())
+        for event in compliance_events or ():
+            event_type = getattr(event, "event_type", None)
+            if isinstance(event_type, Enum):
+                event_type_value = event_type.value
+            else:
+                event_type_value = str(event_type or "")
+            event_type_key = event_type_value.strip().lower()
+            if event_type_key not in {
+                ComplianceEventType.risk_warning.value,
+                ComplianceEventType.risk_breach.value,
+            }:
+                continue
+
+            severity_attr = getattr(event, "severity", None)
+            if isinstance(severity_attr, Enum):
+                severity_value = severity_attr.value
+            else:
+                severity_value = str(severity_attr or "")
+            severity_label = severity_value.strip().lower()
+            if not severity_label:
+                severity_label = (
+                    "critical"
+                    if event_type_key == ComplianceEventType.risk_breach.value
+                    else "warn"
+                )
+
+            summary = getattr(event, "summary", None)
+            reason = summary.strip() if isinstance(summary, str) else ""
+            if not reason:
+                reason = f"{event_type_key}_observed"
+
+            metadata_payload: dict[str, object] = {}
+            event_metadata = getattr(event, "metadata", None)
+            if hasattr(event, "as_dict"):
+                try:
+                    event_dict = dict(event.as_dict())
+                except Exception:  # pragma: no cover - defensive guard
+                    event_dict = None
+                if event_dict:
+                    metadata_payload["compliance_event"] = event_dict
+            if (
+                "compliance_event" not in metadata_payload
+                and isinstance(event_metadata, Mapping)
+            ):
+                metadata_payload["compliance_event"] = {
+                    "event_type": event_type_value,
+                    "severity": severity_label,
+                    "summary": summary,
+                    "metadata": dict(event_metadata),
+                }
+            elif isinstance(event_metadata, Mapping):
+                metadata_payload.setdefault("details", dict(event_metadata))
+
+            freeze_triggers.append(
+                {
+                    "reason": reason,
+                    "triggered_by": f"compliance.{event_type_key}",
+                    "severity": severity_label,
+                    "metadata": metadata_payload,
+                }
+            )
 
         if freeze_triggers:
             def _severity_rank(entry: Mapping[str, object]) -> int:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import datetime, timezone, timedelta
 
 from typing import Any, Mapping
@@ -10,7 +11,12 @@ import pytest
 from src.operations.drift_sentry import DriftSentryConfig, evaluate_drift_sentry
 from src.operations.sensory_drift import DriftSeverity
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage, PolicyLedgerStore
-from src.orchestration.alpha_trade_loop import AlphaTradeLoopOrchestrator
+from src.orchestration.alpha_trade_loop import (
+    AlphaTradeLoopOrchestrator,
+    ComplianceEvent,
+    ComplianceEventType,
+    ComplianceSeverity,
+)
 from src.orchestration.alpha_trade_runner import AlphaTradeLoopRunner
 from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradeIntentOutcome
@@ -699,6 +705,70 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
 
     policy_router = runner._understanding_router.policy_router
     assert policy_router.exploration_freeze_active() is True
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_freezes_on_compliance_risk_warning(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+
+    orchestrator = runner._orchestrator
+    original_run = orchestrator.run_iteration
+
+    def patched_run_iteration(*args, **kwargs):
+        result = original_run(*args, **kwargs)
+        event = ComplianceEvent(
+            event_type=ComplianceEventType.risk_warning,
+            severity=ComplianceSeverity.warn,
+            summary="Compliance risk warning triggered",
+            occurred_at=datetime(2025, 2, 1, tzinfo=UTC),
+            policy_id=result.policy_id,
+            metadata={"source": "risk_monitor"},
+        )
+        return replace(result, compliance_events=result.compliance_events + (event,))
+
+    monkeypatch.setattr(orchestrator, "run_iteration", patched_run_iteration)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    policy_router = runner._understanding_router.policy_router
+    assert policy_router.exploration_freeze_active() is False
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    assert policy_router.exploration_freeze_active() is True
+    freeze_state = policy_router.exploration_freeze_state()
+    assert freeze_state.get("reason") == "Compliance risk warning triggered"
+    trigger_list = (
+        freeze_state.get("metadata", {}).get("triggers")
+        if isinstance(freeze_state.get("metadata"), Mapping)
+        else None
+    )
+    assert isinstance(trigger_list, list) and trigger_list
+    compliance_trigger = next(
+        trigger
+        for trigger in trigger_list
+        if isinstance(trigger, Mapping)
+        and trigger.get("triggered_by") == "compliance.risk_warning"
+    )
+    compliance_event = compliance_trigger.get("metadata", {}).get("compliance_event")
+    assert isinstance(compliance_event, Mapping)
+    assert compliance_event.get("event_type") == ComplianceEventType.risk_warning.value
 
 
 @pytest.mark.asyncio()

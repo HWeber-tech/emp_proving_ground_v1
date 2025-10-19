@@ -590,6 +590,143 @@ class AlphaTradeLoopRunner:
             summary.append({"name": name, "value": value})
         return summary
 
+    @staticmethod
+    def _normalise_probe_fragment(value: Any) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return "unknown"
+        cleaned: list[str] = []
+        for char in text.lower():
+            if char.isalnum() or char in {"-", "_", "."}:
+                cleaned.append(char)
+            else:
+                cleaned.append("_")
+        fragment = "".join(cleaned).strip("._-")
+        return fragment or "unknown"
+
+    @staticmethod
+    def _build_guardrail_probes(guardrails: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+        if not isinstance(guardrails, Mapping) or not guardrails:
+            return []
+
+        probes: list[dict[str, Any]] = []
+
+        counterfactual_payload = guardrails.get("counterfactual_guardrail")
+        if isinstance(counterfactual_payload, Mapping):
+            breached = any(
+                bool(counterfactual_payload.get(flag))
+                for flag in ("breached", "relative_breach", "absolute_breach")
+            )
+            status = "breached" if breached else "ok"
+            severity_value = str(counterfactual_payload.get("severity", "")).strip()
+            severity = severity_value or ("alert" if breached else "info")
+            probe_entry: dict[str, Any] = {
+                "probe_id": "guardrail.counterfactual",
+                "status": status,
+            }
+            if severity:
+                probe_entry["severity"] = severity
+            probes.append(probe_entry)
+
+        force_paper = guardrails.get("force_paper")
+        if isinstance(force_paper, bool):
+            probe_entry = {
+                "probe_id": "guardrail.force_paper",
+                "status": "active" if force_paper else "inactive",
+            }
+            probe_entry["severity"] = "warn" if force_paper else "info"
+            probes.append(probe_entry)
+
+        requires_diary = guardrails.get("requires_diary")
+        if isinstance(requires_diary, bool):
+            probes.append(
+                {
+                    "probe_id": "guardrail.requires_diary",
+                    "status": "active" if requires_diary else "inactive",
+                    "severity": "info",
+                }
+            )
+
+        return probes
+
+    @staticmethod
+    def _build_drift_probes(payload: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+        if not isinstance(payload, Mapping) or not payload:
+            return []
+
+        allowed = bool(payload.get("allowed"))
+        status = "allowed" if allowed else "blocked"
+        probe_entry: dict[str, Any] = {
+            "probe_id": "drift.sentry",
+            "status": status,
+        }
+        severity_value = payload.get("severity")
+        if isinstance(severity_value, str):
+            severity_text = severity_value.strip()
+            if severity_text:
+                probe_entry["severity"] = severity_text
+        return [probe_entry]
+
+    def _build_probe_fallbacks(
+        self,
+        *,
+        diary_entry: "DecisionDiaryEntry",
+        decision_bundle: UnderstandingDecision,
+        belief_state: BeliefState,
+    ) -> list[Mapping[str, Any]]:
+        metadata = getattr(diary_entry, "metadata", None)
+
+        guardrail_source: Mapping[str, Any] | None = None
+        if isinstance(metadata, Mapping):
+            guardrail_candidate = metadata.get("guardrails")
+            if isinstance(guardrail_candidate, Mapping):
+                guardrail_source = guardrail_candidate
+        if guardrail_source is None:
+            decision_guardrails = getattr(decision_bundle.decision, "guardrails", None)
+            if isinstance(decision_guardrails, Mapping):
+                guardrail_source = decision_guardrails
+
+        probe_entries = self._build_guardrail_probes(guardrail_source)
+
+        if isinstance(metadata, Mapping):
+            drift_candidate = metadata.get("drift_decision")
+            probe_entries.extend(self._build_drift_probes(drift_candidate))
+
+        deduplicated: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for entry in probe_entries:
+            probe_id = entry.get("probe_id")
+            status = entry.get("status")
+            if not isinstance(probe_id, str) or not probe_id.strip():
+                continue
+            if not isinstance(status, str) or not status.strip():
+                continue
+            key = (probe_id.strip(), status.strip())
+            if key in seen:
+                continue
+            normalised_entry: dict[str, Any] = {
+                "probe_id": key[0],
+                "status": key[1],
+            }
+            severity_value = entry.get("severity")
+            if isinstance(severity_value, str):
+                severity_text = severity_value.strip()
+                if severity_text:
+                    normalised_entry["severity"] = severity_text
+            seen.add(key)
+            deduplicated.append(normalised_entry)
+
+        if deduplicated:
+            return deduplicated
+
+        policy_fragment = self._normalise_probe_fragment(getattr(diary_entry, "policy_id", ""))
+        symbol_fragment = self._normalise_probe_fragment(getattr(belief_state, "symbol", ""))
+        fragments = [fragment for fragment in (policy_fragment, symbol_fragment) if fragment and fragment != "unknown"]
+        if not fragments:
+            fragments = ["attribution"]
+        default_probe_id = "probe." + ".".join(fragments)
+        return [{"probe_id": default_probe_id, "status": "ok", "severity": "info"}]
+
     def _build_order_attribution(
         self,
         *,
@@ -686,6 +823,15 @@ class AlphaTradeLoopRunner:
             if severity_text:
                 probe_entry["severity"] = severity_text
             probes_payload.append(probe_entry)
+
+        if not probes_payload:
+            probes_payload.extend(
+                self._build_probe_fallbacks(
+                    diary_entry=diary_entry,
+                    decision_bundle=decision_bundle,
+                    belief_state=belief_state,
+                )
+            )
 
         explanation = (decision_bundle.decision.rationale or "").strip()
         if not explanation:

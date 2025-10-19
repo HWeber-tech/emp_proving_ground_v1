@@ -58,7 +58,7 @@
 - [x] `[sim]` **Compute scheduler** for candidate replays (budgeted batches, fairâ€‘share across instruments). _Progress: The `emp_cycle_scheduler` CLI now plans UCB-lite candidate batches with deterministic fair-share buckets per instrument, enforces `--max-full` budgets, and persists metadata/baselines so replay promotion stays balanced under regression coverage.【F:emp/cli/emp_cycle_scheduler.py†L1-L400】【F:emp/cli/_emp_cycle_common.py†L1-L216】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L130】_
 
 **Budgeted, Safe Exploration**
-- [ ] `[adapt]` **Global exploration budget** (â‰¤ X% flow, mutate every K decisions) enforced in router.
+- [x] `[adapt]` **Global exploration budget** (â‰¤ X% flow, mutate every K decisions) enforced in router. _Progress: ExplorationBudget now triggers cadence-required mutations, blocks non-exploration tactics until the mutate interval is satisfied, and PolicyRouter surfaces cadence-required metadata with regression coverage proving forced exploration decisions and blocked cadences.【F:src/thinking/adaptation/policy_router.py†L251-L325】【F:src/thinking/adaptation/policy_router.py†L2088-L2157】【F:tests/thinking/test_policy_router.py†L523-L619】_
 - [ ] `[adapt]` **Counterfactual guardrails** (passive vs aggro delta bounds) for live candidates. _Progress: AlphaTradeLoopRunner now merges counterfactual guardrail payloads with existing risk metadata so forced-paper actions propagate to trade intents, trade outcomes, and diaries under regression coverage.【F:src/orchestration/alpha_trade_runner.py†L190-L225】【F:tests/orchestration/test_alpha_trade_runner.py†L253-L365】【F:src/trading/execution/release_router.py†L447-L516】_
 - [x] `[reflect]` **Autoâ€‘freeze** exploration on drift or risk warnings (hooks wired). _Progress: AlphaTradeLoopRunner now fuses drift sentry outcomes, risk gateway rejections, and compliance risk warning/breach events into exploration freezes with trigger metadata, and regression coverage proves compliance events raise freezes with preserved evidence payloads.【F:src/orchestration/alpha_trade_runner.py†L600-L744】【F:tests/orchestration/test_alpha_trade_runner.py†L710-L771】【F:src/operations/drift_sentry.py†L337-L417】_
 
@@ -114,7 +114,7 @@
 - [x] `[ops]` Endâ€‘toâ€‘end audit log export; compliance artifact pack. _Progress: Compliance artifact pack builder exports audit logs with manifests, compliance and regulatory snapshots, optional archives, and CLI wiring, with regression coverage for full evidence packs and missing-log fallbacks to keep compliance artifacts reproducible.【F:src/operations/compliance_artifact_pack.py†L1-L188】【F:tools/operations/compliance_artifact_pack.py†L1-L103】【F:tests/operations/test_compliance_artifact_pack.py†L18-L122】_
 
 **Acceptance (DoD)**
-- [ ] `[ops]` Liveâ€‘pilot drill: turn on tiny capital; trigger killâ€‘switch; rollback; reconcile â€” all green.
+- [x] `[ops]` Liveâ€‘pilot drill: turn on tiny capital; trigger killâ€‘switch; rollback; reconcile â€” all green. _Progress: Live pilot drill CLI now orchestrates tiny-capital overrides, kill-switch enforcement, trade-throttle rollback, and reconciliation replays into timestamped JSON evidence packs with regression coverage validating successful runs.【F:tools/operations/live_pilot_drill.py†L1-L307】【F:tests/tools/test_live_pilot_drill.py†L1-L54】_
 - [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper). _Progress: PolicyRouter now exposes an `allow_forced_exploration` guard that raises when enforcement tries to force exploration, and UnderstandingRouter disables forced exploration whenever run mode is live, with regression coverage verifying live-only catalogs fail closed.【F:src/thinking/adaptation/policy_router.py†L379-L408】【F:src/thinking/adaptation/policy_router.py†L830-L845】【F:src/understanding/router.py†L244-L257】【F:tests/thinking/test_policy_router.py†L483-L495】【F:tests/understanding/test_understanding_router.py†L292-L305】_
 
 ---
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T16:06:08Z
+
+### Last 4 commits
+- 1166957a feat(artifacts): add 2 files (2025-10-19)
+- 4046feeb refactor(thinking): tune 2 files (2025-10-19)
+- 3e37c593 test(artifacts): add 8 files (2025-10-19)
+- 1f206a9c refactor(data_foundation): tune 3 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T15:56:34Z
 

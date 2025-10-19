@@ -510,11 +510,30 @@ class ReleaseAwareExecutionRouter:
             candidate = guardrails_payload.get("counterfactual")
             if not isinstance(candidate, Mapping):
                 return None
-        breached = candidate.get("breached")
-        if isinstance(breached, bool) and breached:
-            reason = candidate.get("reason") or "counterfactual_guardrail_breach"
-            return str(reason)
-        return None
+        breached_flag = candidate.get("breached")
+        breached = isinstance(breached_flag, bool) and breached_flag
+        action_raw = candidate.get("action")
+        action = str(action_raw).strip().lower() if isinstance(action_raw, str) else ""
+        severity_raw = candidate.get("severity")
+        severity = str(severity_raw).strip().lower() if isinstance(severity_raw, str) else ""
+        candidate_force_flag = candidate.get("force_paper")
+        candidate_force = isinstance(candidate_force_flag, bool) and candidate_force_flag
+        root_force_flag = guardrails_payload.get("force_paper")
+        root_force = isinstance(root_force_flag, bool) and root_force_flag
+
+        should_force = False
+        if action == "force_paper" or candidate_force or root_force:
+            should_force = True
+        elif breached and severity in {"aggro", "critical", "severe"}:
+            should_force = True
+        elif breached and not severity:
+            should_force = True
+
+        if not should_force:
+            return None
+
+        reason = candidate.get("reason") or "counterfactual_guardrail_breach"
+        return str(reason)
 
     @staticmethod
     def _risk_guardrail_force(

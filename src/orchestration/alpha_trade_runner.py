@@ -241,14 +241,19 @@ class AlphaTradeLoopRunner:
         trade_metadata = dict(trade_plan.metadata or {})
         if "fast_weight" not in trade_metadata:
             trade_metadata["fast_weight"] = dict(fast_weight_metadata)
-        guardrails_payload = dict(loop_result.decision.guardrails)
-        merged_guardrails: dict[str, Any] | None = None
-        if guardrails_payload:
-            merged_guardrails = self._merge_guardrail_payload(
-                trade_metadata.get("guardrails"),
-                guardrails_payload,
+
+        existing_guardrails = trade_metadata.get("guardrails")
+        raw_guardrails = getattr(loop_result.decision, "guardrails", None)
+        resolved_guardrails: dict[str, Any] | None = None
+        if isinstance(raw_guardrails, Mapping):
+            resolved_guardrails = self._merge_guardrail_payload(
+                existing_guardrails,
+                raw_guardrails,
             )
-            trade_metadata["guardrails"] = merged_guardrails
+        elif isinstance(existing_guardrails, Mapping):
+            resolved_guardrails = self._merge_guardrail_payload(None, existing_guardrails)
+        if resolved_guardrails is not None:
+            trade_metadata["guardrails"] = resolved_guardrails
 
         diary_entry = loop_result.diary_entry
         has_diary_entry = diary_entry is not None
@@ -272,13 +277,10 @@ class AlphaTradeLoopRunner:
                 metadata_payload["attribution"] = attribution_payload
             else:
                 metadata_payload.pop("attribution", None)
-            if guardrails_payload:
-                base_guardrails = metadata_payload.get("guardrails")
-                if base_guardrails is None and merged_guardrails is not None:
-                    base_guardrails = merged_guardrails
+            if resolved_guardrails is not None:
                 metadata_payload["guardrails"] = self._merge_guardrail_payload(
-                    base_guardrails,
-                    guardrails_payload,
+                    metadata_payload.get("guardrails"),
+                    resolved_guardrails,
                 )
             raw_intent["metadata"] = metadata_payload
             intent_payload = raw_intent
@@ -302,6 +304,11 @@ class AlphaTradeLoopRunner:
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
+        if resolved_guardrails is not None:
+            guardrail_snapshot = self._merge_guardrail_payload(None, resolved_guardrails)
+            loop_metadata_updates["guardrails"] = guardrail_snapshot
+            if has_diary_entry:
+                diary_annotations["guardrails"] = guardrail_snapshot
         coverage_snapshot = dict(self.describe_diary_coverage())
         loop_metadata_updates["diary_coverage"] = dict(coverage_snapshot)
         trade_metadata["diary_coverage"] = dict(coverage_snapshot)
@@ -332,6 +339,7 @@ class AlphaTradeLoopRunner:
                     trade_outcome=outcome,
                     coverage_snapshot=coverage_snapshot,
                     attribution_payload=attribution_payload if has_diary_entry else None,
+                    guardrails=resolved_guardrails,
                 )
             else:
                 trade_outcome = None
@@ -661,6 +669,7 @@ class AlphaTradeLoopRunner:
         trade_outcome: "TradeIntentOutcome",
         coverage_snapshot: Mapping[str, Any],
         attribution_payload: Mapping[str, Any] | None,
+        guardrails: Mapping[str, Any] | None,
     ) -> "TradeIntentOutcome":
         metadata: dict[str, Any]
         if isinstance(trade_outcome.metadata, Mapping):
@@ -681,6 +690,19 @@ class AlphaTradeLoopRunner:
                 changed = True
         elif metadata.pop("attribution", None) is not None:
             changed = True
+
+        if guardrails is not None:
+            existing_guardrails = metadata.get("guardrails")
+            if isinstance(existing_guardrails, Mapping):
+                combined_guardrails = self._merge_guardrail_payload(
+                    existing_guardrails,
+                    guardrails,
+                )
+            else:
+                combined_guardrails = self._merge_guardrail_payload(None, guardrails)
+            if metadata.get("guardrails") != combined_guardrails:
+                metadata["guardrails"] = combined_guardrails
+                changed = True
 
         if not changed:
             return trade_outcome

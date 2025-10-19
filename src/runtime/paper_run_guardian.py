@@ -415,12 +415,50 @@ class PaperRunMonitor:
                 metrics["runtime_shortfall_seconds"] = runtime_shortfall
         else:
             metrics["meets_minimum_runtime"] = True
+        metrics["invariant_breach_count"] = len(self.invariant_breaches)
+        metrics["error_event_count"] = len(self.error_events)
+        threshold_mb = self.config.memory_growth_threshold_mb
+        if threshold_mb is not None:
+            metrics["memory_growth_threshold_mb"] = threshold_mb
         if report.paper_metrics is not None:
             metrics["paper_metrics"] = dict(report.paper_metrics)
         if report.execution_stats is not None:
             metrics["execution_stats"] = dict(report.execution_stats)
         if report.incident_response is not None:
             metrics["incident_response"] = dict(report.incident_response)
+
+        latency_threshold = self.config.latency_p99_threshold
+        if latency_threshold is not None:
+            metrics["latency_p99_threshold_s"] = latency_threshold
+
+        minimum_runtime_ok = bool(metrics.get("meets_minimum_runtime", False))
+        latency_ok = (
+            True
+            if latency_threshold is None
+            else (
+                self._latency_p99_max is not None
+                and self._latency_p99_max <= latency_threshold
+            )
+        )
+        memory_ok = (
+            True
+            if threshold_mb is None
+            else (
+                memory_growth is not None and memory_growth <= threshold_mb
+            )
+        )
+        invariant_ok = len(self.invariant_breaches) == 0
+
+        metrics["latency_p99_within_threshold"] = latency_ok
+        metrics["memory_growth_within_threshold"] = memory_ok
+
+        metrics["objective_compliance"] = {
+            "minimum_runtime_met": minimum_runtime_ok,
+            "latency_p99_within_threshold": latency_ok,
+            "memory_growth_within_threshold": memory_ok,
+            "no_invariant_breaches": invariant_ok,
+        }
+        metrics["objectives_met"] = all(metrics["objective_compliance"].values())
 
         summary = PaperRunSummary(
             status=self.status,

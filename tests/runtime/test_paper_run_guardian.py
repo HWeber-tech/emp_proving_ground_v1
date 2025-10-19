@@ -180,6 +180,43 @@ def test_guardian_requests_stop_on_memory_growth_threshold() -> None:
     assert any("Memory growth exceeded threshold" in alert for alert in monitor.alerts)
 
 
+def test_guardian_objective_compliance_flags() -> None:
+    config = PaperRunConfig(
+        minimum_runtime_seconds=10.0,
+        latency_p99_threshold=0.05,
+        memory_growth_threshold_mb=10.0,
+    )
+    tracker = _iterating_sampler([100.0, 103.0, 104.0])
+    monitor = PaperRunMonitor(config, memory_tracker=tracker)
+
+    monitor.record_progress(
+        _progress(runtime_seconds=5.0, orders=5, p99_latency=0.03, avg_latency=0.02)
+    )
+    monitor.record_progress(
+        _progress(runtime_seconds=15.0, orders=10, p99_latency=0.04, avg_latency=0.03)
+    )
+
+    report = PaperTradingSimulationReport(
+        orders=[{"order_id": "A"}, {"order_id": "B"}],
+        errors=[],
+        decisions=20,
+        diary_entries=4,
+        runtime_seconds=600.0,
+    )
+
+    summary = monitor.finalise(report)
+    metrics = summary.metrics
+
+    assert metrics["objectives_met"] is True
+    objectives = metrics["objective_compliance"]
+    assert objectives["minimum_runtime_met"] is True
+    assert objectives["latency_p99_within_threshold"] is True
+    assert objectives["memory_growth_within_threshold"] is True
+    assert objectives["no_invariant_breaches"] is True
+    assert metrics["invariant_breach_count"] == 0
+    assert metrics["memory_growth_within_threshold"] is True
+
+
 def test_persist_error_events_writes_json(tmp_path: Path) -> None:
     config = PaperRunConfig()
     tracker = _iterating_sampler([100.0])

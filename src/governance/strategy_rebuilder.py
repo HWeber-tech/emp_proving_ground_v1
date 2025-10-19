@@ -192,7 +192,7 @@ class StrategyRuntimeConfig:
 
         if indent is None:
             return self.json_bytes.decode("utf-8")
-        return json.dumps(self.payload, sort_keys=True, indent=indent)
+        return json.dumps(self.payload, sort_keys=True, indent=indent, ensure_ascii=False)
 
 
 def rebuild_strategy(

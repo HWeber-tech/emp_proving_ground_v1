@@ -175,6 +175,23 @@ def test_understanding_router_respects_adapter_expiry() -> None:
     assert "expiry_gate" not in expired_bundle.fast_weight_summary
 
 
+def test_understanding_router_enables_linear_attention_when_flagged() -> None:
+    router = _build_router()
+    snapshot = _build_snapshot(
+        feature_flags={
+            "fast_weights_live": True,
+            "linear_attention_live": True,
+        }
+    )
+
+    decision_bundle = router.route(snapshot)
+
+    la_context = decision_bundle.decision.reflection_summary.get("linear_attention")
+    assert la_context is not None
+    assert la_context["recommended_tactic_id"] == decision_bundle.decision.tactic_id
+    assert la_context["overridden"] is False
+
+
 def test_understanding_router_updates_hebbian_multiplier() -> None:
     router = _build_router()
     hebbian_adapter = FastWeightAdapter(

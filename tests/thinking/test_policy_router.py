@@ -239,6 +239,52 @@ def test_route_respects_external_fast_weights() -> None:
     assert metrics["dormant_ids"] == ("base",)
 
 
+def test_linear_attention_router_promotes_novel_candidate_when_enabled() -> None:
+    router = PolicyRouter(tournament_size=1)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="dominant",
+                base_weight=1.3,
+                regime_bias={"bull": 1.25},
+                confidence_sensitivity=0.3,
+            ),
+            PolicyTactic(
+                tactic_id="novelty",
+                base_weight=1.05,
+                regime_bias={"bull": 1.05},
+                confidence_sensitivity=0.1,
+            ),
+        )
+    )
+
+    base_regime = _regime(confidence=0.6, volatility=0.25)
+
+    first = router.route(base_regime)
+    second = router.route(base_regime)
+
+    assert first.tactic_id == "dominant"
+    assert second.tactic_id == "dominant"
+
+    decision = router.route(
+        _regime(confidence=0.6, volatility=0.25),
+        linear_attention_enabled=True,
+    )
+
+    assert decision.tactic_id == "novelty"
+    la_context = decision.reflection_summary["linear_attention"]
+    assert la_context["recommended_tactic_id"] == "novelty"
+    assert la_context["overridden"] is False
+    assert la_context["history_before"]["counts"]["dominant"] >= 2
+    assert la_context["history_after"]["counts"]["novelty"] >= 1
+    weights = {
+        candidate["tactic_id"]: candidate["attention"]
+        for candidate in la_context["candidates"]
+    }
+    assert weights["novelty"] > weights["dominant"]
+    assert pytest.approx(sum(weights.values()), rel=1e-6, abs=1e-9) == 1.0
+
+
 def test_route_clamps_negative_fast_weight_overrides() -> None:
     router = PolicyRouter()
     router.register_tactic(PolicyTactic(tactic_id="base", base_weight=1.0))

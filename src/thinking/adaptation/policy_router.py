@@ -214,6 +214,254 @@ class PolicyDecision:
     exploration_metadata: Mapping[str, object] = field(default_factory=dict)
 
 
+class LinearAttentionRouter:
+    """Linear attention helper that arbitrates policy candidates when flagged on.
+
+    The router keeps a lightweight history of previously selected tactics and
+    blends that novelty signal with the current regime context and candidate
+    scores using a linear attention projection.  Consumers request arbitration
+    via :meth:`arbitrate` and subsequently call :meth:`observe_selection` with
+    the final tactic to keep the novelty buffer in sync with the actual policy
+    stream.
+    """
+
+    _DIMENSIONS: tuple[str, ...] = (
+        "score",
+        "base_score",
+        "multiplier",
+        "rank_bonus",
+        "novelty",
+        "exploration",
+    )
+
+    def __init__(
+        self,
+        *,
+        history_window: int = 128,
+        projection_bias: float = 0.0,
+        epsilon: float = 1e-6,
+    ) -> None:
+        if history_window <= 0:
+            raise ValueError("history_window must be positive")
+        self._history_window = int(history_window)
+        self._projection_bias = float(projection_bias)
+        self._epsilon = max(float(epsilon), 0.0)
+        self._history: Deque[str] = deque()
+        self._counts: dict[str, int] = {}
+        self._last_context: Mapping[str, object] | None = None
+
+    def reset(self) -> None:
+        """Clear the novelty history and cached context."""
+
+        self._history.clear()
+        self._counts.clear()
+        self._last_context = None
+
+    def snapshot_history(self) -> Mapping[str, object]:
+        """Return a JSON-serialisable view of the current history buffer."""
+
+        return {
+            "window": self._history_window,
+            "total": len(self._history),
+            "counts": dict(self._counts),
+        }
+
+    def observe_selection(self, tactic_id: str | None) -> None:
+        """Record the tactic that ultimately won arbitration."""
+
+        if not tactic_id:
+            return
+        name = str(tactic_id)
+        if not name:
+            return
+        self._history.append(name)
+        self._counts[name] = self._counts.get(name, 0) + 1
+        while len(self._history) > self._history_window:
+            expired = self._history.popleft()
+            remaining = self._counts.get(expired, 0) - 1
+            if remaining <= 0:
+                self._counts.pop(expired, None)
+            else:
+                self._counts[expired] = remaining
+
+    def last_context(self) -> Mapping[str, object] | None:
+        """Return the most recent arbitration context, if available."""
+
+        if self._last_context is None:
+            return None
+        return dict(self._last_context)
+
+    def arbitrate(
+        self,
+        *,
+        regime_state: RegimeState,
+        ranked: Sequence[Mapping[str, object]],
+    ) -> tuple[Mapping[str, object], Mapping[str, object]]:
+        """Select a recommended entry and return attention diagnostics."""
+
+        if not ranked:
+            raise ValueError("ranked must not be empty")
+
+        query = self._build_query(regime_state)
+        candidate_records: list[dict[str, object]] = []
+        best_entry: Mapping[str, object] | None = None
+        best_weight = float("-inf")
+        total_weight = 0.0
+
+        for index, entry in enumerate(ranked, 1):
+            tactic: PolicyTactic | None = entry.get("tactic")  # type: ignore[assignment]
+            if not isinstance(tactic, PolicyTactic):
+                continue
+            key = self._build_key(entry, tactic, index)
+            contributions: list[Mapping[str, float]] = []
+            weight = self._projection_bias
+            for dimension, q_value, k_value in zip(self._DIMENSIONS, query, key):
+                contribution = q_value * k_value
+                weight += contribution
+                contributions.append(
+                    {
+                        "dimension": dimension,
+                        "query": float(q_value),
+                        "key": float(k_value),
+                        "contribution": float(contribution),
+                    }
+                )
+
+            positive_weight = max(self._epsilon, float(weight))
+            total_weight += positive_weight
+
+            score_value = self._coerce_float(entry.get("score"), default=0.0)
+            base_score_value = self._coerce_float(entry.get("base_score"), default=0.0)
+            multiplier_value = self._coerce_float(entry.get("multiplier"), default=1.0)
+
+            candidate_records.append(
+                {
+                    "tactic_id": tactic.tactic_id,
+                    "rank": int(index),
+                    "raw_weight": positive_weight,
+                    "score": score_value,
+                    "base_score": base_score_value,
+                    "multiplier": multiplier_value,
+                    "novelty_factor": key[4],
+                    "exploration_bias": key[5],
+                    "components": contributions,
+                }
+            )
+
+            if positive_weight > best_weight:
+                best_weight = positive_weight
+                best_entry = entry
+
+        if best_entry is None:
+            best_entry = ranked[0]
+
+        if candidate_records:
+            if total_weight <= 0.0:
+                uniform = 1.0 / len(candidate_records)
+                for record in candidate_records:
+                    record["attention"] = uniform
+            else:
+                for record in candidate_records:
+                    record["attention"] = float(record["raw_weight"]) / total_weight
+
+        recommended_tactic_id = None
+        recommended_rank = None
+        if isinstance(best_entry.get("tactic"), PolicyTactic):
+            recommended_tactic_id = best_entry["tactic"].tactic_id  # type: ignore[index]
+        for record in candidate_records:
+            if record.get("tactic_id") == recommended_tactic_id:
+                recommended_rank = record.get("rank")
+                break
+
+        query_payload = {
+            dimension: float(value)
+            for dimension, value in zip(self._DIMENSIONS, query)
+        }
+
+        context: dict[str, object] = {
+            "strategy": "linear_attention",
+            "projection_bias": self._projection_bias,
+            "history_window": self._history_window,
+            "query": query_payload,
+            "candidates": candidate_records,
+            "recommended_tactic_id": recommended_tactic_id,
+            "recommended_rank": recommended_rank,
+            "history_before": self.snapshot_history(),
+        }
+        if total_weight > 0.0:
+            context["normalisation_factor"] = total_weight
+
+        self._last_context = context
+        return best_entry, context
+
+    @staticmethod
+    def _coerce_float(value: object | None, *, default: float) -> float:
+        try:
+            if value is None:
+                return float(default)
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    def _build_query(self, regime_state: RegimeState) -> tuple[float, ...]:
+        confidence = max(0.0, min(1.0, float(regime_state.confidence)))
+        volatility = max(0.0, float(regime_state.volatility))
+        volatility_term = 1.0 / (1.0 + 3.0 * volatility)
+        state = str(regime_state.volatility_state or "").lower()
+        if state == "crisis":
+            turbulence = 0.4
+        elif state == "elevated":
+            turbulence = 0.7
+        else:
+            turbulence = 1.0
+
+        mean_feature = 0.0
+        if regime_state.features:
+            total = 0.0
+            count = 0
+            for raw_value in regime_state.features.values():
+                try:
+                    total += float(raw_value)
+                    count += 1
+                except (TypeError, ValueError):
+                    continue
+            if count:
+                mean_feature = total / count
+        density_focus = 0.5 + 0.5 * math.tanh(mean_feature)
+        novelty_focus = min(2.0, 0.5 + 1.5 * (1.0 - confidence))
+        exploration_focus = max(0.2, 0.4 + 0.6 * confidence)
+
+        return (
+            confidence,
+            volatility_term,
+            turbulence,
+            1.0,
+            novelty_focus,
+            exploration_focus * density_focus,
+        )
+
+    def _build_key(
+        self,
+        entry: Mapping[str, object],
+        tactic: PolicyTactic,
+        rank: int,
+    ) -> tuple[float, ...]:
+        raw_score = self._coerce_float(entry.get("score"), default=0.0)
+        raw_base_score = self._coerce_float(entry.get("base_score"), default=raw_score)
+        multiplier = self._coerce_float(entry.get("multiplier"), default=1.0)
+        rank_bonus = 1.0 / max(1, int(rank))
+        novelty = self._novelty_factor(tactic.tactic_id)
+        exploration_bias = 0.5 if tactic.exploration else 1.0
+        score = raw_score * novelty
+        base_score = raw_base_score * novelty
+        adjusted_multiplier = multiplier * (0.5 + 0.5 * novelty)
+        return (score, base_score, adjusted_multiplier, rank_bonus, novelty, exploration_bias)
+
+    def _novelty_factor(self, tactic_id: str) -> float:
+        count = self._counts.get(tactic_id, 0)
+        return 1.0 / (1.0 + float(count))
+
+
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard for type checking
     from .policy_reflection import PolicyReflectionArtifacts
 
@@ -387,6 +635,7 @@ class PolicyRouter:
         tournament_weights: Mapping[str, float] | None = None,
         tournament_bonus: float = 0.25,
         allow_forced_exploration: bool = True,
+        linear_attention_router: "LinearAttentionRouter" | None = None,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -416,6 +665,7 @@ class PolicyRouter:
         self._tournament_weights = dict(self._normalise_tournament_weights(tournament_weights))
         self._tournament_bonus = max(0.0, float(tournament_bonus))
         self._allow_forced_exploration = bool(allow_forced_exploration)
+        self._linear_attention_router = linear_attention_router or LinearAttentionRouter()
 
     def exploration_freeze_active(self) -> bool:
         """Return ``True`` when exploration is currently frozen."""
@@ -762,6 +1012,7 @@ class PolicyRouter:
         fast_weights: Mapping[str, float] | None = None,
         *,
         decision_timestamp: datetime | None = None,
+        linear_attention_enabled: bool = False,
     ) -> PolicyDecision:
         if not self._tactics:
             raise RuntimeError("no tactics registered")
@@ -836,6 +1087,25 @@ class PolicyRouter:
                 exploration_context["budget_before"] = dict(budget_before)
         else:
             working_entries = list(ranked_entries)
+
+        linear_attention_context: dict[str, object] | None = None
+        if (
+            linear_attention_enabled
+            and self._linear_attention_router is not None
+            and len(working_entries) > 1
+        ):
+            recommended_entry, context = self._linear_attention_router.arbitrate(
+                regime_state=regime_state,
+                ranked=working_entries,
+            )
+            if recommended_entry is not None:
+                reordered = [recommended_entry]
+                for entry in working_entries:
+                    if entry is recommended_entry:
+                        continue
+                    reordered.append(entry)
+                working_entries = reordered
+                linear_attention_context = dict(context)
 
         if (
             exploration_context is not None
@@ -951,6 +1221,18 @@ class PolicyRouter:
             tournament_snapshot["selected_score"] = float(winner_entry["score"])
             tournament_snapshot.setdefault("regime", regime_state.regime)
             reflection_summary["tournament_selection"] = tournament_snapshot
+
+        if self._linear_attention_router is not None:
+            self._linear_attention_router.observe_selection(tactic.tactic_id)
+        if linear_attention_context is not None:
+            linear_attention_context["final_tactic_id"] = tactic.tactic_id
+            linear_attention_context["overridden"] = (
+                tactic.tactic_id != linear_attention_context.get("recommended_tactic_id")
+            )
+            if self._linear_attention_router is not None:
+                linear_attention_context["history_after"] = self._linear_attention_router.snapshot_history()
+            reflection_summary["linear_attention"] = linear_attention_context
+
         self._history.append(reflection_summary)
 
         self._regime_fitness.update(
@@ -2295,6 +2577,7 @@ class PolicyRouter:
 __all__ = [
     "ExplorationBudget",
     "ExplorationFreezeState",
+    "LinearAttentionRouter",
     "PolicyDecision",
     "PolicyRouter",
     "PolicyTactic",

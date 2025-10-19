@@ -25,6 +25,7 @@ from src.thinking.adaptation.fast_weights import (
     FastWeightController,
     build_fast_weight_controller,
 )
+from src.thinking.adaptation.feature_toggles import LINEAR_ATTENTION_FLAG
 
 if TYPE_CHECKING:  # pragma: no cover - typing support
     from src.governance.system_config import SystemConfig
@@ -374,6 +375,7 @@ class UnderstandingRouter:
             snapshot.regime_state,
             fast_weights=dict(weights) if weights else None,
             decision_timestamp=as_of,
+            linear_attention_enabled=snapshot.flag_enabled(LINEAR_ATTENTION_FLAG),
         )
 
         return UnderstandingDecision(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from .policy_reflection import PolicyReflectionArtifacts, PolicyReflectionBuilder
 from .policy_router import (
     FastWeightExperiment,
+    LinearAttentionRouter,
     PolicyDecision,
     PolicyRouter,
     PolicyTactic,
@@ -63,6 +64,7 @@ __all__ = [
     "PolicyReflectionArtifacts",
     "PolicyReflectionBuilder",
     "FastWeightExperiment",
+    "LinearAttentionRouter",
     "PolicyDecision",
     "PolicyRouter",
     "PolicyTactic",

@@ -52,6 +52,9 @@ __all__ = [
 ]
 
 
+DEFAULT_MINIMUM_RUNTIME_SECONDS = 7 * 24 * 60 * 60
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -89,6 +92,7 @@ class PaperRunConfig:
     report_path: Path | None = None
     sample_history: int = 2048
     min_orders: int = 0
+    minimum_runtime_seconds: float = DEFAULT_MINIMUM_RUNTIME_SECONDS
 
     def __post_init__(self) -> None:
         if self.duration_seconds is not None and self.duration_seconds <= 0:
@@ -96,6 +100,8 @@ class PaperRunConfig:
         self.progress_interval = max(1.0, float(self.progress_interval or 60.0))
         self.sample_history = max(32, int(self.sample_history or 2048))
         self.min_orders = max(0, int(self.min_orders or 0))
+        minimum_runtime = float(self.minimum_runtime_seconds or 0.0)
+        self.minimum_runtime_seconds = max(0.0, minimum_runtime)
 
 
 @dataclass(slots=True)
@@ -314,6 +320,14 @@ class PaperRunMonitor:
 
         self.finished_at = _utc_now()
         memory_growth = self.memory_tracker.growth_mb()
+        observed_runtime = float(report.runtime_seconds or 0.0)
+        if observed_runtime <= 0 and self.started_at and self.finished_at:
+            observed_runtime = max(
+                0.0, (self.finished_at - self.started_at).total_seconds()
+            )
+        minimum_runtime = self.config.minimum_runtime_seconds
+        meets_minimum_runtime = True
+        runtime_shortfall: float | None = None
         if (
             memory_growth is not None
             and self.config.memory_growth_threshold_mb is not None
@@ -327,11 +341,22 @@ class PaperRunMonitor:
             )
             self._update_status(PaperRunStatus.DEGRADED)
 
+        if minimum_runtime > 0.0 and observed_runtime < minimum_runtime:
+            meets_minimum_runtime = False
+            runtime_shortfall = max(0.0, minimum_runtime - observed_runtime)
+            self._register_alert(
+                (
+                    "Paper run ended before minimum duration: "
+                    f"{observed_runtime:.2f}s < {minimum_runtime:.2f}s"
+                )
+            )
+            self._update_status(PaperRunStatus.DEGRADED)
+
         if self.status not in (PaperRunStatus.FAILED, PaperRunStatus.DEGRADED, PaperRunStatus.STOPPED):
             self.status = PaperRunStatus.COMPLETED
 
         metrics: MutableMapping[str, Any] = {
-            "runtime_seconds": report.runtime_seconds,
+            "runtime_seconds": observed_runtime,
             "decisions": report.decisions,
             "diary_entries": report.diary_entries,
             "orders": len(report.orders),
@@ -341,6 +366,13 @@ class PaperRunMonitor:
             "latency_p99_s": self._latency_p99_max,
             "latency_avg_peak_s": self._latency_avg_max,
         }
+        if minimum_runtime > 0.0:
+            metrics["minimum_runtime_seconds"] = minimum_runtime
+            metrics["meets_minimum_runtime"] = meets_minimum_runtime
+            if runtime_shortfall is not None:
+                metrics["runtime_shortfall_seconds"] = runtime_shortfall
+        else:
+            metrics["meets_minimum_runtime"] = True
         if report.paper_metrics is not None:
             metrics["paper_metrics"] = dict(report.paper_metrics)
         if report.execution_stats is not None:
@@ -352,7 +384,7 @@ class PaperRunMonitor:
             status=self.status,
             started_at=self.started_at,
             finished_at=self.finished_at,
-            runtime_seconds=report.runtime_seconds,
+            runtime_seconds=observed_runtime,
             alerts=tuple(self.alerts),
             stop_reasons=tuple(self.stop_reasons),
             invariant_breaches=tuple(self.invariant_breaches),

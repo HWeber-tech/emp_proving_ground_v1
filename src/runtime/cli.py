@@ -392,6 +392,26 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
         runtime_seconds = summary.runtime_seconds or 0.0
         print(f"Runtime: {runtime_seconds:.2f}s")
         metrics = summary.metrics
+        minimum_runtime = metrics.get("minimum_runtime_seconds")
+        meets_minimum_runtime = metrics.get("meets_minimum_runtime")
+        if minimum_runtime:
+            if meets_minimum_runtime:
+                print(
+                    "Minimum runtime achieved: "
+                    f"target {float(minimum_runtime):.2f}s"
+                )
+            else:
+                shortfall = metrics.get("runtime_shortfall_seconds")
+                message = (
+                    "Minimum runtime not met: "
+                    f"observed {runtime_seconds:.2f}s / "
+                    f"target {float(minimum_runtime):.2f}s"
+                )
+                if shortfall is not None:
+                    message += f" (shortfall {float(shortfall):.2f}s)"
+                print(message)
+        elif meets_minimum_runtime is False:
+            print("Minimum runtime requirement failed")
         latency_p99 = metrics.get("latency_p99_s")
         if latency_p99 is not None:
             print(f"Latency p99: {latency_p99:.4f}s")

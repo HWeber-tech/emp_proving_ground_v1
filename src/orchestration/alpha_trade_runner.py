@@ -608,12 +608,26 @@ class AlphaTradeLoopRunner:
             else 0.0
         )
 
+        belief_id_value = getattr(belief_state, "belief_id", None)
+        belief_id = str(belief_id_value).strip() if belief_id_value else ""
+        if not belief_id:
+            return None
+
+        symbol_value = getattr(belief_state, "symbol", None)
+        symbol = str(symbol_value).strip() if symbol_value else ""
+
+        regime_value = getattr(regime_state, "regime", None)
+        regime = str(regime_value).strip() if regime_value else ""
+
         belief_summary: dict[str, Any] = {
-            "belief_id": belief_state.belief_id,
-            "symbol": belief_state.symbol,
-            "regime": regime_state.regime,
+            "belief_id": belief_id,
             "confidence": bounded_confidence,
         }
+
+        if symbol:
+            belief_summary["symbol"] = symbol
+        if regime:
+            belief_summary["regime"] = regime
 
         generated_at = belief_state.generated_at
         if isinstance(generated_at, datetime):
@@ -630,28 +644,43 @@ class AlphaTradeLoopRunner:
         probes_payload: list[Mapping[str, Any]] = []
         probes_source = getattr(diary_entry, "probes", ())
         for activation in probes_source or ():
+            probe_id_value = getattr(activation, "probe_id", None)
+            status_value = getattr(activation, "status", None)
+            probe_id_text = str(probe_id_value).strip() if probe_id_value else ""
+            status_text = str(status_value).strip() if status_value else ""
+            if not probe_id_text or not status_text:
+                continue
+
             probe_entry: dict[str, Any] = {
-                "probe_id": activation.probe_id,
-                "status": activation.status,
+                "probe_id": probe_id_text,
+                "status": status_text,
             }
             if activation.severity:
-                probe_entry["severity"] = activation.severity
+                probe_entry["severity"] = str(activation.severity)
             if activation.owner:
-                probe_entry["owner"] = activation.owner
+                probe_entry["owner"] = str(activation.owner)
             if activation.contact:
-                probe_entry["contact"] = activation.contact
+                probe_entry["contact"] = str(activation.contact)
             if activation.runbook:
-                probe_entry["runbook"] = activation.runbook
+                probe_entry["runbook"] = str(activation.runbook)
             if activation.notes:
-                probe_entry["notes"] = list(activation.notes)
-            if activation.metadata:
-                probe_entry["metadata"] = dict(activation.metadata)
+                probe_entry["notes"] = [
+                    str(note).strip()
+                    for note in activation.notes
+                    if str(note).strip()
+                ]
+            metadata_payload = getattr(activation, "metadata", None)
+            if isinstance(metadata_payload, Mapping):
+                probe_entry["metadata"] = {
+                    str(key): value for key, value in metadata_payload.items()
+                }
             probes_payload.append(probe_entry)
 
         explanation = (decision_bundle.decision.rationale or "").strip()
         if not explanation:
+            fallback_regime = regime or str(regime_state.regime or "unknown").strip()
             explanation = (
-                f"{decision_bundle.decision.tactic_id} routed under {regime_state.regime}"
+                f"{decision_bundle.decision.tactic_id} routed under {fallback_regime}"
             )
 
         attribution: dict[str, Any] = {

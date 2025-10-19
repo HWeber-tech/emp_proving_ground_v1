@@ -19,6 +19,7 @@ def test_auto_apply_rule_accepts_when_conditions_met() -> None:
         suggestion_id="rim-0001",
         oos_uplift=0.08,
         risk_hits=0,
+        invariant_breaches=0,
         budget_remaining=25.0,
         budget_utilisation=0.4,
     )
@@ -40,6 +41,7 @@ def test_auto_apply_rule_collects_failure_reasons() -> None:
         suggestion_id="rim-0002",
         oos_uplift=0.01,
         risk_hits=2,
+        invariant_breaches=1,
         budget_remaining=5.0,
         budget_utilisation=0.95,
     )
@@ -52,6 +54,24 @@ def test_auto_apply_rule_collects_failure_reasons() -> None:
     assert "risk_hits_exceeded:2>0" in reasons
     assert "budget_exhausted" in reasons
     assert any(reason.startswith("budget_over_utilised") for reason in reasons)
+    assert "invariants_breached:1" in reasons
+
+
+def test_auto_apply_rule_requires_invariant_context() -> None:
+    config = AutoApplyRuleConfig(uplift_threshold=0.0)
+    evaluation = ProposalEvaluation(
+        suggestion_id="rim-unknown",
+        oos_uplift=0.12,
+        risk_hits=0,
+        invariant_breaches=None,
+        budget_remaining=20.0,
+        budget_utilisation=0.25,
+    )
+
+    decision = config.evaluate(evaluation)
+
+    assert decision.auto_applied is False
+    assert "invariants_unknown" in decision.reasons
 
 
 def test_publish_governance_artifacts_marks_auto_applied(tmp_path) -> None:
@@ -77,6 +97,7 @@ def test_publish_governance_artifacts_marks_auto_applied(tmp_path) -> None:
             suggestion_id="rim-abc",
             oos_uplift=0.12,
             risk_hits=0,
+            invariant_breaches=0,
             budget_remaining=12.0,
             budget_utilisation=0.5,
         )
@@ -115,6 +136,7 @@ def test_publish_governance_artifacts_marks_auto_applied(tmp_path) -> None:
     assert auto_apply_payload["applied"] is True
     assert auto_apply_payload["reasons"] == []
     assert auto_apply_payload["evaluation"]["oos_uplift"] == pytest.approx(0.12)
+    assert auto_apply_payload["evaluation"]["invariant_breaches"] == 0
 
     digest = json.loads(digest_path.read_text(encoding="utf-8"))
     auto_apply_summary = digest.get("auto_apply")

@@ -243,6 +243,14 @@ def _auto_apply_succeeded(auto_apply_block: object) -> bool:
     if risk_hits_value > 0:
         return False
 
+    invariant_breaches = evaluation.get("invariant_breaches")
+    try:
+        invariant_breaches_value = int(invariant_breaches)
+    except (TypeError, ValueError):
+        return False
+    if invariant_breaches_value != 0:
+        return False
+
     budget_remaining = _coerce_finite_float(evaluation.get("budget_remaining"))
     budget_utilisation = _coerce_finite_float(evaluation.get("budget_utilisation"))
 
@@ -388,6 +396,35 @@ def _build_rejection_payload(
             metadata_block["reasons"] = [str(reason) for reason in reasons]
     payload["auto_apply"] = metadata_block
     return payload
+
+
+def _collect_auto_apply_failure_reasons(
+    auto_apply: Mapping[str, object]
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    raw_reasons = auto_apply.get("reasons")
+    if isinstance(raw_reasons, Iterable) and not isinstance(raw_reasons, (str, bytes)):
+        for reason in raw_reasons:
+            reason_str = str(reason).strip()
+            if reason_str:
+                reasons.append(reason_str)
+
+    evaluation = auto_apply.get("evaluation")
+    if isinstance(evaluation, Mapping):
+        invariant_breaches = evaluation.get("invariant_breaches")
+        try:
+            invariant_breaches_value = int(invariant_breaches)
+        except (TypeError, ValueError):
+            invariant_breaches_value = None
+        if invariant_breaches_value is None:
+            if "invariants_unknown" not in reasons:
+                reasons.append("invariants_unknown")
+        elif invariant_breaches_value > 0:
+            reason = f"invariants_breached:{invariant_breaches_value}"
+            if reason not in reasons:
+                reasons.append(reason)
+
+    return tuple(reasons)
 
 
 def _derive_threshold_override(

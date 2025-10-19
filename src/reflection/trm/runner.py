@@ -12,7 +12,7 @@ from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from .adapter import RIMInputAdapter
 from .config import AutoApplySettings, RIMRuntimeConfig
@@ -240,9 +240,24 @@ def _build_proposal_evaluations(
 
     entry_counts: Counter[str] = Counter(entry.strategy_id for entry in batch.entries)
     risk_counts: Counter[str] = Counter()
+    invariant_tracker: dict[str, dict[str, object]] = {}
     for entry in batch.entries:
         if entry.risk_flags:
             risk_counts[entry.strategy_id] += len(entry.risk_flags)
+        tracker = invariant_tracker.setdefault(
+            entry.strategy_id,
+            {"observed": False, "unknown": False, "breaches": 0},
+        )
+        statuses = _collect_invariant_statuses(entry.raw)
+        if not statuses:
+            if not tracker["observed"]:
+                tracker["unknown"] = True
+            continue
+        tracker["observed"] = True
+        breaches, unknown = _analyse_invariant_statuses(statuses)
+        tracker["breaches"] = int(tracker["breaches"]) + breaches
+        if unknown:
+            tracker["unknown"] = True
 
     evaluations: list[ProposalEvaluation] = []
     for suggestion in suggestions:
@@ -278,11 +293,29 @@ def _build_proposal_evaluations(
             metadata["budget_limit"] = float(limit)
             metadata["entries_observed"] = entry_counts.get(strategy_id, 0)
 
+        tracker = invariant_tracker.get(strategy_id)
+        invariant_breaches: int | None = None
+        if tracker:
+            observed = bool(tracker.get("observed"))
+            unknown = bool(tracker.get("unknown"))
+            breaches_total = int(tracker.get("breaches", 0))
+            if not observed or unknown:
+                invariant_breaches = None
+            else:
+                invariant_breaches = breaches_total
+            metadata["invariant_checks_observed"] = observed
+            metadata["invariant_breach_count"] = breaches_total
+            if unknown:
+                metadata["invariant_checks_unknown"] = True
+        else:
+            invariant_breaches = None
+
         evaluations.append(
             ProposalEvaluation(
                 suggestion_id=suggestion_id,
                 oos_uplift=uplift,
                 risk_hits=risk_hits,
+                invariant_breaches=invariant_breaches,
                 budget_remaining=budget_remaining,
                 budget_utilisation=budget_utilisation,
                 metadata=metadata,
@@ -349,6 +382,54 @@ def _build_trace_payloads(
         }
 
     return trace_lookup
+
+
+_OK_INVARIANT_STATUSES = {
+    "ok",
+    "pass",
+    "passed",
+    "clear",
+    "nominal",
+    "compliant",
+}
+
+
+def _collect_invariant_statuses(payload: Any) -> tuple[str | None, ...]:
+    statuses: list[str | None] = []
+    stack: list[Any] = [payload]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, Mapping):
+            name = current.get("name")
+            if isinstance(name, str) and name == "risk.synthetic_invariant_posture":
+                status_value = current.get("status")
+                if status_value is None:
+                    statuses.append(None)
+                elif isinstance(status_value, str):
+                    statuses.append(status_value)
+                else:
+                    statuses.append(str(status_value))
+            stack.extend(current.values())
+        elif isinstance(current, (list, tuple)):
+            stack.extend(current)
+    return tuple(statuses)
+
+
+def _analyse_invariant_statuses(statuses: Sequence[str | None]) -> tuple[int, bool]:
+    breaches = 0
+    unknown = False
+    for status in statuses:
+        if status is None:
+            unknown = True
+            continue
+        normalised = status.strip().lower()
+        if not normalised:
+            unknown = True
+            continue
+        if normalised in _OK_INVARIANT_STATUSES:
+            continue
+        breaches += 1
+    return breaches, unknown
 
 
 def _extract_target_strategy_ids(suggestion: Mapping[str, object]) -> tuple[str, ...]:

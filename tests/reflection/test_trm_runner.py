@@ -193,3 +193,4 @@ def test_runner_emits_schema_compliant_suggestions(tmp_path: Path) -> None:
             assert governance_meta.get("status") == "pending"
     assert failure_reasons, "expected auto-apply guard to record failure reasons"
     assert any(reason.startswith("risk_hits_exceeded") for reason in failure_reasons)
+    assert "invariants_unknown" in set(failure_reasons)

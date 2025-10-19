@@ -87,6 +87,7 @@ def _build_queue_entry(
                     "suggestion_id": suggestion_id,
                     "oos_uplift": 0.12,
                     "risk_hits": 0,
+                    "invariant_breaches": 0,
                     "budget_remaining": 25.0,
                     "budget_utilisation": 0.25,
                 },
@@ -255,3 +256,80 @@ def test_auto_apply_skips_when_risk_hits_reported(tmp_path: Path) -> None:
     assert record.accepted_proposals == ()
     metadata = record.metadata.get("rim_auto_apply") if record.metadata else None
     assert not metadata or "rim-risk-hit" not in metadata
+
+
+def test_auto_apply_skips_when_invariants_breached(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "ledger.json"
+    queue_path = tmp_path / "queue" / "reflection_queue.jsonl"
+
+    store = PolicyLedgerStore(ledger_path)
+    release_manager = LedgerReleaseManager(store)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="diary-001",
+    )
+
+    suggestion = _build_queue_entry(
+        "bootstrap-strategy",
+        suggestion_id="rim-invariant-breach",
+        delta=-0.05,
+        evaluation_overrides={"invariant_breaches": 2},
+    )
+
+    _write_queue_lines(queue_path, [suggestion])
+
+    applied = apply_auto_applied_suggestions_to_ledger(
+        queue_path,
+        store,
+        release_manager=release_manager,
+    )
+
+    assert applied == ()
+
+    record = store.get("bootstrap-strategy")
+    assert record is not None
+    assert record.accepted_proposals == ()
+    metadata = record.metadata.get("rim_auto_apply") if record.metadata else None
+    assert not metadata or "rim-invariant-breach" not in metadata
+
+
+def test_auto_apply_skips_when_invariant_context_missing(tmp_path: Path) -> None:
+    ledger_path = tmp_path / "ledger.json"
+    queue_path = tmp_path / "queue" / "reflection_queue.jsonl"
+
+    store = PolicyLedgerStore(ledger_path)
+    release_manager = LedgerReleaseManager(store)
+    store.upsert(
+        policy_id="bootstrap-strategy",
+        tactic_id="bootstrap-strategy",
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="diary-001",
+    )
+
+    suggestion = _build_queue_entry(
+        "bootstrap-strategy",
+        suggestion_id="rim-invariant-unknown",
+        delta=-0.05,
+    )
+    evaluation = suggestion["governance"]["auto_apply"]["evaluation"]
+    evaluation.pop("invariant_breaches", None)
+
+    _write_queue_lines(queue_path, [suggestion])
+
+    applied = apply_auto_applied_suggestions_to_ledger(
+        queue_path,
+        store,
+        release_manager=release_manager,
+    )
+
+    assert applied == ()
+
+    record = store.get("bootstrap-strategy")
+    assert record is not None
+    assert record.accepted_proposals == ()
+    metadata = record.metadata.get("rim_auto_apply") if record.metadata else None
+    assert not metadata or "rim-invariant-unknown" not in metadata

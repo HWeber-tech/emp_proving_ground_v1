@@ -32,6 +32,7 @@ class ProposalEvaluation:
     suggestion_id: str
     oos_uplift: float | None
     risk_hits: int | None
+    invariant_breaches: int | None = None
     budget_remaining: float | None = None
     budget_utilisation: float | None = None
     metadata: Mapping[str, object] = field(default_factory=dict)
@@ -42,6 +43,8 @@ class ProposalEvaluation:
             "oos_uplift": self.oos_uplift,
             "risk_hits": self.risk_hits,
         }
+        if self.invariant_breaches is not None:
+            payload["invariant_breaches"] = self.invariant_breaches
         if self.budget_remaining is not None:
             payload["budget_remaining"] = self.budget_remaining
         if self.budget_utilisation is not None:
@@ -109,6 +112,12 @@ class AutoApplyRuleConfig:
             reasons.append("risk_hits_unknown")
         elif risk_hits > self.max_risk_hits:
             reasons.append(f"risk_hits_exceeded:{risk_hits}>{self.max_risk_hits}")
+
+        invariant_breaches = evaluation.invariant_breaches
+        if invariant_breaches is None:
+            reasons.append("invariants_unknown")
+        elif invariant_breaches > 0:
+            reasons.append(f"invariants_breached:{invariant_breaches}")
 
         budget_remaining = evaluation.budget_remaining
         budget_utilisation = evaluation.budget_utilisation

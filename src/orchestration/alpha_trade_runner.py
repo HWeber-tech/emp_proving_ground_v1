@@ -297,6 +297,8 @@ class AlphaTradeLoopRunner:
         coverage_snapshot = dict(self.describe_diary_coverage())
         loop_metadata_updates.setdefault("diary_coverage", coverage_snapshot)
         trade_metadata.setdefault("diary_coverage", dict(coverage_snapshot))
+        if loop_result.diary_entry is not None:
+            diary_annotations.setdefault("diary_coverage", dict(coverage_snapshot))
         if attribution_payload:
             diary_annotations["attribution"] = attribution_payload
             loop_metadata_updates["attribution"] = attribution_payload

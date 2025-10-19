@@ -300,6 +300,10 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     trade_execution = entry.metadata.get("trade_execution")
     assert isinstance(trade_execution, dict)
     assert trade_execution["status"] == "executed"
+    expected_coverage = dict(runner.describe_diary_coverage())
+    assert result.trade_metadata.get("diary_coverage") == expected_coverage
+    assert result.loop_result.metadata.get("diary_coverage") == expected_coverage
+    assert entry.metadata.get("diary_coverage") == expected_coverage
     assert entry.metadata.get("attribution") == attribution
     performance_health = entry.metadata.get("performance_health")
     assert isinstance(performance_health, dict)

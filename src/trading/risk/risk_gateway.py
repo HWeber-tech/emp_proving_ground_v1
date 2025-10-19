@@ -1035,7 +1035,19 @@ class RiskGateway:
                 return False
             if lowered in {"false", "0", "none", "ok", "clear", "passed", "nominal"}:
                 return False
-            return any(token in lowered for token in ("breach", "breached", "violation", "fail", "failed", "trigger", "triggered", "engaged"))
+            tokens = (
+                "breach",
+                "breached",
+                "violation",
+                "violations",
+                "violat",
+                "fail",
+                "failed",
+                "trigger",
+                "triggered",
+                "engaged",
+            )
+            return any(token in lowered for token in tokens)
         if isinstance(value, Mapping):
             status = value.get("status")
             if isinstance(status, str) and RiskGateway._value_indicates_breach(status):

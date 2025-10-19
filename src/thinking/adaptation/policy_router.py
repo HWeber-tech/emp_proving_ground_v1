@@ -264,6 +264,15 @@ class ExplorationBudget:
 
         return True, None
 
+    def exploration_required(self) -> bool:
+        """Return ``True`` when the cadence requires an exploration decision."""
+
+        if self.mutate_every is None:
+            return False
+        if not self._has_explored:
+            return self._total_decisions >= self.mutate_every
+        return self._since_last_exploration >= self.mutate_every
+
     def record_decision(self, *, exploration: bool) -> None:
         """Update counters after a decision has been emitted."""
 
@@ -272,7 +281,7 @@ class ExplorationBudget:
             self._exploration_decisions += 1
             self._has_explored = True
             self._since_last_exploration = 0
-        elif self._has_explored:
+        else:
             self._since_last_exploration += 1
 
     def record_blocked(self, reason: str | None) -> None:
@@ -298,7 +307,8 @@ class ExplorationBudget:
         next_allowed = None
         if self.mutate_every is not None:
             if not self._has_explored:
-                next_allowed = 0
+                deficit = self.mutate_every - self._total_decisions
+                next_allowed = max(0, deficit)
             else:
                 deficit = self.mutate_every - self._since_last_exploration
                 next_allowed = max(0, deficit)
@@ -2078,9 +2088,20 @@ class PolicyRouter:
         allowed: list[Mapping[str, object]] = []
         blocked_details: list[tuple[Mapping[str, object], str | None]] = []
 
+        cadence_required = bool(
+            budget is not None
+            and not freeze_active
+            and budget.exploration_required()
+        )
+
         for entry in ranked:
             tactic: PolicyTactic = entry["tactic"]  # type: ignore[assignment]
             if not tactic.exploration:
+                if cadence_required:
+                    entry["exploration_budget_status"] = "blocked"
+                    entry["exploration_budget_reason"] = "cadence_required"
+                    blocked_details.append((entry, "cadence_required"))
+                    continue
                 entry["exploration_budget_status"] = "allowed"
                 entry["exploration_budget_reason"] = None
                 allowed.append(entry)
@@ -2116,6 +2137,8 @@ class PolicyRouter:
         if freeze_active:
             freeze_snapshot = self._exploration_freeze.as_dict()
             metadata["freeze_state"] = dict(freeze_snapshot)
+        if cadence_required:
+            metadata["cadence_required"] = True
 
         if allowed:
             if budget is not None:

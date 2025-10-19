@@ -532,6 +532,9 @@ def test_exploration_budget_respects_mutation_cadence() -> None:
     assert follow_up.tactic_id == "explore"
     follow_meta = follow_up.exploration_metadata
     assert follow_meta["selected_is_exploration"] is True
+    assert follow_meta.get("cadence_required") is True
+    blocked_candidates = follow_meta.get("blocked_candidates", [])
+    assert blocked_candidates and blocked_candidates[0]["reason"] == "cadence_required"
     assert follow_meta["budget_after"]["exploration_decisions"] == 2
 
 
@@ -579,6 +582,41 @@ def test_exploration_freeze_blocks_and_releases() -> None:
     post_state = recovered.exploration_metadata.get("freeze_state")
     if post_state is not None:
         assert post_state.get("active") is False
+
+
+def test_exploration_budget_forces_mutation_when_due() -> None:
+    router = PolicyRouter(exploration_mutate_every=3)
+
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="core",
+            base_weight=1.5,
+            regime_bias={"bull": 1.0},
+        )
+    )
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="explore",
+            base_weight=1.0,
+            regime_bias={"bull": 1.0},
+            exploration=True,
+        )
+    )
+
+    base_time = datetime(2024, 5, 1, 9, 0, tzinfo=timezone.utc)
+
+    for offset in range(3):
+        decision = router.route(_regime(timestamp=base_time + timedelta(minutes=offset)))
+        assert decision.tactic_id == "core"
+
+    forced = router.route(_regime(timestamp=base_time + timedelta(minutes=3)))
+    assert forced.tactic_id == "explore"
+    metadata = forced.exploration_metadata
+    assert metadata["selected_is_exploration"] is True
+    assert metadata.get("cadence_required") is True
+    blocked = metadata.get("blocked_candidates", [])
+    assert blocked and blocked[0]["tactic_id"] == "core"
+    assert blocked[0]["reason"] == "cadence_required"
 
 
 def test_tournament_selection_requires_history() -> None:

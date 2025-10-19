@@ -570,6 +570,36 @@ class AlphaTradeLoopRunner:
         return bounded
 
     @staticmethod
+    def _normalise_metadata_value(value: Any) -> Any:
+        if isinstance(value, Decimal):
+            return float(value)
+        if isinstance(value, Enum):
+            enum_value = value.value
+            if isinstance(enum_value, (str, int, float, bool)) or enum_value is None:
+                return enum_value
+            return str(enum_value)
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc).isoformat()
+        if isinstance(value, Mapping):
+            return {
+                str(key): AlphaTradeLoopRunner._normalise_metadata_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, (set, frozenset)):
+            return [
+                AlphaTradeLoopRunner._normalise_metadata_value(item)
+                for item in sorted(value, key=lambda entry: str(entry))
+            ]
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [
+                AlphaTradeLoopRunner._normalise_metadata_value(item)
+                for item in value
+            ]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+
+    @staticmethod
     def _select_top_features(
         features: Mapping[str, Any] | None,
         *,
@@ -795,8 +825,11 @@ class AlphaTradeLoopRunner:
                         metadata_snapshot[key_text] = (
                             AlphaTradeLoopRunner._bound_probability(confidence_override)
                         )
-                        continue
-                metadata_snapshot[key_text] = value
+                    continue
+                normalised_value = AlphaTradeLoopRunner._normalise_metadata_value(value)
+                if isinstance(normalised_value, Mapping):
+                    normalised_value = dict(normalised_value)
+                metadata_snapshot[key_text] = normalised_value
             if metadata_snapshot:
                 belief_summary["metadata"] = metadata_snapshot
 

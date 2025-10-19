@@ -1,36 +1,27 @@
 {
   "records": {
-    "bootstrap-strategy": {
+    "alpha.live": {
       "approvals": [
-        "qa",
         "risk"
       ],
-      "created_at": "2025-10-19T22:50:18.180402+00:00",
-      "evidence_id": "replay-evidence",
+      "created_at": "2025-10-19T23:18:48.968073+00:00",
+      "evidence_id": "dd-alpha-live",
       "history": [
         {
-          "applied_at": "2025-10-19T22:50:18.180402+00:00",
+          "applied_at": "2025-10-19T23:18:48.968073+00:00",
           "approvals": [
-            "qa",
             "risk"
           ],
-          "evidence_id": "replay-evidence",
-          "next_stage": "limited_live",
+          "evidence_id": "dd-alpha-live",
+          "next_stage": "paper",
           "prior_stage": null
         }
       ],
-      "metadata": {
-        "promotion_checklist": {
-          "leakage_checks": true,
-          "oos_regime_grid": true,
-          "risk_audit": true
-        }
-      },
-      "policy_id": "bootstrap-strategy",
-      "stage": "limited_live",
-      "tactic_id": "bootstrap-strategy",
-      "updated_at": "2025-10-19T22:50:18.180402+00:00"
+      "policy_id": "alpha.live",
+      "stage": "paper",
+      "tactic_id": "alpha.live",
+      "updated_at": "2025-10-19T23:18:48.968073+00:00"
     }
   },
-  "updated_at": "2025-10-19T22:50:18.180529+00:00"
+  "updated_at": "2025-10-19T23:18:48.968182+00:00"
 }

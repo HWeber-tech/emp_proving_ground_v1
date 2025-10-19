@@ -416,10 +416,10 @@ def _render_rows(
 
         channel_notes: list[str] = []
         ack_channel = alerts.get("ack_channel")
-        if ack_channel:
+        if ack_channel and ack_channel != "unknown":
             channel_notes.append(f"ack via {ack_channel}")
         resolve_channel = alerts.get("resolve_channel")
-        if resolve_channel:
+        if resolve_channel and resolve_channel != "unknown":
             channel_notes.append(f"resolve via {resolve_channel}")
         if channel_notes:
             extras.append(", ".join(channel_notes))

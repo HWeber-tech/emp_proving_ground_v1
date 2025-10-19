@@ -13,12 +13,12 @@
 
 **Deliverables**
 - [ ] `[risk]` Pre-trade invariants verified (exposure, price bands, inventory, drawdown); kill-switch wired. _Progress: Paper simulation CLI now reuses a shared `ensure_zero_invariants` helper that demands four-hour coverage and zero guardrail breaches, emitting structured assessments for evidence packs; kill-switch wiring remains outstanding.【F:src/runtime/simulation_invariants.py†L1-L156】【F:tools/trading/run_paper_trading_simulation.py†L332-L365】【F:tests/runtime/test_simulation_invariants.py†L37-L122】_
-- [x] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env). _Progress: `AdaptationFeatureToggles` resolves SystemConfig posture into fast-weight, linear-attention, and exploration flags, flows them through the operational backbone pipeline and runtime, and regression coverage proves AlphaTrade respects environment defaults while diary metadata mirrors forced fast-weight shutdowns.【F:src/thinking/adaptation/feature_toggles.py†L1-L164】【F:src/data_foundation/pipelines/operational_backbone.py†L35-L213】【F:tools/data_ingest/run_operational_backbone.py†L287-L313】【F:src/runtime/predator_app.py†L260-L288】【F:src/orchestration/alpha_trade_runner.py†L120-L198】【F:tests/thinking/test_adaptation_feature_toggles.py†L1-L86】【F:tests/orchestration/test_alpha_trade_runner.py†L268-L298】_
+- [x] `[adapt]` Feature flags for **fastâ€‘weights**, **linear attention**, and **exploration** (on/off per env). _Progress: `AdaptationFeatureToggles` resolves SystemConfig posture into fast-weight, linear-attention, and exploration flags, flows them through the operational backbone pipeline and runtime, and regression coverage proves AlphaTrade respects environment defaults while diary metadata mirrors forced fast-weight shutdowns, with live mode now forcing conservative toggles and zero exploration budgets regardless of overrides.【F:src/thinking/adaptation/feature_toggles.py†L100-L128】【F:src/data_foundation/pipelines/operational_backbone.py†L35-L213】【F:tools/data_ingest/run_operational_backbone.py†L287-L313】【F:src/runtime/predator_app.py†L260-L288】【F:src/orchestration/alpha_trade_runner.py†L120-L198】【F:src/understanding/router.py†L241-L289】【F:tests/thinking/test_adaptation_feature_toggles.py†L47-L76】【F:tests/orchestration/test_alpha_trade_runner.py†L268-L298】【F:tests/understanding/test_understanding_router.py†L258-L289】_
 - [x] `[obs]` Minimal **heartbeat** & latency counters (ingestâ†’signalâ†’orderâ†’ack p50/p99/p99.9). _Progress: `PipelineLatencyMonitor` now records ingest, signal, order, ack, and total latencies with heartbeat ticks/orders inside the bootstrap stack, exposes the snapshot through the runtime status surface, and regression coverage asserts samples populate during simulated runs so operators inherit ready-to-export counters.【F:src/orchestration/pipeline_metrics.py†L1-L137】【F:src/orchestration/bootstrap_stack.py†L195-L351】【F:src/runtime/bootstrap_runtime.py†L328-L344】【F:tests/current/test_bootstrap_stack.py†L170-L176】【F:tests/current/test_bootstrap_runtime_integration.py†L167-L169】_
 - [x] `[docs]` Update **CONTRIBUTING** with run profiles (sim/paper/liveâ€‘shadow) and featureâ€‘flag table. _Progress: CONTRIBUTING.md now documents simulation, paper, and liveâ€‘shadow launch recipes alongside a featureâ€‘flag matrix that complements the workflow guide in `docs/development/contributing.md`, giving operators the runtime posture and evidence checklist they need for roadmap gates.【F:CONTRIBUTING.md†L1-L96】_
 
 **Acceptance (DoD)**
-- [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes. _Progress: RiskGateway now inspects portfolio-state metadata for synthetic invariant signals, records guardrail violations, rejects offending trade intents, and regression coverage exercises the guardrail incident flow while kill-switch validation remains pending.【F:src/trading/risk/risk_gateway.py†L297-L1152】【F:tests/current/test_risk_gateway_validation.py†L128-L174】_
+- [ ] `[risk]` Synthetic invariant breach â†’ order rejected; killâ€‘switch test passes. _Progress: RiskGateway now inspects portfolio-state metadata, nested insights, and indicator payloads for synthetic invariant signals, records guardrail violations, rejects offending trade intents, and regression coverage exercises metadata-detected incidents while kill-switch validation remains pending.【F:src/trading/risk/risk_gateway.py†L901-L955】【F:tests/current/test_risk_gateway_validation.py†L171-L220】_
 - [x] `[obs]` Heartbeat visible during a 30â€‘minute run; latency counters populated. _Progress: Runtime smoke tests exercise the bootstrap loop until status snapshots expose populated heartbeat ticks while stack-level tests confirm ingest and ack percentiles accumulate across ticks, proving the counters fill during multi-tick rehearsals.【F:tests/current/test_bootstrap_runtime_integration.py†L167-L169】【F:tests/current/test_bootstrap_stack.py†L170-L176】_
 - [x] `[ops]` Deterministic run reproducible via one command (`make run-sim` or equivalent). _Progress: The `run-sim` wrapper now boots the bootstrap runtime with deterministic defaults, writes summaries/diaries, exposes CLI overrides, and ships a Makefile target plus regression coverage so a single command reproduces the acceptance drill with evidence artifacts.【F:tools/runtime/run_simulation.py†L1-L210】【F:tests/tools/test_run_simulation.py†L1-L138】【F:Makefile†L103-L121】_
 
@@ -94,7 +94,7 @@
 
 **Deliverables**
 - [x] `[ops]` Containerized runtime (Docker) + deployment profile (dev/paper); health checks. _Progress: Docker profiles now package the production runtime with Timescale/Redis/Kafka dependencies, proactive health checks, shared env overlays, and matching SystemConfig presets under regression coverage and updated setup docs so operators can launch dev or paper stacks with one compose command.【F:docker/runtime/docker-compose.dev.yml†L1-L136】【F:config/deployment/runtime_paper.yaml†L1-L38】【F:docs/development/setup.md†L62-L93】【F:tests/governance/test_system_config_runtime_profiles.py†L1-L57】_
-- [ ] `[core]` Live market data ingest configured (API keys, symbols, session calendars).
+- [ ] `[core]` Live market data ingest configured (API keys, symbols, session calendars). _Progress: Institutional ingest builder now surfaces API key posture, trading session calendars, and macro calendar configuration via ReferenceDataLoader metadata, with regression coverage confirming London FX schedules and env-key detection while live wiring remains outstanding.【F:src/data_foundation/ingest/configuration.py†L73-L155】【F:src/data_foundation/ingest/configuration.py†L864-L955】【F:tests/data_foundation/test_timescale_config.py†L292-L318】_
 - [ ] `[sim]` **Paper broker** connector smokeâ€‘tested; failover & reconnect logic. _Progress: Paper trading simulation reports persist aggregated order summaries with side/symbol splits and broker failover snapshots so operators inherit audit-ready context, locked by regression coverage.【F:src/runtime/paper_simulation.py†L339-L367】【F:tests/runtime/test_paper_trading_simulation_runner.py†L132-L188】【F:tests/integration/test_paper_trading_simulation.py†L394-L429】_
 - [ ] `[obs]` Monitoring: dashboards (latency, throughput, P&L swings, memory); alerts on tail spikes and drift.
 - [x] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports). _Progress: The nightly replay job now emits diary, drift, and ledger artifacts per run, archives them into dated `artifacts/` mirrors, and is wired to the scheduled GitHub workflow/Make target with regression coverage proving the exports.【F:tools/operations/nightly_replay_job.py:526】【F:tests/tools/test_nightly_replay_job.py:11】【F:.github/workflows/replay-nightly.yml:4】【F:Makefile:137】_
@@ -122,7 +122,7 @@
 ## Continuous Quality Bars (always on)
 
 - [ ] `[risk]` Weekly invariants audit & redâ€‘team scenarios (extreme volatility, symbol halts, bad prints).
-- [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts.
+- [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts. _Progress: Observability dashboard now renders a decision diary panel that ingests loop metadata, reports coverage shortfalls, gap breaches, and sample deficits, and warns when telemetry is missing, with regression coverage ensuring alerts flip warn/fail states for coverage and gaps.【F:src/operations/observability_dashboard.py†L316-L344】【F:src/operations/observability_dashboard.py†L862-L982】【F:tests/operations/test_observability_dashboard.py†L438-L1027】_
 - [ ] `[obs]` Graph health in band: modularity, heavyâ€‘tail degree (alerts on collapse/overâ€‘smoothing).
 - [ ] `[docs]` Honest README & system diagram reflect current reality (mock vs real clearly labeled).
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T14:48:55Z
+
+### Last 4 commits
+- 7066138b refactor(data_foundation): tune 2 files (2025-10-19)
+- 0607b2e2 refactor(operations): tune 2 files (2025-10-19)
+- 92f08b90 refactor(trading): tune 2 files (2025-10-19)
+- 542d33b4 refactor(thinking): tune 4 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T14:08:18Z
 

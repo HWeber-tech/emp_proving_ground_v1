@@ -665,7 +665,7 @@ class PolicyRouter:
         self._tournament_weights = dict(self._normalise_tournament_weights(tournament_weights))
         self._tournament_bonus = max(0.0, float(tournament_bonus))
         self._allow_forced_exploration = bool(allow_forced_exploration)
-        self._linear_attention_router = linear_attention_router or LinearAttentionRouter()
+        self._linear_attention_router: LinearAttentionRouter | None = linear_attention_router
 
     def exploration_freeze_active(self) -> bool:
         """Return ``True`` when exploration is currently frozen."""
@@ -1100,11 +1100,9 @@ class PolicyRouter:
 
         linear_attention_context: dict[str, object] | None = None
         linear_attention_applied = False
-        if (
-            linear_attention_enabled
-            and self._linear_attention_router is not None
-            and len(working_entries) > 1
-        ):
+        if linear_attention_enabled and len(working_entries) > 1:
+            if self._linear_attention_router is None:
+                self._linear_attention_router = LinearAttentionRouter()
             recommended_entry, context = self._linear_attention_router.arbitrate(
                 regime_state=regime_state,
                 ranked=working_entries,

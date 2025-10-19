@@ -1,23 +1,24 @@
 # EMP Proving Ground v1
 
 EMP Proving Ground is a truth-first research harness for building an algorithmic
-trading stack. The repository now centres on a rich **mock FIX simulator and
-bridge** so developers can exercise order lifecycles without touching live
-brokers, plus an opt-in Tier-0 ingest that pulls real Yahoo Finance bars into
-DuckDB for sensors to chew on. Strategy, risk, and evolution layers remain
-architectural scaffolding.
+trading stack. The public build ships a **mock FIX simulator and bridge** so
+developers can exercise order lifecycles without touching live brokers,
+alongside an opt-in Tier-0 ingest that pulls real Yahoo Finance bars into DuckDB
+for sensors and strategy prototypes. Strategy and evolution layers are still
+under active development, but risk policies, portfolio monitoring, and
+paper/live broker adapters are implemented and wired for research mode.
 
 ## Current Reality
 
 | Area | Reality |
 | --- | --- |
-| Execution | **Mock.** `MockFIXManager` and `FIXConnectionManager` drive order flows. Live broker adapters depend on private modules and are not bundled; the public build always selects the simulator. |
-| Market data (runtime) | **Mock.** Quote and fill events originate from the mock FIX stack; no streaming venue connectivity is active. |
+| Execution | **Defaults to mock.** `MockFIXManager` and `FIXConnectionManager` drive order flows. A `LiveBrokerExecutionAdapter` ships for downstream deployments but requires external broker modules and credentials, so public runs stay in paper/sim mode. |
+| Market data (runtime) | **Mock.** Quote and fill events originate from the simulator; no streaming venue connectivity is active in the public repo. |
 | Market data (ingest) | **Real, opt-in.** Tier-0 ingest fetches Yahoo Finance daily/intraday bars (`fetch_daily_bars`, `fetch_intraday_trades`) and writes them to DuckDB. Running `python -m main` without `--skip-ingest` will hit Yahoo's APIs. |
 | Institutional data backbone | **Feature-flagged, secrets required.** Timescale/Redis/Kafka connectors ship in this repo but stay inert without credentials; default runs fall back to the Tier-0 DuckDB/Yahoo path. |
 | Strategies / Risk | **Scaffolding.** Framework classes exist, but behaviours are placeholders with logging or `pass` blocks. |
 | Evolution & Intelligence | **Scaffolding.** Interfaces and feature-flag wiring only; no genetic or adaptive loops run. |
-| Observability | **Partial.** Structured logging, telemetry shims, and status snapshots cover the simulator and ingest runtime. Live venue dashboards are not implemented. |
+| Observability | **Partial.** Structured logging, telemetry shims, and status snapshots cover the simulator, ingest runtime, and risk adapters. Live venue dashboards are not implemented. |
 
 Refer to `docs/DEVELOPMENT_STATUS.md` for the authoritative status ledger. Any
 module that talks to real infrastructure is expected to reside in a downstream,

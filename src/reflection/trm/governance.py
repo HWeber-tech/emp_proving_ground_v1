@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -119,8 +120,14 @@ class AutoApplyRuleConfig:
         elif invariant_breaches > 0:
             reasons.append(f"invariants_breached:{invariant_breaches}")
 
-        budget_remaining = evaluation.budget_remaining
-        budget_utilisation = evaluation.budget_utilisation
+        budget_remaining = _coerce_finite_float(evaluation.budget_remaining)
+        budget_utilisation = _coerce_finite_float(evaluation.budget_utilisation)
+
+        if (
+            self.require_budget_metrics
+            and (budget_remaining is None or budget_utilisation is None)
+        ):
+            reasons.append("budget_unknown")
 
         if budget_remaining is not None and budget_remaining <= self.min_budget_remaining:
             reasons.append("budget_exhausted")
@@ -134,9 +141,6 @@ class AutoApplyRuleConfig:
                 f"budget_over_utilised:{budget_utilisation:.6f}>{self.max_budget_utilisation:.6f}"
             )
 
-        if self.require_budget_metrics and budget_remaining is None and budget_utilisation is None:
-            reasons.append("budget_unknown")
-
         decision = AutoApplyDecision(
             suggestion_id=evaluation.suggestion_id,
             auto_applied=not reasons,
@@ -144,6 +148,16 @@ class AutoApplyRuleConfig:
             evaluation=evaluation,
         )
         return decision
+
+
+def _coerce_finite_float(value: object) -> float | None:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(result):
+        return None
+    return result
 
 
 def evaluate_auto_apply(

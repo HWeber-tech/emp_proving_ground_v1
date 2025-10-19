@@ -74,6 +74,23 @@ def test_auto_apply_rule_requires_invariant_context() -> None:
     assert "invariants_unknown" in decision.reasons
 
 
+def test_auto_apply_rule_requires_budget_context() -> None:
+    config = AutoApplyRuleConfig(uplift_threshold=0.0)
+    evaluation = ProposalEvaluation(
+        suggestion_id="rim-budget",
+        oos_uplift=0.12,
+        risk_hits=0,
+        invariant_breaches=0,
+        budget_remaining=25.0,
+        budget_utilisation=None,
+    )
+
+    decision = config.evaluate(evaluation)
+
+    assert decision.auto_applied is False
+    assert "budget_unknown" in decision.reasons
+
+
 def test_publish_governance_artifacts_marks_auto_applied(tmp_path) -> None:
     now = datetime.now(tz=UTC)
     window = RIMWindow(

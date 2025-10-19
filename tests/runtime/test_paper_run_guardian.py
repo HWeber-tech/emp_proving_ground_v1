@@ -59,6 +59,11 @@ def _progress(
     )
 
 
+def test_paper_run_config_defaults_to_seven_days() -> None:
+    config = PaperRunConfig()
+    assert config.minimum_runtime_seconds == pytest.approx(7 * 24 * 3600)
+
+
 def test_guardian_marks_latency_threshold_breach() -> None:
     config = PaperRunConfig(latency_p99_threshold=0.05)
     tracker = _iterating_sampler([100.0, 100.5])

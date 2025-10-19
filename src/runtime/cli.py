@@ -24,6 +24,7 @@ from typing import Any, Awaitable, Callable, Mapping, Sequence
 
 from src.governance.system_config import SystemConfig
 from src.runtime.paper_run_guardian import (
+    DEFAULT_MINIMUM_RUNTIME_SECONDS,
     PaperRunConfig,
     PaperRunStatus,
     run_guarded_paper_session,
@@ -213,6 +214,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Maximum allowed memory growth in MB before the run is marked degraded",
     )
     paper_parser.add_argument(
+        "--minimum-runtime-hours",
+        type=_non_negative_float,
+        default=None,
+        help=(
+            "Minimum runtime requirement in hours before the run is deemed compliant "
+            "(default 168h / 7 days). Set 0 to disable."
+        ),
+    )
+    paper_parser.add_argument(
         "--min-orders",
         type=_positive_int,
         default=0,
@@ -379,6 +389,11 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
     report_path = Path(args.report_path).expanduser() if args.report_path else None
     errors_path = Path(args.errors_path).expanduser() if args.errors_path else None
 
+    if args.minimum_runtime_hours is None:
+        minimum_runtime_seconds = DEFAULT_MINIMUM_RUNTIME_SECONDS
+    else:
+        minimum_runtime_seconds = float(args.minimum_runtime_hours) * 3600.0
+
     run_config = PaperRunConfig(
         duration_seconds=duration_seconds,
         progress_interval=args.progress_interval,
@@ -388,6 +403,7 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
         report_path=report_path,
         error_events_path=errors_path,
         min_orders=args.min_orders,
+        minimum_runtime_seconds=minimum_runtime_seconds,
     )
 
     summary = await run_guarded_paper_session(config, run_config, logger=logger)

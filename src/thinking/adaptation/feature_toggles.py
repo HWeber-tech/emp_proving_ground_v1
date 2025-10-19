@@ -109,6 +109,10 @@ class AdaptationFeatureToggles:
 
         defaults = _environment_defaults(config)
 
+        if config.run_mode is RunMode.live:
+            # Live trading enforces the conservative posture regardless of overrides.
+            return defaults
+
         fast_override = _coerce_optional_bool(extras_mapping.get("FEATURE_FAST_WEIGHTS"))
         linear_override = _coerce_optional_bool(extras_mapping.get("FEATURE_LINEAR_ATTENTION"))
         exploration_override = _coerce_optional_bool(

@@ -20,7 +20,7 @@ from src.understanding.router import (
     HebbianConfig,
     UnderstandingRouter,
 )
-from src.governance.system_config import SystemConfig
+from src.governance.system_config import RunMode, SystemConfig
 
 
 pytestmark = pytest.mark.guardrail
@@ -253,3 +253,37 @@ def test_understanding_router_from_system_config_honours_fast_weight_constraints
     assert metrics["active_ids"] == ("t1",)
     assert metrics["min_multiplier"] == pytest.approx(1.0)
     assert metrics["max_multiplier"] == pytest.approx(1.5)
+
+
+def test_understanding_router_live_mode_disables_exploration() -> None:
+    config = SystemConfig(
+        run_mode=RunMode.live,
+        extras={"EXPLORATION_MAX_FRACTION": "0.6", "EXPLORATION_MUTATE_EVERY": "3"},
+    )
+    router = UnderstandingRouter.from_system_config(config)
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="core",
+            base_weight=1.0,
+            regime_bias={"balanced": 1.0},
+        )
+    )
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="probe",
+            base_weight=1.4,
+            regime_bias={"balanced": 1.0},
+            exploration=True,
+            tags=("exploration",),
+        )
+    )
+
+    decision_bundle = router.route(_build_snapshot())
+
+    assert decision_bundle.decision.tactic_id == "core"
+    metadata = decision_bundle.decision.exploration_metadata
+    assert metadata.get("selected_is_exploration") is False
+    blocked = metadata.get("blocked_candidates", [])
+    assert blocked and blocked[0]["tactic_id"] == "probe"
+    assert blocked[0]["reason"] == "budget_exhausted"
+    assert metadata["budget_after"]["exploration_decisions"] == 0

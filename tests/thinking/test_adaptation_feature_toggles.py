@@ -45,7 +45,15 @@ def test_staging_enables_adaptation_when_not_live() -> None:
 
 
 def test_live_run_mode_forces_conservative_posture() -> None:
-    config = _config(environment=EmpEnvironment.staging, run_mode=RunMode.live)
+    config = _config(
+        environment=EmpEnvironment.staging,
+        run_mode=RunMode.live,
+        extras={
+            "FEATURE_FAST_WEIGHTS": "yes",
+            "FEATURE_LINEAR_ATTENTION": "on",
+            "FEATURE_EXPLORATION": "true",
+        },
+    )
     toggles = AdaptationFeatureToggles.from_system_config(config)
 
     assert toggles.fast_weights is False
@@ -83,4 +91,3 @@ def test_fast_weight_resolution_prefers_explicit_hint() -> None:
     toggles = AdaptationFeatureToggles(fast_weights=False)
     assert toggles.resolve_fast_weights_enabled(True) is True
     assert toggles.resolve_fast_weights_enabled(None) is False
-

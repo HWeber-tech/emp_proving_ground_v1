@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
+from src.governance.system_config import RunMode
 from src.thinking.adaptation.policy_router import (
     PolicyDecision,
     PolicyRouter,
@@ -239,6 +240,10 @@ class UnderstandingRouter:
 
         exploration_fraction = _parse_fraction(extras.get("EXPLORATION_MAX_FRACTION"))
         exploration_cadence = _parse_int(extras.get("EXPLORATION_MUTATE_EVERY"))
+
+        if config.run_mode is RunMode.live:
+            exploration_fraction = 0.0
+            exploration_cadence = None
 
         policy_router = PolicyRouter(
             default_guardrails=default_guardrails,

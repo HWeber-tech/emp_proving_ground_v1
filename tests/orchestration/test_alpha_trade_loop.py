@@ -260,6 +260,10 @@ def test_alpha_trade_loop_counterfactual_guardrail_forces_paper(tmp_path: Path) 
     assert counterfactual.get("breached") is True
     assert counterfactual.get("reason") == "counterfactual_guardrail_delta_exceeded"
     assert counterfactual.get("action") == "force_paper"
+    assert counterfactual.get("severity") == "aggro"
+    assert counterfactual.get("delta_direction") == "aggro"
+    assert counterfactual.get("relative_breach") is True
+    assert counterfactual.get("absolute_breach") is False
     assert counterfactual.get("max_relative_delta") == pytest.approx(0.20)
     assert result.metadata["force_paper"] is True
     assert diary_store.entries(), "expected decision diary entry"
@@ -335,6 +339,10 @@ def test_alpha_trade_loop_counterfactual_guardrail_respects_override(tmp_path: P
     counterfactual = guardrails.get("counterfactual_guardrail")
     assert isinstance(counterfactual, dict)
     assert counterfactual.get("breached") is False
+    assert counterfactual.get("delta_direction") == "aggro"
+    assert counterfactual.get("relative_breach") is False
+    assert counterfactual.get("absolute_breach") is False
+    assert "severity" not in counterfactual
     assert counterfactual.get("max_relative_delta") == pytest.approx(1.5)
     assert guardrails.get("force_paper") is False
     assert result.metadata["force_paper"] is False

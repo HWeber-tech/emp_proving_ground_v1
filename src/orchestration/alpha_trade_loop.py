@@ -559,13 +559,23 @@ class AlphaTradeLoopOrchestrator:
             if max_absolute is None:
                 max_absolute = defaults.get("absolute")
 
-        breached = False
+        relative_breached = False
+        absolute_breached = False
         if max_relative is not None and relative_delta is not None:
             if abs(relative_delta) > max_relative:
-                breached = True
+                relative_breached = True
         if max_absolute is not None:
             if abs(delta) > max_absolute:
-                breached = True
+                absolute_breached = True
+
+        breached = relative_breached or absolute_breached
+        delta_direction = "flat"
+        if delta > 0:
+            delta_direction = "aggro"
+        elif delta < 0:
+            delta_direction = "passive"
+
+        initial_force = bool(guardrails.get("force_paper"))
 
         guardrail_payload: dict[str, Any] = {
             "stage": stage.value,
@@ -575,13 +585,26 @@ class AlphaTradeLoopOrchestrator:
             "relative_delta": relative_delta,
             "max_relative_delta": max_relative,
             "max_absolute_delta": max_absolute,
+            "relative_breach": relative_breached,
+            "absolute_breach": absolute_breached,
             "breached": breached,
+            "delta_direction": delta_direction,
         }
 
         if breached:
             guardrail_payload["reason"] = "counterfactual_guardrail_delta_exceeded"
-            guardrail_payload["action"] = "force_paper"
-            guardrails["force_paper"] = True
+            severity = "aggro" if delta_direction == "aggro" else "passive"
+            guardrail_payload["severity"] = severity
+            if severity == "aggro":
+                guardrail_payload.setdefault("action", "force_paper")
+                guardrails["force_paper"] = True
+            else:
+                guardrail_payload.pop("action", None)
+                guardrails["force_paper"] = initial_force
+        else:
+            guardrail_payload.pop("action", None)
+            guardrail_payload.pop("severity", None)
+            guardrails["force_paper"] = initial_force
 
         guardrails["counterfactual_guardrail"] = guardrail_payload
         return guardrails

@@ -371,6 +371,8 @@ async def test_release_router_counterfactual_guardrail_forces_paper(tmp_path: Pa
                 "counterfactual_guardrail": {
                     "breached": True,
                     "reason": "counterfactual_guardrail_delta_exceeded",
+                    "severity": "aggro",
+                    "action": "force_paper",
                 }
             }
         },
@@ -395,6 +397,61 @@ async def test_release_router_counterfactual_guardrail_forces_paper(tmp_path: Pa
     assert last_route is not None
     assert last_route.get("forced_route") == "paper"
     assert last_route.get("forced_reason") == "counterfactual_guardrail_delta_exceeded"
+
+
+@pytest.mark.asyncio()
+async def test_release_router_counterfactual_guardrail_passive_does_not_force(
+    tmp_path: Path,
+) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger_guardrail_passive.json")
+    release_manager = LedgerReleaseManager(store)
+    release_manager.promote(
+        policy_id="alpha_guard",
+        tactic_id="alpha_guard",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha-guard",
+    )
+
+    paper_engine = StubEngine("paper")
+    live_engine = StubEngine("live")
+    router = ReleaseAwareExecutionRouter(
+        release_manager=release_manager,
+        paper_engine=paper_engine,
+        live_engine=live_engine,
+    )
+
+    intent: dict[str, Any] = {
+        "strategy_id": "alpha_guard",
+        "metadata": {
+            "guardrails": {
+                "counterfactual_guardrail": {
+                    "breached": True,
+                    "reason": "counterfactual_guardrail_delta_exceeded",
+                    "severity": "passive",
+                    "delta_direction": "passive",
+                }
+            }
+        },
+    }
+
+    result = await router.process_order(intent)
+
+    assert result == "live-ok"
+    assert len(live_engine.calls) == 1
+    assert not paper_engine.calls
+
+    metadata = intent.get("metadata")
+    assert isinstance(metadata, dict)
+    assert metadata.get("release_execution_route") == "live"
+    assert metadata.get("release_execution_route_overridden") is None
+    assert metadata.get("release_execution_forced") is None
+    assert metadata.get("release_execution_forced_reasons") in (None, [])
+
+    last_route = router.last_route()
+    assert last_route is not None
+    assert last_route.get("route") == "live"
+    assert "forced_route" not in last_route
 
 
 @pytest.mark.asyncio()

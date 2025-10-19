@@ -445,6 +445,10 @@ async def test_alpha_trade_runner_merges_counterfactual_guardrail(monkeypatch, t
     assert counterfactual.get("breached") is True
     assert counterfactual.get("reason") == "counterfactual_guardrail_delta_exceeded"
     assert counterfactual.get("action") == "force_paper"
+    assert counterfactual.get("severity") == "aggro"
+    assert counterfactual.get("delta_direction") == "aggro"
+    assert counterfactual.get("relative_breach") is True
+    assert counterfactual.get("absolute_breach") is False
     assert guardrails.get("risk_guardrail") == existing_guardrails["risk_guardrail"]
 
     assert intent_metadata.get("guardrails") == guardrails

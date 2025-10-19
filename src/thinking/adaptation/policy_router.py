@@ -672,6 +672,23 @@ class PolicyRouter:
 
         return self._exploration_freeze.active
 
+    def _ensure_linear_attention_router(self) -> LinearAttentionRouter:
+        """Return a linear attention router seeded with prior decisions."""
+
+        if self._linear_attention_router is None:
+            router = LinearAttentionRouter()
+            for entry in self._history:
+                if not isinstance(entry, Mapping):
+                    continue
+                tactic_id = entry.get("tactic_id")
+                if not isinstance(tactic_id, str):
+                    continue
+                tactic_name = tactic_id.strip()
+                if tactic_name:
+                    router.observe_selection(tactic_name)
+            self._linear_attention_router = router
+        return self._linear_attention_router
+
     @property
     def allow_forced_exploration(self) -> bool:
         """Return whether forced exploration selections are permitted."""
@@ -1100,10 +1117,10 @@ class PolicyRouter:
 
         linear_attention_context: dict[str, object] | None = None
         linear_attention_applied = False
+        linear_router: LinearAttentionRouter | None = None
         if linear_attention_enabled and len(working_entries) > 1:
-            if self._linear_attention_router is None:
-                self._linear_attention_router = LinearAttentionRouter()
-            recommended_entry, context = self._linear_attention_router.arbitrate(
+            linear_router = self._ensure_linear_attention_router()
+            recommended_entry, context = linear_router.arbitrate(
                 regime_state=regime_state,
                 ranked=working_entries,
             )
@@ -1232,15 +1249,15 @@ class PolicyRouter:
             tournament_snapshot.setdefault("regime", regime_state.regime)
             reflection_summary["tournament_selection"] = tournament_snapshot
 
-        if linear_attention_applied and self._linear_attention_router is not None:
-            self._linear_attention_router.observe_selection(tactic.tactic_id)
+        if linear_attention_applied and linear_router is not None:
+            linear_router.observe_selection(tactic.tactic_id)
         if linear_attention_context is not None:
             linear_attention_context["final_tactic_id"] = tactic.tactic_id
             linear_attention_context["overridden"] = (
                 tactic.tactic_id != linear_attention_context.get("recommended_tactic_id")
             )
-            if linear_attention_applied and self._linear_attention_router is not None:
-                linear_attention_context["history_after"] = self._linear_attention_router.snapshot_history()
+            if linear_attention_applied and linear_router is not None:
+                linear_attention_context["history_after"] = linear_router.snapshot_history()
             reflection_summary["linear_attention"] = linear_attention_context
 
         self._history.append(reflection_summary)
@@ -1349,6 +1366,9 @@ class PolicyRouter:
 
             self._history.append(summary)
             appended += 1
+
+            if self._linear_attention_router is not None:
+                self._linear_attention_router.observe_selection(summary["tactic_id"])
 
         return appended
 

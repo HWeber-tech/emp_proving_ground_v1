@@ -285,6 +285,48 @@ def test_linear_attention_router_promotes_novel_candidate_when_enabled() -> None
     assert pytest.approx(sum(weights.values()), rel=1e-6, abs=1e-9) == 1.0
 
 
+def test_linear_attention_router_seeds_history_from_reflections() -> None:
+    router = PolicyRouter(tournament_size=1)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="dominant",
+                base_weight=1.3,
+                regime_bias={"bull": 1.25},
+                confidence_sensitivity=0.3,
+            ),
+            PolicyTactic(
+                tactic_id="novelty",
+                base_weight=1.05,
+                regime_bias={"bull": 1.05},
+                confidence_sensitivity=0.1,
+            ),
+        )
+    )
+
+    router.ingest_reflection_history(
+        (
+            {
+                "tactic_id": "dominant",
+                "timestamp": datetime(2024, 3, 14, 12, 0, tzinfo=timezone.utc).isoformat(),
+                "score": 1.0,
+            },
+        )
+    )
+
+    decision = router.route(
+        _regime(confidence=0.6, volatility=0.25),
+        linear_attention_enabled=True,
+    )
+
+    assert decision.tactic_id == "novelty"
+    la_context = decision.reflection_summary["linear_attention"]
+    counts_before = la_context["history_before"]["counts"]
+    assert counts_before.get("dominant", 0) >= 1
+    assert la_context["recommended_tactic_id"] == "novelty"
+    assert la_context["overridden"] is False
+
+
 def test_route_clamps_negative_fast_weight_overrides() -> None:
     router = PolicyRouter()
     router.register_tactic(PolicyTactic(tactic_id="base", base_weight=1.0))

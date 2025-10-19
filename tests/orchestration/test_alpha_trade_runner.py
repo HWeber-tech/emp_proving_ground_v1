@@ -240,6 +240,25 @@ def _build_runner(
     return runner, diary_store
 
 
+def test_alpha_trade_runner_bounds_confidence_probability() -> None:
+    assert AlphaTradeLoopRunner._bound_probability(1.5) == pytest.approx(1.0)
+    assert AlphaTradeLoopRunner._bound_probability(-0.2) == pytest.approx(0.0)
+    assert AlphaTradeLoopRunner._bound_probability(0.42) == pytest.approx(0.42)
+
+
+def test_alpha_trade_runner_bounds_top_feature_norms() -> None:
+    features = {
+        "sigma_norm": 1_000_000.0,
+        "alpha_norm": -500_000.0,
+        "balanced": 0.75,
+    }
+    summary = AlphaTradeLoopRunner._select_top_features(features, limit=3)
+    limit = AlphaTradeLoopRunner._TOP_FEATURE_NORM_LIMIT
+    assert summary, "expected bounded features to be returned"
+    for entry in summary:
+        assert abs(entry["value"]) <= limit
+
+
 @pytest.mark.asyncio()
 async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> None:
     trading_manager = _FakeTradingManager()

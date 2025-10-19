@@ -360,6 +360,10 @@ class TradingManager:
     all trades pass through the RiskGateway before reaching the execution engine.
     """
 
+    _ATTRIBUTION_CONFIDENCE_MIN = 0.0
+    _ATTRIBUTION_CONFIDENCE_MAX = 1.0
+    _ATTRIBUTION_FEATURE_NORM_LIMIT = 25.0
+
     def __init__(
         self,
         event_bus: Any,
@@ -3934,11 +3938,9 @@ class TradingManager:
                 result[key] = str(value)
 
         confidence = payload.get("confidence")
-        if confidence is not None:
-            try:
-                result["confidence"] = float(confidence)
-            except (TypeError, ValueError):
-                pass
+        bounded_confidence = TradingManager._coerce_probability(confidence)
+        if bounded_confidence is not None:
+            result["confidence"] = bounded_confidence
 
         generated_at = payload.get("generated_at")
         if isinstance(generated_at, datetime):
@@ -3961,16 +3963,44 @@ class TradingManager:
                     continue
                 entry: dict[str, Any] = {"name": str(name)}
                 value = item.get("value")
-                if value is not None:
-                    try:
-                        entry["value"] = float(value)
-                    except (TypeError, ValueError):
-                        entry["value"] = value
+                bounded_value = TradingManager._coerce_feature_norm(value)
+                if bounded_value is not None:
+                    entry["value"] = bounded_value
+                elif value is not None:
+                    entry["value"] = value
                 serialised.append(entry)
             if serialised:
                 result["top_features"] = serialised
 
         return result
+
+    @staticmethod
+    def _coerce_probability(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric):
+            return None
+        return max(
+            TradingManager._ATTRIBUTION_CONFIDENCE_MIN,
+            min(TradingManager._ATTRIBUTION_CONFIDENCE_MAX, numeric),
+        )
+
+    @staticmethod
+    def _coerce_feature_norm(value: Any) -> float | None:
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric):
+            return None
+        limit = TradingManager._ATTRIBUTION_FEATURE_NORM_LIMIT
+        return max(-limit, min(limit, numeric))
 
     @staticmethod
     def _normalise_probe_list(payload: Any) -> list[Mapping[str, Any]]:

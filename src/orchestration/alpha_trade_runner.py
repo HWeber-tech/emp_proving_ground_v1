@@ -26,6 +26,7 @@ from decimal import Decimal
 from enum import Enum
 import inspect
 import logging
+import math
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, MutableMapping, Sequence
 
@@ -114,6 +115,7 @@ class AlphaTradeLoopRunner:
         "warn": 1,
         "info": 0,
     }
+    _TOP_FEATURE_NORM_LIMIT = 25.0
 
     def __init__(
         self,
@@ -546,6 +548,20 @@ class AlphaTradeLoopRunner:
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
     @staticmethod
+    def _bound_probability(value: float) -> float:
+        if not math.isfinite(value):
+            return 0.0
+        return max(0.0, min(1.0, value))
+
+    @staticmethod
+    def _bound_feature_norm(value: float) -> float:
+        if not math.isfinite(value):
+            return 0.0
+        limit = AlphaTradeLoopRunner._TOP_FEATURE_NORM_LIMIT
+        bounded = max(-limit, min(limit, value))
+        return bounded
+
+    @staticmethod
     def _select_top_features(
         features: Mapping[str, Any] | None,
         *,
@@ -555,10 +571,11 @@ class AlphaTradeLoopRunner:
             return []
         ranked: list[tuple[str, float]] = []
         for name, value in features.items():
-            try:
-                ranked.append((str(name), float(value)))
-            except (TypeError, ValueError):
+            numeric = _coerce_float(value)
+            if numeric is None or not math.isfinite(numeric):
                 continue
+            bounded = AlphaTradeLoopRunner._bound_feature_norm(numeric)
+            ranked.append((str(name), bounded))
         ranked.sort(key=lambda item: abs(item[1]), reverse=True)
         summary: list[Mapping[str, Any]] = []
         for name, value in ranked[:limit]:
@@ -576,11 +593,18 @@ class AlphaTradeLoopRunner:
             return None
 
         regime_state = decision_bundle.belief_snapshot.regime_state
+        confidence_value = _coerce_float(regime_state.confidence)
+        bounded_confidence = (
+            AlphaTradeLoopRunner._bound_probability(confidence_value)
+            if confidence_value is not None
+            else 0.0
+        )
+
         belief_summary: dict[str, Any] = {
             "belief_id": belief_state.belief_id,
             "symbol": belief_state.symbol,
             "regime": regime_state.regime,
-            "confidence": float(regime_state.confidence),
+            "confidence": bounded_confidence,
         }
 
         generated_at = belief_state.generated_at

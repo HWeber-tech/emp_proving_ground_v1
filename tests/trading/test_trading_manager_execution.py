@@ -1196,6 +1196,27 @@ async def test_trading_manager_requires_complete_attribution_components(
     assert second_stats.get("attribution_coverage") == pytest.approx(0.5)
 
 
+def test_trading_manager_bounds_attribution_norms() -> None:
+    payload = {
+        "belief_id": "belief-overflow",
+        "symbol": "EURUSD",
+        "regime": "balanced",
+        "confidence": 1.7,
+        "top_features": [
+            {"name": "sigma_norm", "value": 1_000_000.0},
+            {"name": "alpha_norm", "value": -1_000_000.0},
+        ],
+    }
+
+    normalised = TradingManager._normalise_belief_payload(payload)
+    limit = TradingManager._ATTRIBUTION_FEATURE_NORM_LIMIT
+
+    assert normalised.get("confidence") == pytest.approx(1.0)
+    assert normalised.get("top_features")
+    assert normalised["top_features"][0]["value"] == pytest.approx(limit)
+    assert normalised["top_features"][1]["value"] == pytest.approx(-limit)
+
+
 @pytest.mark.asyncio()
 async def test_trading_manager_records_gate_metadata_on_execution(
     monkeypatch: pytest.MonkeyPatch,

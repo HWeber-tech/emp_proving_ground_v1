@@ -119,7 +119,7 @@ def test_guardian_summary_includes_metrics(tmp_path: Path) -> None:
     )
 
     summary = monitor.finalise(report)
-    assert summary.status is PaperRunStatus.DEGRADED
+    assert summary.status is PaperRunStatus.FAILED
     metrics = summary.metrics
     assert metrics["orders"] == 1
     assert metrics["memory_growth_mb"] == pytest.approx(8.0, rel=1e-6)
@@ -158,3 +158,21 @@ def test_guardian_enforces_minimum_runtime() -> None:
     assert metrics["minimum_runtime_seconds"] == pytest.approx(3600.0)
     assert metrics["meets_minimum_runtime"] is False
     assert metrics["runtime_shortfall_seconds"] == pytest.approx(2700.0)
+
+
+def test_guardian_requests_stop_on_memory_growth_threshold() -> None:
+    config = PaperRunConfig(memory_growth_threshold_mb=4.0)
+    tracker = _iterating_sampler([100.0, 105.5])
+    monitor = PaperRunMonitor(config, memory_tracker=tracker)
+
+    monitor.record_progress(
+        _progress(runtime_seconds=10.0, orders=1, p99_latency=0.02, avg_latency=0.01)
+    )
+    monitor.record_progress(
+        _progress(runtime_seconds=20.0, orders=2, p99_latency=0.02, avg_latency=0.01)
+    )
+
+    assert monitor.status is PaperRunStatus.FAILED
+    assert monitor.should_stop is True
+    assert "memory-growth-threshold-exceeded" in monitor.stop_reasons
+    assert any("Memory growth exceeded threshold" in alert for alert in monitor.alerts)

@@ -269,6 +269,7 @@ class PaperRunMonitor:
         self._latency_avg_max: float | None = None
         self._last_progress: PaperTradingSimulationProgress | None = None
         self._seen_error_signatures: set[tuple[Any, ...]] = set()
+        self._memory_alert_triggered = False
 
     def record_progress(self, snapshot: PaperTradingSimulationProgress) -> None:
         """Record telemetry emitted by the simulation loop."""
@@ -327,6 +328,20 @@ class PaperRunMonitor:
         )
         self.samples.append(sample)
 
+        threshold_mb = self.config.memory_growth_threshold_mb
+        if threshold_mb is not None and threshold_mb >= 0.0:
+            growth = self.memory_tracker.growth_mb()
+            if (
+                growth is not None
+                and growth > threshold_mb
+                and not self._memory_alert_triggered
+            ):
+                self._memory_alert_triggered = True
+                message = self._memory_growth_message(growth, threshold_mb)
+                self._register_alert(message)
+                self._update_status(PaperRunStatus.FAILED)
+                self.request_stop("memory-growth-threshold-exceeded")
+
     def request_stop(self, reason: str) -> None:
         """Signal that the guardian should halt the run."""
 
@@ -353,18 +368,16 @@ class PaperRunMonitor:
         minimum_runtime = self.config.minimum_runtime_seconds
         meets_minimum_runtime = True
         runtime_shortfall: float | None = None
-        if (
-            memory_growth is not None
-            and self.config.memory_growth_threshold_mb is not None
-            and memory_growth > self.config.memory_growth_threshold_mb
-        ):
-            self._register_alert(
-                (
-                    "Memory growth exceeded threshold: "
-                    f"{memory_growth:.2f}MB > {self.config.memory_growth_threshold_mb:.2f}MB"
-                )
-            )
-            self._update_status(PaperRunStatus.DEGRADED)
+        threshold_mb = self.config.memory_growth_threshold_mb
+        if memory_growth is not None and threshold_mb is not None:
+            if memory_growth > threshold_mb:
+                if not self._memory_alert_triggered:
+                    message = self._memory_growth_message(memory_growth, threshold_mb)
+                    self._register_alert(message)
+                self._memory_alert_triggered = True
+                self._update_status(PaperRunStatus.FAILED)
+                if "memory-growth-threshold-exceeded" not in self.stop_reasons:
+                    self.stop_reasons.append("memory-growth-threshold-exceeded")
 
         if minimum_runtime > 0.0 and observed_runtime < minimum_runtime:
             meets_minimum_runtime = False
@@ -455,6 +468,13 @@ class PaperRunMonitor:
             PaperRunStatus.STOPPED,
         ):
             self.status = PaperRunStatus.DEGRADED
+
+    @staticmethod
+    def _memory_growth_message(growth: float, threshold: float) -> str:
+        return (
+            "Memory growth exceeded threshold: "
+            f"{growth:.2f}MB > {threshold:.2f}MB"
+        )
 
 
 def _looks_like_invariant(payload: Mapping[str, Any]) -> bool:

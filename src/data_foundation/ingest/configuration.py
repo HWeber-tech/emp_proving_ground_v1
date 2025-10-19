@@ -79,6 +79,7 @@ _API_KEY_ENV_CANDIDATES: dict[str, tuple[str, ...]] = {
 
 _SESSION_CALENDAR_CACHE: tuple[dict[str, object], ...] | None = None
 _SYMBOL_INVENTORY_CACHE: tuple[dict[str, object], ...] | None = None
+_SYMBOL_LOOKUP_CACHE: dict[str, dict[str, object]] | None = None
 
 
 def _api_key_metadata(extras: Mapping[str, str]) -> dict[str, dict[str, object]]:
@@ -151,6 +152,7 @@ def _resolve_session_calendars() -> tuple[dict[str, object], ...]:
 
 def _resolve_symbol_inventory() -> tuple[dict[str, object], ...]:
     global _SYMBOL_INVENTORY_CACHE
+    global _SYMBOL_LOOKUP_CACHE
     if _SYMBOL_INVENTORY_CACHE is not None:
         return _SYMBOL_INVENTORY_CACHE
 
@@ -160,9 +162,11 @@ def _resolve_symbol_inventory() -> tuple[dict[str, object], ...]:
     except Exception:  # pragma: no cover - defensive guard for optional config
         logger.debug("Failed to load instrument inventory", exc_info=True)
         _SYMBOL_INVENTORY_CACHE = tuple()
+        _SYMBOL_LOOKUP_CACHE = {}
         return _SYMBOL_INVENTORY_CACHE
 
     inventory: list[dict[str, object]] = []
+    lookup: dict[str, dict[str, object]] = {}
     for instrument in sorted(instruments.values(), key=lambda item: item.symbol):
         payload: dict[str, object] = {
             "symbol": instrument.symbol,
@@ -180,9 +184,37 @@ def _resolve_symbol_inventory() -> tuple[dict[str, object], ...]:
             payload["swap_time"] = instrument.swap_time.strftime(fmt)
 
         inventory.append(payload)
+        lookup[instrument.symbol.upper()] = payload
 
     _SYMBOL_INVENTORY_CACHE = tuple(inventory)
+    _SYMBOL_LOOKUP_CACHE = lookup
     return _SYMBOL_INVENTORY_CACHE
+
+
+def _resolve_symbol_metadata(symbols: Sequence[str]) -> tuple[dict[str, object], ...]:
+    if not symbols:
+        return tuple()
+
+    _resolve_symbol_inventory()
+    lookup = _SYMBOL_LOOKUP_CACHE or {}
+
+    metadata: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for symbol in symbols:
+        token = str(symbol).strip()
+        if not token:
+            continue
+        upper = token.upper()
+        if upper in seen:
+            continue
+        seen.add(upper)
+        entry = lookup.get(upper)
+        if entry is None:
+            metadata.append({"symbol": token})
+            continue
+        metadata.append(dict(entry))
+
+    return tuple(metadata)
 
 
 def _metadata_base(
@@ -190,12 +222,14 @@ def _metadata_base(
     session_calendars: Sequence[Mapping[str, object]],
     macro_calendars: Sequence[str],
     symbol_inventory: Sequence[Mapping[str, object]],
+    symbol_metadata: Sequence[Mapping[str, object]],
 ) -> dict[str, object]:
     return {
         "api_keys": {provider: dict(details) for provider, details in api_keys.items()},
         "session_calendars": [dict(entry) for entry in session_calendars],
         "macro_calendars": list(macro_calendars),
         "symbol_inventory": [dict(entry) for entry in symbol_inventory],
+        "symbol_metadata": [dict(entry) for entry in symbol_metadata],
     }
 
 
@@ -910,6 +944,7 @@ def build_institutional_ingest_config(
     macro_calendars = _configured_macro_calendars(extras)
     symbol_inventory = _resolve_symbol_inventory()
     symbols = _parse_csv(extras.get("TIMESCALE_SYMBOLS"), fallback)
+    symbol_metadata = _resolve_symbol_metadata(symbols)
 
     def _base_metadata() -> dict[str, object]:
         metadata = _metadata_base(
@@ -917,6 +952,7 @@ def build_institutional_ingest_config(
             session_calendars,
             macro_calendars,
             symbol_inventory,
+            symbol_metadata,
         )
         metadata["symbols"] = list(symbols)
         return metadata

@@ -443,6 +443,35 @@ def _ingest_configuration_metadata(
         if inventory_summary:
             summary["symbol_inventory"] = inventory_summary
 
+    symbol_metadata = metadata.get("symbol_metadata")
+    if isinstance(symbol_metadata, (list, tuple)):
+        configured_metadata: list[dict[str, object]] = []
+        for entry in symbol_metadata:
+            if not isinstance(entry, Mapping):
+                continue
+            snapshot: dict[str, object] = {
+                "symbol": entry.get("symbol"),
+                "margin_currency": entry.get("margin_currency"),
+                "contract_size": entry.get("contract_size"),
+                "pip_decimal_places": entry.get("pip_decimal_places"),
+            }
+
+            swap_time = entry.get("swap_time")
+            if swap_time is not None:
+                snapshot["swap_time"] = swap_time
+
+            long_swap = entry.get("long_swap_rate")
+            if long_swap is not None:
+                snapshot["long_swap_rate"] = long_swap
+
+            short_swap = entry.get("short_swap_rate")
+            if short_swap is not None:
+                snapshot["short_swap_rate"] = short_swap
+
+            configured_metadata.append(snapshot)
+        if configured_metadata:
+            summary["symbol_metadata"] = configured_metadata
+
     api_keys = metadata.get("api_keys")
     if isinstance(api_keys, Mapping):
         providers: dict[str, dict[str, object]] = {}

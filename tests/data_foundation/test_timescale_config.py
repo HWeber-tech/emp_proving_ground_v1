@@ -326,6 +326,15 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
     assert eurusd["contract_size"] == "100000"
     assert eurusd["swap_time"] == "22:00"
 
+    symbol_metadata = metadata["symbol_metadata"]
+    assert isinstance(symbol_metadata, list)
+    assert any(entry["symbol"] == "EURUSD" for entry in symbol_metadata)
+    eurusd_metadata = next(entry for entry in symbol_metadata if entry["symbol"] == "EURUSD")
+    assert eurusd_metadata["margin_currency"] == "USD"
+    assert eurusd_metadata["pip_decimal_places"] == 4
+    assert eurusd_metadata["contract_size"] == "100000"
+    assert eurusd_metadata["swap_time"] == "22:00"
+
 
 def test_config_builder_detects_api_keys_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("FRED_API_KEY", "from-env")

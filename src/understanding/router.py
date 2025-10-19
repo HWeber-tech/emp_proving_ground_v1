@@ -214,7 +214,12 @@ class UnderstandingRouter:
     ) -> "UnderstandingRouter":
         """Build a router with fast-weight constraints sourced from configuration."""
 
-        extras = config.extras or {}
+        extras = dict(config.extras or {})
+
+        if config.run_mode is RunMode.live:
+            extras["EXPLORATION_MAX_FRACTION"] = 0.0
+            extras.pop("EXPLORATION_MUTATE_EVERY", None)
+
         controller = build_fast_weight_controller(extras)
 
         def _parse_fraction(value: object | None) -> float | None:

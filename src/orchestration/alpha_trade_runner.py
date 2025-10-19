@@ -614,11 +614,12 @@ class AlphaTradeLoopRunner:
             if belief_confidence is not None
             else _coerce_float(regime_state.confidence)
         )
-        bounded_confidence = (
-            AlphaTradeLoopRunner._bound_probability(confidence_value)
-            if confidence_value is not None
-            else 0.0
-        )
+
+        bounded_confidence: float | None = None
+        if confidence_value is not None:
+            bounded_confidence = AlphaTradeLoopRunner._bound_probability(
+                confidence_value
+            )
 
         belief_id_value = getattr(belief_state, "belief_id", None)
         belief_id = str(belief_id_value).strip() if belief_id_value else ""
@@ -633,8 +634,10 @@ class AlphaTradeLoopRunner:
 
         belief_summary: dict[str, Any] = {
             "belief_id": belief_id,
-            "confidence": bounded_confidence,
         }
+
+        if bounded_confidence is not None:
+            belief_summary["confidence"] = bounded_confidence
 
         if symbol:
             belief_summary["symbol"] = symbol
@@ -646,9 +649,19 @@ class AlphaTradeLoopRunner:
             belief_summary["generated_at"] = generated_at.astimezone(timezone.utc).isoformat()
 
         if isinstance(belief_metadata, Mapping) and belief_metadata:
-            belief_summary["metadata"] = {
-                str(key): value for key, value in belief_metadata.items()
-            }
+            metadata_snapshot: dict[str, Any] = {}
+            for key, value in belief_metadata.items():
+                key_text = str(key)
+                if key_text == "confidence":
+                    confidence_override = _coerce_float(value)
+                    if confidence_override is not None:
+                        metadata_snapshot[key_text] = (
+                            AlphaTradeLoopRunner._bound_probability(confidence_override)
+                        )
+                        continue
+                metadata_snapshot[key_text] = value
+            if metadata_snapshot:
+                belief_summary["metadata"] = metadata_snapshot
 
         top_features = self._select_top_features(decision_bundle.belief_snapshot.features)
         if top_features:

@@ -1,0 +1,796 @@
+{
+  "entries": [
+    {
+      "belief_state": {
+        "belief_id": "alpha-belief",
+        "features": [
+          "LIQUIDITY_confidence",
+          "LIQUIDITY_signal",
+          "MOMENTUM_confidence",
+          "MOMENTUM_signal",
+          "integrated_confidence",
+          "integrated_strength"
+        ],
+        "generated_at": "2024-02-02T12:00:00+00:00",
+        "lineage": {
+          "dimension": "UNDERSTANDING_BELIEF",
+          "generated_at": "2025-10-19T22:44:09.199055",
+          "inputs": {
+            "sensory_lineage": {
+              "source": "unit-test"
+            }
+          },
+          "metadata": {
+            "feature_order": [
+              "LIQUIDITY_confidence",
+              "LIQUIDITY_signal",
+              "MOMENTUM_confidence",
+              "MOMENTUM_signal",
+              "integrated_confidence",
+              "integrated_strength"
+            ],
+            "regime_hint": null,
+            "symbol": "EURUSD"
+          },
+          "outputs": {
+            "covariance_condition": 314126.47369269474,
+            "covariance_trace": 0.29842489999999994,
+            "posterior_confidence": 0.88,
+            "posterior_strength": 0.21
+          },
+          "source": "understanding.belief_buffer",
+          "telemetry": {}
+        },
+        "metadata": {
+          "activation_summary": {
+            "activation_floor": 0.0,
+            "active_count": 5,
+            "feature_count": 6,
+            "method": "relu_topk",
+            "sparsity": 0.16666666666666663,
+            "top_features": [
+              {
+                "feature": "integrated_confidence",
+                "rank": 1,
+                "value": 0.17600000000000002
+              },
+              {
+                "feature": "MOMENTUM_confidence",
+                "rank": 2,
+                "value": 0.168
+              },
+              {
+                "feature": "LIQUIDITY_confidence",
+                "rank": 3,
+                "value": 0.15600000000000003
+              },
+              {
+                "feature": "MOMENTUM_signal",
+                "rank": 4,
+                "value": 0.084
+              },
+              {
+                "feature": "integrated_strength",
+                "rank": 5,
+                "value": 0.042
+              }
+            ],
+            "top_k": 5
+          },
+          "activation_top_features": {
+            "LIQUIDITY_confidence": 0.15600000000000003,
+            "MOMENTUM_confidence": 0.168,
+            "MOMENTUM_signal": 0.084,
+            "integrated_confidence": 0.17600000000000002,
+            "integrated_strength": 0.042
+          },
+          "covariance_condition": 314126.47369269474,
+          "covariance_max_eigenvalue": 0.2984201499999998,
+          "covariance_min_eigenvalue": 9.499999999743408e-07,
+          "covariance_trace": 0.29842489999999994,
+          "decay": 0.05,
+          "learning_rate": 0.2,
+          "observation": {
+            "LIQUIDITY_confidence": 0.78,
+            "LIQUIDITY_signal": -0.15,
+            "MOMENTUM_confidence": 0.84,
+            "MOMENTUM_signal": 0.42,
+            "integrated_confidence": 0.88,
+            "integrated_strength": 0.21
+          },
+          "regime_hint": null
+        },
+        "posterior": {
+          "confidence": 0.88,
+          "covariance": [
+            [
+              0.07787615,
+              -0.014975999999999974,
+              0.08386559999999996,
+              0.041932799999999985,
+              0.08785919999999997,
+              0.02096639999999999
+            ],
+            [
+              -0.014975999999999974,
+              0.0028809500000000275,
+              -0.016127999999999997,
+              -0.008064000000000012,
+              -0.01689599999999999,
+              -0.004031999999999998
+            ],
+            [
+              0.08386559999999996,
+              -0.016127999999999993,
+              0.09031774999999993,
+              0.04515839999999998,
+              0.09461759999999994,
+              0.022579199999999983
+            ],
+            [
+              0.041932799999999985,
+              -0.008064000000000012,
+              0.04515839999999999,
+              0.022580149999999997,
+              0.04730879999999999,
+              0.011289599999999997
+            ],
+            [
+              0.08785919999999997,
+              -0.01689599999999999,
+              0.09461759999999995,
+              0.04730879999999999,
+              0.09912414999999998,
+              0.02365439999999999
+            ],
+            [
+              0.02096639999999999,
+              -0.004031999999999998,
+              0.022579199999999983,
+              0.011289599999999995,
+              0.023654399999999985,
+              0.005645749999999996
+            ]
+          ],
+          "decay": 0.05,
+          "mean": [
+            0.15600000000000003,
+            -0.03,
+            0.168,
+            0.084,
+            0.17600000000000002,
+            0.042
+          ],
+          "strength": 0.21,
+          "support": 1
+        },
+        "prior": {
+          "confidence": 0.88,
+          "covariance": [
+            [
+              1e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              1e-06,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              1e-06,
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              1e-06,
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1e-06,
+              0.0
+            ],
+            [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              1e-06
+            ]
+          ],
+          "decay": 0.05,
+          "mean": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "strength": 0.21,
+          "support": 0
+        },
+        "symbol": "EURUSD",
+        "version": "1.0"
+      },
+      "decision": {
+        "decision_timestamp": "2025-10-19T22:44:09.211685+00:00",
+        "experiments_applied": [],
+        "exploration_metadata": {},
+        "fast_weight_metrics": {
+          "active": 0,
+          "active_ids": [],
+          "active_percentage": 0.0,
+          "dormant": 1,
+          "dormant_ids": [
+            "alpha.live"
+          ],
+          "inhibitory": 0,
+          "inhibitory_ids": [],
+          "max_multiplier": 1.0,
+          "min_multiplier": 1.0,
+          "sparsity": 1.0,
+          "suppressed_inhibitory": 0,
+          "suppressed_inhibitory_ids": [],
+          "total": 1
+        },
+        "guardrails": {
+          "counterfactual_guardrail": {
+            "absolute_breach": false,
+            "aggro_score": 1.0364319880172048,
+            "breached": false,
+            "delta_direction": "flat",
+            "max_absolute_delta": null,
+            "max_relative_delta": null,
+            "passive_score": 1.0364319880172048,
+            "relative_breach": false,
+            "relative_delta": 0.0,
+            "score_delta": 0.0,
+            "stage": "paper"
+          },
+          "force_paper": true,
+          "governance_policy_stage": "paper",
+          "governance_release_stage": "paper",
+          "governance_release_stage_gate": "release_stage_paper_requires_paper_execution",
+          "governance_tactic_stage": "paper",
+          "release_stage": "paper",
+          "requires_diary": true
+        },
+        "parameters": {
+          "price": 1.2345,
+          "regime_confidence": 0.6457279520688193,
+          "regime_hint": "balanced",
+          "side": "buy",
+          "size": 25000,
+          "symbol": "EURUSD"
+        },
+        "rationale": "tactic=alpha.live regime=balanced conf=0.65 score=1.0364",
+        "reflection_summary": {
+          "confidence": 0.6457279520688193,
+          "counterfactuals": [],
+          "decision_timestamp": "2025-10-19T22:44:09.211685+00:00",
+          "experiments": [],
+          "fast_weight_metrics": {
+            "active": 0,
+            "active_ids": [],
+            "active_percentage": 0.0,
+            "dormant": 1,
+            "dormant_ids": [
+              "alpha.live"
+            ],
+            "inhibitory": 0,
+            "inhibitory_ids": [],
+            "max_multiplier": 1.0,
+            "min_multiplier": 1.0,
+            "sparsity": 1.0,
+            "suppressed_inhibitory": 0,
+            "suppressed_inhibitory_ids": [],
+            "total": 1
+          },
+          "headline": "Selected alpha.live for balanced (confidence=0.65)",
+          "rationale": "tactic=alpha.live regime=balanced conf=0.65 score=1.0364",
+          "regime": "balanced",
+          "regime_features": {
+            "LIQUIDITY_confidence": 0.15600000000000003,
+            "LIQUIDITY_signal": -0.03,
+            "MOMENTUM_confidence": 0.168,
+            "MOMENTUM_signal": 0.084,
+            "integrated_confidence": 0.17600000000000002,
+            "integrated_strength": 0.042
+          },
+          "regime_transition": {
+            "current_regime": "balanced",
+            "current_tactic": "alpha.live",
+            "current_topology": "alpha.live",
+            "deadline_ms": 75.0,
+            "decision_timestamp": "2025-10-19T22:44:09.211685+00:00",
+            "latency_ms": 54038649211.685005,
+            "met_deadline": null,
+            "previous_regime": null,
+            "previous_tactic": null,
+            "previous_topology": null,
+            "regime_changed": false,
+            "regime_timestamp": "2024-02-02T12:00:00+00:00",
+            "switch_forced": false,
+            "topology_changed": null
+          },
+          "score": 1.0364319880172048,
+          "tactic_description": "AlphaTrade live staging tactic",
+          "tactic_id": "alpha.live",
+          "tactic_objectives": [
+            "alpha"
+          ],
+          "tactic_tags": [
+            "alpha_trade"
+          ],
+          "timestamp": "2024-02-02T12:00:00+00:00",
+          "top_candidates": [
+            {
+              "base_score": 1.0364319880172048,
+              "breakdown": {
+                "base_weight": 1.0,
+                "confidence_multiplier": 1.0364319880172048,
+                "regime_bias": 1.0
+              },
+              "experiments": [],
+              "multiplier": 1.0,
+              "score": 1.0364319880172048,
+              "tactic_id": "alpha.live"
+            }
+          ],
+          "total_multiplier": 1.0,
+          "weight_breakdown": {
+            "base_score": 1.0364319880172048,
+            "base_weight": 1.0,
+            "confidence_multiplier": 1.0364319880172048,
+            "experiment_multipliers": {},
+            "fast_weight_active_percentage": 0.0,
+            "fast_weight_multiplier": 1.0,
+            "final_score": 1.0364319880172048,
+            "regime_bias": 1.0,
+            "total_multiplier": 1.0
+          }
+        },
+        "selected_weight": 1.0364319880172048,
+        "tactic_id": "alpha.live",
+        "weight_breakdown": {
+          "base_score": 1.0364319880172048,
+          "base_weight": 1.0,
+          "confidence_multiplier": 1.0364319880172048,
+          "experiment_multipliers": {},
+          "fast_weight_active_percentage": 0.0,
+          "fast_weight_multiplier": 1.0,
+          "final_score": 1.0364319880172048,
+          "regime_bias": 1.0,
+          "total_multiplier": 1.0
+        }
+      },
+      "entry_id": "dd-20251019T224409Z-48b63abbe8506dc9",
+      "metadata": {
+        "applied_adapters": [],
+        "attribution": {
+          "belief": {
+            "belief_id": "alpha-belief",
+            "confidence": 0.6457279520688193,
+            "generated_at": "2024-02-02T12:00:00+00:00",
+            "metadata": {
+              "activation_summary": {
+                "activation_floor": 0.0,
+                "active_count": 5,
+                "feature_count": 6,
+                "method": "relu_topk",
+                "sparsity": 0.16666666666666663,
+                "top_features": [
+                  {
+                    "feature": "integrated_confidence",
+                    "rank": 1,
+                    "value": 0.17600000000000002
+                  },
+                  {
+                    "feature": "MOMENTUM_confidence",
+                    "rank": 2,
+                    "value": 0.168
+                  },
+                  {
+                    "feature": "LIQUIDITY_confidence",
+                    "rank": 3,
+                    "value": 0.15600000000000003
+                  },
+                  {
+                    "feature": "MOMENTUM_signal",
+                    "rank": 4,
+                    "value": 0.084
+                  },
+                  {
+                    "feature": "integrated_strength",
+                    "rank": 5,
+                    "value": 0.042
+                  }
+                ],
+                "top_k": 5
+              },
+              "activation_top_features": {
+                "LIQUIDITY_confidence": 0.15600000000000003,
+                "MOMENTUM_confidence": 0.168,
+                "MOMENTUM_signal": 0.084,
+                "integrated_confidence": 0.17600000000000002,
+                "integrated_strength": 0.042
+              },
+              "covariance_condition": 314126.47369269474,
+              "covariance_max_eigenvalue": 0.2984201499999998,
+              "covariance_min_eigenvalue": 9.499999999743408e-07,
+              "covariance_trace": 0.29842489999999994,
+              "decay": 0.05,
+              "learning_rate": 0.2,
+              "observation": {
+                "LIQUIDITY_confidence": 0.78,
+                "LIQUIDITY_signal": -0.15,
+                "MOMENTUM_confidence": 0.84,
+                "MOMENTUM_signal": 0.42,
+                "integrated_confidence": 0.88,
+                "integrated_strength": 0.21
+              },
+              "regime_hint": null
+            },
+            "regime": "balanced",
+            "symbol": "EURUSD",
+            "top_features": [
+              {
+                "name": "integrated_confidence",
+                "value": 0.17600000000000002
+              },
+              {
+                "name": "MOMENTUM_confidence",
+                "value": 0.168
+              },
+              {
+                "name": "LIQUIDITY_confidence",
+                "value": 0.15600000000000003
+              },
+              {
+                "name": "MOMENTUM_signal",
+                "value": 0.084
+              }
+            ]
+          },
+          "diary_entry_id": "dd-20251019T224409Z-48b63abbe8506dc9",
+          "explanation": "tactic=alpha.live regime=balanced conf=0.65 score=1.0364",
+          "policy_id": "alpha.live",
+          "probes": []
+        },
+        "diary_coverage": {
+          "coverage": 1.0,
+          "gap_breach": false,
+          "gap_threshold_seconds": 300.0,
+          "iterations": 1,
+          "last_recorded_at": "2025-10-19T22:44:09.211685+00:00",
+          "minimum_samples": 20,
+          "missing": 0,
+          "recorded": 1,
+          "target": 0.95
+        },
+        "drift_decision": {
+          "allowed": true,
+          "blocked_dimensions": [],
+          "evaluated_at": "2025-10-19T22:44:09.211685+00:00",
+          "force_paper": true,
+          "reason": "release_stage_paper_requires_paper_execution",
+          "requirements": {
+            "block_severity": "alert",
+            "confidence_floor": 0.75,
+            "context.confidence": 0.6457279520688193,
+            "context.evaluated_at": "2025-10-19T22:44:09.211971+00:00",
+            "context.notional": 30862.5,
+            "context.policy_id": "alpha.live",
+            "context.price": 1.2345,
+            "context.quantity": 25000,
+            "context.side": "buy",
+            "context.symbol": "EURUSD",
+            "context.timestamp": "2024-02-02T12:00:00+00:00",
+            "release_stage": "paper",
+            "release_stage_gate": "release_stage_paper_requires_paper_execution",
+            "warn_notional_limit": 50000.0
+          },
+          "severity": "normal",
+          "snapshot_metadata": {}
+        },
+        "drift_throttle": {
+          "applied_at": "2024-02-02T12:00:00+00:00",
+          "multiplier": 0.7,
+          "notional": 21603.75,
+          "quantity_after": 17500.0,
+          "quantity_before": 25000.0,
+          "reason": "alpha_decay",
+          "snapshot": {
+            "active": true,
+            "multiplier": 0.7,
+            "name": "alpha_decay",
+            "state": "active"
+          },
+          "source": "trade_throttle",
+          "status": "executed"
+        },
+        "fast_weight_metrics": {
+          "active": 0,
+          "active_ids": [],
+          "active_percentage": 0.0,
+          "dormant": 1,
+          "dormant_ids": [
+            "alpha.live"
+          ],
+          "inhibitory": 0,
+          "inhibitory_ids": [],
+          "max_multiplier": 1.0,
+          "min_multiplier": 1.0,
+          "sparsity": 1.0,
+          "suppressed_inhibitory": 0,
+          "suppressed_inhibitory_ids": [],
+          "total": 1
+        },
+        "fast_weight_summary": {},
+        "guardrails": {
+          "counterfactual_guardrail": {
+            "absolute_breach": false,
+            "aggro_score": 1.0364319880172048,
+            "breached": false,
+            "delta_direction": "flat",
+            "max_absolute_delta": null,
+            "max_relative_delta": null,
+            "passive_score": 1.0364319880172048,
+            "relative_breach": false,
+            "relative_delta": 0.0,
+            "score_delta": 0.0,
+            "stage": "paper"
+          },
+          "force_paper": true,
+          "governance_policy_stage": "paper",
+          "governance_release_stage": "paper",
+          "governance_release_stage_gate": "release_stage_paper_requires_paper_execution",
+          "governance_tactic_stage": "paper",
+          "release_stage": "paper",
+          "requires_diary": true
+        },
+        "performance_health": {
+          "backlog": {
+            "evaluated": false,
+            "healthy": true
+          },
+          "healthy": true,
+          "resource": {
+            "healthy": true,
+            "sample": {},
+            "status": "not_configured"
+          },
+          "throughput": {
+            "healthy": true
+          }
+        },
+        "release_stage": "paper",
+        "theory_packet": {
+          "actions": [
+            {
+              "action": "alpha_decay",
+              "applied_at": "2024-02-02T12:00:00+00:00",
+              "quantity_after": 17500.0,
+              "quantity_before": 25000.0,
+              "status": "executed",
+              "throttle_state": "active",
+              "value": 0.7
+            }
+          ],
+          "alpha_decay_multiplier": 0.7,
+          "generated_at": "2024-02-02T12:00:00+00:00",
+          "reason": "alpha_decay",
+          "severity": "info",
+          "status": "executed",
+          "summary": "Trade throttle applied alpha decay multiplier 0.70",
+          "throttle_snapshot": {
+            "active": true,
+            "multiplier": 0.7,
+            "name": "alpha_decay",
+            "state": "active"
+          }
+        },
+        "thresholds": {
+          "block_severity": "alert",
+          "stage": "paper",
+          "warn_confidence_floor": 0.75,
+          "warn_notional_limit": 50000.0
+        },
+        "trade": {
+          "confidence": 0.6457279520688193,
+          "notional": 30862.5,
+          "policy_id": "alpha.live",
+          "price": 1.2345,
+          "quantity": 25000,
+          "side": "buy",
+          "symbol": "EURUSD",
+          "timestamp": "2024-02-02T12:00:00+00:00"
+        },
+        "trade_execution": {
+          "executed": true,
+          "metadata": {
+            "attribution": {
+              "belief": {
+                "belief_id": "alpha-belief",
+                "confidence": 0.6457279520688193,
+                "generated_at": "2024-02-02T12:00:00+00:00",
+                "metadata": {
+                  "activation_summary": {
+                    "activation_floor": 0.0,
+                    "active_count": 5,
+                    "feature_count": 6,
+                    "method": "relu_topk",
+                    "sparsity": 0.16666666666666663,
+                    "top_features": [
+                      {
+                        "feature": "integrated_confidence",
+                        "rank": 1,
+                        "value": 0.17600000000000002
+                      },
+                      {
+                        "feature": "MOMENTUM_confidence",
+                        "rank": 2,
+                        "value": 0.168
+                      },
+                      {
+                        "feature": "LIQUIDITY_confidence",
+                        "rank": 3,
+                        "value": 0.15600000000000003
+                      },
+                      {
+                        "feature": "MOMENTUM_signal",
+                        "rank": 4,
+                        "value": 0.084
+                      },
+                      {
+                        "feature": "integrated_strength",
+                        "rank": 5,
+                        "value": 0.042
+                      }
+                    ],
+                    "top_k": 5
+                  },
+                  "activation_top_features": {
+                    "LIQUIDITY_confidence": 0.15600000000000003,
+                    "MOMENTUM_confidence": 0.168,
+                    "MOMENTUM_signal": 0.084,
+                    "integrated_confidence": 0.17600000000000002,
+                    "integrated_strength": 0.042
+                  },
+                  "covariance_condition": 314126.47369269474,
+                  "covariance_max_eigenvalue": 0.2984201499999998,
+                  "covariance_min_eigenvalue": 9.499999999743408e-07,
+                  "covariance_trace": 0.29842489999999994,
+                  "decay": 0.05,
+                  "learning_rate": 0.2,
+                  "observation": {
+                    "LIQUIDITY_confidence": 0.78,
+                    "LIQUIDITY_signal": -0.15,
+                    "MOMENTUM_confidence": 0.84,
+                    "MOMENTUM_signal": 0.42,
+                    "integrated_confidence": 0.88,
+                    "integrated_strength": 0.21
+                  },
+                  "regime_hint": null
+                },
+                "regime": "balanced",
+                "symbol": "EURUSD",
+                "top_features": [
+                  {
+                    "name": "integrated_confidence",
+                    "value": 0.17600000000000002
+                  },
+                  {
+                    "name": "MOMENTUM_confidence",
+                    "value": 0.168
+                  },
+                  {
+                    "name": "LIQUIDITY_confidence",
+                    "value": 0.15600000000000003
+                  },
+                  {
+                    "name": "MOMENTUM_signal",
+                    "value": 0.084
+                  }
+                ]
+              },
+              "diary_entry_id": "dd-20251019T224409Z-48b63abbe8506dc9",
+              "explanation": "tactic=alpha.live regime=balanced conf=0.65 score=1.0364",
+              "policy_id": "alpha.live",
+              "probes": []
+            },
+            "diary_coverage": {
+              "coverage": 1.0,
+              "gap_breach": false,
+              "gap_threshold_seconds": 300.0,
+              "iterations": 1,
+              "last_recorded_at": "2025-10-19T22:44:09.211685+00:00",
+              "minimum_samples": 20,
+              "missing": 0,
+              "recorded": 1,
+              "target": 0.95
+            },
+            "guardrails": {
+              "counterfactual_guardrail": {
+                "absolute_breach": false,
+                "aggro_score": 1.0364319880172048,
+                "breached": false,
+                "delta_direction": "flat",
+                "max_absolute_delta": null,
+                "max_relative_delta": null,
+                "passive_score": 1.0364319880172048,
+                "relative_breach": false,
+                "relative_delta": 0.0,
+                "score_delta": 0.0,
+                "stage": "paper"
+              },
+              "force_paper": true,
+              "governance_policy_stage": "paper",
+              "governance_release_stage": "paper",
+              "governance_release_stage_gate": "release_stage_paper_requires_paper_execution",
+              "governance_tactic_stage": "paper",
+              "release_stage": "paper",
+              "requires_diary": true
+            },
+            "latency_ms": 8.0,
+            "notional": 21603.75,
+            "price": 1.2345,
+            "quantity": 17500.0,
+            "quantity_after_throttle": 17500.0,
+            "quantity_before_throttle": 25000.0,
+            "throttle_multiplier": 0.7
+          },
+          "status": "executed",
+          "throttle": {
+            "active": true,
+            "multiplier": 0.7,
+            "name": "alpha_decay",
+            "state": "active"
+          }
+        }
+      },
+      "notes": [],
+      "outcomes": {},
+      "policy_id": "alpha.live",
+      "probes": [],
+      "recorded_at": "2025-10-19T22:44:09.211685+00:00",
+      "regime_state": {
+        "confidence": 0.6457279520688193,
+        "features": {
+          "LIQUIDITY_confidence": 0.15600000000000003,
+          "LIQUIDITY_signal": -0.03,
+          "MOMENTUM_confidence": 0.168,
+          "MOMENTUM_signal": 0.084,
+          "integrated_confidence": 0.17600000000000002,
+          "integrated_strength": 0.042
+        },
+        "regime": "balanced",
+        "timestamp": "2024-02-02T12:00:00+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-19T22:44:09.219998+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-19T22:44:09.194820+00:00",
+    "probes": {}
+  }
+}

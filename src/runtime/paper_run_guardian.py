@@ -431,6 +431,18 @@ class PaperRunMonitor:
         if latency_threshold is not None:
             metrics["latency_p99_threshold_s"] = latency_threshold
 
+        objective_thresholds: MutableMapping[str, Any] = {
+            "invariant_breach_threshold": 0,
+        }
+        if minimum_runtime > 0.0:
+            objective_thresholds["minimum_runtime_seconds"] = minimum_runtime
+        if latency_threshold is not None:
+            objective_thresholds["latency_p99_threshold_s"] = latency_threshold
+        if threshold_mb is not None:
+            objective_thresholds["memory_growth_threshold_mb"] = threshold_mb
+
+        metrics["objective_thresholds"] = dict(objective_thresholds)
+
         minimum_runtime_ok = bool(metrics.get("meets_minimum_runtime", False))
         latency_ok = (
             True

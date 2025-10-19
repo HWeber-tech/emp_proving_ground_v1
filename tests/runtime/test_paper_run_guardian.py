@@ -4,7 +4,7 @@ import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Mapping
 
 import pytest
 
@@ -220,6 +220,37 @@ def test_guardian_objective_compliance_flags() -> None:
     assert objectives["no_invariant_breaches"] is True
     assert metrics["invariant_breach_count"] == 0
     assert metrics["memory_growth_within_threshold"] is True
+
+
+def test_guardian_emits_threshold_metadata() -> None:
+    config = PaperRunConfig(
+        minimum_runtime_seconds=7200.0,
+        latency_p99_threshold=0.025,
+        memory_growth_threshold_mb=12.5,
+    )
+    tracker = _iterating_sampler([100.0, 107.0])
+    monitor = PaperRunMonitor(config, memory_tracker=tracker)
+
+    monitor.record_progress(
+        _progress(runtime_seconds=3600.0, orders=10, p99_latency=0.02, avg_latency=0.015)
+    )
+
+    report = PaperTradingSimulationReport(
+        orders=[{"order_id": "X"}],
+        errors=[],
+        decisions=50,
+        diary_entries=5,
+        runtime_seconds=7200.0,
+    )
+
+    summary = monitor.finalise(report)
+
+    thresholds = summary.metrics.get("objective_thresholds")
+    assert isinstance(thresholds, Mapping)
+    assert thresholds["minimum_runtime_seconds"] == pytest.approx(7200.0)
+    assert thresholds["latency_p99_threshold_s"] == pytest.approx(0.025)
+    assert thresholds["memory_growth_threshold_mb"] == pytest.approx(12.5)
+    assert thresholds["invariant_breach_threshold"] == 0
 
 
 def test_persist_error_events_writes_json(tmp_path: Path) -> None:

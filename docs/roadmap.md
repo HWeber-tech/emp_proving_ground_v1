@@ -115,14 +115,14 @@
 
 **Acceptance (DoD)**
 - [ ] `[ops]` Liveâ€‘pilot drill: turn on tiny capital; trigger killâ€‘switch; rollback; reconcile â€” all green.
-- [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper).
+- [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper). _Progress: PolicyRouter now exposes an `allow_forced_exploration` guard that raises when enforcement tries to force exploration, and UnderstandingRouter disables forced exploration whenever run mode is live, with regression coverage verifying live-only catalogs fail closed.【F:src/thinking/adaptation/policy_router.py†L379-L408】【F:src/thinking/adaptation/policy_router.py†L830-L845】【F:src/understanding/router.py†L244-L257】【F:tests/thinking/test_policy_router.py†L483-L495】【F:tests/understanding/test_understanding_router.py†L292-L305】_
 
 ---
 
 ## Continuous Quality Bars (always on)
 
 - [x] `[risk]` Weekly invariants audit & redâ€‘team scenarios (extreme volatility, symbol halts, bad prints). _Progress: Weekly audit harness now ingests red-team evidence for extreme volatility, symbol halts, and bad prints, flags stale or missing coverage, and captures guardrail violations into scenario snapshots with regression coverage across warning/fail paths.【F:src/operations/risk_invariants_audit.py†L1-L310】【F:tests/operations/test_risk_invariants_audit.py†L39-L200】_
-- [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts. _Progress: Observability dashboard now renders a decision diary panel that ingests loop metadata, reports coverage shortfalls, gap breaches, and sample deficits, and warns when telemetry is missing, with regression coverage ensuring alerts flip warn/fail states for coverage and gaps.【F:src/operations/observability_dashboard.py†L316-L344】【F:src/operations/observability_dashboard.py†L862-L982】【F:tests/operations/test_observability_dashboard.py†L438-L1027】_
+- [ ] `[reflect]` Diary coverage â‰¥ **95%**; missingâ€‘data alerts. _Progress: Decision diary panel now infers coverage from percentages or recorded counts, auto-fills default targets, and explicitly lists missing telemetry fields while still flagging shortfalls and gap breaches, with regression coverage exercising the inferred metrics and warn/fail escalations.【F:src/operations/observability_dashboard.py†L880-L1058】【F:tests/operations/test_observability_dashboard.py†L973-L1082】_
 - [ ] `[obs]` Graph health in band: modularity, heavyâ€‘tail degree (alerts on collapse/overâ€‘smoothing).
 - [ ] `[docs]` Honest README & system diagram reflect current reality (mock vs real clearly labeled).
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-19T15:17:28Z
+
+### Last 4 commits
+- 6d377ceb feat(artifacts): add 20 files (2025-10-19)
+- e58c215e refactor(thinking): tune 5 files (2025-10-19)
+- 6ee2329f refactor(trading): tune 1 file (2025-10-19)
+- f9229c34 refactor(operations): tune 3 files (2025-10-19)
 
 ## Automation updates — 2025-10-19T15:03:27Z
 

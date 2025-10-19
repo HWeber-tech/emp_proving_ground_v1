@@ -1555,6 +1555,13 @@ class TradingManager:
                             )
                             if release_metadata:
                                 fallback_metadata["release_execution"] = release_metadata
+                            coverage_snapshot = self._extract_diary_coverage_snapshot(
+                                validated_intent
+                            )
+                            if coverage_snapshot is None:
+                                coverage_snapshot = self._extract_diary_coverage_snapshot(event)
+                            if coverage_snapshot is not None:
+                                fallback_metadata["diary_coverage"] = dict(coverage_snapshot)
                             self._maybe_attach_guardrails(
                                 fallback_metadata,
                                 validated_intent,
@@ -1613,6 +1620,11 @@ class TradingManager:
                     rejection_metadata["reason"] = reason
                 if gate_decision_payload is not None:
                     rejection_metadata["drift_gate"] = dict(gate_decision_payload)
+                coverage_snapshot = self._extract_diary_coverage_snapshot(validated_intent)
+                if coverage_snapshot is None:
+                    coverage_snapshot = self._extract_diary_coverage_snapshot(event)
+                if coverage_snapshot is not None:
+                    rejection_metadata["diary_coverage"] = dict(coverage_snapshot)
                 self._maybe_attach_guardrails(rejection_metadata, event)
                 self._record_experiment_event(
                     event_id=event_id,

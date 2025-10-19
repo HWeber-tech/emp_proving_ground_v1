@@ -5,11 +5,11 @@
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-19T18:27:20.692893+00:00",
+      "created_at": "2025-10-19T18:41:43.581868+00:00",
       "evidence_id": "diary-alpha",
       "history": [
         {
-          "applied_at": "2025-10-19T18:27:20.692893+00:00",
+          "applied_at": "2025-10-19T18:41:43.581868+00:00",
           "approvals": [
             "compliance",
             "risk"
@@ -44,8 +44,8 @@
       "policy_id": "alpha",
       "stage": "pilot",
       "tactic_id": "alpha",
-      "updated_at": "2025-10-19T18:27:20.692893+00:00"
+      "updated_at": "2025-10-19T18:41:43.581868+00:00"
     }
   },
-  "updated_at": "2025-10-19T18:27:20.693000+00:00"
+  "updated_at": "2025-10-19T18:41:43.581971+00:00"
 }

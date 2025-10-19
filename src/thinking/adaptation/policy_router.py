@@ -672,6 +672,16 @@ class PolicyRouter:
 
         return self._exploration_freeze.active
 
+    @property
+    def allow_forced_exploration(self) -> bool:
+        """Return whether forced exploration selections are permitted."""
+
+        return self._allow_forced_exploration
+
+    @allow_forced_exploration.setter
+    def allow_forced_exploration(self, allow: bool) -> None:
+        self._allow_forced_exploration = bool(allow)
+
     @staticmethod
     def _normalise_tournament_weights(
         weights: Mapping[str, float] | None,

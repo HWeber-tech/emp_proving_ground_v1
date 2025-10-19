@@ -75,6 +75,46 @@ class _TopicBus:
         pass
 
 
+class _EventBusStatistics:
+    def __init__(
+        self,
+        *,
+        running: bool = True,
+        loop_running: bool = True,
+        queue_size: int = 0,
+        queue_capacity: int | None = None,
+        subscriber_count: int = 0,
+        topic_subscribers: dict[str, int] | None = None,
+        published_events: int = 0,
+        dropped_events: int = 0,
+        handler_errors: int = 0,
+        last_event_timestamp: float | None = None,
+        last_error_timestamp: float | None = None,
+        started_at: float | None = None,
+        uptime_seconds: float | None = None,
+    ) -> None:
+        self.running = running
+        self.loop_running = loop_running
+        self.queue_size = queue_size
+        self.queue_capacity = queue_capacity
+        self.subscriber_count = subscriber_count
+        self.topic_subscribers = topic_subscribers or {}
+        self.published_events = published_events
+        self.dropped_events = dropped_events
+        self.handler_errors = handler_errors
+        self.last_event_timestamp = last_event_timestamp
+        self.last_error_timestamp = last_error_timestamp
+        self.started_at = started_at
+        self.uptime_seconds = uptime_seconds
+
+
+class _SubscriptionHandle:
+    def __init__(self, *, id: int, event_type: str, handler: Any) -> None:
+        self.id = id
+        self.event_type = event_type
+        self.handler = handler
+
+
 def _get_global_bus() -> _TopicBus:
     return _TopicBus()
 
@@ -82,7 +122,10 @@ def _get_global_bus() -> _TopicBus:
 core_event_bus.Event = _Event
 core_event_bus.EventBus = _EventBus
 core_event_bus.TopicBus = _TopicBus
+core_event_bus.EventBusStatistics = _EventBusStatistics
+core_event_bus.SubscriptionHandle = _SubscriptionHandle
 core_event_bus.get_global_bus = _get_global_bus
+core_event_bus.event_bus = _EventBus()
 
 sys.modules["src.core.event_bus"] = core_event_bus
 

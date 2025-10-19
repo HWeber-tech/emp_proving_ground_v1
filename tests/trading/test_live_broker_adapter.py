@@ -158,3 +158,59 @@ async def test_live_broker_adapter_blocks_risk_policy_violation() -> None:
     assert block_payload.get("reason") == "policy.min_position_size"
     assert block_payload.get("risk_blocks") == 1
     assert adapter.describe_policy_snapshot() is not None
+
+
+class _MinSizeRiskGateway(_RiskGatewayStub):
+    async def validate_trade_intent(self, intent: Any, portfolio_state: Any) -> Any | None:
+        symbol = intent.get("symbol") if isinstance(intent, dict) else None
+        self.calls.append({"symbol": symbol})
+        self._decision = {
+            "status": "rejected",
+            "reason": "policy.min_position_size",
+            "symbol": symbol,
+        }
+        return None
+
+
+@pytest.mark.asyncio
+async def test_live_broker_adapter_delegates_min_size_near_miss() -> None:
+    bus = _StubBus()
+    monitor = PortfolioMonitor(bus, redis_client=None)
+    config = RiskConfig(
+        max_risk_per_trade_pct=Decimal("0.02"),
+        max_total_exposure_pct=Decimal("0.5"),
+        max_leverage=Decimal("4"),
+        max_drawdown_pct=Decimal("0.1"),
+        min_position_size=1,
+        max_position_size=1000,
+        mandatory_stop_loss=False,
+    )
+    risk_policy = RiskPolicy.from_config(config)
+    risk_gateway = _MinSizeRiskGateway()
+    broker = _StubBroker(order_id="LIVE-002")
+
+    adapter = LiveBrokerExecutionAdapter(
+        broker_interface=broker,
+        portfolio_monitor=monitor,
+        risk_gateway=risk_gateway,
+        risk_policy=risk_policy,
+        order_timeout=None,
+        failover_threshold=1,
+        failover_cooldown_seconds=0.1,
+        risk_block_cooldown_seconds=0.1,
+    )
+
+    intent = {"symbol": "EURUSD", "side": "buy", "quantity": 0.1}
+    order_id = await adapter.process_order(intent)
+
+    assert order_id == "LIVE-002"
+    assert broker.calls == [("EURUSD", "BUY", 0.1)]
+    metrics = adapter.describe_metrics()
+    assert metrics["risk_blocks"] == 0
+    assert adapter.should_block_orders(intent) is None
+
+    snapshot = adapter.describe_policy_snapshot()
+    assert snapshot is not None
+    assert snapshot.get("severity") == "near_miss"
+    assert snapshot.get("delegated_route") == "paper"
+    assert snapshot.get("reason") == "policy.min_position_size"

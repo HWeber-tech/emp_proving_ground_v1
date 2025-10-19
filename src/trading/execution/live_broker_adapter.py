@@ -202,14 +202,21 @@ class LiveBrokerExecutionAdapter(PaperBrokerExecutionAdapter):
                 validated_intent = intent
                 revalidation_reason = reason
             else:
-                details = {"decision": _serialise_mapping(decision) or {}}
+                details: dict[str, Any] = {"decision": _serialise_mapping(decision) or {}}
+                if reason == "policy.min_position_size":
+                    details.setdefault("delegated_to", "paper")
+                    self._record_risk_near_miss(
+                        intent=intent,
+                        reason=reason,
+                        details=details,
+                        portfolio_state=portfolio_state,
+                    )
+                    return await self._delegate_to_paper_adapter(intent)
                 self._record_risk_violation(
                     reason="risk_gateway_rejected",
                     details=details,
                     portfolio_state=portfolio_state,
                 )
-                if reason == "policy.min_position_size":
-                    return await self._delegate_to_paper_adapter(intent)
                 raise LiveBrokerError(reason or "Risk gateway rejected trade")
 
         policy_decision = self._enforce_policy(validated_intent, portfolio_state)
@@ -393,6 +400,50 @@ class LiveBrokerExecutionAdapter(PaperBrokerExecutionAdapter):
 
         self._last_policy_snapshot = snapshot
         self._policy_history.append(snapshot)
+
+    def _record_risk_near_miss(
+        self,
+        *,
+        intent: Any,
+        reason: str | None,
+        details: Mapping[str, Any] | None,
+        portfolio_state: Mapping[str, Any],
+    ) -> None:
+        timestamp = datetime.now(timezone.utc)
+        symbol = str(
+            _extract(intent, "symbol", "instrument", "asset", default="UNKNOWN")
+        ).upper()
+        side = str(_extract(intent, "side", "direction", default="BUY")).upper()
+        quantity = _as_float(
+            _extract(intent, "quantity", "size", "volume", default=0.0),
+            default=0.0,
+        )
+        snapshot_reason = reason or "risk_gateway_near_miss"
+        snapshot: dict[str, Any] = {
+            "timestamp": timestamp.isoformat(),
+            "reason": snapshot_reason,
+            "severity": "near_miss",
+            "delegated_route": "paper",
+            "symbol": symbol,
+            "side": side,
+            "quantity": quantity,
+            "equity": _as_float(portfolio_state.get("equity"), default=0.0),
+            "risk_blocks": self._risk_blocks,
+        }
+        if details:
+            snapshot["details"] = {
+                str(key): _normalise_value(value) for key, value in details.items()
+            }
+        open_positions = portfolio_state.get("open_positions")
+        if isinstance(open_positions, Mapping):
+            snapshot["open_positions"] = len(open_positions)
+
+        self._last_policy_snapshot = snapshot
+        self._policy_history.append(snapshot)
+        self._last_policy_warning = {
+            "reason": snapshot_reason,
+            "metadata": snapshot.get("details", {}),
+        }
 
     def _record_risk_violation(
         self,

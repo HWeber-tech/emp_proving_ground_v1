@@ -1096,6 +1096,95 @@ async def test_trading_manager_tracks_order_attribution(
 
 
 @pytest.mark.asyncio()
+async def test_trading_manager_requires_complete_attribution_components(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+    )
+    engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+    manager.execution_engine = engine
+
+    partial_attribution = {
+        "diary_entry_id": "dd-partial",
+        "policy_id": "alpha.paper",
+        "belief": {
+            "belief_id": "belief-partial",
+            "symbol": "EURUSD",
+            "regime": "balanced",
+            "confidence": 0.42,
+        },
+    }
+
+    complete_attribution = {
+        "diary_entry_id": "dd-complete",
+        "policy_id": "alpha.paper",
+        "belief": {
+            "belief_id": "belief-complete",
+            "symbol": "EURUSD",
+            "regime": "balanced",
+            "confidence": 0.9,
+        },
+        "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "explanation": "Executed with full context",
+    }
+
+    partial_event: dict[str, Any] = {
+        "strategy_id": "alpha.paper",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "quantity": 1.0,
+        "price": 1.111,
+        "confidence": 0.8,
+        "metadata": {
+            "attribution": partial_attribution,
+        },
+    }
+
+    complete_event: dict[str, Any] = {
+        "strategy_id": "alpha.paper",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "quantity": 1.0,
+        "price": 1.112,
+        "confidence": 0.85,
+        "metadata": {
+            "attribution": complete_attribution,
+        },
+    }
+
+    validate_mock: AsyncMock = AsyncMock(side_effect=[partial_event, complete_event])
+    manager.risk_gateway.validate_trade_intent = validate_mock  # type: ignore[assignment]
+
+    first_outcome = await manager.on_trade_intent(partial_event)
+    assert first_outcome.executed is True
+    assert first_outcome.metadata.get("attribution") == partial_attribution
+
+    first_stats = manager.get_execution_stats()
+    assert first_stats.get("orders_with_attribution") == 0
+    assert first_stats.get("attribution_coverage") == 0.0
+
+    second_outcome = await manager.on_trade_intent(complete_event)
+    assert second_outcome.executed is True
+    assert second_outcome.metadata.get("attribution") == complete_attribution
+
+    second_stats = manager.get_execution_stats()
+    assert second_stats.get("orders_with_attribution") == 1
+    assert second_stats.get("attribution_coverage") == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio()
 async def test_trading_manager_records_gate_metadata_on_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

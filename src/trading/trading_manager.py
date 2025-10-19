@@ -3871,6 +3871,27 @@ class TradingManager:
 
         return probes
 
+    @staticmethod
+    def _attribution_payload_is_complete(payload: Mapping[str, Any] | None) -> bool:
+        if not isinstance(payload, Mapping):
+            return False
+
+        belief_block = payload.get("belief")
+        if not isinstance(belief_block, Mapping) or not belief_block:
+            return False
+
+        probes_block = payload.get("probes")
+        if not isinstance(probes_block, Sequence) or isinstance(probes_block, (str, bytes)):
+            return False
+        if not probes_block:
+            return False
+
+        explanation = payload.get("explanation")
+        if not isinstance(explanation, str) or not explanation.strip():
+            return False
+
+        return True
+
     def _update_attribution_stats(
         self,
         *,
@@ -3892,8 +3913,8 @@ class TradingManager:
             if isinstance(candidate, Mapping):
                 attribution_payload = self._normalise_attribution_payload(candidate)
 
-        has_attribution = bool(attribution_payload)
-        if has_attribution:
+        complete_attribution = self._attribution_payload_is_complete(attribution_payload)
+        if complete_attribution:
             self._order_attribution_with_context += 1
 
         coverage = (
@@ -3919,7 +3940,7 @@ class TradingManager:
             )
             self._attribution_warning_emitted = True
 
-        if has_attribution and coverage >= 0.9:
+        if complete_attribution and coverage >= 0.9:
             self._attribution_warning_emitted = False
 
     async def _emit_risk_interface_snapshot(self) -> None:

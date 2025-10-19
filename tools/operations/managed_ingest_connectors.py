@@ -420,14 +420,26 @@ def _ingest_configuration_metadata(
         for entry in symbol_inventory:
             if not isinstance(entry, Mapping):
                 continue
-            inventory_summary.append(
-                {
-                    "symbol": entry.get("symbol"),
-                    "margin_currency": entry.get("margin_currency"),
-                    "contract_size": entry.get("contract_size"),
-                    "pip_decimal_places": entry.get("pip_decimal_places"),
-                }
-            )
+            snapshot: dict[str, object] = {
+                "symbol": entry.get("symbol"),
+                "margin_currency": entry.get("margin_currency"),
+                "contract_size": entry.get("contract_size"),
+                "pip_decimal_places": entry.get("pip_decimal_places"),
+            }
+
+            swap_time = entry.get("swap_time")
+            if swap_time is not None:
+                snapshot["swap_time"] = swap_time
+
+            long_swap = entry.get("long_swap_rate")
+            if long_swap is not None:
+                snapshot["long_swap_rate"] = long_swap
+
+            short_swap = entry.get("short_swap_rate")
+            if short_swap is not None:
+                snapshot["short_swap_rate"] = short_swap
+
+            inventory_summary.append(snapshot)
         if inventory_summary:
             summary["symbol_inventory"] = inventory_summary
 

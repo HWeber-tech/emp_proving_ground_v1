@@ -1,0 +1,30 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "",
+        "selected_weight": 1.0,
+        "tactic_id": "bootstrap-strategy"
+      },
+      "entry_id": "diary-001",
+      "metadata": {},
+      "notes": [],
+      "outcomes": {},
+      "policy_id": "bootstrap-strategy",
+      "probes": [],
+      "recorded_at": "2025-10-19T21:12:58.152151+00:00",
+      "regime_state": {
+        "confidence": 0.5,
+        "regime": "balanced"
+      }
+    }
+  ],
+  "generated_at": "2025-10-19T21:12:58.152194+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-19T21:12:58.152120+00:00",
+    "probes": {}
+  }
+}

@@ -303,6 +303,16 @@ class AlphaTradeLoopRunner:
         coverage_snapshot = dict(self.describe_diary_coverage())
         loop_metadata_updates["diary_coverage"] = dict(coverage_snapshot)
         trade_metadata["diary_coverage"] = dict(coverage_snapshot)
+        if intent_payload is not None:
+            if not isinstance(intent_payload, MutableMapping):
+                intent_payload = dict(intent_payload)
+            intent_metadata = intent_payload.get("metadata")
+            if isinstance(intent_metadata, Mapping):
+                metadata_payload = dict(intent_metadata)
+            else:
+                metadata_payload = {}
+            metadata_payload["diary_coverage"] = dict(coverage_snapshot)
+            intent_payload["metadata"] = metadata_payload
         if has_diary_entry:
             diary_annotations["diary_coverage"] = dict(coverage_snapshot)
         if has_diary_entry and attribution_payload:

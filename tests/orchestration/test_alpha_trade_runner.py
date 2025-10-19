@@ -302,6 +302,8 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert isinstance(trade_execution, dict)
     assert trade_execution["status"] == "executed"
     expected_coverage = dict(runner.describe_diary_coverage())
+    intent_coverage = trading_manager.intents[0]["metadata"].get("diary_coverage")
+    assert intent_coverage == expected_coverage
     assert result.trade_metadata.get("diary_coverage") == expected_coverage
     assert result.loop_result.metadata.get("diary_coverage") == expected_coverage
     assert entry.metadata.get("diary_coverage") == expected_coverage
@@ -979,6 +981,9 @@ async def test_alpha_trade_runner_handles_missing_diary_entry(
     intent_metadata = trading_manager.intents[0].get("metadata")
     if isinstance(intent_metadata, Mapping):
         assert "attribution" not in intent_metadata
+        coverage_snapshot = intent_metadata.get("diary_coverage")
+        assert isinstance(coverage_snapshot, Mapping)
+        assert coverage_snapshot.get("missing") == 1
 
     assert diary_store.entries(), "expected diary store to keep previously recorded entries"
 

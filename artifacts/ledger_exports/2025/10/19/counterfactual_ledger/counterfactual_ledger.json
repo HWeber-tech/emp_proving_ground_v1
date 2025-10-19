@@ -5,11 +5,11 @@
         "ops",
         "risk"
       ],
-      "created_at": "2025-10-19T17:33:06.425072+00:00",
+      "created_at": "2025-10-19T17:55:48.634360+00:00",
       "evidence_id": "dd-alpha-live",
       "history": [
         {
-          "applied_at": "2025-10-19T17:33:06.425072+00:00",
+          "applied_at": "2025-10-19T17:55:48.634360+00:00",
           "approvals": [
             "ops",
             "risk"
@@ -29,8 +29,8 @@
       "policy_id": "alpha.live",
       "stage": "limited_live",
       "tactic_id": "alpha.live",
-      "updated_at": "2025-10-19T17:33:06.425072+00:00"
+      "updated_at": "2025-10-19T17:55:48.634360+00:00"
     }
   },
-  "updated_at": "2025-10-19T17:33:06.425234+00:00"
+  "updated_at": "2025-10-19T17:55:48.634504+00:00"
 }

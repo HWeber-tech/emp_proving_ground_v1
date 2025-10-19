@@ -1067,10 +1067,10 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
     missing_value = _coerce_int(missing_raw)
     if missing_value is not None:
         missing_value = max(missing_value, 0)
-        info.setdefault("missing", missing_value)
+        info["missing"] = missing_value
     elif iterations_provided and recorded_provided:
         inferred_missing = max(iterations - recorded, 0)
-        info.setdefault("missing", inferred_missing)
+        info["missing"] = inferred_missing
         missing_value = inferred_missing
 
     missing = missing_value or 0
@@ -1174,7 +1174,7 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
         status = _escalate(status, DashboardStatus.warn)
 
     if missing_field_names:
-        info.setdefault("missing_telemetry_fields", missing_field_names)
+        info["missing_telemetry_fields"] = missing_field_names
 
     if not details:
         details.append("No diary coverage telemetry available.")

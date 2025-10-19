@@ -1,62 +1,55 @@
 # Architecture Overview
 
-The EMP Professional Predator platform is built as a layered, event-driven
-system that ingests market data, evaluates trading hypotheses, and executes FIX
-orders against a simulator-first broker stack.  This document captures the
-stabilized view after the recent roadmap push so contributors can orient
-themselves without spelunking through legacy material.
+This overview mirrors the **current** EMP Proving Ground runtime: a simulator-
+backed harness that exercises the FIX plumbing while higher-level intelligence,
+strategy, and risk layers remain skeletal. Anything marked as *mock* below runs
+purely in-process with synthetic data.
 
-## Layered domains
+## System Posture
 
-| Layer | Responsibilities | Representative modules |
-| --- | --- | --- |
-| **Core** | Fundamental abstractions that are dependency free: the event bus, configuration primitives, telemetry shims, and common exception types. | `src/core/event_bus.py`, `src/core/config_access.py`, `src/core/telemetry.py` |
-| **Sensory** | Adapters that translate FIX market data and institutional feeds into normalized events placed on the bus. | `src/sensory/organs/dimensions/institutional_tracker.py`, `src/sensory/vendor/np_pd_shims.py` |
-| **Thinking** | Signal processing and analytical pipelines that consume normalized events to detect opportunities. | `src/thinking/analysis/correlation_analyzer.py`, `src/thinking/patterns/trend_detector.py` |
-| **Trading** | Portfolio state, order models, execution engines, and risk guards that convert decisions into FIX instructions. | `src/trading/execution/fix_executor.py`, `src/trading/models.py`, `src/risk/risk_manager_impl.py` |
-| **Orchestration & Operational** | Runtime glue that composes the system, loads configuration, enforces policy, and exposes observability endpoints. | `main.py`, `src/runtime/runtime_builder.py`, `src/orchestration/compose.py`, `src/operational/*` |
+- Entrypoint: `main.py` builds the runtime and always selects the mock FIX stack.
+- Market data & fills: `src/operational/mock_fix.py` synthesises ticks and
+  executions; there is no live venue connectivity shipped in this repository.
+- Trading scaffolding: `src/trading/` provides interfaces and telemetry routing
+  but delegates to logging or TODO blocks for real decision logic.
+- Evolution/intelligence layers: interface definitions only, gated by feature
+  flags and unimplemented execution hooks.
 
-Dependencies flow downward only; each layer consumes services from layers below
-it and communicates up-stack via domain events.  Import-linter contracts in
-`contracts/importlinter.toml` enforce these edges.
+## Runtime Walkthrough
 
-## Event-driven runtime
+```mermaid
+flowchart TD
+    entry["CLI entrypoint\n`main.py`"] --> runtime["Runtime builder\n`src/runtime/runtime_builder.py`"]
+    runtime --> bridge["FIXConnectionManager\n(selects mock)"]
+    bridge --> mock["Mock FIX stack\n`MockFIXManager`\n*mock only*"]
+    runtime --> sensory["Sensory sensors\n(run on mock events)"]
+    runtime --> trading["Trading layer\n(strategy/risk stubs)"]
+    runtime --> evolution["Evolution engine\n(interfaces only)"]
+    runtime --> observability["Telemetry snapshots\n(structured logs & markdown)"]
+```
 
-1. **Bootstrap** – `main.py` loads the typed `SystemConfig`, validates the
-   scientific stack, and activates guardrails (policy enforcement, dependency
-   sanity checks).
-2. **Wiring** – Core services such as the asynchronous event bus and telemetry
-   facades are created and passed to sensory/trading subsystems.
-3. **Ingestion** – Sensory organs translate broker feeds, Yahoo Finance
-   snapshots, or replay fixtures into strongly typed events on the bus.
-4. **Decision loop** – Thinking modules subscribe to topics, enrich the market
-   state, and emit hypotheses for execution.
-5. **Execution** – Trading pipelines evaluate risk, construct FIX orders, and
-   send them to the simulator while updating telemetry counters.
-6. **Observation** – Metrics exporters and structured logs surface system
-   health.  The CI workflow publishes concise summaries for failure triage.
+1. `main.py` loads configuration, initialises structured logging, and invokes
+   `build_professional_predator_app`.
+2. The runtime builder wires the event bus, registry scaffolding, and the
+   `FIXConnectionManager`, which defaults to the mock when no live credentials
+   are present (the public repository ships no credentials).
+3. `MockFIXManager` generates deterministic order lifecycle events, powering the
+   sensory organs and trading scaffolding for regression and exploratory runs.
+4. Sensory components consume the mock events to compute diagnostics; they do
+   not source external data.
+5. Trading, risk, and evolution packages expose abstractions and telemetry, but
+   the business logic is intentionally incomplete pending future development.
 
-## Configuration story
+## Reality Checklist
 
-* **SystemConfig** (in `src/governance/system_config.py`) is the canonical,
-  strongly typed configuration object.  The helper now exposes
-  `SystemConfig.from_yaml` alongside `from_env` so CLI tools and orchestrators
-  can load production overrides without touching legacy shims.
-* The legacy `src.core.configuration` module has been retired; its YAML loader
-  and environment bridge logic now resolve through the canonical SystemConfig
-  API to prevent shim code from resurfacing.
-* Runtime defaults live in `config.yaml`, which is aligned with the FIX-only
-  policy and simulator-first posture.
+| Component | Status |
+| --- | --- |
+| Data ingress | Mock FIX events only. No Timescale, Redis, Kafka, or live market feeds are wired. |
+| Execution routing | Simulator orders only; live adapters are placeholders guarded by TODOs. |
+| Strategy & risk | Interfaces with logging stubs; no production decisioning. |
+| Evolution engine | Feature-flagged scaffolding with unimplemented workers. |
+| Observability | Structured logging plus Markdown status exports for the simulator environment. |
 
-## Observability baseline
-
-* Structured logging is emitted via the standard `logging` package with module
-  loggers.  Policy and dependency failures abort startup loudly.
-* CI publishes a step summary and uploads pytest logs to surface failures
-  without the retired Kilocode bridge.
-* `scripts/audit_dead_code.py` and the CI baseline report in `docs/reports/`
-  provide periodic hygiene snapshots.
-
-Refer to `docs/architecture/refactor_roadmap.md` for the long-term decomposition
-plan and to `docs/operations/observability_plan.md` for alerting strategy
-details.
+For the canonical truth about implementation coverage, see
+`docs/DEVELOPMENT_STATUS.md` and update this diagram whenever modules graduate
+from mock to real integrations.

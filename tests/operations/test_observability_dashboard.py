@@ -980,6 +980,57 @@ def test_diary_panel_reports_coverage_success() -> None:
     assert coverage_meta["target_percent"] == pytest.approx(95.0)
 
 
+def test_diary_panel_infers_coverage_from_percentages() -> None:
+    coverage_snapshot = {
+        "coverage_percent": 96.0,
+        "target_percent": 95.0,
+        "iterations": 50,
+        "recorded": 48,
+    }
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.ok
+    assert "Coverage 96.00%" in panel.headline
+
+    payload = panel.metadata["decision_diary"]
+    coverage_meta = payload["coverage"]
+    assert coverage_meta["coverage_inferred"] is True
+    assert coverage_meta["coverage"] == pytest.approx(0.96)
+    assert coverage_meta["coverage_percent"] == pytest.approx(96.0)
+    assert coverage_meta["target"] == pytest.approx(0.95)
+    assert coverage_meta["target_percent"] == pytest.approx(95.0)
+
+
+def test_diary_panel_infers_coverage_from_counts() -> None:
+    coverage_snapshot = {
+        "iterations": 20,
+        "recorded": 19,
+        "target": 0.95,
+    }
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.ok
+    assert any("Recorded 19 of 20" in detail for detail in panel.details)
+
+    payload = panel.metadata["decision_diary"]
+    coverage_meta = payload["coverage"]
+    assert coverage_meta["coverage_inferred"] is True
+    assert coverage_meta["coverage"] == pytest.approx(0.95)
+    assert coverage_meta["coverage_percent"] == pytest.approx(95.0)
+
+
 def test_diary_panel_flags_coverage_shortfall() -> None:
     coverage_snapshot = {
         "coverage": 0.88,
@@ -1080,3 +1131,8 @@ def test_diary_panel_warns_on_missing_telemetry() -> None:
     assert alerts["coverage_below_target"] is False
     assert alerts["missing_telemetry"] is True
     assert payload["coverage"]["target_inferred"] is True
+    assert payload["coverage"]["missing_telemetry_fields"] == (
+        "coverage",
+        "iterations",
+        "recorded",
+    )

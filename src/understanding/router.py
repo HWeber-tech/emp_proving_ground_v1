@@ -244,6 +244,7 @@ class UnderstandingRouter:
         if config.run_mode is RunMode.live:
             exploration_fraction = 0.0
             exploration_cadence = None
+        allow_forced_exploration = config.run_mode is not RunMode.live
 
         policy_router = PolicyRouter(
             default_guardrails=default_guardrails,
@@ -252,6 +253,7 @@ class UnderstandingRouter:
             fast_weight_controller=controller,
             exploration_max_fraction=exploration_fraction,
             exploration_mutate_every=exploration_cadence,
+            allow_forced_exploration=allow_forced_exploration,
         )
         return cls(policy_router=policy_router)
 

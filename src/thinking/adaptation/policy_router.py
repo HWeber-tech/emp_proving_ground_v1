@@ -376,6 +376,7 @@ class PolicyRouter:
         tournament_min_regime_decisions: int = 3,
         tournament_weights: Mapping[str, float] | None = None,
         tournament_bonus: float = 0.25,
+        allow_forced_exploration: bool = True,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -404,6 +405,7 @@ class PolicyRouter:
             self._tournament_min_regime_decisions = 0
         self._tournament_weights = dict(self._normalise_tournament_weights(tournament_weights))
         self._tournament_bonus = max(0.0, float(tournament_bonus))
+        self._allow_forced_exploration = bool(allow_forced_exploration)
 
     def exploration_freeze_active(self) -> bool:
         """Return ``True`` when exploration is currently frozen."""
@@ -824,6 +826,22 @@ class PolicyRouter:
                 exploration_context["budget_before"] = dict(budget_before)
         else:
             working_entries = list(ranked_entries)
+
+        if (
+            exploration_context is not None
+            and bool(exploration_context.get("forced"))
+            and not self._allow_forced_exploration
+        ):
+            reasons = {
+                str(entry.get("reason"))
+                for entry in exploration_context.get("blocked_candidates", [])
+                if entry.get("reason")
+            }
+            reason_hint = f" (reasons: {', '.join(sorted(reasons))})" if reasons else ""
+            raise RuntimeError(
+                "Exploration tactics cannot be forced while the router forbids forced exploration"
+                f"{reason_hint}"
+            )
 
         if not working_entries:
             raise RuntimeError("no tactics available after budgeting")

@@ -287,3 +287,20 @@ def test_understanding_router_live_mode_disables_exploration() -> None:
     assert blocked and blocked[0]["tactic_id"] == "probe"
     assert blocked[0]["reason"] == "budget_exhausted"
     assert metadata["budget_after"]["exploration_decisions"] == 0
+
+
+def test_understanding_router_live_mode_rejects_exploration_only_catalog() -> None:
+    config = SystemConfig(run_mode=RunMode.live)
+    router = UnderstandingRouter.from_system_config(config)
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="probe",
+            base_weight=1.2,
+            regime_bias={"balanced": 1.0},
+            exploration=True,
+            tags=("exploration",),
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="cannot be forced"):
+        router.route(_build_snapshot())

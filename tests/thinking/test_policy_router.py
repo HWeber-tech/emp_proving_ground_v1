@@ -480,6 +480,21 @@ def test_exploration_budget_enforces_flow_limit() -> None:
     assert follow_blocked and follow_blocked[0]["reason"] == "budget_exhausted"
 
 
+def test_exploration_forced_selection_disallowed_when_flagged() -> None:
+    router = PolicyRouter(exploration_max_fraction=0.0, allow_forced_exploration=False)
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="explore",
+            base_weight=1.0,
+            regime_bias={"bull": 1.0},
+            exploration=True,
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="cannot be forced"):
+        router.route(_regime())
+
+
 def test_exploration_budget_respects_mutation_cadence() -> None:
     router = PolicyRouter(exploration_mutate_every=3)
     router.register_tactic(

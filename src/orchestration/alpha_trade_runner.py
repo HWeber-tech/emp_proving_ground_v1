@@ -248,13 +248,17 @@ class AlphaTradeLoopRunner:
             )
             trade_metadata["guardrails"] = merged_guardrails
 
+        diary_entry = loop_result.diary_entry
+        has_diary_entry = diary_entry is not None
         attribution_payload = self._build_order_attribution(
             belief_state=belief_state,
             decision_bundle=loop_result.decision_bundle,
-            diary_entry=loop_result.diary_entry,
+            diary_entry=diary_entry,
         )
-        if attribution_payload:
-            trade_metadata.setdefault("attribution", attribution_payload)
+        if has_diary_entry and attribution_payload:
+            trade_metadata["attribution"] = attribution_payload
+        else:
+            trade_metadata.pop("attribution", None)
 
         intent_payload = None
         if trade_plan.intent is not None:
@@ -262,8 +266,10 @@ class AlphaTradeLoopRunner:
             metadata_payload = dict(raw_intent.get("metadata", {}))
             if "fast_weight" not in metadata_payload:
                 metadata_payload["fast_weight"] = dict(fast_weight_metadata)
-            if attribution_payload and "attribution" not in metadata_payload:
+            if has_diary_entry and attribution_payload:
                 metadata_payload["attribution"] = attribution_payload
+            else:
+                metadata_payload.pop("attribution", None)
             if guardrails_payload:
                 base_guardrails = metadata_payload.get("guardrails")
                 if base_guardrails is None and merged_guardrails is not None:
@@ -294,15 +300,13 @@ class AlphaTradeLoopRunner:
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
-        has_diary_entry = loop_result.diary_entry is not None
         coverage_snapshot = dict(self.describe_diary_coverage())
-        loop_metadata_updates.setdefault("diary_coverage", coverage_snapshot)
-        trade_metadata.setdefault("diary_coverage", dict(coverage_snapshot))
+        loop_metadata_updates["diary_coverage"] = dict(coverage_snapshot)
+        trade_metadata["diary_coverage"] = dict(coverage_snapshot)
         if has_diary_entry:
-            diary_annotations.setdefault("diary_coverage", dict(coverage_snapshot))
-        if attribution_payload:
-            if has_diary_entry:
-                diary_annotations["attribution"] = attribution_payload
+            diary_annotations["diary_coverage"] = dict(coverage_snapshot)
+        if has_diary_entry and attribution_payload:
+            diary_annotations["attribution"] = attribution_payload
             loop_metadata_updates["attribution"] = attribution_payload
         if mitigation_payload:
             mitigation_copy = dict(mitigation_payload)
@@ -367,6 +371,8 @@ class AlphaTradeLoopRunner:
         elif loop_metadata_updates:
             merged_loop_metadata = dict(loop_result.metadata)
             merged_loop_metadata.update(loop_metadata_updates)
+            if not has_diary_entry:
+                merged_loop_metadata.pop("attribution", None)
             loop_result = replace(
                 loop_result,
                 metadata=MappingProxyType(merged_loop_metadata),

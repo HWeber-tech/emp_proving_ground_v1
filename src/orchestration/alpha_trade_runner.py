@@ -1103,8 +1103,14 @@ class AlphaTradeLoopRunner:
             inferred_price = price_hint
         metadata.setdefault("price", inferred_price)
 
-        confidence = regime_signal.regime_state.confidence
-        metadata.setdefault("confidence", confidence)
+        confidence_override = _coerce_float(metadata.get("confidence"))
+        regime_confidence = _coerce_float(regime_signal.regime_state.confidence)
+        if confidence_override is not None:
+            metadata["confidence"] = self._bound_probability(confidence_override)
+        elif regime_confidence is not None:
+            metadata["confidence"] = self._bound_probability(regime_confidence)
+        else:
+            metadata.pop("confidence", None)
 
         quantity_value = _coerce_float(metadata.get("quantity"))
         price_value = _coerce_float(metadata.get("price"))
@@ -1145,17 +1151,27 @@ class AlphaTradeLoopRunner:
 
         intent_timestamp = belief_state.generated_at if isinstance(belief_state.generated_at, datetime) else datetime.now()
 
+        intent_confidence = _coerce_float(metadata.get("confidence"))
+        if intent_confidence is None and regime_confidence is not None:
+            intent_confidence = regime_confidence
+        if intent_confidence is not None:
+            intent_confidence = self._bound_probability(intent_confidence)
+            metadata["confidence"] = intent_confidence
+        else:
+            intent_confidence = 0.0
+            metadata.pop("confidence", None)
+
         intent: MutableMapping[str, Any] = {
             "strategy_id": metadata.get("policy_id"),
             "symbol": metadata.get("symbol"),
             "side": side_value.upper(),
             "quantity": quantity_value,
             "price": price_value,
-            "confidence": metadata.get("confidence", confidence),
+            "confidence": intent_confidence,
             "timestamp": intent_timestamp,
             "metadata": {
                 "regime": regime_signal.regime_state.regime,
-                "confidence": regime_signal.regime_state.confidence,
+                "confidence": intent_confidence,
             },
         }
 
@@ -1406,9 +1422,31 @@ class AlphaTradeLoopRunner:
         if isinstance(overrides, Mapping):
             metadata.update({str(key): value for key, value in overrides.items()})
 
-        metadata.setdefault("symbol", decision.get("parameters", {}).get("symbol") or belief_state.symbol)
+        metadata.setdefault(
+            "symbol",
+            decision.get("parameters", {}).get("symbol") or belief_state.symbol,
+        )
         metadata.setdefault("policy_id", decision.get("tactic_id"))
         metadata.setdefault("side", decision.get("parameters", {}).get("side"))
+
+        confidence_override = _coerce_float(metadata.get("confidence"))
+        regime_confidence = _coerce_float(metadata.get("regime_confidence"))
+        bounded_confidence = None
+        if confidence_override is not None:
+            bounded_confidence = AlphaTradeLoopRunner._bound_probability(confidence_override)
+        elif regime_confidence is not None:
+            bounded_confidence = AlphaTradeLoopRunner._bound_probability(regime_confidence)
+        elif isinstance(regime_signal, RegimeSignal):
+            fallback_confidence = _coerce_float(regime_signal.regime_state.confidence)
+            if fallback_confidence is not None:
+                bounded_confidence = AlphaTradeLoopRunner._bound_probability(
+                    fallback_confidence
+                )
+
+        if bounded_confidence is not None:
+            metadata["confidence"] = bounded_confidence
+        else:
+            metadata.pop("confidence", None)
 
         quantity_value = metadata.get("quantity")
         if quantity_value is None:
@@ -1445,19 +1483,27 @@ class AlphaTradeLoopRunner:
         else:
             timestamp_parsed = None
 
+        intent_confidence = bounded_confidence
+        if intent_confidence is None:
+            fallback_confidence = _coerce_float(regime_signal.regime_state.confidence)
+            if fallback_confidence is not None:
+                intent_confidence = AlphaTradeLoopRunner._bound_probability(
+                    fallback_confidence
+                )
+        if intent_confidence is None:
+            intent_confidence = 0.0
+
         intent: MutableMapping[str, Any] = {
             "strategy_id": metadata.get("policy_id") or decision.get("tactic_id"),
             "symbol": metadata.get("symbol"),
             "side": side,
             "quantity": quantity,
             "price": price,
-            "confidence": metadata.get("confidence")
-            or metadata.get("regime_confidence")
-            or regime_signal.regime_state.confidence,
+            "confidence": intent_confidence,
             "timestamp": timestamp_parsed or belief_state.generated_at or datetime.now(),
             "metadata": {
                 "regime": regime_signal.regime_state.regime,
-                "confidence": regime_signal.regime_state.confidence,
+                "confidence": intent_confidence,
             },
         }
 

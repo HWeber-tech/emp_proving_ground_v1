@@ -170,7 +170,8 @@ def test_apply_auto_applied_suggestions_records_metadata(tmp_path: Path) -> None
     assert rejections is not None
     rejection_payload = rejections.get("rim-reject")
     assert rejection_payload is not None
-    assert rejection_payload["auto_apply"]["reasons"] == ["risk_hits_exceeded:2>0"]
+    rejection_reasons = rejection_payload["auto_apply"].get("reasons", [])
+    assert "risk_hits_exceeded:2>0" in rejection_reasons
     assert record.rejected_proposals == ("rim-reject",)
 
     # Re-running should be idempotent.

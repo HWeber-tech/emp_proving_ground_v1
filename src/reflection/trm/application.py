@@ -343,8 +343,12 @@ def _build_rejection_payload(
 ) -> Mapping[str, object] | None:
     if not isinstance(auto_apply, Mapping):
         return None
+    failure_reasons = ()
+    if isinstance(auto_apply, Mapping):
+        failure_reasons = _collect_auto_apply_failure_reasons(auto_apply)
+
     applied_flag = auto_apply.get("applied")
-    if isinstance(applied_flag, bool) and applied_flag:
+    if isinstance(applied_flag, bool) and applied_flag and not failure_reasons:
         return None
 
     payload: MutableMapping[str, object] = {
@@ -376,9 +380,12 @@ def _build_rejection_payload(
     evaluation = auto_apply.get("evaluation")
     if isinstance(evaluation, Mapping):
         metadata_block["evaluation"] = dict(evaluation)
-    reasons = auto_apply.get("reasons")
-    if isinstance(reasons, Iterable) and not isinstance(reasons, (str, bytes)):
-        metadata_block["reasons"] = [str(reason) for reason in reasons]
+    if failure_reasons:
+        metadata_block["reasons"] = list(failure_reasons)
+    else:
+        reasons = auto_apply.get("reasons")
+        if isinstance(reasons, Iterable) and not isinstance(reasons, (str, bytes)):
+            metadata_block["reasons"] = [str(reason) for reason in reasons]
     payload["auto_apply"] = metadata_block
     return payload
 

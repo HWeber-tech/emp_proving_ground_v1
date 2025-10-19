@@ -325,16 +325,23 @@ class AlphaTradeLoopRunner:
             loop_metadata_updates["drift_mitigation"] = mitigation_copy
         if intent_payload is not None:
             outcome = await self._trading_manager.on_trade_intent(intent_payload)
-            trade_outcome = outcome
             if outcome is not None:
+                trade_outcome = self._attach_trade_outcome_metadata(
+                    trade_outcome=outcome,
+                    coverage_snapshot=coverage_snapshot,
+                    attribution_payload=attribution_payload if has_diary_entry else None,
+                )
+            else:
+                trade_outcome = None
+            if trade_outcome is not None:
                 trade_execution_payload: dict[str, Any] = {
-                    "status": outcome.status,
-                    "executed": outcome.executed,
+                    "status": trade_outcome.status,
+                    "executed": trade_outcome.executed,
                 }
-                if outcome.metadata:
-                    trade_execution_payload["metadata"] = dict(outcome.metadata)
-                if outcome.throttle:
-                    trade_execution_payload["throttle"] = dict(outcome.throttle)
+                if trade_outcome.metadata:
+                    trade_execution_payload["metadata"] = dict(trade_outcome.metadata)
+                if trade_outcome.throttle:
+                    trade_execution_payload["throttle"] = dict(trade_outcome.throttle)
                 if has_diary_entry:
                     diary_annotations["trade_execution"] = trade_execution_payload
                 loop_metadata_updates["trade_execution"] = trade_execution_payload
@@ -623,6 +630,38 @@ class AlphaTradeLoopRunner:
             "explanation": explanation,
         }
         return attribution
+
+    def _attach_trade_outcome_metadata(
+        self,
+        *,
+        trade_outcome: "TradeIntentOutcome",
+        coverage_snapshot: Mapping[str, Any],
+        attribution_payload: Mapping[str, Any] | None,
+    ) -> "TradeIntentOutcome":
+        metadata: dict[str, Any]
+        if isinstance(trade_outcome.metadata, Mapping):
+            metadata = dict(trade_outcome.metadata)
+        else:
+            metadata = {}
+
+        changed = False
+
+        coverage_payload = dict(coverage_snapshot)
+        if metadata.get("diary_coverage") != coverage_payload:
+            metadata["diary_coverage"] = coverage_payload
+            changed = True
+
+        if attribution_payload is not None:
+            if metadata.get("attribution") != attribution_payload:
+                metadata["attribution"] = attribution_payload
+                changed = True
+        elif metadata.pop("attribution", None) is not None:
+            changed = True
+
+        if not changed:
+            return trade_outcome
+
+        return replace(trade_outcome, metadata=metadata)
 
     def _handle_exploration_freeze(
         self,

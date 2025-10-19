@@ -85,6 +85,28 @@ def _escalate(
     return current
 
 
+def _coerce_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalise_percent(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if value > 1.0 + 1e-9:
+        return value
+    return value * 100.0
+
+
 @dataclass(frozen=True)
 class DashboardPanel:
     """Single panel rendered on the observability dashboard."""
@@ -289,6 +311,37 @@ def _event_as_dict(event: Any) -> Mapping[str, Any]:
     if not isinstance(metadata, Mapping):
         payload["metadata"] = {}
     return payload
+
+
+def _extract_diary_coverage(
+    loop_results: Sequence[Any] | None,
+) -> Mapping[str, Any] | None:
+    if not loop_results:
+        return None
+
+    candidates: list[Mapping[str, Any]] = []
+    for result in loop_results:
+        candidate: Mapping[str, Any] | None = None
+        metadata = getattr(result, "metadata", None)
+        if isinstance(metadata, Mapping):
+            candidate = metadata.get("diary_coverage")  # type: ignore[assignment]
+        if candidate is None and isinstance(result, Mapping):
+            metadata_mapping = result.get("metadata") if "metadata" in result else None
+            if isinstance(metadata_mapping, Mapping):
+                candidate = metadata_mapping.get("diary_coverage")  # type: ignore[assignment]
+            elif isinstance(result.get("diary_coverage"), Mapping):
+                candidate = result.get("diary_coverage")  # type: ignore[assignment]
+        if candidate is None:
+            trade_metadata = getattr(result, "trade_metadata", None)
+            if isinstance(trade_metadata, Mapping):
+                candidate = trade_metadata.get("diary_coverage")  # type: ignore[assignment]
+        if isinstance(candidate, Mapping) and candidate:
+            candidates.append(candidate)
+
+    if not candidates:
+        return None
+
+    return dict(candidates[-1])
 
 
 def _coerce_timestamp(value: Any) -> datetime | None:
@@ -726,12 +779,6 @@ def _build_operator_leverage_panel(
     if not isinstance(operator_count, int):
         operator_count = len(operators)
 
-    def _coerce_float(value: Any) -> float | None:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
     avg_per_week = _coerce_float(snapshot_dict.get("experiments_per_week"))
     total_per_week = _coerce_float(snapshot_dict.get("experiments_per_week_total"))
     if avg_per_week is None and total_per_week is not None and operator_count:
@@ -809,6 +856,129 @@ def _build_operator_leverage_panel(
         headline=headline,
         details=tuple(details),
         metadata={"operator_leverage": snapshot_dict},
+    )
+
+
+def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
+    coverage_payload = _extract_diary_coverage(loop_results)
+    if coverage_payload is None:
+        return DashboardPanel(
+            name="Decision diary",
+            status=DashboardStatus.warn,
+            headline="Diary coverage telemetry unavailable",
+            details=(
+                "No diary coverage metadata emitted; ensure AlphaTrade loop results include "
+                "runner.describe_diary_coverage() snapshots.",
+            ),
+            metadata={"decision_diary": {"status": "missing"}},
+        )
+
+    info = dict(coverage_payload)
+    coverage_value = _coerce_float(info.get("coverage"))
+    target_value = _coerce_float(info.get("target"))
+    iterations = _coerce_int(info.get("iterations")) or 0
+    recorded = _coerce_int(info.get("recorded")) or 0
+    missing = _coerce_int(info.get("missing"))
+    if missing is None:
+        missing = max(iterations - recorded, 0)
+    else:
+        missing = max(missing, 0)
+    minimum_samples = _coerce_int(info.get("minimum_samples")) or 0
+    gap_threshold = _coerce_float(info.get("gap_threshold_seconds"))
+    gap_breach = bool(info.get("gap_breach"))
+    last_recorded_at = info.get("last_recorded_at")
+
+    coverage_percent = _normalise_percent(coverage_value)
+    target_percent = _normalise_percent(target_value)
+
+    if coverage_percent is not None:
+        info.setdefault("coverage_percent", coverage_percent)
+    if target_percent is not None:
+        info.setdefault("target_percent", target_percent)
+
+    if coverage_percent is not None and target_percent is not None:
+        headline = f"Coverage {coverage_percent:.2f}% (target {target_percent:.2f}%)"
+    elif coverage_percent is not None:
+        headline = f"Coverage {coverage_percent:.2f}%"
+    elif target_percent is not None:
+        headline = f"Coverage target {target_percent:.2f}%"
+    else:
+        headline = "Coverage telemetry unavailable"
+
+    status = DashboardStatus.ok
+    details: list[str] = []
+
+    if iterations:
+        detail_line = f"Recorded {recorded} of {iterations} iterations"
+        if missing:
+            detail_line += f"; missing {missing}"
+        details.append(detail_line)
+    else:
+        details.append("No loop iterations recorded yet.")
+        status = _escalate(status, DashboardStatus.warn)
+
+    insufficient_samples = False
+    if minimum_samples and iterations < minimum_samples:
+        insufficient_samples = True
+        details.append(
+            f"Minimum sample {minimum_samples} not satisfied (observed {iterations})."
+        )
+        status = _escalate(status, DashboardStatus.warn)
+
+    coverage_below_target = False
+    if (
+        coverage_value is not None
+        and target_value is not None
+        and coverage_value + 1e-9 < target_value
+    ):
+        coverage_below_target = True
+        if coverage_percent is not None and target_percent is not None:
+            shortfall = target_percent - coverage_percent
+            details.append(f"Coverage shortfall {shortfall:.2f}pp vs target.")
+        else:
+            details.append("Coverage below target.")
+        status = _escalate(status, DashboardStatus.fail)
+
+    if missing and missing > 0 and not coverage_below_target:
+        details.append(f"Missing {missing} diary entries across recent iterations.")
+
+    if gap_breach:
+        message = "Diary gap alert active"
+        if gap_threshold is not None:
+            message += f" (> {gap_threshold:.0f}s)"
+        if last_recorded_at:
+            message += f"; last recorded {last_recorded_at}"
+        details.append(message)
+        status = _escalate(status, DashboardStatus.fail)
+    else:
+        if last_recorded_at:
+            details.append(f"Last recorded at {last_recorded_at}")
+        if gap_threshold is not None:
+            details.append(f"Gap threshold {gap_threshold:.0f}s monitored")
+
+    if not details:
+        details.append("No diary coverage telemetry available.")
+
+    metadata_payload = {
+        "decision_diary": {
+            "coverage": info,
+            "alerts": {
+                "coverage_below_target": coverage_below_target,
+                "gap_breach": gap_breach,
+                "insufficient_samples": insufficient_samples,
+            },
+        }
+    }
+
+    if coverage_percent is None or target_percent is None:
+        status = _escalate(status, DashboardStatus.warn)
+
+    return DashboardPanel(
+        name="Decision diary",
+        status=status,
+        headline=headline,
+        details=tuple(details),
+        metadata=metadata_payload,
     )
 
 
@@ -1371,6 +1541,8 @@ def build_observability_dashboard(
         panels.append(
             _build_policy_graduation_panel(policy_graduation_assessments)
         )
+
+    panels.append(_build_diary_panel(loop_results))
 
     if understanding_snapshot is not None:
         export_understanding_throttle_metrics(understanding_snapshot)

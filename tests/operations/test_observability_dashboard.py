@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from typing import Mapping
+from typing import Any, Mapping
 
 try:  # Python 3.10 compatibility
     from datetime import UTC
@@ -97,6 +97,17 @@ def _roi_snapshot() -> RoiTelemetrySnapshot:
         breakeven_daily_return=0.0003,
         target_annual_roi=0.25,
     )
+
+
+class _LoopResultStub:
+    def __init__(
+        self,
+        *,
+        metadata: Mapping[str, Any] | None = None,
+        events: tuple[ComplianceEvent, ...] = (),
+    ) -> None:
+        self.metadata = dict(metadata or {})
+        self.compliance_events = events
 
 
 def _event_bus_snapshot() -> EventBusHealthSnapshot:
@@ -266,6 +277,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "System health",
         "Operational readiness",
         "Quality & coverage",
+        "Decision diary",
         "Understanding loop",
     }
 
@@ -308,6 +320,14 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert "event_bus" in latency_panel.metadata
     assert "slos" in latency_panel.metadata
 
+    diary_panel = next(
+        panel for panel in dashboard.panels if panel.name == "Decision diary"
+    )
+    assert diary_panel.status is DashboardStatus.warn
+    assert "coverage" in diary_panel.headline.lower()
+    assert "decision_diary" in diary_panel.metadata
+    assert diary_panel.metadata["decision_diary"]["status"] == "missing"
+
     system_panel = next(
         panel for panel in dashboard.panels if panel.name == "System health"
     )
@@ -332,7 +352,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     metadata_counts = dashboard.metadata["panel_status_counts"]
     assert metadata_counts == {
         DashboardStatus.ok.value: 1,
-        DashboardStatus.warn.value: 8,
+        DashboardStatus.warn.value: 9,
         DashboardStatus.fail.value: 1,
     }
     metadata_statuses = dashboard.metadata["panel_statuses"]
@@ -341,12 +361,13 @@ def test_build_dashboard_composes_panels_and_status() -> None:
     assert metadata_statuses["Compliance & governance"] == DashboardStatus.warn.value
     assert metadata_statuses["Operator leverage"] == DashboardStatus.warn.value
     assert metadata_statuses["Understanding loop"] == DashboardStatus.warn.value
+    assert metadata_statuses["Decision diary"] == DashboardStatus.warn.value
     assert metadata_statuses["Evolution KPIs"] == DashboardStatus.warn.value
 
     remediation = dashboard.remediation_summary()
     assert remediation["overall_status"] == DashboardStatus.fail.value
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 1
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 8
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 9
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 1
     assert remediation["failing_panels"] == ("Risk & exposure",)
     assert set(remediation["warning_panels"]) == {
@@ -358,6 +379,7 @@ def test_build_dashboard_composes_panels_and_status() -> None:
         "Understanding loop",
         "Evolution KPIs",
         "Operator leverage",
+        "Decision diary",
     }
     assert remediation["healthy_panels"] == ("PnL & ROI",)
 
@@ -373,12 +395,8 @@ def test_compliance_panel_records_breach_event() -> None:
         metadata={"reason": "limit_exceeded"},
     )
 
-    class _LoopResultStub:
-        def __init__(self, events: tuple[ComplianceEvent, ...]) -> None:
-            self.compliance_events = events
-
     dashboard = build_observability_dashboard(
-        loop_results=[_LoopResultStub((breach_event,))],
+        loop_results=[_LoopResultStub(events=(breach_event,))],
     )
 
     compliance_panel = next(
@@ -397,7 +415,7 @@ def test_dashboard_handles_missing_inputs() -> None:
     dashboard = build_observability_dashboard()
 
     assert dashboard.status is DashboardStatus.warn
-    assert len(dashboard.panels) == 4
+    assert len(dashboard.panels) == 5
     panels_by_name = {panel.name: panel for panel in dashboard.panels}
 
     compliance_panel = panels_by_name["Compliance & governance"]
@@ -417,6 +435,10 @@ def test_dashboard_handles_missing_inputs() -> None:
     assert "unavailable" in understanding_panel.headline.lower()
     assert "graph diagnostics" in understanding_panel.details[0].lower()
 
+    diary_panel = panels_by_name["Decision diary"]
+    assert diary_panel.status is DashboardStatus.warn
+    assert "coverage" in diary_panel.headline.lower()
+
     markdown = dashboard.to_markdown()
     assert "| Panel" in markdown
     assert "Compliance & governance" in markdown
@@ -429,10 +451,11 @@ def test_dashboard_handles_missing_inputs() -> None:
         "Evolution KPIs",
         "Operator leverage",
         "Understanding loop",
+        "Decision diary",
     }
     assert payload["metadata"]["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 4,
+        DashboardStatus.warn.value: 5,
         DashboardStatus.fail.value: 0,
     }
     assert payload["metadata"]["panel_statuses"] == {
@@ -440,11 +463,12 @@ def test_dashboard_handles_missing_inputs() -> None:
         "Evolution KPIs": DashboardStatus.warn.value,
         "Operator leverage": DashboardStatus.warn.value,
         "Understanding loop": DashboardStatus.warn.value,
+        "Decision diary": DashboardStatus.warn.value,
     }
 
     remediation = payload["remediation_summary"]
     assert remediation["overall_status"] == DashboardStatus.warn.value
-    assert remediation["panel_counts"][DashboardStatus.warn.value] == 4
+    assert remediation["panel_counts"][DashboardStatus.warn.value] == 5
     assert remediation["panel_counts"][DashboardStatus.ok.value] == 0
     assert remediation["panel_counts"][DashboardStatus.fail.value] == 0
     assert set(remediation["warning_panels"]) == {
@@ -452,6 +476,7 @@ def test_dashboard_handles_missing_inputs() -> None:
         "Evolution KPIs",
         "Operator leverage",
         "Understanding loop",
+        "Decision diary",
     }
     assert remediation["healthy_panels"] == ()
     assert remediation["failing_panels"] == ()
@@ -470,16 +495,17 @@ def test_dashboard_merges_additional_panels() -> None:
     dashboard = build_observability_dashboard(additional_panels=[custom_panel])
 
     assert dashboard.status is DashboardStatus.warn
-    assert len(dashboard.panels) == 5
+    assert len(dashboard.panels) == 6
     assert dashboard.panels[0] is custom_panel
     panels_by_name = {panel.name: panel for panel in dashboard.panels[1:]}
     assert panels_by_name["Compliance & governance"].status is DashboardStatus.warn
     assert panels_by_name["Evolution KPIs"].status is DashboardStatus.warn
     assert panels_by_name["Operator leverage"].status is DashboardStatus.warn
     assert panels_by_name["Understanding loop"].status is DashboardStatus.warn
+    assert panels_by_name["Decision diary"].status is DashboardStatus.warn
     assert dashboard.metadata["panel_status_counts"] == {
         DashboardStatus.ok.value: 0,
-        DashboardStatus.warn.value: 5,
+        DashboardStatus.warn.value: 6,
         DashboardStatus.fail.value: 0,
     }
     assert dashboard.metadata["panel_statuses"] == {
@@ -488,6 +514,7 @@ def test_dashboard_merges_additional_panels() -> None:
         "Evolution KPIs": DashboardStatus.warn.value,
         "Operator leverage": DashboardStatus.warn.value,
         "Understanding loop": DashboardStatus.warn.value,
+        "Decision diary": DashboardStatus.warn.value,
     }
 
 
@@ -919,3 +946,82 @@ def test_policy_reflection_panel_included_with_artifacts() -> None:
 
     counts = dashboard.metadata["panel_status_counts"]
     assert counts[DashboardStatus.ok.value] >= 2
+
+
+def test_diary_panel_reports_coverage_success() -> None:
+    coverage_snapshot = {
+        "coverage": 0.97,
+        "target": 0.95,
+        "iterations": 40,
+        "recorded": 39,
+        "missing": 1,
+        "minimum_samples": 10,
+        "last_recorded_at": "2024-03-15T12:00:00+00:00",
+    }
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.ok
+    assert "Coverage 97.00%" in panel.headline
+    assert "Recorded 39 of 40" in panel.details[0]
+
+    payload = panel.metadata["decision_diary"]
+    assert payload["alerts"]["coverage_below_target"] is False
+    assert payload["alerts"]["insufficient_samples"] is False
+
+
+def test_diary_panel_flags_coverage_shortfall() -> None:
+    coverage_snapshot = {
+        "coverage": 0.88,
+        "target": 0.95,
+        "iterations": 50,
+        "recorded": 44,
+        "missing": 6,
+        "minimum_samples": 10,
+    }
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.fail
+    assert any("shortfall" in detail for detail in panel.details)
+
+    payload = panel.metadata["decision_diary"]
+    assert payload["alerts"]["coverage_below_target"] is True
+    assert payload["alerts"]["gap_breach"] is False
+
+
+def test_diary_panel_marks_gap_breach() -> None:
+    coverage_snapshot = {
+        "coverage": 0.96,
+        "target": 0.95,
+        "iterations": 30,
+        "recorded": 29,
+        "missing": 1,
+        "minimum_samples": 10,
+        "gap_breach": True,
+        "gap_threshold_seconds": 180.0,
+        "last_recorded_at": "2024-03-15T11:59:00+00:00",
+    }
+
+    dashboard = build_observability_dashboard(
+        loop_results=[
+            _LoopResultStub(metadata={"diary_coverage": coverage_snapshot})
+        ]
+    )
+
+    panel = next(panel for panel in dashboard.panels if panel.name == "Decision diary")
+    assert panel.status is DashboardStatus.fail
+    assert any("gap alert" in detail.lower() for detail in panel.details)
+
+    payload = panel.metadata["decision_diary"]
+    assert payload["alerts"]["gap_breach"] is True

@@ -1105,6 +1105,7 @@ async def test_trading_manager_tracks_order_attribution(
     stats = manager.get_execution_stats()
     assert stats.get("orders_with_attribution") == 1
     assert stats.get("attribution_coverage") == 1.0
+    assert stats.get("order_attribution_samples") == 1
 
 
 def test_trading_manager_normalises_attribution_explanation() -> None:
@@ -1230,6 +1231,7 @@ async def test_trading_manager_requires_complete_attribution_components(
     first_stats = manager.get_execution_stats()
     assert first_stats.get("orders_with_attribution") == 0
     assert first_stats.get("attribution_coverage") == 0.0
+    assert first_stats.get("order_attribution_samples") == 1
 
     second_outcome = await manager.on_trade_intent(complete_event)
     assert second_outcome.executed is True
@@ -1237,7 +1239,8 @@ async def test_trading_manager_requires_complete_attribution_components(
 
     second_stats = manager.get_execution_stats()
     assert second_stats.get("orders_with_attribution") == 1
-    assert second_stats.get("attribution_coverage") == pytest.approx(1.0)
+    assert second_stats.get("attribution_coverage") == pytest.approx(0.5)
+    assert second_stats.get("order_attribution_samples") == 2
 
     third_outcome = await manager.on_trade_intent(missing_belief_event)
     assert third_outcome.executed is True
@@ -1247,7 +1250,8 @@ async def test_trading_manager_requires_complete_attribution_components(
 
     third_stats = manager.get_execution_stats()
     assert third_stats.get("orders_with_attribution") == 1
-    assert third_stats.get("attribution_coverage") == pytest.approx(1.0)
+    assert third_stats.get("attribution_coverage") == pytest.approx(1 / 3, abs=1e-4)
+    assert third_stats.get("order_attribution_samples") == 3
 
 
 def test_trading_manager_bounds_attribution_norms() -> None:

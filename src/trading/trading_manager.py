@@ -4105,6 +4105,9 @@ class TradingManager:
                 self._order_attribution_with_context
             )
             self._execution_stats["attribution_coverage"] = round(coverage_value, 4)
+            self._execution_stats["order_attribution_samples"] = (
+                self._order_attribution_samples
+            )
 
         attribution_payload = self._extract_attribution_metadata(validated_intent)
         if attribution_payload is None:
@@ -4115,19 +4118,14 @@ class TradingManager:
                 normalised_candidate = self._normalise_attribution_payload(candidate)
                 attribution_payload = normalised_candidate if normalised_candidate else None
 
-        if not attribution_payload:
-            coverage_snapshot = _current_coverage()
-            _publish_stats(coverage_snapshot)
-            return
-
-        if not self._attribution_payload_has_core_components(attribution_payload):
-            coverage_snapshot = _current_coverage()
-            _publish_stats(coverage_snapshot)
-            return
+        has_core_attribution = self._attribution_payload_has_core_components(attribution_payload)
+        complete_attribution = (
+            self._attribution_payload_is_complete(attribution_payload)
+            if has_core_attribution
+            else False
+        )
 
         self._order_attribution_samples += 1
-
-        complete_attribution = self._attribution_payload_is_complete(attribution_payload)
         if complete_attribution:
             self._order_attribution_with_context += 1
 

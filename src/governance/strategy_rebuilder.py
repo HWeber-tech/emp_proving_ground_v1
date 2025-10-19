@@ -16,12 +16,16 @@ artifacts without worrying about hidden ordering differences.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import asdict, dataclass, is_dataclass
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
 from hashlib import sha256
 import json
+import math
+import numbers
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping, Sequence, cast
 
 from src.config.risk.risk_config import RiskConfig
 from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
@@ -52,6 +56,74 @@ def _coerce_risk_config(value: RiskConfig | Mapping[str, Any] | None) -> RiskCon
     raise TypeError("base_config must be a RiskConfig or mapping")
 
 
+def _sort_key(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return repr(value)
+
+
+def _normalise_json_value(value: Any) -> Any:
+    """Normalise heterogenous values into JSON-stable primitives."""
+
+    if value is None or isinstance(value, (str, bool)):
+        return value
+
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise ValueError("Decimal values must be finite for canonical JSON payloads")
+        return float(value)
+
+    if isinstance(value, numbers.Integral):  # Handles ints without converting bools (already returned)
+        return int(value)
+
+    if isinstance(value, numbers.Real):
+        normalised = float(value)
+        if not math.isfinite(normalised):
+            raise ValueError("Float values must be finite for canonical JSON payloads")
+        return normalised
+
+    if isinstance(value, datetime):
+        return value.isoformat()
+
+    if isinstance(value, date):
+        return value.isoformat()
+
+    if isinstance(value, Enum):
+        return _normalise_json_value(value.value)
+
+    if isinstance(value, Path):
+        return str(value)
+
+    if is_dataclass(value):
+        return _normalise_json_value(asdict(value))
+
+    if hasattr(value, "_asdict"):
+        try:
+            return _normalise_json_value(value._asdict())  # type: ignore[attr-defined]
+        except TypeError:
+            pass
+
+    if isinstance(value, Mapping):
+        items: list[tuple[str, Any]] = []
+        for key, item in value.items():
+            key_str = str(key)
+            items.append((key_str, _normalise_json_value(item)))
+        items.sort(key=lambda pair: pair[0])
+        return {key: item for key, item in items}
+
+    if isinstance(value, (set, frozenset)):
+        normalised_items = [_normalise_json_value(item) for item in value]
+        return sorted(normalised_items, key=_sort_key)
+
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_normalise_json_value(item) for item in value]
+
+    if hasattr(value, "__dict__") and not isinstance(value, type):
+        return _normalise_json_value(vars(value))
+
+    raise TypeError(f"Unsupported value type {type(value)!r} for canonical runtime payloads")
+
+
 def _canonical_payload(phenotype: PolicyPhenotype) -> Mapping[str, Any]:
     """Convert a phenotype into the canonical runtime configuration payload."""
 
@@ -70,7 +142,7 @@ def _canonical_payload(phenotype: PolicyPhenotype) -> Mapping[str, Any]:
     }
     if phenotype.evidence_id:
         payload["evidence_id"] = phenotype.evidence_id
-    return payload
+    return cast(Mapping[str, Any], _normalise_json_value(payload))
 
 
 def _canonical_json_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -177,18 +249,30 @@ def rebuild_strategy(
     json_bytes = _canonical_json_bytes(payload)
     digest = sha256(json_bytes).hexdigest()
 
-    history: tuple[Mapping[str, Any], ...] = tuple(dict(entry) for entry in phenotype.history)
+    approvals_payload = cast(Sequence[Any], payload["approvals"])
+    risk_config_payload = cast(Mapping[str, Any], payload["risk_config"])
+    guardrails_payload = cast(Mapping[str, Any], payload["router_guardrails"])
+    thresholds_payload = cast(Mapping[str, Any], payload["thresholds"])
+    metadata_payload = cast(Mapping[str, Any], payload["metadata"])
+    history_payload = cast(Sequence[Any], payload["history"])
+
+    approvals = tuple(str(item) for item in approvals_payload)
+    risk_config = dict(risk_config_payload)
+    router_guardrails = dict(guardrails_payload)
+    thresholds = dict(thresholds_payload)
+    metadata = dict(metadata_payload)
+    history = tuple(dict(cast(Mapping[str, Any], entry)) for entry in history_payload)
 
     return StrategyRuntimeConfig(
         policy_id=phenotype.policy_id,
         policy_hash=phenotype.policy_hash,
         tactic_id=phenotype.tactic_id,
         stage=phenotype.stage,
-        approvals=tuple(phenotype.approvals),
-        risk_config=dict(phenotype.risk_config),
-        router_guardrails=dict(phenotype.router_guardrails),
-        thresholds=dict(phenotype.thresholds),
-        metadata=dict(phenotype.metadata),
+        approvals=approvals,
+        risk_config=risk_config,
+        router_guardrails=router_guardrails,
+        thresholds=thresholds,
+        metadata=metadata,
         history=history,
         updated_at=phenotype.updated_at,
         evidence_id=phenotype.evidence_id,

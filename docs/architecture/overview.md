@@ -15,6 +15,9 @@ services or persist real data.
 - Market data & fills (mock): `src/operational/mock_fix.py` synthesises ticks
   and executions; there is no live venue connectivity shipped in this
   repository.
+- Institutional backbone (feature-flagged): Timescale, Redis, and Kafka
+  connectors exist for credentialed downstream deployments but remain disabled
+  without secrets; the public build never instantiates them.
 - Trading scaffolding (mock-aware): `src/trading/` provides interfaces and
   telemetry routing but delegates to logging or TODO blocks for real decision
   logic.
@@ -32,6 +35,7 @@ flowchart TD
     runtime --> bridge["FIXConnectionManager\n(defaults to mock)"]
     bridge --> mock["Mock FIX stack\n`MockFIXManager`\n*mock only*"]
     mock --> sensors
+    runtime -.-> institutional["Timescale / Redis / Kafka connectors<br/>(feature-flag, secrets required)<br/>*not shipped*"]
     sensors --> observability["Telemetry snapshots\n(structured logs & markdown)"]
     runtime --> trading["Trading layer\n(strategy/risk stubs)"]
     runtime --> evolution["Evolution engine\n(interfaces only)"]
@@ -46,9 +50,11 @@ flowchart TD
    credentials or real manager modules).
 3. When ingest runs, Yahoo Finance data is written to DuckDB via
    `store_duckdb`, then pushed through registered sensors for signal summaries.
-4. `MockFIXManager` generates deterministic order lifecycle events, powering the
+4. Timescale/Redis/Kafka connectors are gated behind feature flags and secrets;
+   without those credentials the public build skips their activation paths.
+5. `MockFIXManager` generates deterministic order lifecycle events, powering the
    sensory organs and trading scaffolding for regression and exploratory runs.
-5. Trading, risk, and evolution packages expose abstractions and telemetry, but
+6. Trading, risk, and evolution packages expose abstractions and telemetry, but
    the business logic is intentionally incomplete pending future development.
 
 ## Reality Checklist

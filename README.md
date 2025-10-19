@@ -14,6 +14,7 @@ architectural scaffolding.
 | Execution | **Mock.** `MockFIXManager` and `FIXConnectionManager` drive order flows. Live broker adapters depend on private modules and are not bundled; the public build always selects the simulator. |
 | Market data (runtime) | **Mock.** Quote and fill events originate from the mock FIX stack; no streaming venue connectivity is active. |
 | Market data (ingest) | **Real, opt-in.** Tier-0 ingest fetches Yahoo Finance daily/intraday bars (`fetch_daily_bars`, `fetch_intraday_trades`) and writes them to DuckDB. Running `python -m main` without `--skip-ingest` will hit Yahoo's APIs. |
+| Institutional data backbone | **Feature-flagged, credentials required.** Timescale/Redis/Kafka connectors can be enabled only in downstream deployments with secrets; the public repo never instantiates them. |
 | Strategies / Risk | **Scaffolding.** Framework classes exist, but behaviours are placeholders with logging or `pass` blocks. |
 | Evolution & Intelligence | **Scaffolding.** Interfaces and feature-flag wiring only; no genetic or adaptive loops run. |
 | Observability | **Partial.** Structured logging, telemetry shims, and status snapshots cover the simulator and ingest runtime. Live venue dashboards are not implemented. |

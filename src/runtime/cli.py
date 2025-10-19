@@ -425,6 +425,35 @@ async def _handle_paper_run(args: argparse.Namespace) -> int:
         memory_growth = metrics.get("memory_growth_mb")
         if memory_growth is not None:
             print(f"Memory growth: {memory_growth:.2f}MB")
+        latency_threshold = metrics.get("latency_p99_threshold_s")
+        if latency_threshold is not None:
+            print(f"Latency p99 threshold: {float(latency_threshold):.4f}s")
+        memory_threshold = metrics.get("memory_growth_threshold_mb")
+        if memory_threshold is not None:
+            print(f"Memory growth threshold: {float(memory_threshold):.2f}MB")
+        objectives = metrics.get("objective_compliance")
+        if isinstance(objectives, Mapping):
+            print("Objective compliance:")
+            labels = {
+                "minimum_runtime_met": "Minimum runtime",
+                "latency_p99_within_threshold": "Latency p99",
+                "memory_growth_within_threshold": "Memory growth",
+                "no_invariant_breaches": "Invariant breaches",
+            }
+            for key in (
+                "minimum_runtime_met",
+                "latency_p99_within_threshold",
+                "memory_growth_within_threshold",
+                "no_invariant_breaches",
+            ):
+                if key not in objectives:
+                    continue
+                status = "PASS" if objectives.get(key) else "FAIL"
+                print(f"  - {labels.get(key, key)}: {status}")
+        objectives_met = metrics.get("objectives_met")
+        if objectives_met is not None:
+            overall = "PASS" if objectives_met else "FAIL"
+            print(f"Objectives met: {overall}")
         if summary.alerts:
             print("Alerts:")
             for alert in summary.alerts:

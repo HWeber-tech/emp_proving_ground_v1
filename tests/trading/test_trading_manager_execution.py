@@ -1056,6 +1056,16 @@ async def test_trading_manager_tracks_order_attribution(
     engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
     manager.execution_engine = engine
 
+    coverage_snapshot = {
+        "target": 0.95,
+        "iterations": 12,
+        "recorded": 11,
+        "missing": 1,
+        "coverage": 0.9167,
+        "minimum_samples": 10,
+        "gap_breach": False,
+    }
+
     attribution_payload = {
         "diary_entry_id": "dd-test",
         "policy_id": "alpha.paper",
@@ -1079,6 +1089,7 @@ async def test_trading_manager_tracks_order_attribution(
         "confidence": 0.9,
         "metadata": {
             "attribution": attribution_payload,
+            "diary_coverage": coverage_snapshot,
         },
     }
 
@@ -1089,6 +1100,7 @@ async def test_trading_manager_tracks_order_attribution(
 
     assert outcome.executed is True
     assert outcome.metadata.get("attribution") == attribution_payload
+    assert outcome.metadata.get("diary_coverage") == coverage_snapshot
 
     stats = manager.get_execution_stats()
     assert stats.get("orders_with_attribution") == 1

@@ -1390,6 +1390,13 @@ class TradingManager:
                                 validated_intent,
                                 event,
                             )
+                            coverage_snapshot = self._extract_diary_coverage_snapshot(
+                                validated_intent
+                            )
+                            if coverage_snapshot is None:
+                                coverage_snapshot = self._extract_diary_coverage_snapshot(event)
+                            if coverage_snapshot is not None:
+                                failure_metadata["diary_coverage"] = dict(coverage_snapshot)
                             if release_metadata:
                                 await self._publish_release_route_event(
                                     event_id=event_id,
@@ -1467,6 +1474,13 @@ class TradingManager:
                                 validated_intent,
                                 event,
                             )
+                            coverage_snapshot = self._extract_diary_coverage_snapshot(
+                                validated_intent
+                            )
+                            if coverage_snapshot is None:
+                                coverage_snapshot = self._extract_diary_coverage_snapshot(event)
+                            if coverage_snapshot is not None:
+                                success_metadata["diary_coverage"] = dict(coverage_snapshot)
                             attribution_metadata = self._extract_attribution_metadata(
                                 validated_intent
                             )
@@ -3826,6 +3840,31 @@ class TradingManager:
                 return None
             normalised = TradingManager._normalise_attribution_payload(payload)
             return normalised if normalised else None
+
+        metadata = getattr(intent, "metadata", None)
+        if isinstance(metadata, Mapping):
+            extracted = _from_mapping(metadata)
+            if extracted is not None:
+                return extracted
+
+        if isinstance(intent, Mapping):
+            extracted = _from_mapping(intent)
+            if extracted is not None:
+                return extracted
+
+        return None
+
+    @staticmethod
+    def _extract_diary_coverage_snapshot(intent: Any) -> Mapping[str, Any] | None:
+        def _from_mapping(candidate: Mapping[str, Any]) -> Mapping[str, Any] | None:
+            payload = candidate.get("diary_coverage")
+            if not isinstance(payload, Mapping):
+                metadata_block = candidate.get("metadata")
+                if isinstance(metadata_block, Mapping):
+                    payload = metadata_block.get("diary_coverage")
+            if not isinstance(payload, Mapping):
+                return None
+            return {str(key): value for key, value in payload.items()}
 
         metadata = getattr(intent, "metadata", None)
         if isinstance(metadata, Mapping):

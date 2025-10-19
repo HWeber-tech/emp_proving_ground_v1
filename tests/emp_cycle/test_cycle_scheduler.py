@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -84,3 +85,46 @@ def test_scheduler_handles_failed_quick(tmp_path: Path) -> None:
     assert row is not None
     assert row["stage"] == "idea"
     assert "failed_screen" in (row["notes"] or "")
+
+
+def test_scheduler_respects_instrument_fair_share(tmp_path: Path) -> None:
+    db_path = tmp_path / "experiments.sqlite"
+    baseline_path = tmp_path / "baseline.json"
+    conn = findings_memory.connect(db_path)
+
+    fids_by_instrument: dict[str, list[int]] = defaultdict(list)
+    payloads = [
+        ("ES", {"weight": 1.15, "instrument": "ES"}),
+        ("ES", {"weight": 1.1, "meta": {"symbol": "es"}}),
+        ("NQ", {"weight": 1.05, "instrument": "NQ"}),
+        ("CL", {"weight": 1.05, "asset": "CL"}),
+    ]
+    for key, params in payloads:
+        fid = _setup_idea(conn, params)
+        fids_by_instrument[key].append(fid)
+
+    args = [
+        "--db-path",
+        str(db_path),
+        "--baseline-json",
+        str(baseline_path),
+        "--quick-threshold",
+        "0.2",
+        "--max-full",
+        "3",
+    ]
+
+    exit_code = emp_cycle_scheduler.main(args)
+    assert exit_code == 0
+
+    rows = conn.execute("SELECT id, stage FROM findings").fetchall()
+    stage_map = {int(row["id"]): str(row["stage"]) for row in rows}
+
+    def _tested(fid: int) -> bool:
+        return stage_map.get(fid) in {"tested", "progress"}
+
+    assert sum(1 for fid in stage_map if stage_map[fid] in {"tested", "progress"}) == 3
+    assert sum(1 for fid in fids_by_instrument["ES"] if _tested(fid)) == 1
+    assert _tested(fids_by_instrument["NQ"][0])
+    assert _tested(fids_by_instrument["CL"][0])
+    assert any(stage_map[fid] == "screened" for fid in fids_by_instrument["ES"])

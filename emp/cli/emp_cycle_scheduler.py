@@ -4,8 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from emp.core import findings_memory, quick_eval, select_next, strategy_factory
 
@@ -28,6 +30,121 @@ from ._emp_cycle_common import (
 )
 
 DEFAULT_METADATA_NOTE = "scheduler:auto"
+
+
+@dataclass(frozen=True)
+class _PlannedCandidate:
+    fid: int
+    params: Dict[str, Any]
+    instrument: str
+    quick_score: float
+    novelty: float
+    ucb_value: float
+
+
+_INSTRUMENT_KEYS = ("instrument", "symbol", "asset", "ticker", "market")
+
+
+def _detect_instrument(params: Any) -> str:
+    stack: List[Any] = [params]
+    seen: set[int] = set()
+    while stack:
+        current = stack.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, dict):
+            for key, value in current.items():
+                key_lower = str(key).lower()
+                if any(token in key_lower for token in _INSTRUMENT_KEYS):
+                    if isinstance(value, str):
+                        token = value.strip()
+                        if token:
+                            return token.upper()
+                if isinstance(value, (dict, list, tuple, set)):
+                    stack.append(value)
+        elif isinstance(current, (list, tuple, set)):
+            stack.extend(list(current))
+    return "UNKNOWN"
+
+
+def _fair_share_schedule(
+    candidates: List[_PlannedCandidate],
+    max_full: Optional[int],
+) -> List[_PlannedCandidate]:
+    if not candidates:
+        return []
+
+    buckets: Dict[str, List[_PlannedCandidate]] = defaultdict(list)
+    for candidate in candidates:
+        buckets[candidate.instrument].append(candidate)
+
+    for queue in buckets.values():
+        queue.sort(
+            key=lambda item: (
+                -item.ucb_value,
+                -item.quick_score,
+                -item.novelty,
+                item.fid,
+            )
+        )
+
+    limit = None if max_full is None else int(max_full)
+    allocation: List[_PlannedCandidate] = []
+    counts: Dict[str, int] = defaultdict(int)
+
+    while buckets and (limit is None or len(allocation) < limit):
+        active = [instrument for instrument, queue in buckets.items() if queue]
+        if not active:
+            break
+
+        best_instrument = min(
+            active,
+            key=lambda inst: (
+                counts[inst],
+                -buckets[inst][0].ucb_value,
+                -buckets[inst][0].quick_score,
+                -buckets[inst][0].novelty,
+                buckets[inst][0].fid,
+            ),
+        )
+        candidate = buckets[best_instrument].pop(0)
+        allocation.append(candidate)
+        counts[best_instrument] += 1
+        if not buckets[best_instrument]:
+            del buckets[best_instrument]
+
+    return allocation
+
+
+def _plan_candidate_batch(
+    conn,
+    *,
+    max_full: Optional[int],
+    exploration_weight: float,
+) -> List[_PlannedCandidate]:
+    rows = findings_memory.fetch_candidates(conn)
+    candidates: List[_PlannedCandidate] = []
+    for fid, params_json, quick_score, novelty in rows:
+        try:
+            params: Dict[str, Any] = json.loads(params_json)
+        except json.JSONDecodeError:
+            params = {}
+        instrument = _detect_instrument(params)
+        quick = float(quick_score or 0.0)
+        novel = float(novelty or 0.0)
+        ucb_value = select_next.ucb_lite(quick, novel, c=float(exploration_weight))
+        candidates.append(
+            _PlannedCandidate(
+                fid=int(fid),
+                params=params,
+                instrument=instrument,
+                quick_score=quick,
+                novelty=novel,
+                ucb_value=ucb_value,
+            )
+        )
+    return _fair_share_schedule(candidates, max_full)
 
 
 def _parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
@@ -204,17 +321,22 @@ def _evaluate_candidates(
     if args.max_full is not None and args.max_full <= 0:
         return evaluated, progressed
 
-    while args.max_full is None or evaluated < int(args.max_full):
-        candidate_id = select_next.pick_next(conn, c=args.ucb_c)
-        if candidate_id is None:
-            if evaluated == 0:
-                print("No screened candidates available for full evaluation.")
-            break
+    planned = _plan_candidate_batch(
+        conn,
+        max_full=args.max_full,
+        exploration_weight=float(args.ucb_c),
+    )
 
-        if args.dry_run:
-            print(f"[dry-run] candidate id={candidate_id}")
-            break
+    if not planned:
+        print("No screened candidates available for full evaluation.")
+        return evaluated, progressed
 
+    if args.dry_run:
+        print(f"[dry-run] candidate id={planned[0].fid}")
+        return evaluated, progressed
+
+    for candidate in planned:
+        candidate_id = candidate.fid
         params = fetch_params(conn, candidate_id)
         strategy = strategy_factory.make_strategy(params)
         try:

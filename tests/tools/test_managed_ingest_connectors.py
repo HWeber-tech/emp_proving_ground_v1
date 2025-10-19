@@ -60,6 +60,11 @@ def test_managed_connectors_cli_reports_success(monkeypatch: pytest.MonkeyPatch,
     inventory = configuration.get("symbol_inventory")
     assert isinstance(inventory, list)
     assert any(entry.get("symbol") == "EURUSD" for entry in inventory)
+    eurusd_inventory = next(entry for entry in inventory if entry.get("symbol") == "EURUSD")
+    assert eurusd_inventory.get("margin_currency") == "USD"
+    assert eurusd_inventory.get("contract_size") == "100000"
+    assert eurusd_inventory.get("pip_decimal_places") == 4
+    assert eurusd_inventory.get("swap_time") == "22:00"
 
     api_keys = configuration.get("api_keys")
     assert isinstance(api_keys, dict)

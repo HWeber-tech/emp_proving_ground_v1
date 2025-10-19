@@ -323,6 +323,8 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
     eurusd = next(entry for entry in inventory if entry["symbol"] == "EURUSD")
     assert eurusd["margin_currency"] == "USD"
     assert eurusd["pip_decimal_places"] == 4
+    assert eurusd["contract_size"] == "100000"
+    assert eurusd["swap_time"] == "22:00"
 
 
 def test_config_builder_detects_api_keys_from_environment(monkeypatch) -> None:

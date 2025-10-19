@@ -41,6 +41,7 @@ def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
     phenotype = build_policy_phenotypes(store)[0]
 
     output_path = tmp_path / "phenotype.json"
+    runtime_output = tmp_path / "runtime_config.json"
     exit_code = main(
         [
             "--ledger",
@@ -63,6 +64,16 @@ def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
     assert payload["risk_config"]["max_leverage"] == pytest.approx(6.0)
     assert payload["router_guardrails"]["max_latency_ms"] == 180
     assert sha256(output_bytes).hexdigest() == expected_config.digest
+
+    assert payload["runtime_digest"]
+    assert payload["runtime_config"]["policy_hash"] == phenotype["policy_hash"]
+    assert payload["runtime_config"]["risk_config"]["max_leverage"] == 6.0
+    assert payload["runtime_config_path"] == str(runtime_output)
+
+    runtime_bytes = runtime_output.read_bytes()
+    assert hashlib.sha256(runtime_bytes).hexdigest() == payload["runtime_digest"]
+    runtime_payload = json.loads(runtime_bytes.decode("utf-8"))
+    assert runtime_payload == payload["runtime_config"]
 
     hash_output = tmp_path / "phenotype_by_hash.json"
     exit_code = main(

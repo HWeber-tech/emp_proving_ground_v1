@@ -119,21 +119,6 @@ run-sim:
 		--diary-path "$(SIM_DIARY)" \
 		--duckdb-path "$(SIM_DUCKDB)" $(SIM_EXTRA_ARGS)
 
-.PHONY: rebuild-policy
-rebuild-policy:
-	@if [ -z "$(HASH)" ]; then \
-		echo "HASH variable is required, e.g. make rebuild-policy HASH=alpha.policy"; \
-		exit 1; \
-	fi
-	@echo "Rebuilding policy phenotype for $(HASH)"
-	python3 -m tools.governance.rebuild_policy \
-		--ledger "$(LEDGER_PATH)" \
-		--policy "$(HASH)" \
-		--phenotype-dir "$(PHENOTYPE_DIR)" \
-		--output "$(PHENOTYPE_DIR)/summary.json" \
-		--indent 2
-	@echo "Phenotype bundles available under $(PHENOTYPE_DIR)"
-
 .PHONY: nightly-replay
 nightly-replay:
 	python3 tools/operations/nightly_replay_job.py
@@ -153,4 +138,5 @@ endif
 	python3 tools/governance/rebuild_policy_phenotype.py \
 		--ledger $(POLICY_LEDGER) \
 		--policy-hash $(HASH) \
-		--output $(POLICY_PHENOTYPE_DIR)/$(HASH)/phenotype.json
+		--output $(POLICY_PHENOTYPE_DIR)/$(HASH)/phenotype.json \
+		--runtime-output $(POLICY_PHENOTYPE_DIR)/$(HASH)/runtime_config.json

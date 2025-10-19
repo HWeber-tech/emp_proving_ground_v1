@@ -56,6 +56,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--runtime-output",
+        type=Path,
+        help=(
+            "Optional destination path for the canonical runtime configuration JSON. "
+            "Defaults to runtime_config.json next to --output when omitted."
+        ),
+    )
+    parser.add_argument(
         "--indent",
         type=int,
         default=None,

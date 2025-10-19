@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping, Sequence
 
 from src.governance.system_config import DataBackboneMode, EmpTier, SystemConfig
+from ..reference.reference_data_loader import ReferenceDataLoader
 
 from .timescale_pipeline import (
     DailyBarIngestPlan,
@@ -67,6 +68,91 @@ def _parse_csv(raw: str | None, fallback: Iterable[str] = ()) -> list[str]:
             ordered.append(symbol)
         return ordered
     return [symbol for symbol in fallback if str(symbol).strip()]
+
+
+_API_KEY_ENV_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "alpha_vantage": ("ALPHA_VANTAGE_API_KEY", "ALPHAVANTAGE_API_KEY"),
+    "fred": ("FRED_API_KEY",),
+    "news": ("NEWS_API_KEY", "NEWSAPI_KEY"),
+}
+
+_SESSION_CALENDAR_CACHE: tuple[dict[str, object], ...] | None = None
+
+
+def _api_key_metadata(extras: Mapping[str, str]) -> dict[str, dict[str, object]]:
+    """Return redaction-safe metadata indicating which provider keys are configured."""
+
+    summary: dict[str, dict[str, object]] = {}
+    for provider, candidates in _API_KEY_ENV_CANDIDATES.items():
+        configured_key: str | None = None
+        for env_key in candidates:
+            raw = extras.get(env_key)
+            if raw is not None and raw.strip():
+                configured_key = env_key
+                break
+        summary[provider] = {
+            "configured": configured_key is not None,
+            "source": configured_key,
+        }
+    return summary
+
+
+def _configured_macro_calendars(extras: Mapping[str, str]) -> tuple[str, ...]:
+    raw = extras.get("TIMESCALE_MACRO_CALENDARS")
+    if not raw:
+        return tuple()
+    tokens = [segment.strip() for segment in raw.split(CSV_SEPARATOR)]
+    calendars: list[str] = []
+    for token in tokens:
+        if token and token not in calendars:
+            calendars.append(token)
+    return tuple(calendars)
+
+
+def _resolve_session_calendars() -> tuple[dict[str, object], ...]:
+    global _SESSION_CALENDAR_CACHE
+    if _SESSION_CALENDAR_CACHE is not None:
+        return _SESSION_CALENDAR_CACHE
+
+    try:
+        loader = ReferenceDataLoader()
+        sessions = loader.load_sessions()
+    except Exception:  # pragma: no cover - defensive guard for optional config
+        logger.debug("Failed to load trading session calendars", exc_info=True)
+        _SESSION_CALENDAR_CACHE = tuple()
+        return _SESSION_CALENDAR_CACHE
+
+    payload: list[dict[str, object]] = []
+    for identifier, session in sorted(sessions.items()):
+        open_str = session.open_time.strftime("%H:%M") if session.open_time else None
+        close_str = session.close_time.strftime("%H:%M") if session.close_time else None
+        payload.append(
+            {
+                "id": identifier,
+                "name": session.name,
+                "timezone": session.timezone,
+                "open_time": open_str,
+                "close_time": close_str,
+                "days": list(session.days),
+                "venue": session.venue,
+                "description": session.description,
+            }
+        )
+
+    _SESSION_CALENDAR_CACHE = tuple(payload)
+    return _SESSION_CALENDAR_CACHE
+
+
+def _metadata_base(
+    api_keys: Mapping[str, Mapping[str, object]],
+    session_calendars: Sequence[Mapping[str, object]],
+    macro_calendars: Sequence[str],
+) -> dict[str, object]:
+    return {
+        "api_keys": {provider: dict(details) for provider, details in api_keys.items()},
+        "session_calendars": [dict(entry) for entry in session_calendars],
+        "macro_calendars": list(macro_calendars),
+    }
 
 
 def _parse_bool(extras: Mapping[str, str], key: str, default: bool = False) -> bool:
@@ -775,25 +861,35 @@ def build_institutional_ingest_config(
         "KAFKA_INGEST_ENABLE_STREAMING",
         True,
     )
+    api_keys_summary = _api_key_metadata(extras)
+    session_calendars = _resolve_session_calendars()
+    macro_calendars = _configured_macro_calendars(extras)
+
+    def _base_metadata() -> dict[str, object]:
+        return _metadata_base(api_keys_summary, session_calendars, macro_calendars)
 
     reason: str | None = None
     if config.data_backbone_mode is not DataBackboneMode.institutional:
         reason = "Data backbone mode is not institutional"
+        metadata = _base_metadata()
+        metadata["mode"] = config.data_backbone_mode.value
         return InstitutionalIngestConfig(
             should_run=False,
             reason=reason,
             redis_settings=redis_settings,
-            metadata={"mode": config.data_backbone_mode.value},
+            metadata=metadata,
             enable_streaming=streaming_enabled,
         )
 
     if config.tier is not EmpTier.tier_1:
         reason = "Timescale ingest currently targets Tier-1 institutional runs"
+        metadata = _base_metadata()
+        metadata["tier"] = config.tier.value
         return InstitutionalIngestConfig(
             should_run=False,
             reason=reason,
             redis_settings=redis_settings,
-            metadata={"tier": config.tier.value},
+            metadata=metadata,
             enable_streaming=streaming_enabled,
         )
 
@@ -818,19 +914,22 @@ def build_institutional_ingest_config(
     plan = TimescaleBackbonePlan(daily=daily_plan, intraday=intraday_plan, macro=macro_plan)
     schedule = _resolve_schedule(extras)
 
-    metadata: dict[str, object] = {
-        "symbols": symbols,
-        "daily": bool(daily_plan),
-        "daily_lookback_days": daily_plan.lookback_days if daily_plan else None,
-        "intraday": bool(intraday_plan),
-        "intraday_lookback_days": intraday_plan.lookback_days if intraday_plan else None,
-        "intraday_interval": intraday_plan.interval if intraday_plan else None,
-        "macro_mode": macro_mode,
-        "schedule_enabled": bool(schedule),
-        "schedule_interval_seconds": schedule.interval_seconds if schedule else None,
-        "schedule_jitter_seconds": schedule.jitter_seconds if schedule else None,
-        "schedule_max_failures": schedule.max_failures if schedule else None,
-    }
+    metadata = _base_metadata()
+    metadata.update(
+        {
+            "symbols": symbols,
+            "daily": bool(daily_plan),
+            "daily_lookback_days": daily_plan.lookback_days if daily_plan else None,
+            "intraday": bool(intraday_plan),
+            "intraday_lookback_days": intraday_plan.lookback_days if intraday_plan else None,
+            "intraday_interval": intraday_plan.interval if intraday_plan else None,
+            "macro_mode": macro_mode,
+            "schedule_enabled": bool(schedule),
+            "schedule_interval_seconds": schedule.interval_seconds if schedule else None,
+            "schedule_jitter_seconds": schedule.jitter_seconds if schedule else None,
+            "schedule_max_failures": schedule.max_failures if schedule else None,
+        }
+    )
     if macro_plan and macro_plan.events is not None:
         metadata["macro_events"] = len(macro_plan.events)
     if macro_plan and macro_plan.has_window():

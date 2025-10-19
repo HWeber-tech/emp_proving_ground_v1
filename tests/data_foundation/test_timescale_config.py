@@ -289,6 +289,35 @@ def test_config_builder_parses_kafka_readiness_settings() -> None:
     assert metadata["require_consumer"] is True
 
 
+def test_config_builder_records_api_keys_and_session_calendars() -> None:
+    cfg = _base_config(
+        TIMESCALE_SYMBOLS="EURUSD",
+        ALPHA_VANTAGE_API_KEY="demo",
+        FRED_API_KEY="fred-key",
+        TIMESCALE_MACRO_CALENDARS="FOMC, NFP, FOMC",
+    )
+
+    resolved = build_institutional_ingest_config(cfg)
+    metadata = resolved.metadata
+
+    api_keys = metadata["api_keys"]
+    assert api_keys["alpha_vantage"]["configured"] is True
+    assert api_keys["alpha_vantage"]["source"] == "ALPHA_VANTAGE_API_KEY"
+    assert api_keys["fred"]["configured"] is True
+    assert api_keys["news"]["configured"] is False
+
+    assert metadata["macro_calendars"] == ["FOMC", "NFP"]
+
+    sessions = metadata["session_calendars"]
+    assert isinstance(sessions, list)
+    assert any(entry["id"] == "london_fx" for entry in sessions)
+    london = next(entry for entry in sessions if entry["id"] == "london_fx")
+    assert london["timezone"] == "Europe/London"
+    assert london["open_time"] == "07:00"
+    assert london["close_time"] == "16:30"
+    assert "Mon" in london["days"]
+
+
 def test_config_builder_parses_schedule() -> None:
     cfg = _base_config(
         TIMESCALE_SYMBOLS="EURUSD",

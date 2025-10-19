@@ -123,6 +123,59 @@ class _RiskRejectTradingManager:
         }
 
 
+class _GuardrailViolationTradingManager:
+    def __init__(self) -> None:
+        self.intents: list[dict[str, object]] = []
+
+    async def on_trade_intent(self, event: dict[str, object]) -> TradeIntentOutcome:
+        self.intents.append(dict(event))
+        incident = {
+            "incident_id": "inv-guardrail-001",
+            "severity": "violation",
+            "reason": "synthetic invariant breach",
+            "timestamp": datetime(2025, 2, 3, 12, 30, tzinfo=UTC).isoformat(),
+            "metadata": {
+                "violations": ["risk.synthetic_invariant_posture"],
+                "warnings": [],
+                "overrides": False,
+            },
+            "checks": [
+                {
+                    "name": "risk.synthetic_invariant_posture",
+                    "status": "violation",
+                    "threshold": 0.0,
+                    "value": 1.0,
+                }
+            ],
+        }
+        guardrail_payload = {
+            "active": True,
+            "force_paper": True,
+            "reason": "synthetic invariant breach",
+            "severity": "violation",
+            "remaining_seconds": 300.0,
+            "incident": incident,
+        }
+        metadata = {
+            "guardrails": {
+                "risk_guardrail": guardrail_payload,
+            }
+        }
+        return TradeIntentOutcome(status="executed", executed=True, metadata=metadata)
+
+    def assess_performance_health(self) -> dict[str, object]:
+        return {
+            "healthy": True,
+            "throughput": {"healthy": True},
+            "backlog": {"healthy": True, "evaluated": False},
+            "resource": {
+                "healthy": True,
+                "status": "not_configured",
+                "sample": {},
+            },
+        }
+
+
 class _AlphaDecayTradingManager:
     def __init__(self, multiplier: float = 0.65) -> None:
         self.intents: list[dict[str, object]] = []
@@ -669,6 +722,53 @@ async def test_alpha_trade_runner_freezes_on_risk_rejection(monkeypatch, tmp_pat
     assert metadata.get("selected_is_exploration") is False
     blocked = metadata.get("blocked_candidates", [])
     assert any(item.get("reason") == "frozen" for item in blocked)
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_freezes_on_guardrail_invariant_violation(
+    monkeypatch, tmp_path
+) -> None:
+    trading_manager = _GuardrailViolationTradingManager()
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+    policy_router = runner._understanding_router.policy_router
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    assert policy_router.exploration_freeze_active() is True
+    freeze_state = policy_router.exploration_freeze_state()
+    assert freeze_state.get("reason") == "synthetic invariant breach"
+    metadata = freeze_state.get("metadata")
+    assert isinstance(metadata, Mapping)
+    triggers = metadata.get("triggers")
+    assert isinstance(triggers, list) and triggers
+    guardrail_trigger = next(
+        trigger
+        for trigger in triggers
+        if isinstance(trigger, Mapping) and trigger.get("triggered_by") == "risk_guardrail"
+    )
+    guardrail_metadata = guardrail_trigger.get("metadata")
+    assert isinstance(guardrail_metadata, Mapping)
+    violations = guardrail_metadata.get("violations")
+    assert any(
+        isinstance(entry, str) and "invariant" in entry for entry in (violations or [])
+    )
 
 
 @pytest.mark.asyncio()

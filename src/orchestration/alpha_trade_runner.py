@@ -829,6 +829,13 @@ class AlphaTradeLoopRunner:
                 }
             )
 
+        guardrail_triggers = self._guardrail_freeze_triggers(
+            trade_outcome=trade_outcome,
+            loop_result=loop_result,
+        )
+        if guardrail_triggers:
+            freeze_triggers.extend(guardrail_triggers)
+
         if freeze_triggers:
             def _severity_rank(entry: Mapping[str, object]) -> int:
                 label = str(entry.get("severity") or "info").lower()
@@ -1252,6 +1259,105 @@ class AlphaTradeLoopRunner:
         if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
             return [AlphaTradeLoopRunner._normalise_metadata_value(item) for item in value]
         return value
+
+    @staticmethod
+    def _guardrail_freeze_triggers(
+        *,
+        trade_outcome: "TradeIntentOutcome | None",
+        loop_result: AlphaTradeLoopResult,
+    ) -> list[dict[str, object]]:
+        """Derive exploration freeze triggers from guardrail incidents."""
+
+        sources: list[Mapping[str, Any]] = []
+        if trade_outcome is not None:
+            metadata = getattr(trade_outcome, "metadata", None)
+            if isinstance(metadata, Mapping):
+                sources.append(metadata)
+
+        loop_metadata = loop_result.metadata
+        if isinstance(loop_metadata, Mapping):
+            sources.append(loop_metadata)
+            trade_metadata = loop_metadata.get("trade_metadata")
+            if isinstance(trade_metadata, Mapping):
+                sources.append(trade_metadata)
+
+        triggers: list[dict[str, object]] = []
+        seen_incidents: set[str] = set()
+
+        for source in sources:
+            guardrails = source.get("guardrails")
+            if not isinstance(guardrails, Mapping):
+                continue
+
+            for name, payload in guardrails.items():
+                if not isinstance(name, str) or not isinstance(payload, Mapping):
+                    continue
+
+                incident = payload.get("incident")
+                if not isinstance(incident, Mapping):
+                    continue
+
+                severity_label = str(
+                    incident.get("severity")
+                    or payload.get("severity")
+                    or ""
+                ).strip().lower()
+                if severity_label != "violation":
+                    continue
+
+                violation_names: list[str] = []
+                metadata_block = incident.get("metadata")
+                if isinstance(metadata_block, Mapping):
+                    raw_violations = metadata_block.get("violations")
+                    if isinstance(raw_violations, Sequence):
+                        violation_names.extend(
+                            str(entry)
+                            for entry in raw_violations
+                            if entry is not None
+                        )
+
+                if not violation_names:
+                    checks = incident.get("checks")
+                    if isinstance(checks, Sequence):
+                        for check in checks:
+                            if isinstance(check, Mapping):
+                                check_name = check.get("name")
+                                if check_name:
+                                    violation_names.append(str(check_name))
+
+                if not any("invariant" in violation.lower() for violation in violation_names):
+                    continue
+
+                incident_id = incident.get("incident_id")
+                if isinstance(incident_id, str):
+                    if incident_id in seen_incidents:
+                        continue
+                    seen_incidents.add(incident_id)
+
+                reason = (
+                    incident.get("reason")
+                    or incident.get("description")
+                    or payload.get("reason")
+                    or name
+                )
+                reason_str = str(reason) if reason is not None else "risk_guardrail_violation"
+
+                trigger_metadata = {
+                    "guardrail_name": name,
+                    "violations": violation_names,
+                    "incident": dict(incident),
+                }
+
+                triggers.append(
+                    {
+                        "reason": reason_str,
+                        "triggered_by": "risk_guardrail",
+                        "severity": "critical",
+                        "metadata": trigger_metadata,
+                    }
+                )
+
+        return triggers
 
     @staticmethod
     def _merge_guardrail_payload(

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -88,6 +89,10 @@ def _api_key_metadata(extras: Mapping[str, str]) -> dict[str, dict[str, object]]
         for env_key in candidates:
             raw = extras.get(env_key)
             if raw is not None and raw.strip():
+                configured_key = env_key
+                break
+            env_value = os.getenv(env_key)
+            if env_value is not None and env_value.strip():
                 configured_key = env_key
                 break
         summary[provider] = {

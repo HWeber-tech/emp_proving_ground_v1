@@ -318,6 +318,20 @@ def test_config_builder_records_api_keys_and_session_calendars() -> None:
     assert "Mon" in london["days"]
 
 
+def test_config_builder_detects_api_keys_from_environment(monkeypatch) -> None:
+    monkeypatch.setenv("FRED_API_KEY", "from-env")
+    cfg = _base_config(
+        TIMESCALE_SYMBOLS="EURUSD",
+    )
+
+    resolved = build_institutional_ingest_config(cfg)
+    api_keys = resolved.metadata["api_keys"]
+
+    assert api_keys["fred"]["configured"] is True
+    assert api_keys["fred"]["source"] == "FRED_API_KEY"
+    assert api_keys["alpha_vantage"]["configured"] is False
+
+
 def test_config_builder_parses_schedule() -> None:
     cfg = _base_config(
         TIMESCALE_SYMBOLS="EURUSD",

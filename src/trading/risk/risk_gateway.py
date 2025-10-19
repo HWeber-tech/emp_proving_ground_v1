@@ -928,9 +928,26 @@ class RiskGateway:
                 if metadata is not None:
                     return metadata
 
-        for indicator in ("invariant_breaches", "invariant_assessment"):
+        targeted_indicators = (
+            "invariant_breaches",
+            "invariant_assessment",
+            "metadata",
+            "portfolio_metadata",
+            "risk_metadata",
+            "insights",
+        )
+
+        for indicator in targeted_indicators:
             payload = portfolio_state.get(indicator)
             metadata = RiskGateway._search_invariant_payload(payload, base=indicator)
+            if metadata is not None:
+                return metadata
+
+        for key, value in portfolio_state.items():
+            if isinstance(key, str) and key in targeted_indicators:
+                continue
+            base = str(key)
+            metadata = RiskGateway._search_invariant_payload(value, base=base)
             if metadata is not None:
                 return metadata
 

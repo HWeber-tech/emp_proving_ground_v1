@@ -601,7 +601,19 @@ class AlphaTradeLoopRunner:
             return None
 
         regime_state = decision_bundle.belief_snapshot.regime_state
-        confidence_value = _coerce_float(regime_state.confidence)
+
+        belief_metadata = getattr(belief_state, "metadata", None)
+        belief_confidence = (
+            _coerce_float(belief_metadata.get("confidence"))
+            if isinstance(belief_metadata, Mapping)
+            else None
+        )
+
+        confidence_value = (
+            belief_confidence
+            if belief_confidence is not None
+            else _coerce_float(regime_state.confidence)
+        )
         bounded_confidence = (
             AlphaTradeLoopRunner._bound_probability(confidence_value)
             if confidence_value is not None
@@ -633,9 +645,10 @@ class AlphaTradeLoopRunner:
         if isinstance(generated_at, datetime):
             belief_summary["generated_at"] = generated_at.astimezone(timezone.utc).isoformat()
 
-        metadata = getattr(belief_state, "metadata", None)
-        if isinstance(metadata, Mapping) and metadata:
-            belief_summary["metadata"] = {str(key): value for key, value in metadata.items()}
+        if isinstance(belief_metadata, Mapping) and belief_metadata:
+            belief_summary["metadata"] = {
+                str(key): value for key, value in belief_metadata.items()
+            }
 
         top_features = self._select_top_features(decision_bundle.belief_snapshot.features)
         if top_features:
@@ -655,25 +668,10 @@ class AlphaTradeLoopRunner:
                 "probe_id": probe_id_text,
                 "status": status_text,
             }
-            if activation.severity:
-                probe_entry["severity"] = str(activation.severity)
-            if activation.owner:
-                probe_entry["owner"] = str(activation.owner)
-            if activation.contact:
-                probe_entry["contact"] = str(activation.contact)
-            if activation.runbook:
-                probe_entry["runbook"] = str(activation.runbook)
-            if activation.notes:
-                probe_entry["notes"] = [
-                    str(note).strip()
-                    for note in activation.notes
-                    if str(note).strip()
-                ]
-            metadata_payload = getattr(activation, "metadata", None)
-            if isinstance(metadata_payload, Mapping):
-                probe_entry["metadata"] = {
-                    str(key): value for key, value in metadata_payload.items()
-                }
+            severity_value = getattr(activation, "severity", None)
+            severity_text = str(severity_value).strip() if severity_value else ""
+            if severity_text:
+                probe_entry["severity"] = severity_text
             probes_payload.append(probe_entry)
 
         explanation = (decision_bundle.decision.rationale or "").strip()
@@ -1216,6 +1214,12 @@ class AlphaTradeLoopRunner:
         if ticket_value:
             intent["ticket"] = ticket_value
 
+        coverage_payload = metadata.get("diary_coverage")
+        if isinstance(coverage_payload, Mapping):
+            intent["metadata"]["diary_coverage"] = {
+                str(key): value for key, value in coverage_payload.items()
+            }
+
         return TradePlan(metadata=dict(metadata), intent=dict(intent))
 
     @staticmethod
@@ -1547,6 +1551,12 @@ class AlphaTradeLoopRunner:
         release_stage = metadata.get("release_stage")
         if release_stage:
             intent["metadata"]["release_stage"] = release_stage
+
+        coverage_payload = metadata.get("diary_coverage")
+        if isinstance(coverage_payload, Mapping):
+            intent["metadata"]["diary_coverage"] = {
+                str(key): value for key, value in coverage_payload.items()
+            }
 
         return intent
 

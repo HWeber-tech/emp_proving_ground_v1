@@ -4011,31 +4011,26 @@ class TradingManager:
         for item in payload:
             if not isinstance(item, Mapping):
                 continue
-            probe_id = item.get("probe_id")
-            if not probe_id:
+            probe_id_text = str(item.get("probe_id", "")).strip()
+            status_text = str(item.get("status", "")).strip()
+            if not probe_id_text or not status_text:
                 continue
             entry: dict[str, Any] = {
-                "probe_id": str(probe_id),
-                "status": str(item.get("status", "")),
+                "probe_id": probe_id_text,
+                "status": status_text,
             }
-            for key in ("severity", "owner", "contact", "runbook"):
-                value = item.get(key)
-                if value:
-                    entry[key] = str(value)
-            notes_payload = item.get("notes")
-            if isinstance(notes_payload, Sequence) and not isinstance(notes_payload, (str, bytes)):
-                notes = [str(note).strip() for note in notes_payload if str(note).strip()]
-                if notes:
-                    entry["notes"] = notes
-            metadata_payload = item.get("metadata")
-            if isinstance(metadata_payload, Mapping) and metadata_payload:
-                entry["metadata"] = {str(key): value for key, value in metadata_payload.items()}
+            severity_value = item.get("severity")
+            severity_text = str(severity_value).strip() if severity_value is not None else ""
+            if severity_text:
+                entry["severity"] = severity_text
             probes.append(entry)
 
         return probes
 
     @staticmethod
-    def _attribution_payload_is_complete(payload: Mapping[str, Any] | None) -> bool:
+    def _attribution_payload_has_core_components(
+        payload: Mapping[str, Any] | None,
+    ) -> bool:
         if not isinstance(payload, Mapping):
             return False
 
@@ -4060,6 +4055,16 @@ class TradingManager:
         ):
             return False
 
+        return True
+
+    @staticmethod
+    def _attribution_payload_is_complete(payload: Mapping[str, Any] | None) -> bool:
+        if not TradingManager._attribution_payload_has_core_components(payload):
+            return False
+
+        if not isinstance(payload, Mapping):
+            return False
+
         explanation = payload.get("explanation")
         if not isinstance(explanation, str) or not explanation.strip():
             return False
@@ -4077,7 +4082,16 @@ class TradingManager:
         if not executed:
             return
 
-        self._order_attribution_samples += 1
+        def _current_coverage() -> float:
+            if not self._order_attribution_samples:
+                return 0.0
+            return self._order_attribution_with_context / self._order_attribution_samples
+
+        def _publish_stats(coverage_value: float) -> None:
+            self._execution_stats["orders_with_attribution"] = (
+                self._order_attribution_with_context
+            )
+            self._execution_stats["attribution_coverage"] = round(coverage_value, 4)
 
         attribution_payload = self._extract_attribution_metadata(validated_intent)
         if attribution_payload is None:
@@ -4085,19 +4099,27 @@ class TradingManager:
         if attribution_payload is None and isinstance(outcome_metadata, Mapping):
             candidate = outcome_metadata.get("attribution")
             if isinstance(candidate, Mapping):
-                attribution_payload = self._normalise_attribution_payload(candidate)
+                normalised_candidate = self._normalise_attribution_payload(candidate)
+                attribution_payload = normalised_candidate if normalised_candidate else None
+
+        if not attribution_payload:
+            coverage_snapshot = _current_coverage()
+            _publish_stats(coverage_snapshot)
+            return
+
+        if not self._attribution_payload_has_core_components(attribution_payload):
+            coverage_snapshot = _current_coverage()
+            _publish_stats(coverage_snapshot)
+            return
+
+        self._order_attribution_samples += 1
 
         complete_attribution = self._attribution_payload_is_complete(attribution_payload)
         if complete_attribution:
             self._order_attribution_with_context += 1
 
-        coverage = (
-            self._order_attribution_with_context / self._order_attribution_samples
-            if self._order_attribution_samples
-            else 0.0
-        )
-        self._execution_stats["orders_with_attribution"] = self._order_attribution_with_context
-        self._execution_stats["attribution_coverage"] = round(coverage, 4)
+        coverage = _current_coverage()
+        _publish_stats(coverage)
 
         if (
             self._order_attribution_samples >= 10

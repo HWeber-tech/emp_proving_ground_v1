@@ -531,7 +531,7 @@ def _resolve_paper_failover_snapshot(
     paper_engine: PaperBrokerExecutionAdapter,
 ) -> Mapping[str, Any] | None:
     snapshot = _maybe_describe_mapping(paper_engine, "describe_failover")
-    if snapshot:
+    if snapshot is not None:
         return dict(snapshot)
     return None
 

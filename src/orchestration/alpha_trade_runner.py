@@ -294,17 +294,20 @@ class AlphaTradeLoopRunner:
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
+        has_diary_entry = loop_result.diary_entry is not None
         coverage_snapshot = dict(self.describe_diary_coverage())
         loop_metadata_updates.setdefault("diary_coverage", coverage_snapshot)
         trade_metadata.setdefault("diary_coverage", dict(coverage_snapshot))
-        if loop_result.diary_entry is not None:
+        if has_diary_entry:
             diary_annotations.setdefault("diary_coverage", dict(coverage_snapshot))
         if attribution_payload:
-            diary_annotations["attribution"] = attribution_payload
+            if has_diary_entry:
+                diary_annotations["attribution"] = attribution_payload
             loop_metadata_updates["attribution"] = attribution_payload
         if mitigation_payload:
             mitigation_copy = dict(mitigation_payload)
-            diary_annotations["drift_mitigation"] = mitigation_copy
+            if has_diary_entry:
+                diary_annotations["drift_mitigation"] = mitigation_copy
             loop_metadata_updates["drift_mitigation"] = mitigation_copy
         if intent_payload is not None:
             outcome = await self._trading_manager.on_trade_intent(intent_payload)
@@ -318,7 +321,8 @@ class AlphaTradeLoopRunner:
                     trade_execution_payload["metadata"] = dict(outcome.metadata)
                 if outcome.throttle:
                     trade_execution_payload["throttle"] = dict(outcome.throttle)
-                diary_annotations["trade_execution"] = trade_execution_payload
+                if has_diary_entry:
+                    diary_annotations["trade_execution"] = trade_execution_payload
                 loop_metadata_updates["trade_execution"] = trade_execution_payload
 
                 throttle_payload, updated_packet = self._apply_throttle_decay(
@@ -329,23 +333,26 @@ class AlphaTradeLoopRunner:
                 )
                 if throttle_payload:
                     throttle_copy = dict(throttle_payload)
-                    diary_annotations["drift_throttle"] = throttle_copy
+                    if has_diary_entry:
+                        diary_annotations["drift_throttle"] = throttle_copy
                     loop_metadata_updates["drift_throttle"] = throttle_copy
                 if updated_packet is not None:
                     theory_packet_payload = updated_packet
 
         if theory_packet_payload:
             packet_copy = dict(theory_packet_payload)
-            diary_annotations["theory_packet"] = packet_copy
+            if has_diary_entry:
+                diary_annotations["theory_packet"] = packet_copy
             loop_metadata_updates["theory_packet"] = packet_copy
 
         performance_health = await self._collect_performance_health()
         if performance_health is not None:
-            diary_annotations.setdefault("performance_health", performance_health)
+            if has_diary_entry:
+                diary_annotations.setdefault("performance_health", performance_health)
             loop_metadata_updates.setdefault("performance_health", performance_health)
             trade_metadata.setdefault("performance_health", performance_health)
 
-        if diary_annotations:
+        if has_diary_entry and diary_annotations:
             merged_loop_metadata = dict(loop_result.metadata)
             merged_loop_metadata.update(loop_metadata_updates)
             updated_entry = self._orchestrator.annotate_diary_entry(
@@ -540,8 +547,11 @@ class AlphaTradeLoopRunner:
         *,
         belief_state: BeliefState,
         decision_bundle: UnderstandingDecision,
-        diary_entry: DecisionDiaryEntry,
+        diary_entry: "DecisionDiaryEntry | None",
     ) -> Mapping[str, Any] | None:
+        if diary_entry is None:
+            return None
+
         regime_state = decision_bundle.belief_snapshot.regime_state
         belief_summary: dict[str, Any] = {
             "belief_id": belief_state.belief_id,
@@ -563,7 +573,8 @@ class AlphaTradeLoopRunner:
             belief_summary["top_features"] = top_features
 
         probes_payload: list[Mapping[str, Any]] = []
-        for activation in diary_entry.probes:
+        probes_source = getattr(diary_entry, "probes", ())
+        for activation in probes_source or ():
             probe_entry: dict[str, Any] = {
                 "probe_id": activation.probe_id,
                 "status": activation.status,

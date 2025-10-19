@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from datetime import datetime, timezone, timedelta
+from types import MappingProxyType
 
 from typing import Any, Mapping
 
@@ -918,6 +919,68 @@ async def test_alpha_trade_runner_warns_when_diary_coverage_slips(
         record for record in caplog.records if "coverage" in record.message.lower()
     ]
     assert warning_records, "expected coverage warning to be emitted"
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_handles_missing_diary_entry(
+    monkeypatch, tmp_path
+) -> None:
+    trading_manager = _FakeTradingManager()
+    runner, diary_store = _build_runner(monkeypatch, tmp_path, trading_manager)
+
+    orchestrator = runner._orchestrator
+    original_run_iteration = orchestrator.run_iteration
+
+    def stub_run_iteration(*args, **kwargs):
+        result = original_run_iteration(*args, **kwargs)
+        return replace(
+            result,
+            diary_entry=None,
+            metadata=MappingProxyType(dict(result.metadata)),
+        )
+
+    monkeypatch.setattr(orchestrator, "run_iteration", stub_run_iteration)
+
+    def fail_on_annotate(*_args, **_kwargs):
+        pytest.fail("annotate_diary_entry should not be called when diary entry is missing")
+
+    monkeypatch.setattr(orchestrator, "annotate_diary_entry", fail_on_annotate)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    result = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    assert result.loop_result.diary_entry is None
+    assert "attribution" not in result.trade_metadata
+    assert result.trade_metadata.get("diary_coverage", {}).get("missing") == 1
+
+    stats = runner.describe_diary_coverage()
+    assert stats["iterations"] == 1
+    assert stats["missing"] == 1
+    assert stats["recorded"] == 0
+    assert stats["coverage"] == 0.0
+
+    assert trading_manager.intents, "expected trade intent to be submitted"
+    intent_metadata = trading_manager.intents[0].get("metadata")
+    if isinstance(intent_metadata, Mapping):
+        assert "attribution" not in intent_metadata
+
+    assert diary_store.entries(), "expected diary store to keep previously recorded entries"
 
 
 @pytest.mark.asyncio()

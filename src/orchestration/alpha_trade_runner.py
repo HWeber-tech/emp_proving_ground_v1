@@ -116,6 +116,7 @@ class AlphaTradeLoopRunner:
         "info": 0,
     }
     _TOP_FEATURE_NORM_LIMIT = 25.0
+    _ATTRIBUTION_EXPLANATION_LIMIT = 160
 
     def __init__(
         self,
@@ -621,6 +622,26 @@ class AlphaTradeLoopRunner:
         return summary
 
     @staticmethod
+    def _build_brief_explanation(value: Any, *, limit: int | None = None) -> str:
+        """Collapse whitespace and enforce a maximum explanation length."""
+
+        text = str(value or "").strip()
+        if not text:
+            return ""
+
+        collapsed = " ".join(text.split())
+        resolved_limit = (
+            limit
+            if isinstance(limit, int) and limit > 0
+            else AlphaTradeLoopRunner._ATTRIBUTION_EXPLANATION_LIMIT
+        )
+        if len(collapsed) <= resolved_limit:
+            return collapsed
+        if resolved_limit <= 3:
+            return collapsed[:resolved_limit]
+        return collapsed[: resolved_limit - 3].rstrip() + "..."
+
+    @staticmethod
     def _normalise_probe_fragment(value: Any) -> str:
         text = str(value or "").strip()
         if not text:
@@ -798,6 +819,7 @@ class AlphaTradeLoopRunner:
 
         regime_value = getattr(regime_state, "regime", None)
         regime = str(regime_value).strip() if regime_value else ""
+        fallback_regime = regime or str(regime_state.regime or "unknown").strip() or "unknown"
 
         belief_summary: dict[str, Any] = {
             "belief_id": belief_id,
@@ -863,15 +885,23 @@ class AlphaTradeLoopRunner:
                     diary_entry=diary_entry,
                     decision_bundle=decision_bundle,
                     belief_state=belief_state,
-                )
+            )
             )
 
-        explanation = (decision_bundle.decision.rationale or "").strip()
+        explanation = AlphaTradeLoopRunner._build_brief_explanation(
+            getattr(decision_bundle.decision, "rationale", "")
+        )
         if not explanation:
-            fallback_regime = regime or str(regime_state.regime or "unknown").strip()
-            explanation = (
-                f"{decision_bundle.decision.tactic_id} routed under {fallback_regime}"
+            tactic_label = str(getattr(decision_bundle.decision, "tactic_id", "") or "").strip()
+            if not tactic_label:
+                tactic_label = str(getattr(diary_entry, "policy_id", "") or "").strip()
+            if not tactic_label:
+                tactic_label = symbol or "trade"
+            explanation = AlphaTradeLoopRunner._build_brief_explanation(
+                f"{tactic_label} routed under {fallback_regime}"
             )
+        if not explanation:
+            explanation = "Routed under governing regime"
 
         attribution: dict[str, Any] = {
             "diary_entry_id": diary_entry.entry_id,

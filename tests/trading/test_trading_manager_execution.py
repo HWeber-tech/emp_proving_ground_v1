@@ -1107,6 +1107,27 @@ async def test_trading_manager_tracks_order_attribution(
     assert stats.get("attribution_coverage") == 1.0
 
 
+def test_trading_manager_normalises_attribution_explanation() -> None:
+    long_text = "Detailed attribution context " * 40
+    payload = {
+        "explanation": long_text,
+        "diary_entry_id": "dd-long",
+        "policy_id": "alpha.paper",
+        "belief": {
+            "belief_id": "belief-long",
+            "symbol": "EURUSD",
+            "regime": "balanced",
+        },
+        "probes": [{"probe_id": "probe.health", "status": "ok"}],
+    }
+
+    normalised = TradingManager._normalise_attribution_payload(payload)
+    explanation = normalised.get("explanation")
+    assert explanation is not None
+    assert len(explanation) <= TradingManager._ATTRIBUTION_EXPLANATION_LIMIT
+    assert explanation.endswith("...")
+
+
 @pytest.mark.asyncio()
 async def test_trading_manager_requires_complete_attribution_components(
     monkeypatch: pytest.MonkeyPatch,

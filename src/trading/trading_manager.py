@@ -363,6 +363,7 @@ class TradingManager:
     _ATTRIBUTION_CONFIDENCE_MIN = 0.0
     _ATTRIBUTION_CONFIDENCE_MAX = 1.0
     _ATTRIBUTION_FEATURE_NORM_LIMIT = 25.0
+    _ATTRIBUTION_EXPLANATION_LIMIT = 160
 
     def __init__(
         self,
@@ -3903,7 +3904,7 @@ class TradingManager:
 
         explanation = payload.get("explanation")
         if isinstance(explanation, str):
-            explanation_text = explanation.strip()
+            explanation_text = TradingManager._trim_attribution_explanation(explanation)
             if explanation_text:
                 normalised["explanation"] = explanation_text
 
@@ -3927,6 +3928,18 @@ class TradingManager:
             normalised["probes"] = probes
 
         return normalised
+
+    @staticmethod
+    def _trim_attribution_explanation(text: str) -> str:
+        collapsed = " ".join(text.split())
+        if not collapsed:
+            return ""
+        limit = TradingManager._ATTRIBUTION_EXPLANATION_LIMIT
+        if len(collapsed) <= limit:
+            return collapsed
+        if limit <= 3:
+            return collapsed[:limit]
+        return collapsed[: limit - 3].rstrip() + "..."
 
     @staticmethod
     def _normalise_belief_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:

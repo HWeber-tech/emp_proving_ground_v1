@@ -313,6 +313,14 @@ def test_alpha_trade_runner_bounds_top_feature_norms() -> None:
         assert abs(entry["value"]) <= limit
 
 
+def test_alpha_trade_runner_builds_brief_explanation() -> None:
+    text = "AlphaTrade explanation " * 40
+    trimmed = AlphaTradeLoopRunner._build_brief_explanation(text)
+    assert len(trimmed) <= AlphaTradeLoopRunner._ATTRIBUTION_EXPLANATION_LIMIT
+    assert trimmed.endswith("...")
+    assert "  " not in trimmed
+
+
 @pytest.mark.asyncio()
 async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> None:
     trading_manager = _FakeTradingManager()

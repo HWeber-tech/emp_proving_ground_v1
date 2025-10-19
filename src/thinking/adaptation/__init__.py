@@ -17,6 +17,12 @@ from .fast_weights import (
     build_fast_weight_controller,
     parse_fast_weight_constraints,
 )
+from .novelty_archive import (
+    NoveltyArchive,
+    NoveltyProbe,
+    compute_genotype_signature,
+    compute_probe_vector,
+)
 from .operator_constraints import (
     OperatorContext,
     OperatorConstraint,
@@ -68,6 +74,10 @@ __all__ = [
     "FastWeightResult",
     "build_fast_weight_controller",
     "parse_fast_weight_constraints",
+    "NoveltyArchive",
+    "NoveltyProbe",
+    "compute_genotype_signature",
+    "compute_probe_vector",
     "OperatorContext",
     "OperatorConstraint",
     "OperatorConstraintSet",

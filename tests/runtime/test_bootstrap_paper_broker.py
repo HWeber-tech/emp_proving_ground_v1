@@ -11,6 +11,7 @@ from src.governance.system_config import ConnectionProtocol, SystemConfig
 from src.runtime.predator_app import _build_bootstrap_runtime
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from tests.util import promotion_checklist_metadata
 
 
 class _StubBus:
@@ -67,6 +68,7 @@ async def test_bootstrap_runtime_routes_live_stage_to_paper_api(tmp_path: Any) -
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("qa", "risk"),
         evidence_id="evidence-123",
+        metadata=promotion_checklist_metadata(),
     )
     ledger_path.write_text(json.dumps({"records": {"bootstrap-strategy": record.as_dict()}}))
 

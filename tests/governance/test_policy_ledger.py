@@ -19,6 +19,7 @@ from src.governance.policy_ledger import (
     _parse_bool,
     build_policy_governance_workflow,
 )
+from tests.util import promotion_checklist_metadata
 
 
 def _incrementing_now_factory(start: datetime) -> Callable[[], datetime]:
@@ -201,6 +202,7 @@ def test_release_manager_threshold_resolution(tmp_path: Path) -> None:
         approvals=("risk", "ops"),
         evidence_id="diary-alpha",
         threshold_overrides={"warn_confidence_floor": 0.58},
+        metadata=promotion_checklist_metadata(),
     )
 
     overrides = manager.resolve_thresholds("alpha.policy")
@@ -432,6 +434,47 @@ def test_release_manager_enforces_audit_coverage(tmp_path: Path) -> None:
     assert summary["stage"] == PolicyLedgerStage.LIMITED_LIVE.value
     assert summary.get("audit_gaps", []) == []
     assert summary["audit_enforced"] is False
+
+
+def test_promotion_checklist_required_for_limited_live(tmp_path: Path) -> None:
+    path = tmp_path / "policy_checklist.json"
+    store = PolicyLedgerStore(path)
+    manager = LedgerReleaseManager(
+        store,
+        feature_flags=PolicyLedgerFeatureFlags(require_diary_evidence=False),
+    )
+
+    manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha",
+    )
+
+    enforced_stage = manager.resolve_stage("alpha")
+    assert enforced_stage is PolicyLedgerStage.PILOT
+    summary = manager.describe("alpha")
+    assert summary["audit_enforced"] is True
+    gaps = summary.get("audit_gaps", [])
+    assert "missing_oos_regime_grid" in gaps
+    assert "missing_leakage_checks" in gaps
+    assert "missing_risk_audit" in gaps
+
+    manager.promote(
+        policy_id="alpha",
+        tactic_id="alpha",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "ops"),
+        evidence_id="dd-alpha",
+        metadata=promotion_checklist_metadata(),
+    )
+
+    enforced_stage = manager.resolve_stage("alpha")
+    assert enforced_stage is PolicyLedgerStage.LIMITED_LIVE
+    summary = manager.describe("alpha")
+    assert summary["audit_enforced"] is False
+    assert summary.get("audit_gaps", []) == []
 
 
 def test_release_manager_caps_default_stage_without_record(tmp_path: Path) -> None:

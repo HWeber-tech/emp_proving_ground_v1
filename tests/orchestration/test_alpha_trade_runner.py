@@ -29,6 +29,7 @@ from src.thinking.adaptation.policy_router import (
     PolicyRouter,
     PolicyTactic,
 )
+from tests.util import promotion_checklist_metadata
 
 
 UTC = timezone.utc
@@ -356,6 +357,7 @@ async def test_alpha_trade_runner_merges_counterfactual_guardrail(monkeypatch, t
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="dd-alpha-live",
+        metadata=promotion_checklist_metadata(),
     )
     release_manager = LedgerReleaseManager(ledger_store)
     drift_gate = DriftSentryGate()

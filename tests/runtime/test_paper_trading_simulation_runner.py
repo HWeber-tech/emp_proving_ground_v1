@@ -16,6 +16,7 @@ from src.runtime.paper_simulation import (
     run_paper_trading_simulation,
 )
 from src.understanding.decision_diary import DecisionDiaryStore
+from tests.util import promotion_checklist_metadata
 
 
 async def _start_paper_server(
@@ -112,6 +113,7 @@ async def test_run_paper_trading_simulation_executes_orders(tmp_path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"
@@ -292,6 +294,7 @@ async def test_run_paper_trading_simulation_respects_stop_when_complete(tmp_path
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"
@@ -336,6 +339,7 @@ async def test_run_paper_trading_simulation_emits_progress(tmp_path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-progress",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_async = tmp_path / "diary-progress-async.json"
@@ -409,6 +413,7 @@ async def test_run_paper_trading_simulation_honours_stop_event(tmp_path) -> None
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"
@@ -460,6 +465,7 @@ async def test_run_paper_trading_simulation_writes_report(tmp_path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"
@@ -527,6 +533,7 @@ async def test_run_paper_trading_simulation_handles_broker_failure(tmp_path) -> 
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"

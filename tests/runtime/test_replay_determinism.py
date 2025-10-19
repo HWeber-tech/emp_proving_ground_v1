@@ -10,6 +10,7 @@ from aiohttp import web
 from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.system_config import ConnectionProtocol, SystemConfig
 from src.runtime.paper_simulation import run_paper_trading_simulation
+from tests.util import promotion_checklist_metadata
 
 
 async def _start_paper_server(
@@ -48,6 +49,7 @@ def _prepare_ledger(ledger_path: Path) -> None:
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="replay-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
 

@@ -52,6 +52,7 @@ __all__ = [
     "PolicyDelta",
     "PolicyLedgerFeatureFlags",
     "build_policy_governance_workflow",
+    "PromotionChecklistStatus",
 ]
 
 
@@ -347,6 +348,93 @@ def _merge_signoffs(
     return tuple(merged)
 
 
+_POSITIVE_CHECK_VALUES = {
+    "1",
+    "true",
+    "yes",
+    "y",
+    "done",
+    "complete",
+    "completed",
+    "pass",
+    "passed",
+    "ok",
+    "ready",
+}
+
+_NEGATIVE_CHECK_VALUES = {
+    "0",
+    "false",
+    "no",
+    "n",
+    "todo",
+    "pending",
+    "blocked",
+    "fail",
+    "failed",
+}
+
+
+def _coerce_checklist_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if not text:
+            return False
+        if text in _POSITIVE_CHECK_VALUES:
+            return True
+        if text in _NEGATIVE_CHECK_VALUES:
+            return False
+    if isinstance(value, Mapping):
+        for key in ("passed", "complete", "completed", "status", "result", "ready"):
+            if key in value:
+                if isinstance(value[key], (bool, int, float, str, Mapping)):
+                    return _coerce_checklist_flag(value[key])
+        for key, entry in value.items():
+            if isinstance(entry, bool):
+                return entry
+    return False
+
+
+@dataclass(frozen=True)
+class PromotionChecklistStatus:
+    """Structured view of promotion checklist prerequisites."""
+
+    oos_regime_grid: bool = False
+    leakage_checks: bool = False
+    risk_audit: bool = False
+
+    def as_dict(self) -> dict[str, bool]:
+        return {
+            "oos_regime_grid": self.oos_regime_grid,
+            "leakage_checks": self.leakage_checks,
+            "risk_audit": self.risk_audit,
+        }
+
+    def completed(self) -> bool:
+        return self.oos_regime_grid and self.leakage_checks and self.risk_audit
+
+
+def _coerce_promotion_checklist(
+    metadata: Mapping[str, Any] | None,
+) -> PromotionChecklistStatus:
+    if not metadata:
+        return PromotionChecklistStatus()
+    root = metadata.get("promotion_checklist") if isinstance(metadata, Mapping) else None
+    if isinstance(root, Mapping):
+        source = root
+    else:
+        source = metadata
+    return PromotionChecklistStatus(
+        oos_regime_grid=_coerce_checklist_flag(source.get("oos_regime_grid")),
+        leakage_checks=_coerce_checklist_flag(source.get("leakage_checks")),
+        risk_audit=_coerce_checklist_flag(source.get("risk_audit")),
+    )
+
+
 @dataclass(slots=True)
 class PolicyLedgerRecord:
     """Ledger entry tying a tactic to its promotion posture."""
@@ -365,6 +453,11 @@ class PolicyLedgerRecord:
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     history: tuple[Mapping[str, Any], ...] = ()
+
+    def promotion_checklist(self) -> PromotionChecklistStatus:
+        """Return the promotion checklist status captured in metadata."""
+
+        return _coerce_promotion_checklist(self.metadata)
 
     def with_stage(
         self,
@@ -902,6 +995,10 @@ class LedgerReleaseManager:
         if len(record.approvals) < 2:
             return PolicyLedgerStage.PILOT
 
+        checklist = record.promotion_checklist()
+        if not checklist.completed():
+            return PolicyLedgerStage.PILOT
+
         return PolicyLedgerStage.LIMITED_LIVE
 
     @staticmethod
@@ -963,6 +1060,7 @@ class LedgerReleaseManager:
         if record is not None:
             coverage_stage = self._coverage_stage(record)
             audit_gaps = self._audit_gaps(record)
+            checklist = record.promotion_checklist()
             payload["approvals"] = list(record.approvals)
             if record.evidence_id:
                 payload["evidence_id"] = record.evidence_id
@@ -975,6 +1073,8 @@ class LedgerReleaseManager:
             payload["limited_live_authorised"] = (
                 coverage_stage is PolicyLedgerStage.LIMITED_LIVE
             )
+            payload["promotion_checklist"] = checklist.as_dict()
+            payload["promotion_checklist_complete"] = checklist.completed()
             if record.metadata:
                 payload["metadata"] = dict(record.metadata)
             if record.policy_delta is not None and not record.policy_delta.is_empty():
@@ -1165,8 +1265,11 @@ def build_policy_governance_workflow(
         key=lambda record: (_STAGE_ORDER.get(record.stage, 0), record.policy_id),
     )
     tasks: list[ComplianceWorkflowTask] = []
+    checklist_statuses: list[PromotionChecklistStatus] = []
     for record in records:
         status = _resolve_task_status(record)
+        checklist_status = record.promotion_checklist()
+        checklist_statuses.append(checklist_status)
         summary_parts = [f"tactic={record.tactic_id}"]
         if record.approvals:
             summary_parts.append("approvals=" + ",".join(record.approvals))
@@ -1184,6 +1287,16 @@ def build_policy_governance_workflow(
             summary_parts.append(
                 "rejected=" + ",".join(record.rejected_proposals)
             )
+        summary_parts.append(
+            "checklist="
+            + ",".join(
+                [
+                    f"oos={'ok' if checklist_status.oos_regime_grid else 'todo'}",
+                    f"leakage={'ok' if checklist_status.leakage_checks else 'todo'}",
+                    f"risk={'ok' if checklist_status.risk_audit else 'todo'}",
+                ]
+            )
+        )
         severity = "high" if status is WorkflowTaskStatus.blocked else "medium"
         metadata: dict[str, Any] = {
             "policy_id": record.policy_id,
@@ -1200,6 +1313,8 @@ def build_policy_governance_workflow(
             metadata["rejected_proposals"] = list(record.rejected_proposals)
         if record.human_signoffs:
             metadata["human_signoffs"] = [dict(entry) for entry in record.human_signoffs]
+        metadata["promotion_checklist"] = checklist_status.as_dict()
+        metadata["promotion_checklist_complete"] = checklist_status.completed()
         task = ComplianceWorkflowTask(
             task_id=f"policy::{record.policy_id}",
             title=f"{record.policy_id} → {record.stage.value}",
@@ -1220,6 +1335,12 @@ def build_policy_governance_workflow(
         "completed": sum(1 for task in tasks if task.status is WorkflowTaskStatus.completed),
         "blocked": sum(1 for task in tasks if task.status is WorkflowTaskStatus.blocked),
     }
+    checklist_metadata["checklist_ready"] = sum(
+        1 for status in checklist_statuses if status.completed()
+    )
+    checklist_metadata["checklist_blocked"] = sum(
+        1 for status in checklist_statuses if not status.completed()
+    )
     checklist = ComplianceWorkflowChecklist(
         name="Policy Ledger Governance",
         regulation=regulation,

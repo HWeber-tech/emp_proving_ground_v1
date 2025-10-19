@@ -12,6 +12,7 @@ from src.governance.policy_ledger import (
     PolicyLedgerStore,
 )
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
+from tests.util import promotion_checklist_metadata
 
 
 class StubEngine:

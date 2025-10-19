@@ -63,6 +63,7 @@ from src.trading.gating import DriftSentryGate
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
 from src.trading.trading_manager import TradingManager
 from src.trading.risk.guardrail_incidents import extract_guardrail_incident
+from tests.util import promotion_checklist_metadata
 
 
 class AlwaysActiveRegistry:
@@ -1872,6 +1873,7 @@ async def test_trading_manager_forces_paper_execution_under_drift_warn(
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("ops", "risk"),
         evidence_id="diary-alpha",
+        metadata=promotion_checklist_metadata(),
     )
 
     bus = RecordingBus()

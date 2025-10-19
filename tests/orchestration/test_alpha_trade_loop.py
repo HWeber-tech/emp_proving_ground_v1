@@ -30,6 +30,7 @@ from src.understanding.router import (
     RegimeState,
     UnderstandingRouter,
 )
+from tests.util import promotion_checklist_metadata
 
 
 @pytest.mark.guardrail
@@ -218,6 +219,7 @@ def test_alpha_trade_loop_counterfactual_guardrail_forces_paper(tmp_path: Path) 
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "ops"),
         evidence_id="dd-alpha-live",
+        metadata=promotion_checklist_metadata(),
     )
     release_manager = LedgerReleaseManager(ledger_store)
 
@@ -296,6 +298,7 @@ def test_alpha_trade_loop_counterfactual_guardrail_respects_override(tmp_path: P
         approvals=("risk", "ops"),
         evidence_id="dd-alpha-live",
         threshold_overrides={"counterfactual_relative_delta_limit": 1.5},
+        metadata=promotion_checklist_metadata(),
     )
     release_manager = LedgerReleaseManager(ledger_store)
 
@@ -521,6 +524,7 @@ def test_alpha_trade_loop_live_stage_allows_live_execution(tmp_path: Path) -> No
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "compliance"),
         evidence_id="live-ready",
+        metadata=promotion_checklist_metadata(),
     )
 
     orchestrator = AlphaTradeLoopOrchestrator(

@@ -12,6 +12,7 @@ from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.system_config import ConnectionProtocol, SystemConfig
 from src.runtime.predator_app import _build_bootstrap_runtime
 from src.runtime.paper_simulation import run_paper_trading_simulation
+from tests.util import promotion_checklist_metadata
 
 
 async def _start_paper_server(
@@ -57,6 +58,7 @@ async def test_bootstrap_runtime_paper_trading_simulation_records_diary(tmp_path
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="bootstrap-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"
@@ -250,6 +252,7 @@ async def test_paper_trading_simulation_recovers_after_api_failure(tmp_path) -> 
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="bootstrap-evidence",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"
@@ -366,6 +369,7 @@ async def test_paper_trading_simulation_handles_persistent_api_failure(tmp_path)
         stage=PolicyLedgerStage.LIMITED_LIVE,
         approvals=("risk", "qa"),
         evidence_id="paper-sim-failure",
+        metadata=promotion_checklist_metadata(),
     )
 
     diary_path = tmp_path / "diary.json"

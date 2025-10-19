@@ -11,6 +11,7 @@ from src.governance.policy_ledger import PolicyLedgerStage, PolicyLedgerStore
 from src.governance.promotion_integrity import PromotionGuard
 from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
 from src.understanding.decision_diary import DecisionDiaryStore
+from tests.util import promotion_checklist_metadata
 
 
 @pytest.fixture()
@@ -86,6 +87,7 @@ def _promotion_guard(
         stage=stage,
         approvals=("risk", "compliance"),
         evidence_id=f"dd-{policy_id}-promotion",
+        metadata=promotion_checklist_metadata(),
     )
     diary_path = tmp_path / "decision_diary.json"
     diary = DecisionDiaryStore(diary_path, publish_on_record=False)

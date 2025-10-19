@@ -3,10 +3,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from tools.operations import nightly_replay_job
 
 
-def test_nightly_replay_job_generates_artifacts(tmp_path: Path) -> None:
+def test_nightly_replay_job_generates_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_root = tmp_path / "mirror"
+    monkeypatch.setenv("ALPHATRADE_ARTIFACT_ROOT", str(archive_root))
     run_root = tmp_path / "artifacts" / "nightly_replay"
     exit_code = nightly_replay_job.main(
         [
@@ -50,3 +57,12 @@ def test_nightly_replay_job_generates_artifacts(tmp_path: Path) -> None:
 
     ledger_payload = json.loads(ledger_path.read_text(encoding="utf-8"))
     assert "records" in ledger_payload
+
+    archive_dir = archive_root / "diaries" / "2025" / "01" / "02" / "nightly-replay-20250102T030405Z"
+    assert (archive_dir / "decision_diary.json").exists()
+
+    drift_dir = archive_root / "drift_reports" / "2025" / "01" / "02" / "nightly-replay-20250102T030405Z"
+    assert (drift_dir / "sensor_drift_summary.json").exists()
+
+    ledger_dir = archive_root / "ledger_exports" / "2025" / "01" / "02" / "nightly-replay-20250102T030405Z"
+    assert (ledger_dir / "policy_ledger.json").exists()

@@ -1,0 +1,50 @@
+{
+  "baseline_window": 42,
+  "evaluation_window": 22,
+  "generated_at": "2025-10-19T14:13:48.102569+00:00",
+  "parameters": {
+    "baseline_window": 42,
+    "evaluation_window": 22,
+    "min_observations": 22,
+    "z_threshold": 3.0
+  },
+  "results": [
+    {
+      "baseline_count": 42,
+      "baseline_mean": 0.7437493303920839,
+      "baseline_std": 0.1257177541219271,
+      "drift_ratio": 0.21641682706214788,
+      "evaluation_count": 22,
+      "evaluation_mean": 0.9047092006051358,
+      "evaluation_std": 0.05878823624272622,
+      "exceeded": true,
+      "sensor": "confidence",
+      "z_score": 6.969318790358705
+    },
+    {
+      "baseline_count": 42,
+      "baseline_mean": 0.18225323356353199,
+      "baseline_std": 0.5847143438023334,
+      "drift_ratio": 1.9741007987073087,
+      "evaluation_count": 22,
+      "evaluation_mean": -0.17753302038122615,
+      "evaluation_std": 0.5697989892660725,
+      "exceeded": false,
+      "sensor": "strength",
+      "z_score": -2.3776369514045834
+    },
+    {
+      "baseline_count": 42,
+      "baseline_mean": 101.71936097763293,
+      "baseline_std": 1.2232566142457342,
+      "drift_ratio": 0.0002344233861949874,
+      "evaluation_count": 22,
+      "evaluation_mean": 101.69551558059096,
+      "evaluation_std": 1.264081636291063,
+      "exceeded": false,
+      "sensor": "price",
+      "z_score": -0.07247222813290757
+    }
+  ],
+  "total_observations": 64
+}

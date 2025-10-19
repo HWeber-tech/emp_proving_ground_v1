@@ -1,0 +1,179 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": "2025-10-19T14:13:48.095571+00:00",
+        "experiments_applied": [
+          "nightly-replay-20250102T030405Z"
+        ],
+        "guardrails": {
+          "max_notional": 75000.0
+        },
+        "parameters": {
+          "entry_threshold": 0.45,
+          "exit_threshold": 0.2,
+          "min_confidence": 0.55,
+          "risk_fraction": 0.25
+        },
+        "rationale": "within governance guard band",
+        "reflection_summary": {
+          "decision": "maintain",
+          "evaluation_id": "nightly-replay-20250102T030405Z",
+          "metrics": {
+            "losses": 2.0,
+            "max_drawdown": 0.00992463701978767,
+            "sharpe_ratio": -0.0780423220506961,
+            "total_return": -0.0019463330392786027,
+            "trades": 5.0,
+            "volatility": 0.00039525893309328347,
+            "win_rate": 0.6,
+            "wins": 3.0
+          },
+          "thresholds": {
+            "demote_max_drawdown": 0.35,
+            "demote_sharpe": -0.1,
+            "demote_total_return": -0.05,
+            "demote_win_rate": 0.45,
+            "min_confidence": 0.55,
+            "min_trades": 4.0,
+            "promote_max_drawdown": 0.2,
+            "promote_sharpe": 0.35,
+            "promote_total_return": 0.03,
+            "promote_win_rate": 0.53
+          }
+        },
+        "selected_weight": 1.0,
+        "tactic_id": "momentum_long_short",
+        "weight_breakdown": {
+          "base_weight": 1.0
+        }
+      },
+      "entry_id": "dd-20251019T141348Z-78a10490",
+      "metadata": {
+        "evaluation_id": "nightly-replay-20250102T030405Z",
+        "policy": "momentum_long_short",
+        "tactic": "momentum_long_short"
+      },
+      "notes": [
+        "Nightly replay evaluation nightly-replay-20250102T030405Z"
+      ],
+      "outcomes": {
+        "current_stage": "experiment",
+        "decision": "maintain",
+        "losses": 2.0,
+        "max_drawdown": 0.00992463701978767,
+        "sharpe_ratio": -0.0780423220506961,
+        "snapshot_count": 64,
+        "target_stage": "experiment",
+        "total_return": -0.0019463330392786027,
+        "trades": 5.0,
+        "volatility": 0.00039525893309328347,
+        "win_rate": 0.6,
+        "wins": 3.0
+      },
+      "policy_id": "momentum_long_short",
+      "probes": [],
+      "recorded_at": "2025-10-19T14:13:48.096068+00:00",
+      "regime_state": {
+        "confidence": 0.65,
+        "features": {
+          "total_return": -0.0019463330392786027,
+          "volatility": 0.00039525893309328347,
+          "win_rate": 0.6
+        },
+        "regime": "balanced",
+        "timestamp": "2025-10-19T14:13:48.095571+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": "2025-10-19T14:13:48.095960+00:00",
+        "experiments_applied": [
+          "nightly-replay-20250102T030405Z"
+        ],
+        "guardrails": {
+          "max_notional": 60000.0
+        },
+        "parameters": {
+          "entry_threshold": 0.4,
+          "exit_threshold": 0.15,
+          "min_confidence": 0.5,
+          "risk_fraction": 0.2
+        },
+        "rationale": "within governance guard band",
+        "reflection_summary": {
+          "decision": "maintain",
+          "evaluation_id": "nightly-replay-20250102T030405Z",
+          "metrics": {
+            "losses": 2.0,
+            "max_drawdown": 0.008198652422071186,
+            "sharpe_ratio": -0.07928344706174667,
+            "total_return": -0.0015950767927828124,
+            "trades": 5.0,
+            "volatility": 0.00031896330429015667,
+            "win_rate": 0.6,
+            "wins": 3.0
+          },
+          "thresholds": {
+            "demote_max_drawdown": 0.35,
+            "demote_sharpe": -0.1,
+            "demote_total_return": -0.05,
+            "demote_win_rate": 0.45,
+            "min_confidence": 0.55,
+            "min_trades": 4.0,
+            "promote_max_drawdown": 0.2,
+            "promote_sharpe": 0.35,
+            "promote_total_return": 0.03,
+            "promote_win_rate": 0.53
+          }
+        },
+        "selected_weight": 0.8,
+        "tactic_id": "mean_reversion_guard",
+        "weight_breakdown": {
+          "base_weight": 0.8
+        }
+      },
+      "entry_id": "dd-20251019T141348Z-b0327a45",
+      "metadata": {
+        "evaluation_id": "nightly-replay-20250102T030405Z",
+        "policy": "mean_reversion_guard",
+        "tactic": "mean_reversion_guard"
+      },
+      "notes": [
+        "Nightly replay evaluation nightly-replay-20250102T030405Z"
+      ],
+      "outcomes": {
+        "current_stage": "experiment",
+        "decision": "maintain",
+        "losses": 2.0,
+        "max_drawdown": 0.008198652422071186,
+        "sharpe_ratio": -0.07928344706174667,
+        "snapshot_count": 64,
+        "target_stage": "experiment",
+        "total_return": -0.0015950767927828124,
+        "trades": 5.0,
+        "volatility": 0.00031896330429015667,
+        "win_rate": 0.6,
+        "wins": 3.0
+      },
+      "policy_id": "mean_reversion_guard",
+      "probes": [],
+      "recorded_at": "2025-10-19T14:13:48.097912+00:00",
+      "regime_state": {
+        "confidence": 0.65,
+        "features": {
+          "total_return": -0.0015950767927828124,
+          "volatility": 0.00031896330429015667,
+          "win_rate": 0.6
+        },
+        "regime": "balanced",
+        "timestamp": "2025-10-19T14:13:48.095960+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-19T14:13:48.097947+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-19T14:13:48.094936+00:00",
+    "probes": {}
+  }
+}

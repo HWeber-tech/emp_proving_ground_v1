@@ -578,24 +578,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         context.ledger_path.write_text(json.dumps(placeholder, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         logger.info("Ledger artefact initialised at %s", context.ledger_path)
 
-    archive_artifact(
-        "diaries",
-        context.diary_path,
-        timestamp=context.timestamp,
-        run_id=context.evaluation_id,
-    )
-    archive_artifact(
-        "drift_reports",
-        context.drift_report_path,
-        timestamp=context.timestamp,
-        run_id=context.evaluation_id,
-    )
-    archive_artifact(
-        "ledger_exports",
-        context.ledger_path,
-        timestamp=context.timestamp,
-        run_id=context.evaluation_id,
-    )
+    archived: dict[str, Path | None] = {
+        "diary": archive_artifact(
+            "diaries",
+            context.diary_path,
+            timestamp=context.timestamp,
+            run_id=context.evaluation_id,
+        ),
+        "drift_report": archive_artifact(
+            "drift_reports",
+            context.drift_report_path,
+            timestamp=context.timestamp,
+            run_id=context.evaluation_id,
+        ),
+        "ledger": archive_artifact(
+            "ledger_exports",
+            context.ledger_path,
+            timestamp=context.timestamp,
+            run_id=context.evaluation_id,
+        ),
+    }
+
+    missing_archives = [name for name, target in archived.items() if target is None]
+    if missing_archives:
+        logger.error(
+            "Failed to archive replay artefacts: %s",
+            ", ".join(sorted(missing_archives)),
+        )
+        return 1
+
+    for name, target in archived.items():
+        logger.info("Archived %s artefact to %s", name, target)
 
     logger.info(
         "Nightly replay job completed (run_id=%s, transitions=%d)",

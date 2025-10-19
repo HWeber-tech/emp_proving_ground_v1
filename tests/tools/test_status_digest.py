@@ -56,6 +56,31 @@ METRICS_SAMPLE = {
             "source": "cov2.xml",
         }
     ],
+    "alert_response_trend": [
+        {
+            "label": "ci-alert-2024-06-08",
+            "incident_id": "ci-alert-2024-06-08",
+            "drill": True,
+            "opened_at": "2024-06-08T09:55:00+00:00",
+            "acknowledged_at": "2024-06-08T10:00:00+00:00",
+            "resolved_at": "2024-06-08T10:12:00+00:00",
+            "generated_at": "2024-06-08T10:12:00+00:00",
+            "source": "drills/ci-alert-2024-06-08.json",
+            "note": "Ack via slack in 0:05:00; Resolve via github in 0:17:00",
+            "statuses": {
+                "mtta_seconds": "300",
+                "mtta_minutes": "5.0",
+                "mtta_readable": "0:05:00",
+                "mttr_seconds": "1020",
+                "mttr_minutes": "17.0",
+                "mttr_readable": "0:17:00",
+                "ack_channel": "slack",
+                "ack_actor": "oncall-analyst",
+                "resolve_channel": "github",
+                "resolve_actor": "maintainer",
+            },
+        }
+    ],
 }
 
 DASHBOARD_SAMPLE = {
@@ -138,6 +163,18 @@ def test_render_ci_dashboard_table_compiles_rows(
     assert "Warnings: System health" in dashboard_notes
     assert "Healthy: Latency" in dashboard_notes
 
+    alert_value, alert_notes = rows["Alert response"]
+    assert alert_value.startswith("MTTA 5.00m / MTTR 17.00m")
+    assert "ci-alert-2024-06-08" in alert_value
+    assert "ack via slack" in alert_value
+    assert "resolve via github" in alert_value
+    assert "Opened 2024-06-08T09:55:00+00:00" in alert_notes
+    assert "Acknowledged 2024-06-08T10:00:00+00:00 by oncall-analyst" in alert_notes
+    assert "Resolved 2024-06-08T10:12:00+00:00 by maintainer" in alert_notes
+    assert "MTTA 0:05:00" in alert_notes
+    assert "MTTR 0:17:00" in alert_notes
+    assert "Source: drills/ci-alert-2024-06-08.json" in alert_notes
+
 
 def test_render_weekly_status_summary_contains_sections(
     metrics_file: Path, dashboard_file: Path, monkeypatch: pytest.MonkeyPatch
@@ -165,6 +202,14 @@ def test_render_weekly_status_summary_contains_sections(
     assert "Statuses:" in summary
     assert "overall_status: warn" in summary
     assert "Lagging domain core" in summary
+    assert "## Alert response" in summary
+    assert "Label: ci-alert-2024-06-08 (drill)" in summary
+    assert "Opened: 2024-06-08T09:55:00+00:00" in summary
+    assert "Acknowledged: 2024-06-08T10:00:00+00:00 (via slack, by oncall-analyst)" in summary
+    assert "Resolved: 2024-06-08T10:12:00+00:00 (via github, by maintainer)" in summary
+    assert "MTTA: 5.00 minutes (0:05:00)" in summary
+    assert "MTTR: 17.00 minutes (0:17:00)" in summary
+    assert "Evidence: drills/ci-alert-2024-06-08.json" in summary
     assert "Evaluated at" in summary
     assert "Status: WARN" in summary
     assert "Failing panels" in summary
@@ -197,6 +242,7 @@ def test_cli_renders_to_file_and_stdout(
     stdout = capsys.readouterr().out
     assert "Coverage" in stdout
     assert "Observability dashboard" in stdout
+    assert "Alert response" in stdout
 
     output_path = tmp_path / "weekly.md"
     exit_code = status_digest_main(
@@ -215,3 +261,4 @@ def test_cli_renders_to_file_and_stdout(
     content = output_path.read_text()
     assert content.startswith("# Weekly CI telemetry")
     assert "Status: WARN" in content
+    assert "## Alert response" in content

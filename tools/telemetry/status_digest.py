@@ -199,6 +199,50 @@ def _remediation_snapshot(metrics: Mapping[str, Any]) -> Mapping[str, Any] | Non
     return snapshot
 
 
+def _alert_snapshot(metrics: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    entries = _iter_mappings(metrics.get("alert_response_trend"))
+    if not entries:
+        return None
+
+    latest = entries[-1]
+    statuses_obj = latest.get("statuses")
+    statuses: Mapping[str, Any] = statuses_obj if isinstance(statuses_obj, Mapping) else {}
+
+    def _status_float(key: str) -> float | None:
+        value = statuses.get(key)
+        if value in (None, ""):
+            value = latest.get(key)
+        return _coerce_float(value)
+
+    def _status_text(key: str) -> str:
+        value = statuses.get(key)
+        if value in (None, ""):
+            value = latest.get(key)
+        return _clean_label(value)
+
+    snapshot: MutableMapping[str, Any] = {
+        "label": _clean_label(latest.get("label")),
+        "incident_id": _clean_label(latest.get("incident_id")),
+        "drill": bool(latest.get("drill")),
+        "opened_at": _clean_label(latest.get("opened_at")),
+        "acknowledged_at": _clean_label(latest.get("acknowledged_at")),
+        "resolved_at": _clean_label(latest.get("resolved_at")),
+        "generated_at": _clean_label(latest.get("generated_at")),
+        "ack_channel": _status_text("ack_channel"),
+        "ack_actor": _status_text("ack_actor"),
+        "resolve_channel": _status_text("resolve_channel"),
+        "resolve_actor": _status_text("resolve_actor"),
+        "mtta_minutes": _status_float("mtta_minutes"),
+        "mtta_readable": _clean_label(statuses.get("mtta_readable")),
+        "mttr_minutes": _status_float("mttr_minutes"),
+        "mttr_readable": _clean_label(statuses.get("mttr_readable")),
+        "note": _clean_label(latest.get("note")),
+        "source": _clean_label(latest.get("source")),
+    }
+
+    return snapshot
+
+
 def _dashboard_snapshot(dashboard: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
     if dashboard is None:
         return None
@@ -341,6 +385,81 @@ def _render_rows(
         if source:
             notes.append(f"Source: {source}")
         rows.append(("Remediation", value, _format_list(notes)))
+
+    alerts = _alert_snapshot(metrics)
+    if alerts is None:
+        rows.append(
+            (
+                "Alert response",
+                "not recorded",
+                "Capture drills via update_ci_metrics --alert-timeline",
+            )
+        )
+    else:
+        mtta = alerts.get("mtta_minutes")
+        mttr = alerts.get("mttr_minutes")
+
+        def _fmt_minutes(value: float | None, prefix: str) -> str:
+            if value is None:
+                return f"{prefix} n/a"
+            return f"{prefix} {float(value):.2f}m"
+
+        primary = " / ".join((_fmt_minutes(mtta, "MTTA"), _fmt_minutes(mttr, "MTTR")))
+
+        extras: list[str] = []
+        label = alerts.get("label") or alerts.get("incident_id")
+        if label:
+            text = str(label)
+            if alerts.get("drill"):
+                text += " drill"
+            extras.append(text)
+
+        channel_notes: list[str] = []
+        ack_channel = alerts.get("ack_channel")
+        if ack_channel:
+            channel_notes.append(f"ack via {ack_channel}")
+        resolve_channel = alerts.get("resolve_channel")
+        if resolve_channel:
+            channel_notes.append(f"resolve via {resolve_channel}")
+        if channel_notes:
+            extras.append(", ".join(channel_notes))
+
+        value = _format_value(primary, *extras)
+
+        notes: list[str] = []
+        opened_at = alerts.get("opened_at")
+        if opened_at:
+            notes.append(f"Opened {opened_at}")
+        acknowledged_at = alerts.get("acknowledged_at")
+        if acknowledged_at:
+            ack_actor = alerts.get("ack_actor")
+            entry = f"Acknowledged {acknowledged_at}"
+            if ack_actor and ack_actor != "unknown":
+                entry += f" by {ack_actor}"
+            notes.append(entry)
+        resolved_at = alerts.get("resolved_at")
+        if resolved_at:
+            resolve_actor = alerts.get("resolve_actor")
+            entry = f"Resolved {resolved_at}"
+            if resolve_actor and resolve_actor != "unknown":
+                entry += f" by {resolve_actor}"
+            notes.append(entry)
+
+        mtta_readable = alerts.get("mtta_readable")
+        if mtta_readable:
+            notes.append(f"MTTA {mtta_readable}")
+        mttr_readable = alerts.get("mttr_readable")
+        if mttr_readable:
+            notes.append(f"MTTR {mttr_readable}")
+
+        alert_note = alerts.get("note")
+        if alert_note:
+            notes.append(str(alert_note))
+        source = alerts.get("source")
+        if source:
+            notes.append(f"Source: {source}")
+
+        rows.append(("Alert response", value, _format_list(notes)))
 
     freshness = _freshness_snapshot(metrics, max_age_hours=freshness_hours)
     stale = freshness.get("stale", ())
@@ -559,6 +678,69 @@ def _dashboard_section(snapshot: Mapping[str, Any] | None) -> list[str]:
     return lines
 
 
+def _alert_section(snapshot: Mapping[str, Any] | None) -> list[str]:
+    if snapshot is None:
+        return ["_No alert response telemetry recorded._"]
+
+    lines: list[str] = []
+    label = snapshot.get("label") or snapshot.get("incident_id")
+    if label:
+        text = f"- Label: {label}"
+        if snapshot.get("drill"):
+            text += " (drill)"
+        lines.append(text)
+
+    opened_at = snapshot.get("opened_at")
+    if opened_at:
+        lines.append(f"- Opened: {opened_at}")
+
+    acknowledged_at = snapshot.get("acknowledged_at")
+    if acknowledged_at:
+        details: list[str] = []
+        ack_channel = snapshot.get("ack_channel")
+        if ack_channel and ack_channel != "unknown":
+            details.append(f"via {ack_channel}")
+        ack_actor = snapshot.get("ack_actor")
+        if ack_actor and ack_actor != "unknown":
+            details.append(f"by {ack_actor}")
+        detail_suffix = f" ({', '.join(details)})" if details else ""
+        lines.append(f"- Acknowledged: {acknowledged_at}{detail_suffix}")
+
+    resolved_at = snapshot.get("resolved_at")
+    if resolved_at:
+        details = []
+        resolve_channel = snapshot.get("resolve_channel")
+        if resolve_channel and resolve_channel != "unknown":
+            details.append(f"via {resolve_channel}")
+        resolve_actor = snapshot.get("resolve_actor")
+        if resolve_actor and resolve_actor != "unknown":
+            details.append(f"by {resolve_actor}")
+        detail_suffix = f" ({', '.join(details)})" if details else ""
+        lines.append(f"- Resolved: {resolved_at}{detail_suffix}")
+
+    mtta = snapshot.get("mtta_minutes")
+    if mtta is not None:
+        human = snapshot.get("mtta_readable")
+        suffix = f" ({human})" if human else ""
+        lines.append(f"- MTTA: {float(mtta):.2f} minutes{suffix}")
+
+    mttr = snapshot.get("mttr_minutes")
+    if mttr is not None:
+        human = snapshot.get("mttr_readable")
+        suffix = f" ({human})" if human else ""
+        lines.append(f"- MTTR: {float(mttr):.2f} minutes{suffix}")
+
+    note = snapshot.get("note")
+    if note:
+        lines.append(f"- Note: {note}")
+
+    source = snapshot.get("source")
+    if source:
+        lines.append(f"- Evidence: {source}")
+
+    return lines
+
+
 def render_weekly_status_summary(
     metrics_path: Path = DEFAULT_METRICS_PATH,
     *,
@@ -572,6 +754,7 @@ def render_weekly_status_summary(
     domains = _domain_snapshot(metrics)
     formatter = _formatter_snapshot(metrics)
     remediation = _remediation_snapshot(metrics)
+    alerts = _alert_snapshot(metrics)
     freshness = _freshness_snapshot(metrics, max_age_hours=freshness_hours)
     dashboard_snapshot = _dashboard_snapshot(dashboard)
 
@@ -580,6 +763,7 @@ def render_weekly_status_summary(
     lines.extend(_section("Coverage domains", _domains_section(domains)))
     lines.extend(_section("Formatter", _formatter_section(formatter)))
     lines.extend(_section("Remediation", _remediation_section(remediation)))
+    lines.extend(_section("Alert response", _alert_section(alerts)))
     lines.extend(_section("Telemetry freshness", _freshness_section(freshness)))
     lines.extend(_section("Observability dashboard", _dashboard_section(dashboard_snapshot)))
     return "\n".join(lines).rstrip() + "\n"

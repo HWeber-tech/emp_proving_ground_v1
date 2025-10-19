@@ -28,6 +28,11 @@ at the top of the log.
 - Telemetry freshness (threshold 168h, evaluated 2025-10-07T05:57:01+00:00):
   - All telemetry fresh
   - Fresh feeds: coverage trend 0.5h; coverage domain trend 0.5h; formatter trend 1.4h; remediation trend 6.0h
+- Alert response drill:
+  - Label: ci-alert-2025-10-07 (drill)
+  - Acknowledged: 2025-10-07T12:03:00+00:00 (via slack, by oncall-analyst)
+  - Resolved: 2025-10-07T12:18:30+00:00 (via github, by maintainer)
+  - Durations: MTTA 0:03:00; MTTR 0:18:30
 - Evidence: tests/.telemetry/ci_metrics.json; coverage-reports/pytest-2025-10-07.xml
 
 ### 2025-10-06T18:13:30+00:00

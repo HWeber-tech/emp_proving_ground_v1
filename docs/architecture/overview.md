@@ -1,42 +1,53 @@
 # Architecture Overview
 
 This overview mirrors the **current** EMP Proving Ground runtime: a simulator-
-backed harness that exercises the FIX plumbing while higher-level intelligence,
-strategy, and risk layers remain skeletal. Anything marked as *mock* below runs
-purely in-process with synthetic data.
+backed harness for order flow paired with an optional Yahoo Finance ingest that
+populates DuckDB before sensors run. Anything marked as *mock* below runs
+purely in-process with synthetic data; items labelled *real* hit external
+services or persist real data.
 
 ## System Posture
 
 - Entrypoint: `main.py` builds the runtime and always selects the mock FIX stack.
-- Market data & fills: `src/operational/mock_fix.py` synthesises ticks and
-  executions; there is no live venue connectivity shipped in this repository.
-- Trading scaffolding: `src/trading/` provides interfaces and telemetry routing
-  but delegates to logging or TODO blocks for real decision logic.
-- Evolution/intelligence layers: interface definitions only, gated by feature
-  flags and unimplemented execution hooks.
+- Tier-0 ingest (real): `src/runtime/runtime_builder._run_tier0_ingest` pulls
+  Yahoo Finance bars via `fetch_daily_bars` / `fetch_intraday_trades` and writes
+  them to DuckDB when ingest is not skipped.
+- Market data & fills (mock): `src/operational/mock_fix.py` synthesises ticks
+  and executions; there is no live venue connectivity shipped in this
+  repository.
+- Trading scaffolding (mock-aware): `src/trading/` provides interfaces and
+  telemetry routing but delegates to logging or TODO blocks for real decision
+  logic.
+- Evolution/intelligence layers (scaffolding): interface definitions only,
+  gated by feature flags and unimplemented execution hooks.
 
 ## Runtime Walkthrough
 
 ```mermaid
 flowchart TD
     entry["CLI entrypoint\n`main.py`"] --> runtime["Runtime builder\n`src/runtime/runtime_builder.py`"]
-    runtime --> bridge["FIXConnectionManager\n(selects mock)"]
+    runtime --> ingest["Tier-0 ingest<br/>`fetch_daily_bars` + `fetch_intraday_trades`<br/>*real data*"]
+    ingest --> duckdb["DuckDB store<br/>`store_duckdb`<br/>*real data*"]
+    duckdb --> sensors["Sensors<br/>(`app.sensors`)<br/>consume Yahoo bars"]
+    runtime --> bridge["FIXConnectionManager\n(defaults to mock)"]
     bridge --> mock["Mock FIX stack\n`MockFIXManager`\n*mock only*"]
-    runtime --> sensory["Sensory sensors\n(run on mock events)"]
+    mock --> sensors
+    sensors --> observability["Telemetry snapshots\n(structured logs & markdown)"]
     runtime --> trading["Trading layer\n(strategy/risk stubs)"]
     runtime --> evolution["Evolution engine\n(interfaces only)"]
-    runtime --> observability["Telemetry snapshots\n(structured logs & markdown)"]
+    runtime --> observability
 ```
 
 1. `main.py` loads configuration, initialises structured logging, and invokes
    `build_professional_predator_app`.
-2. The runtime builder wires the event bus, registry scaffolding, and the
-   `FIXConnectionManager`, which defaults to the mock when no live credentials
-   are present (the public repository ships no credentials).
-3. `MockFIXManager` generates deterministic order lifecycle events, powering the
+2. The runtime builder wires the event bus, registry scaffolding, optional
+   Tier-0 ingest workflow, and the `FIXConnectionManager`, which defaults to the
+   mock when no live credentials are present (the public repository ships no
+   credentials or real manager modules).
+3. When ingest runs, Yahoo Finance data is written to DuckDB via
+   `store_duckdb`, then pushed through registered sensors for signal summaries.
+4. `MockFIXManager` generates deterministic order lifecycle events, powering the
    sensory organs and trading scaffolding for regression and exploratory runs.
-4. Sensory components consume the mock events to compute diagnostics; they do
-   not source external data.
 5. Trading, risk, and evolution packages expose abstractions and telemetry, but
    the business logic is intentionally incomplete pending future development.
 
@@ -44,8 +55,8 @@ flowchart TD
 
 | Component | Status |
 | --- | --- |
-| Data ingress | Mock FIX events only. No Timescale, Redis, Kafka, or live market feeds are wired. |
-| Execution routing | Simulator orders only; live adapters are placeholders guarded by TODOs. |
+| Data ingress | Yahoo Finance ingest to DuckDB is real but optional; runtime streaming stays mock. No Timescale, Redis, or Kafka pipelines run. |
+| Execution routing | Simulator orders only; live adapters require private modules and credentials. |
 | Strategy & risk | Interfaces with logging stubs; no production decisioning. |
 | Evolution engine | Feature-flagged scaffolding with unimplemented workers. |
 | Observability | Structured logging plus Markdown status exports for the simulator environment. |

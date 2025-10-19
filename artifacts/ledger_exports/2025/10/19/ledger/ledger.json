@@ -1,32 +1,27 @@
 {
   "records": {
     "alpha.live": {
-      "approvals": [],
-      "created_at": "2025-10-19T18:43:41.923160+00:00",
+      "approvals": [
+        "risk"
+      ],
+      "created_at": "2025-10-19T18:55:18.138228+00:00",
       "evidence_id": "dd-alpha-live",
       "history": [
         {
-          "applied_at": "2025-10-19T18:43:41.923160+00:00",
+          "applied_at": "2025-10-19T18:55:18.138228+00:00",
           "approvals": [
             "risk"
           ],
           "evidence_id": "dd-alpha-live",
           "next_stage": "paper",
           "prior_stage": null
-        },
-        {
-          "applied_at": "2025-10-19T18:43:41.925351+00:00",
-          "approvals": [],
-          "evidence_id": "dd-alpha-live",
-          "next_stage": "experiment",
-          "prior_stage": "paper"
         }
       ],
       "policy_id": "alpha.live",
-      "stage": "experiment",
+      "stage": "paper",
       "tactic_id": "alpha.live",
-      "updated_at": "2025-10-19T18:43:41.925351+00:00"
+      "updated_at": "2025-10-19T18:55:18.138228+00:00"
     }
   },
-  "updated_at": "2025-10-19T18:43:41.926664+00:00"
+  "updated_at": "2025-10-19T18:55:18.138362+00:00"
 }

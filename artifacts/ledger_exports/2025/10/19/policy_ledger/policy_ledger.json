@@ -1,51 +1,22 @@
 {
   "records": {
     "alpha": {
-      "approvals": [
-        "compliance",
-        "risk"
-      ],
-      "created_at": "2025-10-19T18:41:43.581868+00:00",
-      "evidence_id": "diary-alpha",
+      "approvals": [],
+      "created_at": "2025-10-19T18:55:11.642330+00:00",
       "history": [
         {
-          "applied_at": "2025-10-19T18:41:43.581868+00:00",
-          "approvals": [
-            "compliance",
-            "risk"
-          ],
-          "evidence_id": "diary-alpha",
-          "next_stage": "pilot",
-          "policy_delta": {
-            "metadata": {},
-            "notes": [],
-            "regime": "balanced",
-            "risk_config": {
-              "max_leverage": 6
-            },
-            "router_guardrails": {
-              "requires_diary": true
-            }
-          },
+          "applied_at": "2025-10-19T18:55:11.642330+00:00",
+          "approvals": [],
+          "evidence_id": null,
+          "next_stage": "limited_live",
           "prior_stage": null
         }
       ],
-      "policy_delta": {
-        "metadata": {},
-        "notes": [],
-        "regime": "balanced",
-        "risk_config": {
-          "max_leverage": 6
-        },
-        "router_guardrails": {
-          "requires_diary": true
-        }
-      },
       "policy_id": "alpha",
-      "stage": "pilot",
+      "stage": "limited_live",
       "tactic_id": "alpha",
-      "updated_at": "2025-10-19T18:41:43.581868+00:00"
+      "updated_at": "2025-10-19T18:55:11.642330+00:00"
     }
   },
-  "updated_at": "2025-10-19T18:41:43.581971+00:00"
+  "updated_at": "2025-10-19T18:55:11.642536+00:00"
 }

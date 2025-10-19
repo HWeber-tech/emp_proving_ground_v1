@@ -1048,6 +1048,8 @@ class TradingManager:
                 if gate_decision_payload is not None:
                     metadata_payload["drift_gate"] = dict(gate_decision_payload)
 
+                self._maybe_attach_guardrails(metadata_payload, event)
+
                 self._record_experiment_event(
                     event_id=event_id,
                     status="forced_paper",
@@ -1131,6 +1133,11 @@ class TradingManager:
                         metadata_payload["retry_in_seconds"] = throttle_decision.retry_in_seconds
                     if gate_decision_payload is not None:
                         metadata_payload["drift_gate"] = dict(gate_decision_payload)
+                    self._maybe_attach_guardrails(
+                        metadata_payload,
+                        validated_intent,
+                        event,
+                    )
                     self._record_experiment_event(
                         event_id=event_id,
                         status="throttled",
@@ -1285,6 +1292,11 @@ class TradingManager:
                             enriched = dict(block_metadata)
                             enriched["release_execution"] = release_metadata
                             block_metadata = enriched
+                        self._maybe_attach_guardrails(
+                            block_metadata,
+                            validated_intent,
+                            event,
+                        )
                         decision = self._get_last_risk_decision()
                         if release_metadata:
                             await self._publish_release_route_event(
@@ -1373,6 +1385,11 @@ class TradingManager:
                             )
                             if release_metadata:
                                 failure_metadata["release_execution"] = release_metadata
+                            self._maybe_attach_guardrails(
+                                failure_metadata,
+                                validated_intent,
+                                event,
+                            )
                             if release_metadata:
                                 await self._publish_release_route_event(
                                     event_id=event_id,
@@ -1445,6 +1462,11 @@ class TradingManager:
                             )
                             if release_metadata:
                                 success_metadata["release_execution"] = release_metadata
+                            self._maybe_attach_guardrails(
+                                success_metadata,
+                                validated_intent,
+                                event,
+                            )
                             attribution_metadata = self._extract_attribution_metadata(
                                 validated_intent
                             )
@@ -1519,6 +1541,11 @@ class TradingManager:
                             )
                             if release_metadata:
                                 fallback_metadata["release_execution"] = release_metadata
+                            self._maybe_attach_guardrails(
+                                fallback_metadata,
+                                validated_intent,
+                                event,
+                            )
                             if release_metadata:
                                 await self._publish_release_route_event(
                                     event_id=event_id,
@@ -1572,6 +1599,7 @@ class TradingManager:
                     rejection_metadata["reason"] = reason
                 if gate_decision_payload is not None:
                     rejection_metadata["drift_gate"] = dict(gate_decision_payload)
+                self._maybe_attach_guardrails(rejection_metadata, event)
                 self._record_experiment_event(
                     event_id=event_id,
                     status="rejected",
@@ -1920,6 +1948,7 @@ class TradingManager:
             "remaining_seconds": remaining,
             "block_until": block_until.isoformat(),
         }
+        self._maybe_attach_guardrails(metadata_payload)
         logger.warning(
             "Risk guardrail cooldown active (%.1f s remaining); blocking trade intent %s",
             remaining,
@@ -2167,6 +2196,59 @@ class TradingManager:
         self._execution_stats["guardrail_force_reason"] = snapshot["reason"]
         self._execution_stats["guardrail_force_paper_until"] = snapshot["expires_at"]
         return snapshot
+
+    @staticmethod
+    def _clone_guardrail_value(value: Any) -> Any:
+        if isinstance(value, MappingABC):
+            return {
+                str(key): TradingManager._clone_guardrail_value(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [TradingManager._clone_guardrail_value(item) for item in value]
+        return value
+
+    def _extract_guardrail_metadata(self, intent: Any) -> Mapping[str, Any] | None:
+        metadata_candidate: Mapping[str, Any] | None = None
+        if isinstance(intent, MutableMappingABC):
+            raw_metadata = intent.get("metadata")
+            metadata_candidate = raw_metadata if isinstance(raw_metadata, MappingABC) else None
+        else:
+            raw_attr = getattr(intent, "metadata", None)
+            metadata_candidate = raw_attr if isinstance(raw_attr, MappingABC) else None
+
+        if not metadata_candidate:
+            return None
+
+        guardrails_payload = metadata_candidate.get("guardrails")
+        if not isinstance(guardrails_payload, MappingABC):
+            return None
+
+        cloned = {
+            str(key): self._clone_guardrail_value(value)
+            for key, value in guardrails_payload.items()
+        }
+        return cloned or None
+
+    def _maybe_attach_guardrails(
+        self,
+        metadata: MutableMappingABC[str, Any],
+        *sources: Any,
+    ) -> None:
+        if not isinstance(metadata, MutableMappingABC):
+            return
+        if "guardrails" in metadata:
+            return
+
+        for source in sources:
+            guardrails = self._extract_guardrail_metadata(source)
+            if guardrails:
+                metadata["guardrails"] = guardrails
+                return
+
+        snapshot = self._guardrail_force_snapshot()
+        if snapshot and "guardrails" not in metadata:
+            metadata["guardrails"] = {"risk_guardrail": dict(snapshot)}
 
     @staticmethod
     def _ensure_mutable_metadata(intent: Any) -> MutableMappingABC[str, Any] | None:

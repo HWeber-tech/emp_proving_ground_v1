@@ -64,7 +64,7 @@
 
 **Provenance & Governance**
 - [x] `[reflect]` **Policy Ledger**: promotion checklist (OOS regimeâ€‘grid, leakage checks, risk audit) enforced. _Progress: PolicyLedgerRecord now normalises checklist metadata into `PromotionChecklistStatus`, blocks Limited Live promotions until regime-grid, leakage, and risk audit prerequisites are satisfied, and surfaces readiness in governance snapshots and release routing with regression coverage spanning ledger, router, and trading manager paths.【F:src/governance/policy_ledger.py†L351-L1349】【F:tests/governance/test_policy_ledger.py†L439-L535】【F:tests/trading/test_release_execution_router.py†L64-L134】【F:tests/trading/test_trading_manager_execution.py†L788-L880】_
-- [ ] `[reflect]` `rebuild_strategy(policy_hash)` produces byteâ€‘identical runtime config.
+- [x] `[reflect]` `rebuild_strategy(policy_hash)` produces byteâ€‘identical runtime config. _Progress: `StrategyRuntimeConfig` now serves canonical JSON bytes for `json()`/`as_dict()` even after callers mutate the exposed payload, and regression coverage locks pretty-print resiliency so rebuild outputs stay byte-identical for ledger evidence.【F:src/governance/strategy_rebuilder.py†L160-L198】【F:tests/governance/test_strategy_rebuilder.py†L127-L144】_
 - [x] `[docs]` Promotion gate documented (thresholds, required artifacts). _Progress: Promotion gate guide now pairs telemetry thresholds with an evidence table detailing required artifacts and storage paths so governance promotions stay auditable end to end.【F:docs/operations/promotion_gate.md†L28-L45】_
 
 **Acceptance (DoD)**
@@ -144,7 +144,7 @@
 
 - [ ] **Timeâ€‘toâ€‘candidate** â‰¤ 24h (idea â†’ scored in replay). _Progress: Findings memory now exposes SLA analytics and a metrics CLI reports average/median/p90 turnaround plus breach details, while the new scheduler CLI quick-screens ideas, applies UCB-lite promotion with bounded `--max-quick`/`--max-full` budgets, and stamps evidence notes so candidates enter replay within the 24 h envelope under regression coverage.【F:emp/core/findings_memory.py†L1-L332】【F:emp/cli/emp_cycle_metrics.py†L1-L120】【F:emp/cli/emp_cycle_scheduler.py†L1-L200】【F:tests/emp_cycle/test_time_to_candidate.py†L1-L94】【F:tests/emp_cycle/test_cycle_scheduler.py†L1-L86】_
 - [ ] **Promotion integrity**: 100% promoted strategies have ledger artifacts & pass regimeâ€‘grid gates. _Progress: Strategy registry now bootstraps a config-driven PromotionGuard that enforces stage requirements, ledger/diary paths, and regime coverage, with tests proving missing regimes block approvals until coverage is recorded.【F:config/governance/promotion_guard.yaml†L1-L20】【F:src/governance/strategy_registry.py†L45-L224】【F:tests/governance/test_strategy_registry.py†L145-L268】_
-- [ ] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned. _Progress: Risk guardrail incidents start force-paper cooldowns, near-miss severities now keep routes on paper while logging guardrail metadata, and live broker replays min-size rejections via paper delegation, with regression coverage confirming forced routes and telemetry snapshots while the release router ignores implicit near-miss flags unless severity warrants it.【F:src/trading/trading_manager.py†L540-L590】【F:src/trading/execution/release_router.py†L443-L573】【F:src/trading/execution/live_broker_adapter.py†L190-L213】【F:tests/trading/test_trading_manager_execution.py†L730-L872】_
+- [x] **Guardrail integrity**: risk violations in paper/live = **0**; nearâ€‘misses logged & actioned. _Progress: Risk guardrail incidents start force-paper cooldowns, the release router still ignores low-severity hints, and the live broker now records near-miss policy snapshots with delegated paper routes so metrics stay at zero violations while capturing severity metadata—all locked by regression coverage.【F:src/trading/trading_manager.py†L540-L590】【F:src/trading/execution/release_router.py†L443-L573】【F:src/trading/execution/live_broker_adapter.py†L192-L446】【F:tests/trading/test_trading_manager_execution.py†L730-L872】【F:tests/trading/test_live_broker_adapter.py†L175-L216】_
 - [ ] **Attribution coverage** â‰¥ 90% (orders with belief + probes + brief explanation). _Progress: Loop runner telemetry now only attaches belief/probe attribution when diaries exist, prunes stale metadata when entries drop, records coverage snapshots into trade metadata, and TradingManager keeps `orders_with_attribution` metrics aligned while tests drive diary drops and missing-entry iterations to assert warnings and coverage accounting.【F:src/orchestration/alpha_trade_runner.py†L251-L376】【F:tests/orchestration/test_alpha_trade_runner.py†L660-L984】【F:src/trading/trading_manager.py†L3587-L3637】【F:tests/trading/test_trading_manager_execution.py†L760-L821】_
 - [x] **Operator leverage**: experiments/week/person â†‘ without quality loss. _Progress: Operator leverage evaluator now rolls experimentation logs into per-operator velocity and quality telemetry, escalates WARN/FAIL posture for lagging operators, and the observability dashboard panel renders the snapshot with deterministic top-operator summaries under guardrail coverage.【F:src/operations/operator_leverage.py†L1-L543】【F:src/operations/observability_dashboard.py†L701-L748】【F:tests/operations/test_operator_leverage.py†L49-L139】【F:tests/operations/test_observability_dashboard.py†L560-L598】_
 
@@ -164,13 +164,13 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-19T18:04:43Z
+## Automation updates — 2025-10-19T18:18:40Z
 
 ### Last 4 commits
-- a953b26 refactor(runtime): tune 3 files (2025-10-19)
-- 7e5d00a test(artifacts): add 5 files (2025-10-19)
-- 343a394 test(artifacts): add 7 files (2025-10-19)
-- 5e10d80 docs(docs): tune 1 file (2025-10-19)
+- 5b85cc8a feat(artifacts): add 22 files (2025-10-19)
+- 342aedf5 refactor(trading): tune 2 files (2025-10-19)
+- 680e6c66 refactor(understanding): tune 2 files (2025-10-19)
+- 8865c1a9 docs(docs): tune 1 file (2025-10-19)
 
 ## Automation updates — 2025-10-19T17:57:30Z
 

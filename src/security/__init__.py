@@ -11,6 +11,7 @@ from .auth_tokens import (
     decode_access_token,
     decode_auth_token,
 )
+from .user_roles import InMemoryUserRoleStore, SQLiteUserRoleStore
 
 __all__ = [
     "AuthTokenError",
@@ -20,4 +21,6 @@ __all__ = [
     "create_auth_token",
     "decode_access_token",
     "decode_auth_token",
+    "InMemoryUserRoleStore",
+    "SQLiteUserRoleStore",
 ]

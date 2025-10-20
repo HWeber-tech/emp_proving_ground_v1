@@ -8,6 +8,8 @@ import asyncio
 import logging
 from pathlib import Path
 import sys
+from types import TracebackType
+from typing import Mapping, cast
 
 from src.governance.system_config import (
     ConnectionProtocol,
@@ -16,6 +18,16 @@ from src.governance.system_config import (
     SystemConfig,
 )
 from src.observability.tracing import parse_opentelemetry_settings
+from src.operations.configuration_audit import (
+    evaluate_configuration_audit,
+    persist_configuration_snapshot,
+)
+from src.operational.structured_logging import (
+    configure_structlog,
+    get_logger,
+    load_structlog_otel_settings,
+)
+from src.runtime.determinism import resolve_seed, seed_runtime
 from src.runtime.predator_app import build_professional_predator_app
 from src.runtime.runtime_builder import (
     _execute_timescale_ingest,
@@ -23,25 +35,78 @@ from src.runtime.runtime_builder import (
 )
 from src.runtime.runtime_runner import run_runtime_application
 
-from src.operational.structured_logging import (
-    configure_structlog,
-    get_logger,
-    load_structlog_otel_settings,
-)
-
 
 logger = get_logger(__name__)
 
 __all__ = ["_execute_timescale_ingest", "main"]
 
 
+DEFAULT_CONFIG_SNAPSHOT_PATH = Path("artifacts/runtime/config_snapshot.json")
+ExcInfo = tuple[type[BaseException], BaseException, TracebackType | None]
+
+
+def _resolve_config_snapshot_path(extras: Mapping[str, str] | None) -> Path | None:
+    """Resolve the destination path for the configuration snapshot."""
+
+    if not extras:
+        return DEFAULT_CONFIG_SNAPSHOT_PATH
+
+    raw_path = extras.get("CONFIG_SNAPSHOT_PATH")
+    if raw_path is None:
+        return DEFAULT_CONFIG_SNAPSHOT_PATH
+
+    text = str(raw_path).strip()
+    if not text:
+        return DEFAULT_CONFIG_SNAPSHOT_PATH
+
+    lowered = text.lower()
+    if lowered in {"disabled", "none", "off"}:
+        return None
+
+    return Path(text).expanduser()
+
+
+def _capture_configuration_snapshot(
+    config: SystemConfig,
+    extras: Mapping[str, str] | None,
+    rng_seed: int | None,
+) -> tuple[Path | None, ExcInfo | None, Path | None]:
+    """Evaluate and persist the configuration snapshot if enabled."""
+
+    target = _resolve_config_snapshot_path(extras)
+    if target is None:
+        return None, None, None
+
+    metadata = {"source": "runtime_boot"}
+    if rng_seed is not None:
+        metadata["rng_seed"] = rng_seed
+
+    try:
+        snapshot = evaluate_configuration_audit(config, metadata=metadata)
+        persisted = persist_configuration_snapshot(snapshot, target)
+        return persisted, None, target
+    except Exception:
+        exc_info = cast(ExcInfo, sys.exc_info())
+        return None, exc_info, target
+
+
 async def main() -> None:
     """Main entry point for Professional Predator."""
 
     config = SystemConfig.from_env()
-    otel_settings = parse_opentelemetry_settings(config.extras)
+    extras: Mapping[str, str] = dict(config.extras) if config.extras else {}
+
+    rng_seed, invalid_seed_entries = resolve_seed(extras)
+    if rng_seed is not None:
+        seed_runtime(rng_seed)
+
+    snapshot_path, snapshot_exc_info, snapshot_target = _capture_configuration_snapshot(
+        config, extras, rng_seed
+    )
+
+    otel_settings = parse_opentelemetry_settings(extras)
     if not otel_settings.enabled:
-        structlog_profile = config.extras.get("STRUCTLOG_OTEL_CONFIG")
+        structlog_profile = extras.get("STRUCTLOG_OTEL_CONFIG")
         if structlog_profile:
             profile_hint = structlog_profile.strip()
             if profile_hint.lower() in {"default", "local", "local-dev"}:
@@ -66,6 +131,31 @@ async def main() -> None:
                     extra={"structlog.otel_config": str(profile_path)},
                 )
     configure_structlog(level=logging.INFO, otel_settings=otel_settings)
+
+    if rng_seed is not None:
+        logger.info("🔐 Deterministic RNG seed initialised", extra={"rng_seed": rng_seed})
+    else:
+        logger.warning("No deterministic RNG seed provided; runtime seeding skipped")
+
+    if invalid_seed_entries:
+        logger.warning(
+            "Ignoring invalid RNG seed values",
+            extra={"rng_seed.invalid": invalid_seed_entries},
+        )
+
+    if snapshot_exc_info is not None and snapshot_target is not None:
+        logger.warning(
+            "Failed to persist configuration snapshot",
+            extra={"config_snapshot_path": str(snapshot_target)},
+            exc_info=snapshot_exc_info,
+        )
+    elif snapshot_path is not None:
+        logger.info(
+            "📸 Configuration snapshot persisted",
+            extra={"config_snapshot_path": str(snapshot_path)},
+        )
+    else:
+        logger.debug("Configuration snapshot persistence disabled")
 
     from src.system.requirements_check import assert_scientific_stack
 

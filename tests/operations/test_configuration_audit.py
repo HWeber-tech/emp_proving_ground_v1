@@ -1,5 +1,6 @@
 """Tests for configuration audit telemetry."""
 
+import json
 import logging
 from datetime import UTC, datetime
 
@@ -17,6 +18,7 @@ from src.operations.configuration_audit import (
     ConfigurationAuditStatus,
     evaluate_configuration_audit,
     format_configuration_audit_markdown,
+    persist_configuration_snapshot,
     publish_configuration_audit_snapshot,
 )
 from src.operations.event_bus_failover import EventPublishError
@@ -171,3 +173,17 @@ def test_publish_configuration_audit_snapshot_raises_on_unexpected_error(
 
     assert excinfo.value.stage == "runtime"
     assert excinfo.value.event_type == "telemetry.runtime.configuration"
+
+
+def test_persist_configuration_snapshot_writes_json(tmp_path) -> None:
+    config = SystemConfig().with_updated(extras={"CUSTOM_FLAG": "enabled"})
+    snapshot = evaluate_configuration_audit(config, metadata={"origin": "unit-test"})
+
+    target = tmp_path / "snapshots" / "config.json"
+    persisted = persist_configuration_snapshot(snapshot, target)
+
+    assert persisted == target
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["snapshot_id"] == snapshot.snapshot_id
+    assert payload["metadata"]["origin"] == "unit-test"
+    assert payload["current_config"]["extras"]["CUSTOM_FLAG"] == "enabled"

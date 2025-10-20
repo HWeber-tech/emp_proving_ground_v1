@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 import random
-from typing import Callable
+from typing import Callable, Mapping, Sequence, Tuple
 
 
 def _seed_numpy(seed: int) -> None:  # pragma: no cover - optional dependency
@@ -32,6 +32,47 @@ def _seed_torch(seed: int) -> None:  # pragma: no cover - optional dependency
         torch.manual_seed(seed)
     except Exception:
         return
+
+
+def resolve_seed(
+    extras: Mapping[str, object] | None,
+    *,
+    keys: Sequence[str] = ("RNG_SEED", "BOOTSTRAP_RANDOM_SEED"),
+) -> Tuple[int | None, list[tuple[str, object]]]:
+    """Resolve a deterministic RNG seed from configuration extras.
+
+    Parameters
+    ----------
+    extras:
+        Configuration ``extras`` mapping produced by ``SystemConfig``.
+    keys:
+        Ordered preference of keys to inspect.
+
+    Returns
+    -------
+    tuple
+        ``(seed, invalid_entries)`` where ``seed`` is ``None`` when no
+        convertible value was found and ``invalid_entries`` contains
+        ``(key, raw_value)`` pairs that failed integer conversion.
+    """
+
+    invalid: list[tuple[str, object]] = []
+    if not extras:
+        return None, invalid
+
+    for key in keys:
+        raw_value = extras.get(key)
+        if raw_value is None:
+            continue
+        text = str(raw_value).strip()
+        if not text:
+            continue
+        try:
+            return int(text), invalid
+        except ValueError:
+            invalid.append((key, raw_value))
+
+    return None, invalid
 
 
 def seed_runtime(seed: int | None) -> None:
@@ -61,4 +102,4 @@ def seed_runtime(seed: int | None) -> None:
         hook(seed)
 
 
-__all__ = ["seed_runtime"]
+__all__ = ["resolve_seed", "seed_runtime"]

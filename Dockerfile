@@ -62,7 +62,7 @@ COPY config/ ./config/
 COPY main.py .
 
 # Create necessary directories
-RUN mkdir -p data logs reports && \
+RUN mkdir -p artifacts/runtime data logs reports && \
     chown -R emp:emp /app
 
 # Switch to non-root user
@@ -72,6 +72,8 @@ USER emp
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV EMP_ENV=production
+ENV RNG_SEED=424242
+ENV CONFIG_SNAPSHOT_PATH=/app/artifacts/runtime/config_snapshot.json
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

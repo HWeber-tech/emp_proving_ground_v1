@@ -10,11 +10,14 @@ high-impact toggles (tier, backbone, run mode, credentials) go live.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from os import PathLike
+from pathlib import Path
 from typing import Callable, Mapping, MutableMapping
 from uuid import uuid4
 
@@ -452,6 +455,39 @@ def _extract_extras(source: Mapping[str, object] | None) -> dict[str, str]:
     return _coerce_extras_mapping(source.get("extras"), default={})
 
 
+def persist_configuration_snapshot(
+    snapshot: ConfigurationAuditSnapshot,
+    path: str | Path | PathLike[str],
+) -> Path:
+    """Persist a configuration snapshot as formatted JSON on disk.
+
+    Parameters
+    ----------
+    snapshot:
+        Telemetry payload produced by :func:`evaluate_configuration_audit`.
+    path:
+        Destination file. Parent directories are created when needed.
+
+    Returns
+    -------
+    Path
+        Resolved path where the snapshot was written.
+    """
+
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    payload = snapshot.as_dict()
+    temp_path = target.with_name(f".{target.name}.tmp")
+
+    with temp_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+    temp_path.replace(target)
+    return target
+
+
 __all__ = [
     "ConfigurationAuditStatus",
     "ConfigurationChange",
@@ -459,4 +495,5 @@ __all__ = [
     "evaluate_configuration_audit",
     "publish_configuration_audit_snapshot",
     "format_configuration_audit_markdown",
+    "persist_configuration_snapshot",
 ]

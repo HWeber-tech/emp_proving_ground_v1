@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 import math
 
@@ -20,10 +20,30 @@ class _LinearHead:
     bias: float
     clip: float | None = None
 
-    def evaluate(self, features: Mapping[str, float]) -> float:
+    def evaluate(self, features: Mapping[str, float], *, apply_clip: bool = True) -> float:
         score = self.bias
         for name, weight in self.weights.items():
             score += weight * float(features.get(name, 0.0))
+        if apply_clip and self.clip is not None:
+            limit = abs(self.clip)
+            if score > limit:
+                return limit
+            if score < -limit:
+                return -limit
+        return score
+
+
+@dataclass(slots=True)
+class _HeadConfig:
+    head: _LinearHead
+    clip: float | None
+    affine_scale: float = 1.0
+    affine_bias: float = 0.0
+    temperature: float | None = None
+
+    def evaluate(self, features: Mapping[str, float]) -> float:
+        score = self.head.evaluate(features, apply_clip=False)
+        score = score * self.affine_scale + self.affine_bias
         if self.clip is not None:
             limit = abs(self.clip)
             if score > limit:
@@ -94,16 +114,128 @@ _DEFAULT_MODEL_SPEC = {
 }
 
 
+_HEAD_NAMES: tuple[str, ...] = (
+    "weight_adjust",
+    "flag",
+    "experiment",
+    "confidence",
+)
+
+
+def _clone_head(head: _LinearHead) -> _LinearHead:
+    return _LinearHead(weights=dict(head.weights), bias=head.bias, clip=head.clip)
+
+
+def _build_linear_head(spec: Mapping[str, Any]) -> _LinearHead:
+    weights_raw = spec.get("weights")
+    if not isinstance(weights_raw, Mapping):
+        raise ValueError("head spec must include a 'weights' mapping")
+    weights = {str(name): float(value) for name, value in weights_raw.items()}
+    bias_raw = spec.get("bias", 0.0)
+    clip_raw = spec.get("clip")
+    clip = float(clip_raw) if clip_raw is not None else None
+    return _LinearHead(weights=weights, bias=float(bias_raw), clip=clip)
+
+
+def _parse_affine(spec: Mapping[str, Any]) -> tuple[float, float]:
+    block = spec.get("affine")
+    if not isinstance(block, Mapping):
+        return 1.0, 0.0
+    scale_raw = block.get("scale", 1.0)
+    bias_raw = block.get("bias", 0.0)
+    try:
+        scale = float(scale_raw)
+    except (TypeError, ValueError):
+        scale = 1.0
+    try:
+        bias = float(bias_raw)
+    except (TypeError, ValueError):
+        bias = 0.0
+    return scale, bias
+
+
+def _parse_temperature(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        temperature = float(value)
+    except (TypeError, ValueError):
+        return None
+    return temperature if temperature > 0 else None
+
+
 class TRMModel:
     """Lightweight surrogate model producing strategy-level inferences."""
 
     def __init__(self, spec: dict, *, temperature: float = 1.0) -> None:
         self._spec = spec
-        heads = spec.get("heads", {})
-        self._weight_head = _LinearHead(**heads["weight_adjust"])
-        self._flag_head = _LinearHead(**heads["flag"])
-        self._experiment_head = _LinearHead(**heads["experiment"])
-        self._confidence_head = _LinearHead(**heads["confidence"])
+
+        heads_spec = spec.get("heads") or {}
+        missing = [name for name in _HEAD_NAMES if name not in heads_spec]
+        if missing:
+            raise ValueError(f"model spec missing heads: {', '.join(missing)}")
+
+        self._default_head_configs: dict[str, _HeadConfig] = {}
+        available_heads: dict[str, _LinearHead] = {}
+        for name in _HEAD_NAMES:
+            base_head = _build_linear_head(heads_spec[name])
+            config = _HeadConfig(
+                head=_clone_head(base_head),
+                clip=base_head.clip,
+            )
+            self._default_head_configs[name] = config
+            available_heads[name] = base_head
+
+        shared_heads_spec = spec.get("shared_heads") or {}
+        for name, shared_spec in shared_heads_spec.items():
+            shared_head = _build_linear_head(shared_spec)
+            available_heads[str(name)] = shared_head
+
+        self._strategy_domains: dict[str, str] = {
+            str(strategy): str(domain)
+            for strategy, domain in (spec.get("strategy_domains") or {}).items()
+            if strategy and domain
+        }
+
+        domain_definitions = (
+            spec.get("domain_heads")
+            or spec.get("domains")
+            or {}
+        )
+        self._domain_head_configs: dict[str, dict[str, _HeadConfig]] = {}
+
+        for domain_name, domain_spec in domain_definitions.items():
+            if not isinstance(domain_spec, Mapping):
+                continue
+            domain_key = str(domain_name)
+            strategies = domain_spec.get("strategies") or ()
+            for strategy in strategies:
+                if strategy:
+                    self._strategy_domains[str(strategy)] = domain_key
+
+            combined_head_specs: dict[str, Mapping[str, Any]] = {}
+            heads_block = domain_spec.get("heads")
+            if isinstance(heads_block, Mapping):
+                combined_head_specs.update(
+                    {str(key): value for key, value in heads_block.items() if isinstance(value, Mapping)}
+                )
+            for head_name in _HEAD_NAMES:
+                head_block = domain_spec.get(head_name)
+                if isinstance(head_block, Mapping) and head_name not in combined_head_specs:
+                    combined_head_specs[head_name] = head_block
+
+            domain_head_configs: dict[str, _HeadConfig] = {}
+            for head_name, head_spec in combined_head_specs.items():
+                if head_name not in _HEAD_NAMES:
+                    continue
+                config = self._build_head_config(
+                    head_name,
+                    head_spec,
+                    available_heads,
+                )
+                domain_head_configs[head_name] = config
+            self._domain_head_configs[domain_key] = domain_head_configs
+
         self._temperature = max(0.1, float(temperature))
         encoded = json.dumps(spec, sort_keys=True)
         self._model_hash = sha256(encoded.encode("utf-8")).hexdigest()
@@ -122,18 +254,31 @@ class TRMModel:
 
     def infer(self, encoding: StrategyEncoding) -> StrategyInference:
         features = encoding.features
-        weight_delta = float(self._weight_head.evaluate(features))
-        flag_score = float(self._flag_head.evaluate(features))
-        experiment_score = float(self._experiment_head.evaluate(features))
-        confidence_raw = float(self._confidence_head.evaluate(features)) / self._temperature
+        domain = self._strategy_domains.get(encoding.strategy_id)
 
-        flag_probability = _sigmoid(flag_score)
-        experiment_probability = _sigmoid(experiment_score)
-        confidence = _sigmoid(confidence_raw)
+        weight_config = self._resolve_head_config("weight_adjust", domain)
+        flag_config = self._resolve_head_config("flag", domain)
+        experiment_config = self._resolve_head_config("experiment", domain)
+        confidence_config = self._resolve_head_config("confidence", domain)
 
-        if self._weight_head.clip:
-            clip_value = abs(self._weight_head.clip) or 0.3
-            weight_strength = min(0.99, abs(weight_delta) / clip_value)
+        weight_delta = float(weight_config.evaluate(features))
+        flag_score = float(flag_config.evaluate(features))
+        experiment_score = float(experiment_config.evaluate(features))
+        confidence_score = float(confidence_config.evaluate(features))
+
+        flag_temperature = flag_config.temperature or 1.0
+        experiment_temperature = experiment_config.temperature or 1.0
+        confidence_temperature = confidence_config.temperature or 1.0
+
+        flag_probability = _sigmoid(flag_score / max(flag_temperature, 1e-6))
+        experiment_probability = _sigmoid(experiment_score / max(experiment_temperature, 1e-6))
+        combined_confidence_temperature = self._temperature * max(confidence_temperature, 1e-6)
+        confidence = _sigmoid(confidence_score / combined_confidence_temperature)
+
+        clip_value = weight_config.clip if weight_config.clip is not None else weight_config.head.clip
+        if clip_value is not None:
+            clip_abs = abs(clip_value) or 0.3
+            weight_strength = min(0.99, abs(weight_delta) / clip_abs)
             confidence = max(confidence, weight_strength)
         confidence = max(confidence, flag_probability, experiment_probability)
         confidence = min(max(confidence, 0.0), 0.999)
@@ -144,6 +289,65 @@ class TRMModel:
             flag_probability=flag_probability,
             experiment_probability=experiment_probability,
             confidence=confidence,
+        )
+
+    def _resolve_head_config(self, head_name: str, domain: str | None) -> _HeadConfig:
+        if domain:
+            domain_config = self._domain_head_configs.get(domain)
+            if domain_config and head_name in domain_config:
+                return domain_config[head_name]
+        return self._default_head_configs[head_name]
+
+    def _build_head_config(
+        self,
+        head_name: str,
+        head_spec: Mapping[str, Any],
+        available_heads: Mapping[str, _LinearHead],
+    ) -> _HeadConfig:
+        base_head: _LinearHead
+
+        if "weights" in head_spec:
+            base_head = _build_linear_head(head_spec)
+        else:
+            shared_ref = head_spec.get("shared")
+            if isinstance(shared_ref, str):
+                shared_head = available_heads.get(shared_ref)
+                if shared_head is None:
+                    raise ValueError(f"unknown shared head '{shared_ref}' for {head_name}")
+                base_head = _clone_head(shared_head)
+            else:
+                base_head = _clone_head(self._default_head_configs[head_name].head)
+
+            if "bias" in head_spec:
+                try:
+                    base_head.bias = float(head_spec["bias"])
+                except (TypeError, ValueError):
+                    pass
+            if "weights" in head_spec:
+                weights_override = head_spec.get("weights")
+                if isinstance(weights_override, Mapping):
+                    base_head.weights = {
+                        str(name): float(value)
+                        for name, value in weights_override.items()
+                    }
+            if "clip" in head_spec:
+                clip_override = head_spec.get("clip")
+                base_head.clip = float(clip_override) if clip_override is not None else None
+
+        scale, bias = _parse_affine(head_spec)
+        clip_value = base_head.clip
+        if "clip" in head_spec:
+            clip_override = head_spec.get("clip")
+            clip_value = float(clip_override) if clip_override is not None else None
+
+        temperature = _parse_temperature(head_spec.get("temperature"))
+
+        return _HeadConfig(
+            head=base_head,
+            clip=clip_value,
+            affine_scale=scale,
+            affine_bias=bias,
+            temperature=temperature,
         )
 
 

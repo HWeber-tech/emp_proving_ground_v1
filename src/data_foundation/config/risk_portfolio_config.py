@@ -1,9 +1,7 @@
-"""Legacy portfolio-risk config module removed.
+"""Legacy portfolio risk config module removed.
 
-The canonical risk configuration now lives in ``src.config.risk.risk_config``.
-Import ``RiskConfig`` from that module instead of relying on this legacy
-loader facade.  This stub raises immediately to prevent shim resurrection and
-keeps roadmap evidence aligned with the dead-code cleanup plan.
+Importing this module raises ``ModuleNotFoundError`` to prevent resurrections of the
+old loader.  Use ``src.config.risk.risk_config`` for canonical access.
 """
 
 from __future__ import annotations

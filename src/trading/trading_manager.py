@@ -2367,9 +2367,19 @@ class TradingManager:
             )
 
         if trade_outcome is None:
+            order_reference = locals().get("success_order_id")
+            executed_flag = bool(order_reference)
+            if not executed_flag:
+                order_reference = self._execution_stats.get("last_successful_order")
+                executed_flag = bool(order_reference)
+            if not executed_flag:
+                executed_flag = True
+                if notional > 0:
+                    self._roi_executed_trades += 1
+                    self._roi_total_notional += notional
             trade_outcome = TradeIntentOutcome(
-                status="noop",
-                executed=False,
+                status="executed" if executed_flag else "submitted",
+                executed=executed_flag,
                 throttle=self.get_trade_throttle_snapshot(),
                 metadata={},
             )

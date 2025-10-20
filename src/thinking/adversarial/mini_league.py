@@ -21,7 +21,7 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Iterable, Mapping, MutableMapping, Sequence
 
-from src.evolution.mutation_ledger import get_mutation_ledger
+from src.evolution.mutation_ledger import MutationLedger
 
 logger = logging.getLogger(__name__)
 
@@ -824,7 +824,7 @@ class MiniLeague:
                 "turnover_lambda": self._lagrangian_state.turnover_lambda,
                 "inventory_lambda": self._lagrangian_state.inventory_lambda,
             }
-            get_mutation_ledger().record_exploitability_result(
+            self._mutation_ledger.record_exploitability_result(
                 observation,
                 metadata=metadata,
             )

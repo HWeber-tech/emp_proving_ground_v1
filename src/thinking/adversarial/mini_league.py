@@ -13,6 +13,7 @@ register agents, generate matchups, and record match results.
 
 from __future__ import annotations
 
+import math
 from collections import deque
 from dataclasses import dataclass, field, replace
 from enum import Enum
@@ -138,6 +139,10 @@ class ExploitabilityComparison:
     turnover: float | None
     turnover_diff_pct: float | None
     gap: float
+    turnover_variance: float | None = None
+    inventory_variance: float | None = None
+    lagrangian_penalty: float | None = None
+    lagrangian_adjusted_gap: float | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -153,6 +158,7 @@ class ExploitabilityObservation:
     selected_gap: float | None
     selected_slot: LeagueSlot | None
     selected_agent_id: str | None
+    selected_penalty: float | None = None
     wow_delta: float | None = None
 
 
@@ -195,6 +201,76 @@ def _turnover_diff_pct(base: float, other: float) -> float | None:
     return abs(other - base) / abs(base) * 100.0
 
 
+def _extract_variance(entry: LeagueEntry, variance_key: str) -> float | None:
+    if variance_key not in entry.metadata:
+        return None
+    value = _coerce_float(entry.metadata[variance_key])
+    if value is None:
+        return None
+    if value < 0.0:
+        return 0.0
+    return value
+
+
+def _constraint_difference(candidate: float | None, target: float | None) -> float | None:
+    if candidate is None or target is None:
+        return None
+    return float(candidate - target)
+
+
+class _LagrangianConstraintState:
+    """Track dual variables enforcing turnover/inventory variance limits."""
+
+    __slots__ = (
+        "turnover_lambda",
+        "inventory_lambda",
+        "turnover_updates",
+        "inventory_updates",
+    )
+
+    def __init__(self) -> None:
+        self.turnover_lambda: float = 0.0
+        self.inventory_lambda: float = 0.0
+        self.turnover_updates: int = 0
+        self.inventory_updates: int = 0
+
+    def penalty(
+        self,
+        turnover_violation: float | None,
+        inventory_violation: float | None,
+    ) -> float:
+        penalty = 0.0
+        if (
+            turnover_violation is not None
+            and turnover_violation > 0.0
+            and self.turnover_lambda > 0.0
+        ):
+            penalty += self.turnover_lambda * turnover_violation
+        if (
+            inventory_violation is not None
+            and inventory_violation > 0.0
+            and self.inventory_lambda > 0.0
+        ):
+            penalty += self.inventory_lambda * inventory_violation
+        return penalty
+
+    def update(
+        self,
+        turnover_violation: float | None,
+        inventory_violation: float | None,
+    ) -> None:
+        if turnover_violation is not None:
+            self.turnover_updates += 1
+            lr = 1.0 / math.sqrt(self.turnover_updates)
+            candidate = self.turnover_lambda + lr * turnover_violation
+            self.turnover_lambda = max(0.0, candidate)
+        if inventory_violation is not None:
+            self.inventory_updates += 1
+            lr = 1.0 / math.sqrt(self.inventory_updates)
+            candidate = self.inventory_lambda + lr * inventory_violation
+            self.inventory_lambda = max(0.0, candidate)
+
+
 class MiniLeague:
     """Coordinate match scheduling between league roles."""
 
@@ -226,6 +302,7 @@ class MiniLeague:
         self._exploitability_observations: deque[ExploitabilityObservation] = deque(
             maxlen=history_limit
         )
+        self._lagrangian_state = _LagrangianConstraintState()
 
     def register(self, slot: LeagueSlot, entry: LeagueEntry) -> None:
         roster = self._slots[slot]
@@ -341,6 +418,8 @@ class MiniLeague:
         metric: str = "sharpe",
         turnover_key: str = "turnover",
         turnover_tolerance_pct: float = 10.0,
+        turnover_variance_key: str = "turnover_variance",
+        inventory_variance_key: str = "inventory_variance",
     ) -> ExploitabilityObservation:
         if turnover_tolerance_pct < 0:
             raise ValueError("turnover_tolerance_pct must be non-negative")
@@ -361,8 +440,12 @@ class MiniLeague:
 
         current_metric = _extract_metric(current_entry, metric)
         current_turnover = _extract_turnover(current_entry, turnover_key)
+        current_turnover_variance = _extract_variance(current_entry, turnover_variance_key)
+        current_inventory_variance = _extract_variance(current_entry, inventory_variance_key)
 
         comparisons: list[ExploitabilityComparison] = []
+        turnover_violations: list[float] = []
+        inventory_violations: list[float] = []
         if current_metric is not None and current_turnover is not None:
             for slot in (LeagueSlot.BEST, LeagueSlot.EXPLOIT):
                 for entry in self._slots[slot]:
@@ -373,7 +456,24 @@ class MiniLeague:
                     turnover_diff = _turnover_diff_pct(current_turnover, candidate_turnover)
                     if turnover_diff is None or turnover_diff > turnover_tolerance_pct:
                         continue
+                    candidate_turnover_variance = _extract_variance(
+                        entry, turnover_variance_key
+                    )
+                    candidate_inventory_variance = _extract_variance(
+                        entry, inventory_variance_key
+                    )
+                    turnover_violation = _constraint_difference(
+                        candidate_turnover_variance, current_turnover_variance
+                    )
+                    inventory_violation = _constraint_difference(
+                        candidate_inventory_variance, current_inventory_variance
+                    )
                     gap = max(0.0, candidate_metric - current_metric)
+                    penalty = self._lagrangian_state.penalty(
+                        turnover_violation, inventory_violation
+                    )
+                    penalty_value = penalty if penalty > 0.0 else 0.0
+                    adjusted_gap = max(0.0, gap - penalty_value)
                     comparisons.append(
                         ExploitabilityComparison(
                             slot=slot,
@@ -382,18 +482,46 @@ class MiniLeague:
                             turnover=candidate_turnover,
                             turnover_diff_pct=turnover_diff,
                             gap=gap,
+                            turnover_variance=candidate_turnover_variance,
+                            inventory_variance=candidate_inventory_variance,
+                            lagrangian_penalty=penalty_value,
+                            lagrangian_adjusted_gap=adjusted_gap,
                         )
                     )
+                    if turnover_violation is not None:
+                        turnover_violations.append(turnover_violation)
+                    if inventory_violation is not None:
+                        inventory_violations.append(inventory_violation)
 
         if comparisons:
-            selected = max(comparisons, key=lambda item: item.gap)
-            selected_gap = selected.gap
+            def _score(item: ExploitabilityComparison) -> float:
+                if item.lagrangian_adjusted_gap is not None:
+                    return float(item.lagrangian_adjusted_gap)
+                return float(item.gap)
+
+            selected = max(comparisons, key=_score)
+            selected_gap = _score(selected)
             selected_slot = selected.slot
             selected_agent_id = selected.agent_id
+            selected_penalty = selected.lagrangian_penalty
         else:
             selected_gap = None
             selected_slot = None
             selected_agent_id = None
+            selected_penalty = None
+
+        turnover_violation_avg = (
+            sum(turnover_violations) / len(turnover_violations)
+            if turnover_violations
+            else None
+        )
+        inventory_violation_avg = (
+            sum(inventory_violations) / len(inventory_violations)
+            if inventory_violations
+            else None
+        )
+        if turnover_violation_avg is not None or inventory_violation_avg is not None:
+            self._lagrangian_state.update(turnover_violation_avg, inventory_violation_avg)
 
         return ExploitabilityObservation(
             metric=metric,
@@ -405,6 +533,7 @@ class MiniLeague:
             selected_gap=selected_gap,
             selected_slot=selected_slot,
             selected_agent_id=selected_agent_id,
+            selected_penalty=selected_penalty,
         )
 
     def record_exploitability_observation(
@@ -413,11 +542,15 @@ class MiniLeague:
         metric: str = "sharpe",
         turnover_key: str = "turnover",
         turnover_tolerance_pct: float = 10.0,
+        turnover_variance_key: str = "turnover_variance",
+        inventory_variance_key: str = "inventory_variance",
     ) -> ExploitabilityObservation:
         observation = self.compute_exploitability_observation(
             metric=metric,
             turnover_key=turnover_key,
             turnover_tolerance_pct=turnover_tolerance_pct,
+            turnover_variance_key=turnover_variance_key,
+            inventory_variance_key=inventory_variance_key,
         )
         if observation.selected_gap is not None:
             previous_gap = next(

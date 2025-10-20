@@ -12,11 +12,23 @@ from src.thinking.adversarial.mini_league import (
 )
 
 
-def _entry(agent_id: str, sharpe: float, turnover: float) -> LeagueEntry:
+def _entry(
+    agent_id: str,
+    sharpe: float,
+    turnover: float,
+    *,
+    turnover_variance: float | None = None,
+    inventory_variance: float | None = None,
+) -> LeagueEntry:
+    metadata = {"sharpe": sharpe, "turnover": turnover}
+    if turnover_variance is not None:
+        metadata["turnover_variance"] = turnover_variance
+    if inventory_variance is not None:
+        metadata["inventory_variance"] = inventory_variance
     return LeagueEntry(
         agent_id=agent_id,
         score=sharpe,
-        metadata={"sharpe": sharpe, "turnover": turnover},
+        metadata=metadata,
     )
 
 
@@ -127,3 +139,52 @@ def test_promotion_requires_exploitability_gap_to_shrink() -> None:
     promoted = league.promote_current_to_best()
     assert promoted is not None
     assert promoted.agent_id == "current"
+
+
+def test_lagrangian_constraints_penalize_variance() -> None:
+    league = MiniLeague()
+    league.register(
+        LeagueSlot.CURRENT,
+        _entry(
+            "current",
+            1.0,
+            1.0,
+            turnover_variance=0.05,
+            inventory_variance=0.02,
+        ),
+    )
+    league.register(
+        LeagueSlot.BEST,
+        _entry(
+            "best",
+            1.03,
+            1.0,
+            turnover_variance=0.05,
+            inventory_variance=0.02,
+        ),
+    )
+    league.register(
+        LeagueSlot.EXPLOIT,
+        _entry(
+            "exploit",
+            1.05,
+            1.02,
+            turnover_variance=0.30,
+            inventory_variance=0.25,
+        ),
+    )
+
+    first = league.record_exploitability_observation()
+    assert first.selected_agent_id == "exploit"
+    assert first.selected_gap == pytest.approx(0.05)
+    exploit_first = next(comp for comp in first.comparisons if comp.agent_id == "exploit")
+    assert exploit_first.lagrangian_penalty == pytest.approx(0.0)
+    assert exploit_first.lagrangian_adjusted_gap == pytest.approx(0.05)
+
+    second = league.record_exploitability_observation()
+    assert second.selected_agent_id == "best"
+    assert second.selected_gap == pytest.approx(0.03)
+    exploit_comp = next(comp for comp in second.comparisons if comp.agent_id == "exploit")
+    assert exploit_comp.lagrangian_penalty is not None and exploit_comp.lagrangian_penalty > 0.0
+    assert exploit_comp.lagrangian_adjusted_gap == pytest.approx(0.0)
+    assert second.selected_penalty == pytest.approx(0.0)

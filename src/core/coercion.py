@@ -41,9 +41,10 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
         value = decoded
     if isinstance(value, Real):
         try:
-            return float(value)
+            result = float(value)
         except (TypeError, ValueError, OverflowError):
             return default
+        return result if math.isfinite(result) else default
     if isinstance(value, (bytes, bytearray)):
         try:
             value = value.decode("ascii")
@@ -59,9 +60,10 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
         except ValueError:
             return default
     try:
-        return float(cast(Any, value))
+        result = float(cast(Any, value))
     except (TypeError, ValueError):
         return default
+    return result if math.isfinite(result) else default
 
 
 @overload

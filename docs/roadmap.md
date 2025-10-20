@@ -165,7 +165,7 @@
 **Goal:** fast stress testing without lying to ourselves.
 
 - [ ] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
-- [x] **G.2** A/B validator: surrogate vs ground-truth sim **? within 5%**, turnover within 10%; otherwise retrain.  
+- [x] **G.2** A/B validator: surrogate vs ground‑truth sim **α within 5%**, turnover within 10%; otherwise retrain.    
 - [x] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
 
 **DoD (G):** surrogate gated; capacity curves published per instrument.

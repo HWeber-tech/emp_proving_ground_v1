@@ -10,9 +10,10 @@ from typing import MutableMapping
 class TimeStamper:
     """Add an ISO8601 timestamp to the event dictionary."""
 
-    def __init__(self, *, fmt: str = "iso", utc: bool = False) -> None:
+    def __init__(self, *, fmt: str = "iso", utc: bool = False, key: str = "timestamp") -> None:
         self._fmt = fmt
         self._utc = utc
+        self._key = key
 
     def __call__(
         self,
@@ -22,9 +23,9 @@ class TimeStamper:
     ) -> MutableMapping[str, object]:
         timestamp = datetime.now(tz=UTC if self._utc else None)
         if self._fmt == "iso":
-            event_dict.setdefault("timestamp", timestamp.isoformat())
+            event_dict.setdefault(self._key, timestamp.isoformat())
         else:  # pragma: no cover - alternative formats are out of scope
-            event_dict.setdefault("timestamp", timestamp.strftime(self._fmt))
+            event_dict.setdefault(self._key, timestamp.strftime(self._fmt))
         return event_dict
 
 

@@ -65,7 +65,7 @@
 - [x] **B.3.2** Dimensionless delta_hat = (mid[t+H]-mid[t])/(tick*max(spread, kσ).  
 - [ ] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
 - [x] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  
-- [ ] **B.3.5** Unit test: masking future data must not change features/labels.
+- [x] **B.3.5** Unit test: masking future data must not change features/labels.
 
 **DoD (B):** Adapter emits **MarketState** with invariants; leakage tests pass; features align across instruments (smoke PSI < 0.25).
 
@@ -116,9 +116,9 @@
 - [x] **D.3.2** Inventory as a state with mean?reversion pressure; turnover caps per minute/hour.
 
 ### D.4 Slow context (OpenBB)
-- [ ] **D.4.1** Macro/vol/earnings → **size multiplier** ∈ {0, 0.3, 1}.  
-- [ ] **D.4.2** Macro event ±120?s → 0; VIX>35 → 0.3; else 1.  
-- [ ] **D.4.3** Emit reason codes for gate decisions.
+- [x] **D.4.1** Macro/vol/earnings → **size multiplier** ∈ {0, 0.3, 1}.  
+- [x] **D.4.2** Macro event ±120?s → 0; VIX>35 → 0.3; else 1.  
+- [x] **D.4.3** Emit reason codes for gate decisions.
 
 **DoD (D):** execution sim shows after?fee alpha ? thresholds; macro halts respected; inventory bounded under stress.
 
@@ -135,7 +135,7 @@
 ### E.2 FX adaptation
 - [x] **E.2.1** Freeze bottom 60–80%; enable **LoRA rank 8–16** on top 30–40%.  
 - [x] **E.2.2** **EWC or L2?SP** + **20–30% equity rehearsal**.  
-- [ ] **E.2.3** Retention gates per horizon; reject if any exceed cap.
+- [x] **E.2.3** Retention gates per horizon; reject if any exceed cap.
 
 **DoD (E):** Equity retention drop ≤ {1ev 3%, 5ev 4%, 20ev 5%}; FX gains ≥ 3% F1 with matched turnover.
 
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T10:11:34Z
+## Automation updates — 2025-10-20T10:32:50Z
 
 ### Last 4 commits
-- 2f9f0575 refactor(reflection): tune 3 files (2025-10-20)
-- a20c3234 test(.telemetry): tune 2 files (2025-10-20)
-- 64622fd5 feat(simulation): add 3 files (2025-10-20)
-- 9565871f refactor(trading): tune 2 files (2025-10-20)
+- 9643de95 test(mlops): add 3 files (2025-10-20)
+- 9c9eea7b feat(artifacts): add 21 files (2025-10-20)
+- 54254b09 feat(risk): add 5 files (2025-10-20)
+- d0a6d803 feat(risk): add 4 files (2025-10-20)

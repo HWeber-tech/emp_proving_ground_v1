@@ -81,6 +81,7 @@ def test_review_gate_registry_merges_state(tmp_path: Path) -> None:
         if criterion["id"] == "requirement_a"
     )
     assert requirement_status == ReviewCriterionStatus.met.value
+    assert summary["patch_proposals"] == []
 
     decision = ReviewGateDecision(
         gate_id="beta_gate",
@@ -91,6 +92,14 @@ def test_review_gate_registry_merges_state(tmp_path: Path) -> None:
     )
     beta_entry = registry.record_decision(decision)
     assert beta_entry.status() is WorkflowTaskStatus.blocked
+
+    summary = registry.to_summary()
+    proposals = summary["patch_proposals"]
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal["proposal_id"] == "rfc-beta_gate-remediation"
+    assert "control_a" in proposal["metadata"]["mandatory_failures"]
+    assert any("control_a" in step for step in proposal["proposed_steps"])
 
     snapshot = registry.to_workflow_snapshot()
     assert snapshot.status is WorkflowTaskStatus.blocked

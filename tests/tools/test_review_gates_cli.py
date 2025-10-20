@@ -45,6 +45,7 @@ def test_review_gates_status_cli(tmp_path: Path, capsys: pytest.CaptureFixture[s
     payload = json.loads(captured.out)
     assert payload["gates"]
     assert payload["gates"][0]["status"] == "todo"
+    assert payload["patch_proposals"] == []
 
 
 def test_review_gates_decide_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -100,3 +101,4 @@ def test_review_gates_decide_cli(tmp_path: Path, capsys: pytest.CaptureFixture[s
     gate_summary = payload["gates"][0]
     assert gate_summary["status"] == "completed"
     assert gate_summary["verdict"] == "pass"
+    assert payload["patch_proposals"] == []

@@ -435,10 +435,13 @@ class ReviewGateRegistry:
 
     def to_summary(self) -> dict[str, object]:
         entries: list[dict[str, object]] = []
+        patch_proposals: list[dict[str, object]] = []
         for entry in self.iter_entries():
             decision = entry.decision
             definition = entry.definition
             status = entry.status()
+            mandatory_failures: list[ReviewGateCriterion] = []
+            optional_failures: list[ReviewGateCriterion] = []
             criterion_summaries: list[dict[str, object]] = []
             for criterion in definition.criteria:
                 status_value: str | None = None
@@ -446,6 +449,11 @@ class ReviewGateRegistry:
                     recorded = decision.criteria_status.get(criterion.criterion_id)
                     if recorded is not None:
                         status_value = recorded.value
+                        if recorded is ReviewCriterionStatus.not_met:
+                            if criterion.mandatory:
+                                mandatory_failures.append(criterion)
+                            else:
+                                optional_failures.append(criterion)
                 criterion_summaries.append(
                     {
                         "id": criterion.criterion_id,
@@ -470,10 +478,19 @@ class ReviewGateRegistry:
                 entry_payload["decided_by"] = list(decision.decided_by)
                 if decision.notes:
                     entry_payload["notes"] = list(decision.notes)
+            if status is WorkflowTaskStatus.blocked:
+                proposal = _build_patch_proposal(
+                    definition=definition,
+                    decision=decision,
+                    mandatory_failures=tuple(mandatory_failures),
+                    optional_failures=tuple(optional_failures),
+                )
+                patch_proposals.append(proposal)
             entries.append(entry_payload)
         return {
             "generated_at": datetime.now(tz=UTC).isoformat(),
             "gates": entries,
+            "patch_proposals": patch_proposals,
         }
 
     def to_markdown(self) -> str:
@@ -589,6 +606,99 @@ class ReviewGateRegistry:
             workflows=(checklist,),
             metadata={"source": "review_gates"},
         )
+
+
+def _build_patch_proposal(
+    *,
+    definition: ReviewGateDefinition,
+    decision: ReviewGateDecision | None,
+    mandatory_failures: tuple[ReviewGateCriterion, ...],
+    optional_failures: tuple[ReviewGateCriterion, ...],
+) -> dict[str, object]:
+    proposal_id = f"rfc-{definition.gate_id}-remediation"
+    title = f"RFC: Remediate {definition.title}"
+    severity = definition.severity
+    owners = list(definition.owners)
+    verdict = decision.verdict.value if decision is not None else "pending"
+    notes: list[str] = []
+    decided_by: list[str] = []
+    decided_at: str | None = None
+    if decision is not None:
+        notes = list(decision.notes)
+        decided_by = list(decision.decided_by)
+        decided_at = decision.decided_at.isoformat()
+
+    summary_parts = [
+        f"Gate '{definition.title}' ({definition.gate_id}) is blocked with severity {severity}.",
+        f"Recorded verdict: {verdict}.",
+    ]
+    if mandatory_failures:
+        criteria_text = ", ".join(
+            f"{criterion.criterion_id} ({criterion.description})"
+            for criterion in mandatory_failures
+        )
+        summary_parts.append(f"Mandatory criteria failing: {criteria_text}.")
+    elif decision is not None and decision.verdict is ReviewVerdict.fail:
+        summary_parts.append(
+            "Gate recorded a fail verdict without specific mandatory criteria flagged."
+        )
+    if optional_failures:
+        optional_text = ", ".join(
+            f"{criterion.criterion_id} ({criterion.description})"
+            for criterion in optional_failures
+        )
+        summary_parts.append(f"Optional criteria flagged as not_met: {optional_text}.")
+    if notes:
+        summary_parts.append("Reviewer notes: " + "; ".join(notes))
+    summary = " ".join(summary_parts)
+
+    proposed_steps: list[str] = []
+    for criterion in mandatory_failures:
+        proposed_steps.append(
+            f"Address mandatory criterion '{criterion.criterion_id}': {criterion.description}."
+        )
+    for criterion in optional_failures:
+        proposed_steps.append(
+            f"Review optional criterion '{criterion.criterion_id}' noted as not_met: {criterion.description}."
+        )
+    for note in notes:
+        proposed_steps.append(f"Resolve reviewer note: {note}")
+    if not proposed_steps:
+        proposed_steps.append(
+            "Investigate gate failure and document remediation before updating the verdict."
+        )
+
+    metadata: dict[str, object] = {
+        "gate_id": definition.gate_id,
+        "severity": severity,
+        "verdict": verdict,
+    }
+    if owners:
+        metadata["owners"] = owners
+    if definition.artifacts:
+        metadata["artifacts"] = list(definition.artifacts)
+    if decided_by:
+        metadata["decided_by"] = decided_by
+    if decided_at is not None:
+        metadata["decided_at"] = decided_at
+    if notes:
+        metadata["notes"] = notes
+    if mandatory_failures:
+        metadata["mandatory_failures"] = [criterion.criterion_id for criterion in mandatory_failures]
+    else:
+        metadata["mandatory_failures"] = []
+    if optional_failures:
+        metadata["optional_followups"] = [criterion.criterion_id for criterion in optional_failures]
+
+    return {
+        "proposal_id": proposal_id,
+        "title": title,
+        "summary": summary,
+        "owners": owners,
+        "severity": severity,
+        "proposed_steps": proposed_steps,
+        "metadata": metadata,
+    }
 try:  # Python < 3.11 fallback
     from datetime import UTC
 except ImportError:  # pragma: no cover - compatibility branch

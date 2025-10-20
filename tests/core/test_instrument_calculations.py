@@ -1,6 +1,6 @@
 import pytest
 
-from src.core.instrument import Instrument
+from src.core.instrument import Instrument, get_instrument
 
 
 def test_calculate_pip_value_rejects_non_positive_price() -> None:
@@ -36,3 +36,10 @@ def test_instrument_from_dict_coerces_grouped_numeric_strings() -> None:
     assert instrument.max_lot_size == 2500.0
     assert instrument.pip_value == pytest.approx(0.0005)
     assert instrument.tick_size == pytest.approx(0.00005)
+
+
+def test_get_instrument_ignores_symbol_whitespace() -> None:
+    instrument = get_instrument(" eurusd ")
+
+    assert instrument is not None
+    assert instrument.symbol == "EURUSD"

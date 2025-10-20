@@ -181,9 +181,14 @@ FOREX_INSTRUMENTS: dict[str, Instrument] = {
 }
 
 
-def get_instrument(symbol: str) -> Instrument | None:
+def get_instrument(symbol: str | None) -> Instrument | None:
     """Get instrument by symbol."""
-    return FOREX_INSTRUMENTS.get(symbol.upper())
+    if symbol is None:
+        return None
+    normalised = symbol.strip().upper()
+    if not normalised:
+        return None
+    return FOREX_INSTRUMENTS.get(normalised)
 
 
 def get_all_instruments() -> dict[str, Instrument]:

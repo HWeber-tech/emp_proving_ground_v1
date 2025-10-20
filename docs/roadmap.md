@@ -87,7 +87,7 @@
 
 ### C.3 Chunked BPTT
 - [ ] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
-- [ ] **C.3.2** Curriculum seq_len: 4k ? 8k ? 16k.  
+- [ ] **C.3.2** Curriculum seq_len: 4k → 8k → 16k.  
 - [x] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
 
 ### C.4 Heads & calibration
@@ -104,20 +104,20 @@
 **Goal:** trade only when after?fee edge beats costs; size by uncertainty; be sane in macro.
 
 ### D.1 Decision rule & costs
-- [ ] **D.1.1** `edge_ticks = delta_hat * max(spread, k?)`; cost?=?½·spread + slip + fees + **AS_penalty**.  
-- [x] **D.1.2** Actions: {**cross**, **post?and?chase(±1 tick, TTL X?ms)**, hold}.
+- [ ] **D.1.1** edge_ticks = delta_hat * max(spread, kσ); cost = ½·spread + slip + fees + AS_penalty.
+- [x] **D.1.2** Actions: {cross, post‑and‑chase(±1 tick, TTL X ms), hold}.
 
 ### D.2 Queue & adverse selection
 - [ ] **D.2.1** L1 queue fill prob ~ our_size / (queue_size+?) × trade_flow_factor.  
 - [ ] **D.2.2** **Adverse selection**: microprice drift over last k events conditional on our action.
 
 ### D.3 Sizing & inventory
-- [x] **D.3.1** Size ? edge / **??** (from quantile head).  
+- [x] **D.3.1** Size ∝ edge / σ̂ (from quantile head).  
 - [ ] **D.3.2** Inventory as a state with mean?reversion pressure; turnover caps per minute/hour.
 
 ### D.4 Slow context (OpenBB)
-- [ ] **D.4.1** Macro/vol/earnings ? **size multiplier** ? {0, 0.3, 1}.  
-- [ ] **D.4.2** Macro event ±120?s ? 0; VIX>35 ? 0.3; else 1.  
+- [ ] **D.4.1** Macro/vol/earnings → **size multiplier** ∈ {0, 0.3, 1}.  
+- [ ] **D.4.2** Macro event ±120?s → 0; VIX>35 → 0.3; else 1.  
 - [ ] **D.4.3** Emit reason codes for gate decisions.
 
 **DoD (D):** execution sim shows after?fee alpha ? thresholds; macro halts respected; inventory bounded under stress.
@@ -137,7 +137,7 @@
 - [ ] **E.2.2** **EWC or L2?SP** + **20–30% equity rehearsal**.  
 - [ ] **E.2.3** Retention gates per horizon; reject if any exceed cap.
 
-**DoD (E):** Equity retention drop ? {1ev 3%, 5ev 4%, 20ev 5%}; FX gains ? 3% F1 with matched turnover.
+**DoD (E):** Equity retention drop ≤ {1ev 3%, 5ev 4%, 20ev 5%}; FX gains ≥ 3% F1 with matched turnover.
 
 ---
 
@@ -147,14 +147,14 @@
 
 ### F.1 MuZero?lite planner
 - [x] **F.1.1** Learn compact state?transition: next `MarketState` essentials + reward proxy.  
-- [ ] **F.1.2** Depth?2/3 MCTS over actions {cross, post, hold}; budget **0.3–0.5?ms**; auto?disable if SLA breached.  
-- [ ] **F.1.3** Gate: correlation between imagined edge and realized edge ? 0.2 on hold?out day.
+- [ ] **F.1.2** Depth-2/3 MCTS over actions {cross, post, hold}; budget **0.3–0.5?ms**; auto?disable if SLA breached.  
+- [ ] **F.1.3** Gate: correlation between imagined edge and realized edge ≥ 0.2 on hold?out day.
 
 ### F.2 Mini?league self?play
 - [x] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
-- [x] **F.2.2** Replay buffers: main + **rare?regime** (NFP, halts); 80/20 sampling with temp schedule.  
+- [x] **F.2.2** Replay buffers: main + **rare-regime** (NFP, halts); 80/20 sampling with temp schedule.  
 - [ ] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
-- [ ] **F.2.4** Exploitability metric (?Sharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
+- [ ] **F.2.4** Exploitability metric (ΔSharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
 
 **DoD (F):** planner respects latency gates; exploitability gap narrows without turnover spike.
 
@@ -165,7 +165,7 @@
 **Goal:** fast stress testing without lying to ourselves.
 
 - [ ] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
-- [x] **G.2** A/B validator: surrogate vs ground?truth sim **? within 5%**, turnover within 10%; otherwise retrain.  
+- [x] **G.2** A/B validator: surrogate vs ground-truth sim **? within 5%**, turnover within 10%; otherwise retrain.  
 - [x] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
 
 **DoD (G):** surrogate gated; capacity curves published per instrument.

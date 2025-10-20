@@ -1720,6 +1720,7 @@ def _ensure_fix_components(
         price_queue,
         config.to_dict(),
         task_factory=task_factory,
+        market_data_client=fix_connection_manager,
     )
     broker_interface = FIXBrokerInterface(
         event_bus,

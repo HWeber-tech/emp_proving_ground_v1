@@ -149,7 +149,25 @@ class _TelemetryRecorder:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return False
-                self._condition.wait(timeout=remaining)
+        self._condition.wait(timeout=remaining)
+
+
+class _MockPriceConnection:
+    """Minimal price session stub that records outbound market data requests."""
+
+    def __init__(self, telemetry: _TelemetryRecorder) -> None:
+        self._telemetry = telemetry
+        self._requests: deque[tuple[str, object]] = deque(maxlen=128)
+
+    def send_message_and_track(self, msg: object, req_id: str) -> bool:
+        """Accept outbound FIX messages and record them for inspection."""
+
+        self._requests.append((req_id, msg))
+        self._telemetry.record("market_data_request", req_id=req_id)
+        return True
+
+    def snapshot_requests(self) -> list[tuple[str, object]]:
+        return list(self._requests)
 
 
 @dataclass(slots=True)
@@ -2413,6 +2431,7 @@ class MockFIXManager:
             default_customer_or_firm=default_customer_or_firm,
         )
         self.trade_connection = self._trade_connection
+        self.price_connection = _MockPriceConnection(self._telemetry)
 
     def _coerce_market_data_step(self, raw: object) -> _ResolvedMarketDataStep | None:
         if isinstance(raw, _ResolvedMarketDataStep):

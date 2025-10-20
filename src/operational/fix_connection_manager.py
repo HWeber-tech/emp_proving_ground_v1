@@ -19,10 +19,14 @@ import asyncio
 import importlib
 import logging
 import os
+import time
 from collections.abc import Callable, Mapping, Sequence
+from datetime import datetime, timezone
 from itertools import islice
 from typing import Optional, Protocol, SupportsFloat, cast
+from uuid import uuid4
 
+import simplefix
 from src.operational.fix_types import (
     FIXManagerProtocol,
     FIXMarketDataEntry,
@@ -173,6 +177,8 @@ class FIXConnectionManager:
         self._trade_app = _FIXApplicationAdapter(session_type="trade")
         self._initiator: _FIXInitiatorAdapter | None = None
         self._live_broker_secrets: LiveBrokerSecrets | None = None
+        self._md_sequence_counter = 1
+        self._active_market_data_request: dict[str, object] | None = None
 
     def start_sessions(self) -> bool:
         """Create and start genuine FIX sessions."""
@@ -623,6 +629,190 @@ class FIXConnectionManager:
             return None
         return secrets.active_profile
 
+    def _dispatch_market_data_request(
+        self,
+        symbols: Sequence[str] | None,
+        *,
+        subscription_type: str,
+        depth: int = 1,
+    ) -> bool:
+        manager = self._manager
+        if manager is None:
+            logger.warning("Cannot send MarketDataRequest; FIX sessions not running")
+            return False
+
+        price_connection = getattr(manager, "price_connection", None)
+        if price_connection is None:
+            logger.warning("FIX manager missing price_connection; cannot send MarketDataRequest")
+            return False
+
+        resolved_symbols = self._normalise_symbol_list(symbols)
+        request_meta = self._active_market_data_request
+
+        if subscription_type == "1":
+            if not resolved_symbols:
+                logger.warning("MarketDataRequest subscribe requires at least one symbol")
+                return False
+            md_req_id = self._generate_md_request_id()
+            depth_value = max(int(depth), 0)
+        else:
+            if request_meta is None:
+                logger.debug("No active market data subscription to cancel")
+                return True
+            md_req_id = str(request_meta.get("id"))
+            if not resolved_symbols:
+                cached = request_meta.get("symbols")
+                resolved_symbols = list(cached) if isinstance(cached, Sequence) else []
+            depth_value = int(request_meta.get("depth", depth))
+            if not resolved_symbols:
+                logger.debug("Active subscription metadata missing symbols; skipping cancel request")
+                return True
+
+        try:
+            msg = self._build_market_data_request_message(
+                md_req_id=md_req_id,
+                subscription_type=subscription_type,
+                symbols=resolved_symbols,
+                depth=depth_value,
+            )
+        except Exception:
+            logger.exception("Failed to build MarketDataRequest message")
+            return False
+
+        try:
+            ok = bool(price_connection.send_message_and_track(msg, md_req_id))
+        except Exception:
+            logger.exception("Failed to dispatch MarketDataRequest")
+            return False
+
+        if not ok:
+            logger.warning("MarketDataRequest send not acknowledged", extra={"md_req_id": md_req_id})
+            return False
+
+        if subscription_type == "1":
+            self._active_market_data_request = {
+                "id": md_req_id,
+                "symbols": tuple(resolved_symbols),
+                "depth": depth_value,
+                "timestamp": time.time(),
+            }
+        else:
+            self._active_market_data_request = None
+        return True
+
+    def _generate_md_request_id(self) -> str:
+        return f"MDREQ_{uuid4().hex[:12].upper()}_{self._next_md_sequence()}"
+
+    def _next_md_sequence(self) -> int:
+        current = self._md_sequence_counter
+        self._md_sequence_counter += 1
+        return current
+
+    @staticmethod
+    def _normalise_symbol_list(symbols: Sequence[str] | None) -> list[str]:
+        if not symbols:
+            return []
+        ordered: dict[str, None] = {}
+        for symbol in symbols:
+            text = str(symbol).strip()
+            if not text:
+                continue
+            ordered.setdefault(text, None)
+        return list(ordered.keys())
+
+    def _build_market_data_request_message(
+        self,
+        *,
+        md_req_id: str,
+        subscription_type: str,
+        symbols: Sequence[str],
+        depth: int,
+        entry_types: Sequence[str] | None = None,
+    ) -> simplefix.FixMessage:
+        msg = simplefix.FixMessage()
+        msg.append_pair(8, "FIX.4.4")
+        msg.append_pair(35, "V")
+
+        sender_comp_id = self._resolve_price_identifier(
+            attr="price_sender_comp_id",
+            extras_key="FIX_PRICE_SENDER_COMP_ID",
+            default=self._default_sender_comp_id(),
+        )
+        if sender_comp_id:
+            msg.append_pair(49, sender_comp_id)
+
+        target_comp_id = self._resolve_price_identifier(
+            attr="price_target_comp_id",
+            extras_key="FIX_PRICE_TARGET_COMP_ID",
+            default="cServer",
+        )
+        if target_comp_id:
+            msg.append_pair(56, target_comp_id)
+
+        target_sub_id = self._resolve_price_identifier(
+            attr="price_target_sub_id",
+            extras_key="FIX_PRICE_TARGET_SUB_ID",
+            default="QUOTE",
+        )
+        if target_sub_id:
+            msg.append_pair(57, target_sub_id)
+
+        sender_sub_id = self._resolve_price_identifier(
+            attr="price_sender_sub_id",
+            extras_key="FIX_PRICE_SENDER_SUB_ID",
+            default="QUOTE",
+        )
+        if sender_sub_id:
+            msg.append_pair(50, sender_sub_id)
+
+        msg.append_pair(34, str(self._next_md_sequence()))
+        msg.append_pair(52, datetime.now(timezone.utc).strftime("%Y%m%d-%H:%M:%S.%f")[:-3])
+        msg.append_pair(262, md_req_id)
+        msg.append_pair(263, subscription_type)
+        msg.append_pair(264, str(max(depth, 0)))
+
+        md_entry_types = tuple(entry_types) if entry_types else ("0", "1")
+        msg.append_pair(267, str(len(md_entry_types)))
+        for entry_type in md_entry_types:
+            msg.append_pair(269, str(entry_type))
+
+        msg.append_pair(146, str(len(symbols)))
+        for symbol in symbols:
+            msg.append_pair(55, str(symbol))
+
+        return msg
+
+    def _resolve_price_identifier(
+        self,
+        *,
+        attr: str,
+        extras_key: str,
+        default: str | None = None,
+    ) -> str | None:
+        manager = self._manager
+        if manager is not None:
+            value = getattr(manager, attr, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        extras = getattr(self._system_config, "extras", None)
+        if isinstance(extras, Mapping):
+            raw = extras.get(extras_key)
+            if raw is not None:
+                text = str(raw).strip()
+                if text:
+                    return text
+        fallback = getattr(self._system_config, attr, None)
+        if isinstance(fallback, str) and fallback.strip():
+            return fallback.strip()
+        return default
+
+    def _default_sender_comp_id(self) -> str | None:
+        account = getattr(self._system_config, "account_number", None)
+        if not account:
+            return None
+        environment = getattr(self._system_config, "environment", "demo")
+        return f"{environment}.icmarkets.{account}"
+
     # Internal helpers -------------------------------------------------
 
     def _resolve_live_broker_secrets(self) -> LiveBrokerSecrets:
@@ -726,7 +916,18 @@ class FIXConnectionManager:
             self._initiator = None
             self._price_app.reset_metrics()
             self._trade_app.reset_metrics()
+            self._active_market_data_request = None
             logger.info("FIXConnectionManager sessions stopped")
+
+    def subscribe_market_data(self, symbols: Sequence[str], *, depth: int = 1) -> bool:
+        """Issue a MarketDataRequest subscribe for the provided symbols."""
+
+        return self._dispatch_market_data_request(symbols, subscription_type="1", depth=depth)
+
+    def unsubscribe_market_data(self, symbols: Sequence[str] | None = None) -> bool:
+        """Disable an existing MarketDataRequest subscription."""
+
+        return self._dispatch_market_data_request(symbols, subscription_type="2")
 
     def get_application(self, session: str) -> Optional[_FIXApplicationAdapter]:
         if session in ("price", "quote"):

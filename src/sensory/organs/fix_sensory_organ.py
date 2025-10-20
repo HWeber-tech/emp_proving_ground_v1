@@ -9,7 +9,7 @@ import asyncio
 import logging
 from contextlib import suppress
 from datetime import datetime
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any, Callable, Coroutine, Mapping, Optional, Sequence, Protocol
 
 from src.runtime.task_supervisor import TaskSupervisor
 
@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
+
+
+class MarketDataSubscriptionClient(Protocol):
+    """Interface for components capable of sending FIX market data requests."""
+
+    def subscribe_market_data(self, symbols: Sequence[str], *, depth: int = 1) -> bool:
+        ...
+
+    def unsubscribe_market_data(self, symbols: Sequence[str] | None = None) -> bool:
+        ...
 
 
 class FIXSensoryOrgan:
@@ -28,6 +38,7 @@ class FIXSensoryOrgan:
         price_queue: Any,
         config: dict[str, Any],
         task_factory: TaskFactory | None = None,
+        market_data_client: MarketDataSubscriptionClient | None = None,
     ) -> None:
         """
         Initialize FIX sensory organ.
@@ -46,6 +57,9 @@ class FIXSensoryOrgan:
         self._price_task: asyncio.Task[Any] | None = None
         self._task_factory = task_factory
         self._fallback_supervisor: TaskSupervisor | None = None
+        self._market_data_client = market_data_client
+        self._md_subscription_symbols: list[str] = []
+        self._md_subscription_active = False
         if task_factory is None:
             self._fallback_supervisor = TaskSupervisor(namespace="fix-sensory-organ")
 
@@ -56,6 +70,8 @@ class FIXSensoryOrgan:
 
         self.running = True
         logger.info("FIX sensory organ started")
+
+        self._subscribe_market_data(self._resolve_subscription_symbols())
 
         # Start message processing
         self._price_task = self._spawn_task(
@@ -69,6 +85,7 @@ class FIXSensoryOrgan:
             return
 
         self.running = False
+        self._unsubscribe_market_data()
         task = self._price_task
         if task is not None:
             task.cancel()
@@ -218,10 +235,97 @@ class FIXSensoryOrgan:
 
         return data
 
+    def _subscribe_market_data(self, symbols: Sequence[str]) -> None:
+        if not symbols or self._market_data_client is None:
+            return
+        try:
+            subscribed = bool(self._market_data_client.subscribe_market_data(symbols))
+        except Exception:
+            logger.exception("Failed to send MarketDataRequest subscribe", extra={"symbols": symbols})
+            return
+        if subscribed:
+            self._md_subscription_active = True
+            self._md_subscription_symbols = list(symbols)
+            logger.info("Sent MarketDataRequest subscribe", extra={"symbols": symbols})
+        else:
+            logger.warning("MarketDataRequest subscribe was rejected", extra={"symbols": symbols})
+
+    def _unsubscribe_market_data(self) -> None:
+        if not self._md_subscription_active or self._market_data_client is None:
+            return
+        symbols = list(self._md_subscription_symbols)
+        try:
+            ok = bool(self._market_data_client.unsubscribe_market_data(symbols))
+        except Exception:
+            logger.exception("Failed to send MarketDataRequest unsubscribe", extra={"symbols": symbols})
+            ok = False
+        if not ok:
+            logger.warning("MarketDataRequest unsubscribe may have failed", extra={"symbols": symbols})
+        else:
+            logger.info("Sent MarketDataRequest unsubscribe", extra={"symbols": symbols})
+        self._md_subscription_active = False
+        self._md_subscription_symbols = []
+
+    def _resolve_subscription_symbols(self) -> list[str]:
+        if self.symbols:
+            resolved = self._normalise_symbols(self.symbols)
+            if resolved:
+                return resolved
+
+        extras = self.config.get("extras") if isinstance(self.config, Mapping) else None
+        if isinstance(extras, Mapping):
+            for key in (
+                "FIX_MARKET_DATA_SYMBOLS",
+                "FIX_SYMBOLS",
+                "MARKET_DATA_SYMBOLS",
+            ):
+                raw = extras.get(key)
+                symbols = self._parse_symbol_source(raw)
+                if symbols:
+                    return symbols
+
+        fallback = self.config.get("symbols") if isinstance(self.config, Mapping) else None
+        symbols = self._parse_symbol_source(fallback)
+        if symbols:
+            return symbols
+
+        instruments = self.config.get("instruments") if isinstance(self.config, Mapping) else None
+        symbols = self._parse_symbol_source(instruments)
+        if symbols:
+            return symbols
+        return []
+
+    @staticmethod
+    def _parse_symbol_source(raw: object) -> list[str]:
+        if raw is None:
+            return []
+        if isinstance(raw, (list, tuple, set)):
+            return FIXSensoryOrgan._normalise_symbols(list(raw))
+        if isinstance(raw, str):
+            cleaned = raw.replace(";", ",")
+            parts = [part.strip() for part in cleaned.split(",") if part.strip()]
+            return FIXSensoryOrgan._normalise_symbols(parts)
+        return FIXSensoryOrgan._normalise_symbols([raw])
+
+    @staticmethod
+    def _normalise_symbols(symbols: Sequence[object]) -> list[str]:
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for symbol in symbols:
+            text = str(symbol).strip()
+            if not text or text in seen:
+                continue
+            ordered.append(text)
+            seen.add(text)
+        return ordered
+
     def subscribe_to_symbols(self, symbols: list[str]) -> None:
         """Subscribe to market data for symbols."""
-        self.symbols = symbols
-        logger.info(f"Subscribed to symbols: {symbols}")
+        self.symbols = self._normalise_symbols(symbols)
+        logger.info(f"Subscribed to symbols: {self.symbols}")
+        if self.running:
+            self._unsubscribe_market_data()
+            self._subscribe_market_data(self.symbols)
 
     def get_market_data(self, symbol: str) -> dict[str, Any]:
         """Get market data for a symbol."""

@@ -222,6 +222,23 @@ class _StubBus:
         self.events.append((name, payload))
 
 
+class _StubMarketDataClient:
+    def __init__(self) -> None:
+        self.subscribed: list[tuple[tuple[str, ...], int]] = []
+        self.unsubscribed: list[tuple[str, ...] | None] = []
+
+    def subscribe_market_data(self, symbols, *, depth: int = 1) -> bool:
+        self.subscribed.append((tuple(symbols), depth))
+        return True
+
+    def unsubscribe_market_data(self, symbols=None) -> bool:
+        if symbols is None:
+            self.unsubscribed.append(None)
+        else:
+            self.unsubscribed.append(tuple(symbols))
+        return True
+
+
 @pytest.mark.asyncio
 async def test_professional_predator_app_lifecycle_tracks_components():
     config = SystemConfig()
@@ -281,6 +298,25 @@ async def test_fix_sensory_organ_start_stop_awaits_worker():
     assert getattr(organ, "_price_task") is None
     assert organ.running is False
     assert supervisor.active_count == 0
+
+
+@pytest.mark.asyncio
+async def test_fix_sensory_organ_subscribes_and_unsubscribes_market_data():
+    queue: asyncio.Queue = asyncio.Queue()
+    client = _StubMarketDataClient()
+
+    organ = FIXSensoryOrgan(
+        _StubBus(),
+        queue,
+        config={"extras": {"FIX_MARKET_DATA_SYMBOLS": "1,2"}},
+        market_data_client=client,
+    )
+
+    await organ.start()
+    assert client.subscribed == [(('1', '2'), 1)]
+
+    await organ.stop()
+    assert client.unsubscribed == [("1", "2")]
 
 
 @pytest.mark.asyncio

@@ -149,7 +149,7 @@ class _TelemetryRecorder:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return False
-        self._condition.wait(timeout=remaining)
+                self._condition.wait(timeout=remaining)
 
 
 class _MockPriceConnection:
@@ -375,7 +375,8 @@ def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
                 price=_coerce_float(getattr(value, "price", 0.0)),
                 size=_coerce_float(getattr(value, "size", 0.0)),
             )
-    except (AttributeError, TypeError, ValueError) as exc:
+    except Exception as exc:
+        # Some Protocol implementations expose descriptors that raise during hasattr/isinstance.
         logger.debug(
             "Failed to coerce order book protocol instance %s: %s",
             value,

@@ -9,6 +9,7 @@ from entry points that rely on these libraries (e.g., batch jobs, services).
 from __future__ import annotations
 
 import importlib
+import re
 import sys
 from typing import Dict, Tuple
 
@@ -22,14 +23,20 @@ MINIMUM_VERSIONS: Dict[str, Tuple[int, int, int]] = {
 
 def _parse(ver: str) -> tuple[int, int, int]:
     parts = (ver.split("+", 1)[0]).split(".")
-    try:
-        major = int(parts[0]) if len(parts) > 0 else 0
-        minor = int(parts[1]) if len(parts) > 1 else 0
-        patch = int(parts[2]) if len(parts) > 2 else 0
-    except Exception:
-        # Conservative default: fail the check if version cannot be parsed
-        major, minor, patch = (0, 0, 0)
-    return major, minor, patch
+
+    def _coerce(part: str) -> int:
+        match = re.match(r"\d+", part)
+        if not match:
+            return 0
+        try:
+            return int(match.group(0))
+        except ValueError:
+            return 0
+
+    parsed = [_coerce(part) for part in parts[:3]]
+    while len(parsed) < 3:
+        parsed.append(0)
+    return tuple(parsed)
 
 
 def _format_version(parts: tuple[int, int, int]) -> str:

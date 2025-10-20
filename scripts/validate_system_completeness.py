@@ -212,6 +212,8 @@ class SystemValidator:
         passed_checks = sum(1 for v in all_results.values() if v)
 
         # Create comprehensive report
+        all_checks_passed = passed_checks == total_checks
+
         report = {
             "timestamp": datetime.now().isoformat(),
             "validator": "System Completeness Validator",
@@ -222,8 +224,12 @@ class SystemValidator:
             "success_rate": passed_checks / total_checks if total_checks > 0 else 0.0,
             "results": all_results,
             "summary": {
-                "status": "PASSED" if passed_checks >= 8 else "PARTIAL",
-                "message": f"{passed_checks}/{total_checks} checks passed ({passed_checks / total_checks:.1%} success rate)",
+                "status": "PASSED" if all_checks_passed else "FAILED",
+                "message": (
+                    f"{passed_checks}/{total_checks} checks passed ({passed_checks / total_checks:.1%} success rate)"
+                    if total_checks > 0
+                    else "No checks executed"
+                ),
             },
         }
 
@@ -261,13 +267,16 @@ async def main():
     validator.print_report(report)
 
     # Exit with appropriate code
-    success_threshold = 0.8  # 80% success rate required
-    if report["success_rate"] >= success_threshold:
+    if report["failed_checks"] == 0:
         logger.info("🎉 System validation PASSED - Ready for production!")
         return 0
-    else:
-        logger.warning("⚠️  System validation PARTIAL - Some components need attention")
-        return 1
+
+    logger.error(
+        "❌ System validation FAILED - %d/%d checks failing",
+        report["failed_checks"],
+        report["total_checks"],
+    )
+    return 1
 
 
 if __name__ == "__main__":

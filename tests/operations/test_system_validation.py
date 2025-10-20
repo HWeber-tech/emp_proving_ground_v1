@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -198,6 +199,20 @@ def test_load_system_validation_snapshot_reads_file(tmp_path) -> None:
     assert snapshot.metadata.get("report_path") == str(report_path)
     assert snapshot.metadata.get("run") == "ci"
     assert snapshot.failed_checks == 1
+
+
+def test_ci_system_validation_report_has_no_red() -> None:
+    report_path = Path("system_validation_report.json")
+    if not report_path.exists():
+        pytest.skip("system_validation_report.json missing")
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    snapshot = evaluate_system_validation(report, metadata={"source": "ci"})
+
+    if snapshot.status is not SystemValidationStatus.passed:
+        failing = snapshot.metadata.get("failing_check_names", ())
+        failing_checks = ", ".join(failing) if failing else "unknown checks"
+        pytest.fail(f"System validation report failing checks: {failing_checks}")
 
 
 def test_system_validation_alert_generation() -> None:

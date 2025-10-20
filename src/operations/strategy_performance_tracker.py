@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from statistics import fmean
 from typing import Any, Iterable, Mapping, MutableMapping, Sequence
@@ -35,6 +36,54 @@ def _as_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_float(value: Any) -> float | None:
+    """Best-effort float coercion that tolerates string values."""
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_ratio(value: Any) -> float | None:
+    """Convert percentage/bps/pip strings into fractional returns."""
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if not text:
+            return None
+        if text.endswith("%"):
+            numeric = _coerce_float(text[:-1])
+            return numeric / 100.0 if numeric is not None else None
+        if text.endswith("bps"):
+            numeric = _coerce_float(text[:-3])
+            return numeric / 10_000.0 if numeric is not None else None
+        if text.endswith("bp"):
+            numeric = _coerce_float(text[:-2])
+            return numeric / 10_000.0 if numeric is not None else None
+        if text.endswith("pip"):
+            numeric = _coerce_float(text[:-3])
+            return numeric / 10_4 if numeric is not None else None
+        if text.endswith("pips"):
+            numeric = _coerce_float(text[:-4])
+            return numeric / 10_4 if numeric is not None else None
+        return _coerce_float(text)
+    return None
 
 
 @dataclass
@@ -434,6 +483,8 @@ class _TradeRecord:
     metadata: Mapping[str, Any]
     fast_weight_metrics: Mapping[str, Any] | None = None
     fast_weight_summary: Mapping[str, Mapping[str, Any]] | None = None
+    baseline_return: float | None = None
+    baseline_pnl: float | None = None
 
 
 @dataclass
@@ -678,6 +729,11 @@ class StrategyPerformanceTracker:
         initial_capital: float,
         roi_cost_model: RoiCostModel | None = None,
         period_start: datetime | None = None,
+        baseline_window: int = 20,
+        baseline_min_trades: int = 5,
+        baseline_tolerance_ratio: float = 0.25,
+        baseline_min_gap: float = 0.0001,
+        baseline_default_spread_bps: float = 1.0,
     ) -> None:
         self._initial_capital = max(0.0, float(initial_capital))
         self._cost_model = roi_cost_model or RoiCostModel.bootstrap_defaults(self._initial_capital)
@@ -690,6 +746,16 @@ class StrategyPerformanceTracker:
         self._fast_weight_toggle_counts: Counter[str] = Counter()
         self._fast_weight_telemetry = _FastWeightTelemetryAccumulator()
         self._hebbian_adapters: MutableMapping[str, _HebbianAdapterAccumulator] = {}
+        self._baseline_window = max(1, int(baseline_window))
+        self._baseline_min_trades = max(1, int(baseline_min_trades))
+        self._baseline_tolerance_ratio = max(0.0, float(baseline_tolerance_ratio))
+        self._baseline_min_gap = max(0.0, float(baseline_min_gap))
+        self._baseline_default_spread_bps = max(0.0, float(baseline_default_spread_bps))
+        self._baseline_default_return = (
+            self._baseline_default_spread_bps / 10_000.0
+            if self._baseline_default_spread_bps > 0.0
+            else None
+        )
 
     @property
     def period_start(self) -> datetime:
@@ -715,7 +781,9 @@ class StrategyPerformanceTracker:
             timestamp = datetime.now(tz=UTC)
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=UTC)
+        pnl_value = float(pnl)
         notional_value = float(notional)
+        notional_abs = abs(notional_value)
         metrics_payload = dict(fast_weight_metrics) if fast_weight_metrics else None
         summary_payload: Mapping[str, Mapping[str, Any]] | None = None
         if fast_weight_summary:
@@ -724,16 +792,34 @@ class StrategyPerformanceTracker:
                 for adapter_id, summary in fast_weight_summary.items()
                 if isinstance(summary, Mapping)
             }
+
+        metadata_payload: Mapping[str, Any] = dict(metadata or {})
+
+        if return_pct is None and notional_abs > 0.0:
+            implied_return = pnl_value / notional_abs
+            return_pct_value = implied_return
+        else:
+            return_pct_value = float(return_pct) if return_pct is not None else None
+
+        baseline_return = self._infer_baseline_return(metadata_payload)
+        baseline_pnl = (
+            baseline_return * notional_abs if baseline_return is not None and notional_abs > 0.0 else None
+        )
+        if baseline_return is not None and isinstance(metadata_payload, dict):
+            metadata_payload.setdefault("baseline_return_estimate", baseline_return)
+
         record = _TradeRecord(
             timestamp=timestamp.astimezone(UTC),
-            pnl=float(pnl),
+            pnl=pnl_value,
             notional=notional_value,
-            return_pct=float(return_pct) if return_pct is not None else None,
+            return_pct=return_pct_value,
             fast_weights_enabled=fast_weights_enabled,
             regime=regime,
-            metadata=dict(metadata or {}),
+            metadata=metadata_payload,
             fast_weight_metrics=metrics_payload,
             fast_weight_summary=summary_payload,
+            baseline_return=baseline_return,
+            baseline_pnl=baseline_pnl,
         )
         accumulator = self._strategies.setdefault(
             strategy_id, _StrategyAccumulator(strategy_id=strategy_id)
@@ -758,6 +844,210 @@ class StrategyPerformanceTracker:
                     _HebbianAdapterAccumulator(adapter_id=adapter_id),
                 )
                 adapter_accumulator.add(summary)
+
+    def _infer_baseline_return(self, metadata: Mapping[str, Any] | None) -> float | None:
+        """Estimate a baseline fractional return using spread metadata."""
+
+        default = self._baseline_default_return
+        if not metadata:
+            return default
+
+        def _clip(value: float | None) -> float | None:
+            if value is None or not math.isfinite(value):
+                return None
+            return max(0.0, min(value, 1.0))
+
+        for key in (
+            "baseline_expected_return",
+            "baseline_return",
+            "expected_return",
+            "target_return",
+        ):
+            candidate = _clip(_coerce_ratio(metadata.get(key)))
+            if candidate is not None:
+                return candidate
+
+        for key in ("spread_return_pct", "spread_pct", "mean_revert_return"):
+            candidate = _clip(_coerce_ratio(metadata.get(key)))
+            if candidate is not None:
+                return candidate
+
+        for key in ("spread_bps", "baseline_spread_bps", "expected_spread_bps"):
+            bps_value = _coerce_float(metadata.get(key))
+            if bps_value is not None:
+                candidate = _clip(bps_value / 10_000.0)
+                if candidate is not None:
+                    return candidate
+
+        for key in ("spread_pips", "baseline_spread_pips"):
+            pips_value = _coerce_float(metadata.get(key))
+            if pips_value is not None:
+                candidate = _clip(pips_value / 10_4)
+                if candidate is not None:
+                    return candidate
+
+        price_denominator = None
+        for key in ("mid_price", "reference_price", "entry_price", "price"):
+            value = _coerce_float(metadata.get(key))
+            if value not in (None, 0.0):
+                price_denominator = abs(value)
+                break
+
+        tick_size = None
+        for key in ("tick_size", "tick_value", "price_increment"):
+            value = _coerce_float(metadata.get(key))
+            if value not in (None, 0.0):
+                tick_size = abs(value)
+                break
+
+        for key in ("spread_ticks", "edge_ticks", "baseline_edge_ticks"):
+            ticks = _coerce_float(metadata.get(key))
+            if ticks is None:
+                continue
+            if tick_size is not None and price_denominator not in (None, 0.0):
+                candidate = _clip(abs(ticks) * tick_size / price_denominator)
+                if candidate is not None:
+                    return candidate
+
+        for key in ("spread", "bid_ask_spread", "price_spread"):
+            spread_abs = _coerce_float(metadata.get(key))
+            if spread_abs is None:
+                continue
+            if price_denominator not in (None, 0.0):
+                candidate = _clip(abs(spread_abs) / price_denominator)
+                if candidate is not None:
+                    return candidate
+
+        return default
+
+    def _baseline_summary_for_records(
+        self,
+        records: Sequence[_TradeRecord],
+        *,
+        scope: str,
+        identifier: str | None = None,
+    ) -> Mapping[str, Any]:
+        if not records:
+            return {}
+
+        window_size = min(self._baseline_window, len(records))
+        recent = list(records[-window_size:])
+
+        total_actual_pnl = 0.0
+        total_baseline_pnl = 0.0
+        total_notional = 0.0
+        weighted_actual_return = 0.0
+        weighted_baseline_return = 0.0
+        samples = 0
+        missing = 0
+        start_ts: datetime | None = None
+        end_ts: datetime | None = None
+
+        for trade in recent:
+            notional_abs = abs(trade.notional)
+            if notional_abs <= 0.0:
+                missing += 1
+                continue
+
+            actual_return = trade.return_pct
+            if actual_return is None:
+                actual_return = trade.pnl / notional_abs
+
+            baseline_return = trade.baseline_return
+            if baseline_return is None:
+                baseline_return = self._baseline_default_return
+
+            if baseline_return is None or actual_return is None:
+                missing += 1
+                continue
+
+            baseline_pnl = trade.baseline_pnl
+            if baseline_pnl is None:
+                baseline_pnl = baseline_return * notional_abs
+
+            total_actual_pnl += trade.pnl
+            total_baseline_pnl += baseline_pnl
+            total_notional += notional_abs
+            weighted_actual_return += actual_return * notional_abs
+            weighted_baseline_return += baseline_return * notional_abs
+            samples += 1
+
+            if start_ts is None or trade.timestamp < start_ts:
+                start_ts = trade.timestamp
+            if end_ts is None or trade.timestamp > end_ts:
+                end_ts = trade.timestamp
+
+        if samples == 0 or total_notional <= 0.0:
+            return {}
+
+        avg_actual_return = weighted_actual_return / total_notional
+        avg_baseline_return = weighted_baseline_return / total_notional
+        return_gap = avg_baseline_return - avg_actual_return
+        pnl_shortfall = total_baseline_pnl - total_actual_pnl
+        tolerance_value = self._baseline_tolerance_ratio * total_baseline_pnl
+
+        window_minutes = 0.0
+        if start_ts is not None and end_ts is not None and end_ts > start_ts:
+            window_minutes = (end_ts - start_ts).total_seconds() / 60.0
+
+        alert = False
+        alert_reason = None
+        if (
+            samples >= self._baseline_min_trades
+            and total_baseline_pnl > 0.0
+            and return_gap >= self._baseline_min_gap
+            and total_actual_pnl + tolerance_value < total_baseline_pnl
+        ):
+            alert = True
+            alert_reason = "actual_below_baseline"
+
+        summary: dict[str, Any] = {
+            "scope": scope,
+            "window_size": window_size,
+            "window_trades": samples,
+            "missing_samples": missing,
+            "actual_pnl": total_actual_pnl,
+            "baseline_pnl": total_baseline_pnl,
+            "pnl_shortfall": pnl_shortfall,
+            "actual_return": avg_actual_return,
+            "baseline_return": avg_baseline_return,
+            "return_gap": return_gap,
+            "tolerance_ratio": self._baseline_tolerance_ratio,
+            "min_gap": self._baseline_min_gap,
+            "tolerance_value": tolerance_value,
+            "window_minutes": window_minutes,
+            "alert": alert,
+        }
+
+        if identifier is not None:
+            summary["strategy_id" if scope == "strategy" else "identifier"] = identifier
+
+        if alert_reason is not None:
+            summary["alert_reason"] = alert_reason
+
+        if end_ts is not None:
+            summary["latest_trade_at"] = end_ts.astimezone(UTC).isoformat()
+        if start_ts is not None:
+            summary["earliest_trade_at"] = start_ts.astimezone(UTC).isoformat()
+
+        return summary
+
+    def _baseline_summary_for_strategy(self, strategy_id: str) -> Mapping[str, Any]:
+        accumulator = self._strategies.get(strategy_id)
+        if accumulator is None:
+            return {}
+        return self._baseline_summary_for_records(
+            accumulator.trades,
+            scope="strategy",
+            identifier=strategy_id,
+        )
+
+    def _baseline_summary_for_portfolio(self) -> Mapping[str, Any]:
+        return self._baseline_summary_for_records(
+            self._global_trades,
+            scope="portfolio",
+            identifier="portfolio",
+        )
 
     def record_regime_evaluation(self, predicted: str, actual: str) -> None:
         """Capture a regime classification outcome for accuracy KPIs."""
@@ -786,7 +1076,28 @@ class StrategyPerformanceTracker:
         if generated_at.tzinfo is None:
             generated_at = generated_at.replace(tzinfo=UTC)
 
-        strategies = tuple(acc.kpi() for acc in self._strategies.values())
+        strategies_list = [acc.kpi() for acc in self._strategies.values()]
+        baseline_alerts: list[Mapping[str, Any]] = []
+        for idx, strategy in enumerate(strategies_list):
+            summary = self._baseline_summary_for_strategy(strategy.strategy_id)
+            if not summary:
+                continue
+            metadata = dict(strategy.metadata)
+            metadata["baseline_comparator"] = summary
+            strategies_list[idx] = replace(strategy, metadata=metadata)
+            if summary.get("alert"):
+                baseline_alerts.append(
+                    {
+                        "strategy_id": strategy.strategy_id,
+                        "return_gap": summary.get("return_gap"),
+                        "pnl_shortfall": summary.get("pnl_shortfall"),
+                        "window_trades": summary.get("window_trades"),
+                        "window_minutes": summary.get("window_minutes"),
+                        "latest_trade_at": summary.get("latest_trade_at"),
+                    }
+                )
+
+        strategies = tuple(strategies_list)
         aggregates = self._build_aggregates(strategies)
         loop_metrics = self._build_loop_metrics()
         roi_snapshot = self._build_roi_snapshot(generated_at)
@@ -795,6 +1106,13 @@ class StrategyPerformanceTracker:
             "period_days": max((generated_at - self._period_start).total_seconds() / 86400.0, 0.0),
             "initial_capital": self._initial_capital,
         }
+
+        portfolio_baseline = self._baseline_summary_for_portfolio()
+        if portfolio_baseline:
+            metadata["baseline_comparator"] = portfolio_baseline
+
+        if baseline_alerts:
+            metadata["baseline_alerts"] = baseline_alerts
 
         return StrategyPerformanceReport(
             generated_at=generated_at,

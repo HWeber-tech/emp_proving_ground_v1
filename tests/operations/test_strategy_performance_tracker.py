@@ -302,3 +302,68 @@ def test_aggregate_fast_weight_metadata_rolls_up_events() -> None:
     mean_reversion = adapters.get("mean_reversion")
     assert mean_reversion is not None
     assert mean_reversion.get("samples") == 1
+
+
+def test_baseline_comparator_flags_underperformance() -> None:
+    tracker = StrategyPerformanceTracker(
+        initial_capital=100_000.0,
+        baseline_window=4,
+        baseline_min_trades=3,
+        baseline_tolerance_ratio=0.05,
+        baseline_min_gap=0.00005,
+    )
+
+    def _timestamp(minutes: int) -> datetime:
+        return datetime.now(tz=UTC) + timedelta(minutes=minutes)
+
+    for idx in range(3):
+        tracker.record_trade(
+            "zeta",
+            pnl=2.0,
+            notional=10_000.0,
+            timestamp=_timestamp(idx),
+            metadata={"spread_bps": 25.0, "mid_price": 100.0},
+        )
+
+    report = tracker.generate_report(as_of=_timestamp(5))
+    zeta = next(strategy for strategy in report.strategies if strategy.strategy_id == "zeta")
+    summary = zeta.metadata.get("baseline_comparator")
+    assert summary is not None
+    assert summary["alert"] is True
+    assert summary["window_trades"] == 3
+    assert summary["return_gap"] > 0.0
+
+    portfolio_summary = report.metadata.get("baseline_comparator")
+    assert portfolio_summary is not None
+    assert portfolio_summary["alert"] is True
+
+    alerts = report.metadata.get("baseline_alerts")
+    assert alerts is not None and any(alert["strategy_id"] == "zeta" for alert in alerts)
+
+
+def test_baseline_comparator_all_clear_when_meeting_baseline() -> None:
+    tracker = StrategyPerformanceTracker(
+        initial_capital=50_000.0,
+        baseline_window=3,
+        baseline_min_trades=3,
+        baseline_tolerance_ratio=0.1,
+        baseline_min_gap=0.00005,
+    )
+
+    now = datetime.now(tz=UTC)
+    for idx in range(3):
+        tracker.record_trade(
+            "theta",
+            pnl=30.0,
+            notional=10_000.0,
+            timestamp=now + timedelta(minutes=idx),
+            metadata={"spread_bps": 20.0, "mid_price": 100.0},
+        )
+
+    report = tracker.generate_report(as_of=now + timedelta(minutes=5))
+    theta = next(strategy for strategy in report.strategies if strategy.strategy_id == "theta")
+    summary = theta.metadata.get("baseline_comparator")
+    assert summary is not None
+    assert summary["alert"] is False
+    assert summary["return_gap"] < 0.0 or summary["return_gap"] == 0.0
+    assert report.metadata.get("baseline_alerts") is None

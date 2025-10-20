@@ -61,7 +61,7 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
     """Orchestrates EMP mini-cycle Days 1–2.
 
     The routine executes the two day pilot described in the internal run-book:
-    Day 1 compares Adam and Lion, while Day 2 validates FlashAttention and
+    Day 1 compares AdamW and Lion, while Day 2 validates FlashAttention and
     low-bit inference.  It produces the standard experiment artefacts and keeps
     rollbacks safe.
     """
@@ -97,6 +97,7 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
         "epochs": 12,
         "early_stop_patience": 3,
         "grad_clip": 1.0,
+        "lr_scheduler": {"type": "cosine"},
         "log_every": 50,
         "ckpt_dir": str(ARTIFACTS_CKPT_DIR),
         "artifacts_dir": str(ARTIFACTS_REPORT_DIR),
@@ -137,19 +138,19 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
         }
     )
 
-    adam_cfg = {"type": "Adam", "lr": 3e-4, "betas": (0.9, 0.999), "weight_decay": 0.0}
+    adam_cfg = {"type": "AdamW", "lr": 2e-4, "betas": (0.9, 0.999), "weight_decay": 0.0}
     lion_cfg = {"type": "Lion", "lr": 3e-4, "betas": (0.9, 0.99), "weight_decay": 0.0}
 
     run_adam = emp.run_experiment(
-        label="day1_adam_baseline",
+        label="day1_adamw_baseline",
         model=task["model_id"],
         dataset=task["dataset_id"],
         optimizer=adam_cfg,
         schedule=schedule,
         metrics=metrics,
-        notes="Day1 baseline with Adam",
+        notes="Day1 baseline with AdamW",
     )
-    _export_standard_artifacts(emp, run_adam, "day1_adam", schedule["artifacts_dir"])
+    _export_standard_artifacts(emp, run_adam, "day1_adamw", schedule["artifacts_dir"])
 
     run_lion = emp.run_experiment(
         label="day1_lion_candidate",
@@ -181,14 +182,14 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
         emp.set_default_optimizer("Lion", lion_cfg)
     else:
         emp.tag_run(run_lion, "REJECTED")
-        emp.log("Lion failed criteria; keeping Adam as default optimizer.", level="warn")
-        emp.set_default_optimizer("Adam", adam_cfg)
+        emp.log("Lion failed criteria; keeping AdamW as default optimizer.", level="warn")
+        emp.set_default_optimizer("AdamW", adam_cfg)
 
     ref_for_flash = run_lion if lion_ok else run_adam
 
-    emp.render_table(comparison_day1, title="Day 1: Adam vs Lion Comparison")
+    emp.render_table(comparison_day1, title="Day 1: AdamW vs Lion Comparison")
     emp.generate_report(
-        title="EMP Mini-Cycle Day 1 — Lion vs Adam",
+        title="EMP Mini-Cycle Day 1 — Lion vs AdamW",
         runs=[run_adam, run_lion],
         decision=lion_decision,
         out=str(ARTIFACTS_REPORT_DIR / "day1_report.html"),
@@ -329,10 +330,10 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
             {
                 "title": "Day 1 — Optimizer Pilot",
                 "bullets": [
-                    f"Adam run id: {run_adam}",
+                    f"AdamW run id: {run_adam}",
                     f"Lion run id: {run_lion}",
                     f"Decision: {'APPROVE' if lion_ok else 'REJECT'} Lion",
-                    f"Key deltas (Lion vs Adam): {comparison_day1}",
+                    f"Key deltas (Lion vs AdamW): {comparison_day1}",
                 ],
             },
             {
@@ -360,7 +361,7 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
     )
 
     if not lion_ok:
-        emp.set_default_optimizer("Adam", adam_cfg)
+        emp.set_default_optimizer("AdamW", adam_cfg)
     if not flash_ok:
         emp.enable_kernel("flashattention2", enabled=False)
     if not (int8_ok or int4_ok):

@@ -289,10 +289,10 @@ class FakeEMP:
         self.project: Optional[str] = None
         self.run_group: Optional[str] = None
         self.env_vars: Dict[str, Any] = {}
-        self.default_optimizer_name = "Adam"
+        self.default_optimizer_name = "AdamW"
         self.default_optimizer_config: Dict[str, Any] = {
-            "type": "Adam",
-            "lr": 3e-4,
+            "type": "AdamW",
+            "lr": 2e-4,
             "betas": (0.9, 0.999),
             "weight_decay": 0.0,
         }

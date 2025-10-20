@@ -31,6 +31,7 @@ def _default_root() -> Path:
 
 def _normalise_kind(kind: str) -> str:
     normalised = _KIND_PATTERN.sub("-", kind.strip().lower())
+    normalised = re.sub("-+", "-", normalised).strip("-.")
     return normalised or "misc"
 
 

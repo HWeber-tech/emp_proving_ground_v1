@@ -43,3 +43,16 @@ def test_archive_artifact_returns_none_for_missing_source(tmp_path: Path) -> Non
     )
     assert result is None
     assert not (root / "drift_reports").exists()
+
+
+def test_archive_artifact_normalises_kind_segment(tmp_path: Path) -> None:
+    source = tmp_path / "metrics.log"
+    source.write_text("log", encoding="utf-8")
+
+    root = tmp_path / "artifacts-root"
+    timestamp = datetime(2024, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+    destination = archive_artifact("  ::ALERT!!  ", source, root=root, timestamp=timestamp)
+
+    assert destination is not None
+    assert destination.relative_to(root).parts[0] == "alert"

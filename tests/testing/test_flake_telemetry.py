@@ -40,6 +40,19 @@ def test_resolve_output_path_ignores_blank_candidates(tmp_path):
     assert expected.parent.is_dir()
 
 
+def test_resolve_output_path_accepts_pathlike_values(tmp_path):
+    explicit_path = Path("relative") / "session.json"
+    resolved = resolve_output_path(
+        tmp_path,
+        explicit=explicit_path,
+        ini_value=None,
+        env_value=None,
+    )
+
+    assert resolved == tmp_path / explicit_path
+    assert resolved.parent.is_dir()
+
+
 def test_clip_longrepr_without_limit_returns_full_text() -> None:
     text = "x" * (MAX_LONGREPR_LENGTH + 5)
     assert clip_longrepr(text, limit=None) == text

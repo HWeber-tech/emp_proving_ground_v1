@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
+from os import PathLike
 from pathlib import Path
 from typing import Any
 
@@ -70,9 +71,9 @@ class FlakeTelemetrySink:
 
 def resolve_output_path(
     root: Path,
-    explicit: str | None,
-    ini_value: str | None,
-    env_value: str | None,
+    explicit: str | PathLike[str] | None,
+    ini_value: str | PathLike[str] | None,
+    env_value: str | PathLike[str] | None,
 ) -> Path:
     """Resolve the telemetry output path to an absolute location and ensure parent exists."""
 
@@ -80,7 +81,16 @@ def resolve_output_path(
     for raw_value in (explicit, env_value, ini_value):
         if raw_value is None:
             continue
-        stripped = raw_value.strip()
+        try:
+            normalized_value = os.fspath(raw_value)
+        except TypeError:
+            continue
+        if isinstance(normalized_value, bytes):
+            try:
+                normalized_value = normalized_value.decode()
+            except UnicodeDecodeError:
+                continue
+        stripped = normalized_value.strip()
         if stripped:
             candidate = stripped
             break

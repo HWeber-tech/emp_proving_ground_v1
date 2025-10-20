@@ -23,6 +23,15 @@ def _sample_order_book() -> pd.DataFrame:
     )
 
 
+def _scaled_order_book(*, spread_scale: float = 1.0, size_scale: float = 1.0) -> pd.DataFrame:
+    base = _sample_order_book().copy()
+    spread = base["ask_price"] - base["bid_price"]
+    base["ask_price"] = base["bid_price"] + spread * spread_scale
+    base["bid_size"] = base["bid_size"] * size_scale
+    base["ask_size"] = base["ask_size"] * size_scale
+    return base
+
+
 def test_order_book_analytics_reports_value_area() -> None:
     config = OrderBookAnalyticsConfig(depth_levels=3, depth_embedding_dim=12)
     analytics = OrderBookAnalytics(config)
@@ -41,6 +50,40 @@ def test_order_book_analytics_reports_value_area() -> None:
     assert snapshot.spread_ticks >= 0.0
     assert snapshot.slope_bid == snapshot.slope_bid  # NaN guard
     assert snapshot.curve_ask == snapshot.curve_ask
+    assert snapshot.liquidity_bucket_low == pytest.approx(0.0)
+    assert snapshot.liquidity_bucket_mid == pytest.approx(1.0)
+    assert snapshot.liquidity_bucket_high == pytest.approx(0.0)
+
+
+def test_order_book_liquidity_bucket_quantiles() -> None:
+    analytics = OrderBookAnalytics()
+    ts0 = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+    ts1 = ts0 + timedelta(days=1)
+    ts2 = ts0 + timedelta(days=2)
+
+    day1 = analytics.describe(_scaled_order_book(), symbol="EURUSD", timestamp=ts0)
+    assert day1 is not None
+    assert day1.liquidity_bucket_mid == pytest.approx(1.0)
+
+    # Higher size / tighter spread → high bucket once day one history is available
+    high_snapshot = analytics.describe(
+        _scaled_order_book(spread_scale=0.5, size_scale=2.5),
+        symbol="EURUSD",
+        timestamp=ts1,
+    )
+    assert high_snapshot is not None
+    assert high_snapshot.liquidity_bucket_high == pytest.approx(1.0)
+    assert high_snapshot.liquidity_bucket_low == pytest.approx(0.0)
+
+    # Wider spread / smaller size → low bucket relative to history
+    low_snapshot = analytics.describe(
+        _scaled_order_book(spread_scale=3.0, size_scale=0.4),
+        symbol="EURUSD",
+        timestamp=ts2,
+    )
+    assert low_snapshot is not None
+    assert low_snapshot.liquidity_bucket_low == pytest.approx(1.0)
+    assert low_snapshot.liquidity_bucket_high == pytest.approx(0.0)
 
 
 def test_order_book_analytics_tracks_refresh_and_ofi() -> None:
@@ -98,6 +141,10 @@ def test_how_sensor_incorporates_order_book_metrics() -> None:
     assert signal.value.get("order_book_participation_ratio") is not None
     assert "participation_ratio" not in signal.value
     assert signal.value.get("has_depth") == 1.0
+    assert signal.value.get("order_book_liquidity_bucket_mid") == pytest.approx(1.0)
+    assert signal.value.get("liquidity_bucket") == pytest.approx(0.0)
+    assert metadata.get("liquidity_bucket") == "mid"
+    assert order_book_meta.get("liquidity_bucket") == "mid"
     depth_keys = [key for key in sensor.order_book_metric_names if "depth_embedding_" in key]
     for key in depth_keys:
         assert key in signal.value
@@ -124,6 +171,7 @@ def test_how_sensor_zero_masks_order_book_metrics_without_depth() -> None:
 
     signal = sensor.process(market_frame)[0]
     assert signal.value.get("has_depth") == 0.0
+    assert signal.value.get("liquidity_bucket") == 0.0
 
     expected_keys = set(sensor.order_book_metric_names)
     for key in expected_keys:

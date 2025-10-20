@@ -15,6 +15,7 @@ from src.sensory.when.session_analytics import (
     SessionAnalytics,
     extract_session_event_flags,
     normalise_session_tokens,
+    primary_session_token,
 )
 from src.sensory.when.gamma_exposure import (
     GammaExposureAnalyzer,
@@ -97,13 +98,14 @@ class WhenSensor:
         session_snapshot = self._session_analytics.analyse(timestamp)
         session_intensity = session_snapshot.intensity
         halted_flag, resumed_flag = extract_session_event_flags(row.to_dict())
-        combined_tokens = list(session_snapshot.tokens)
+        combined_tokens = list(session_snapshot.active_sessions)
+        combined_tokens.append(session_snapshot.session_token)
         if halted_flag:
             combined_tokens.append("halt")
         if resumed_flag:
             combined_tokens.append("resume")
         session_tokens = normalise_session_tokens(combined_tokens)
-        primary_session = session_snapshot.primary_session
+        primary_session = primary_session_token(session_tokens)
 
         news_proximity = self._calculate_news_proximity(timestamp, macro_events or [])
         gamma_summary = self._summarise_gamma(

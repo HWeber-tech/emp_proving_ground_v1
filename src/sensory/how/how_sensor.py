@@ -136,11 +136,26 @@ class HowSensor:
 
         order_metrics = {name: 0.0 for name in self._order_book_metric_names}
         has_depth = False
+        bucket_label = "mid"
+        bucket_score = 0.0
         if order_snapshot is not None:
             has_depth = True
             order_metrics.update(order_snapshot.flatten())
+            low = order_metrics.get("order_book_liquidity_bucket_low", 0.0)
+            mid_bucket = order_metrics.get("order_book_liquidity_bucket_mid", 0.0)
+            high = order_metrics.get("order_book_liquidity_bucket_high", 0.0)
+            if low >= high and low >= mid_bucket:
+                bucket_label = "low"
+                bucket_score = -1.0
+            elif high >= mid_bucket:
+                bucket_label = "high"
+                bucket_score = 1.0
+            else:
+                bucket_label = "mid"
+                bucket_score = 0.0
         telemetry.update(order_metrics)
         telemetry["has_depth"] = 1.0 if has_depth else 0.0
+        telemetry["liquidity_bucket_score"] = bucket_score if has_depth else 0.0
 
         audit: dict[str, object] = {
             "signal": signal_strength,
@@ -180,10 +195,15 @@ class HowSensor:
             "threshold_assessment": assessment.as_dict(),
         }
         if order_snapshot is not None:
-            metadata["order_book"] = {
+            order_book_payload = {
                 **order_snapshot.as_dict(),
                 "has_depth": True,
+                "liquidity_bucket": bucket_label,
             }
+            metadata["order_book"] = order_book_payload
+            metadata["liquidity_bucket"] = bucket_label
+        else:
+            metadata["liquidity_bucket"] = bucket_label
 
         quality: dict[str, object] = {
             "source": "sensory.how",
@@ -205,6 +225,7 @@ class HowSensor:
             "context": context,
             "state": assessment.state,
         }
+        value["liquidity_bucket"] = bucket_score
         value.update({name: metric_value for name, metric_value in telemetry.items()})
         return [
             SensorSignal(

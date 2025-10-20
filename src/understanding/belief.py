@@ -200,6 +200,7 @@ _DIMENSION_EXTRA_VALUE_KEYS: dict[str, tuple[str, ...]] = {
         "volatility_drag",
         "volatility",
         "has_depth",
+        "liquidity_bucket",
     ),
     "WHY": ("narrative_sentiment",),
 }

@@ -10,8 +10,9 @@ dependency chain.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import date, datetime
 from math import isfinite
 from typing import Iterable, Sequence
 
@@ -74,6 +75,9 @@ class OrderBookSnapshot:
     curve_bid: float
     curve_ask: float
     depth_embedding: tuple[float, ...]
+    liquidity_bucket_low: float = 0.0
+    liquidity_bucket_mid: float = 1.0
+    liquidity_bucket_high: float = 0.0
 
     def as_dict(self) -> dict[str, float]:
         return {
@@ -98,6 +102,9 @@ class OrderBookSnapshot:
             "curve_bid": float(self.curve_bid),
             "curve_ask": float(self.curve_ask),
             "depth_embedding": [float(value) for value in self.depth_embedding],
+            "liquidity_bucket_low": float(self.liquidity_bucket_low),
+            "liquidity_bucket_mid": float(self.liquidity_bucket_mid),
+            "liquidity_bucket_high": float(self.liquidity_bucket_high),
         }
 
     @classmethod
@@ -123,6 +130,9 @@ class OrderBookSnapshot:
             "slope_ask",
             "curve_bid",
             "curve_ask",
+            "liquidity_bucket_low",
+            "liquidity_bucket_mid",
+            "liquidity_bucket_high",
         )
 
     def flatten(self, prefix: str = "order_book_") -> dict[str, float]:
@@ -311,6 +321,64 @@ class TickSpaceDepthEncoder:
 
 
 @dataclass(slots=True)
+class _LiquidityQuantileTracker:
+    """Track daily median L1 size/spread ratios to derive liquidity buckets."""
+
+    max_history: int = 30
+    _history: deque[float] = field(init=False, repr=False)
+    _current_day: date | None = field(init=False, default=None, repr=False)
+    _current_values: list[float] = field(init=False, repr=False, default_factory=list)
+
+    def __post_init__(self) -> None:
+        self._history = deque(maxlen=max(1, int(self.max_history)))
+
+    def update(self, timestamp: datetime | None, ratio: float) -> str:
+        if timestamp is None:
+            return "mid"
+
+        day = timestamp.date()
+        if self._current_day is None or day != self._current_day:
+            self._finalise_current_day()
+            self._current_day = day
+            self._current_values = []
+
+        value = float(max(ratio, 0.0))
+        if not isfinite(value):
+            value = 0.0
+        self._current_values.append(value)
+
+        current_median = float(np.median(self._current_values)) if self._current_values else 0.0
+        lower, upper = self._historical_quantiles()
+        if lower is None or upper is None:
+            return "mid"
+        if current_median <= lower:
+            return "low"
+        if current_median >= upper:
+            return "high"
+        return "mid"
+
+    def _finalise_current_day(self) -> None:
+        if not self._current_values:
+            return
+        median_value = float(np.median(self._current_values))
+        if isfinite(median_value):
+            self._history.append(median_value)
+
+    def _historical_quantiles(self) -> tuple[float | None, float | None]:
+        if not self._history:
+            return (None, None)
+        data = np.array(self._history, dtype=float)
+        if data.size == 0:
+            return (None, None)
+        finite = data[np.isfinite(data)]
+        if finite.size == 0:
+            return (None, None)
+        lower = float(np.quantile(finite, 1.0 / 3.0))
+        upper = float(np.quantile(finite, 2.0 / 3.0))
+        return (lower, upper)
+
+
+@dataclass(slots=True)
 class _OrderBookState:
     """Minimal information cached between observations."""
 
@@ -337,6 +405,7 @@ class OrderBookAnalytics:
         )
         self._metric_names: tuple[str, ...] | None = None
         self._history: dict[str, _OrderBookState] = {}
+        self._liquidity_trackers: dict[str, _LiquidityQuantileTracker] = {}
 
     def describe(
         self,
@@ -403,6 +472,18 @@ class OrderBookAnalytics:
         spread_ticks = self._spread_in_ticks(spread, tick_size)
         spread_wide = 1.0 if spread_ticks > 1.0 + 1e-9 else 0.0
 
+        tracker = self._liquidity_trackers.setdefault(state_key, _LiquidityQuantileTracker())
+        bucket_label = tracker.update(
+            timestamp,
+            self._liquidity_ratio(best_bid_size, best_ask_size, spread, tick_size),
+        )
+        if bucket_label == "low":
+            liquidity_bucket_low, liquidity_bucket_mid, liquidity_bucket_high = (1.0, 0.0, 0.0)
+        elif bucket_label == "high":
+            liquidity_bucket_low, liquidity_bucket_mid, liquidity_bucket_high = (0.0, 0.0, 1.0)
+        else:
+            liquidity_bucket_low, liquidity_bucket_mid, liquidity_bucket_high = (0.0, 1.0, 0.0)
+
         previous = self._history.get(state_key)
         ofi_norm = self._ofi_norm(
             previous,
@@ -467,6 +548,9 @@ class OrderBookAnalytics:
             curve_bid=float(curve_bid),
             curve_ask=float(curve_ask),
             depth_embedding=depth_embedding,
+            liquidity_bucket_low=float(liquidity_bucket_low),
+            liquidity_bucket_mid=float(liquidity_bucket_mid),
+            liquidity_bucket_high=float(liquidity_bucket_high),
         )
 
     def metric_names(self, prefix: str = "order_book_") -> tuple[str, ...]:
@@ -656,6 +740,21 @@ class OrderBookAnalytics:
         value_area_high = float(sorted_prices[high_index])
 
         return (value_area_low, value_area_high)
+
+    @staticmethod
+    def _liquidity_ratio(
+        best_bid_size: float,
+        best_ask_size: float,
+        spread: float,
+        tick_size: float,
+    ) -> float:
+        numerator = max(best_bid_size + best_ask_size, 0.0)
+        denominator = max(spread, tick_size, 1e-9)
+        ratio = numerator / denominator
+        if not isfinite(ratio) or ratio < 0.0:
+            return 0.0
+        # Clamp to avoid pathological spikes when spreads collapse.
+        return float(min(ratio, 1e9))
 
     @staticmethod
     def _select_first_existing(columns: Iterable[str], candidates: set[str]) -> list[str]:

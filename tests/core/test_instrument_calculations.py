@@ -11,6 +11,15 @@ def test_calculate_pip_value_rejects_non_positive_price() -> None:
         instrument.calculate_pip_value(-1.0)
 
 
+def test_calculate_pip_value_uses_abs_lot_size() -> None:
+    instrument = Instrument.forex("EURUSD")
+
+    positive = instrument.calculate_pip_value(price=1.25, lot_size=0.2)
+    negative = instrument.calculate_pip_value(price=1.25, lot_size=-0.2)
+
+    assert negative == pytest.approx(positive)
+
+
 def test_calculate_margin_rejects_non_positive_leverage() -> None:
     instrument = Instrument.forex("EURUSD")
     with pytest.raises(ValueError):

@@ -139,8 +139,8 @@ def test_adaptive_thresholds_without_snapshot(tmp_path: Path) -> None:
     resolver = AdaptiveReleaseThresholds(manager)
     thresholds = resolver.resolve(strategy_id="gamma", snapshot=None)
     assert thresholds["stage"] == PolicyLedgerStage.PAPER.value
-    assert thresholds["warn_confidence_floor"] == pytest.approx(0.82, rel=1e-6)
-    assert thresholds["warn_notional_limit"] == pytest.approx(75_000.0)
+    assert thresholds["warn_confidence_floor"] == pytest.approx(0.85, rel=1e-6)
+    assert thresholds["warn_notional_limit"] == pytest.approx(50_000.0)
     assert thresholds["block_severity"] == DriftSeverity.alert.value
     assert thresholds["adaptive_source"] == "sensor_unavailable"
     assert thresholds["uncertainty_inflation"] == pytest.approx(0.1, rel=1e-6)
@@ -170,4 +170,38 @@ def test_adaptive_thresholds_with_failure_metadata(tmp_path: Path) -> None:
     thresholds = resolver.resolve(strategy_id="delta", snapshot=snapshot)
     assert thresholds["warn_confidence_floor"] == pytest.approx(0.85, rel=1e-6)
     assert thresholds["adaptive_source"] == "no_audit_entries"
+    assert thresholds["uncertainty_inflation"] == pytest.approx(0.1, rel=1e-6)
+
+
+def test_sensor_failure_reverts_to_baseline_policy(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json")
+    manager = LedgerReleaseManager(store)
+    manager.promote(
+        policy_id="omega",
+        tactic_id="omega",
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        threshold_overrides={
+            "warn_confidence_floor": 0.55,
+            "warn_notional_limit": 150_000.0,
+        },
+        approvals=("risk", "ops"),
+        evidence_id="diary-omega",
+        metadata={
+            "promotion_checklist": {
+                "oos_regime_grid": True,
+                "leakage_checks": True,
+                "risk_audit": True,
+            }
+        },
+    )
+
+    resolver = AdaptiveReleaseThresholds(manager)
+    thresholds = resolver.resolve(strategy_id="omega", snapshot=None)
+
+    assert thresholds["stage"] == PolicyLedgerStage.PAPER.value
+    assert thresholds.get("reverted_from_stage") == PolicyLedgerStage.LIMITED_LIVE.value
+    assert thresholds["adaptive_source"] == "sensor_unavailable"
+    assert thresholds["warn_confidence_floor"] == pytest.approx(0.85, rel=1e-6)
+    assert thresholds["warn_notional_limit"] == pytest.approx(50_000.0)
+    assert thresholds["block_severity"] == DriftSeverity.alert.value
     assert thresholds["uncertainty_inflation"] == pytest.approx(0.1, rel=1e-6)

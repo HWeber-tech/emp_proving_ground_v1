@@ -1063,6 +1063,21 @@ class LedgerReleaseManager:
         base["stage"] = stage.value
         return base
 
+    def stage_thresholds(
+        self,
+        stage: PolicyLedgerStage | str | None = None,
+    ) -> Mapping[str, float | str]:
+        """Return the baseline threshold profile for the requested stage."""
+
+        resolved = (
+            PolicyLedgerStage.from_value(stage)
+            if stage is not None
+            else self._default_stage
+        )
+        profile = dict(self._stage_thresholds.get(resolved, {}))
+        profile["stage"] = resolved.value
+        return profile
+
     def build_governance_workflow(
         self,
         *,

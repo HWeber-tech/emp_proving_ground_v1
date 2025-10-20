@@ -70,31 +70,45 @@ class AdaptiveReleaseThresholds:
         failure_source = self._sensor_failure_reason(snapshot)
 
         if failure_source is not None:
-            base["stage"] = stage.value
+            fallback_stage = stage
+            if fallback_stage not in (
+                PolicyLedgerStage.EXPERIMENT,
+                PolicyLedgerStage.PAPER,
+            ):
+                fallback_stage = PolicyLedgerStage.PAPER
+
+            fallback_profile = dict(
+                self.release_manager.stage_thresholds(fallback_stage)
+            )
+
             baseline_floor = self.tuning.clamp_confidence(
                 self._coerce_float(
-                    base.get("warn_confidence_floor"),
+                    fallback_profile.get("warn_confidence_floor"),
                     self.tuning.default_confidence_floor,
                 )
             )
             inflation = max(0.0, float(self.tuning.sensor_failure_confidence_inflation))
             inflated_floor = self.tuning.clamp_confidence(baseline_floor + inflation)
             applied_inflation = max(0.0, inflated_floor - baseline_floor)
-            base["warn_confidence_floor"] = inflated_floor
+            fallback_profile["warn_confidence_floor"] = inflated_floor
 
-            notional_limit = base.get("warn_notional_limit")
+            notional_limit = fallback_profile.get("warn_notional_limit")
             if isinstance(notional_limit, (int, float)) and notional_limit > 0:
-                base["warn_notional_limit"] = round(float(notional_limit), 2)
+                fallback_profile["warn_notional_limit"] = round(float(notional_limit), 2)
             else:
-                base.pop("warn_notional_limit", None)
+                fallback_profile.pop("warn_notional_limit", None)
 
-            base["block_severity"] = self._normalize_block_severity(base.get("block_severity"))
-            base["adaptive_source"] = failure_source
+            fallback_profile["block_severity"] = self._normalize_block_severity(
+                fallback_profile.get("block_severity")
+            )
+            fallback_profile["adaptive_source"] = failure_source
+            if stage is not fallback_stage:
+                fallback_profile["reverted_from_stage"] = stage.value
             if applied_inflation > 0.0:
-                base["uncertainty_inflation"] = round(applied_inflation, 6)
+                fallback_profile["uncertainty_inflation"] = round(applied_inflation, 6)
             key = strategy_id or "__default__"
-            self._last_thresholds[key] = dict(base)
-            return base
+            self._last_thresholds[key] = dict(fallback_profile)
+            return fallback_profile
 
         if snapshot is not None:
             warn_dimensions, alert_dimensions = self._dimension_counts(snapshot)

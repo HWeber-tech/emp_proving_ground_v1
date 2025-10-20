@@ -477,3 +477,36 @@ def test_trade_throttle_external_cooldown_blocks_and_expires() -> None:
 
     resumed = throttle.evaluate(now=base + timedelta(seconds=40))
     assert resumed.allowed is True
+
+
+def test_trade_throttle_auto_multiplier_override() -> None:
+    config = TradeThrottleConfig(
+        name="auto",
+        max_trades=3,
+        window_seconds=30.0,
+    )
+    throttle = TradeThrottle(config)
+
+    base = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+    initial = throttle.evaluate(now=base, metadata={"symbol": "EURUSD"})
+    assert initial.allowed is True
+    assert initial.multiplier is None
+
+    throttle.set_auto_multiplier(0.0, reason="backpressure", metadata={"source": "test"})
+
+    second = throttle.evaluate(now=base + timedelta(seconds=1), metadata={"symbol": "EURUSD"})
+    assert second.allowed is True
+    assert second.multiplier == 0.0
+    meta = second.snapshot.get("metadata", {})
+    assert meta.get("auto_multiplier") == 0.0
+    assert meta.get("auto_multiplier_reason") == "backpressure"
+    context = meta.get("auto_multiplier_context")
+    assert isinstance(context, dict)
+    assert context.get("source") == "test"
+
+    throttle.set_auto_multiplier(None)
+
+    third = throttle.evaluate(now=base + timedelta(seconds=2), metadata={"symbol": "EURUSD"})
+    assert third.allowed is True
+    assert third.multiplier is None

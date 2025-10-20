@@ -1190,6 +1190,34 @@ class TradingManager:
             )
         self._refresh_throughput_snapshot()
 
+    def set_auto_throttle_multiplier(
+        self,
+        multiplier: float | None,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Override the trade throttle multiplier applied to new intents."""
+
+        throttle = self._trade_throttle
+        if throttle is None:
+            return
+        try:
+            throttle.set_auto_multiplier(multiplier, reason=reason, metadata=metadata)
+        except ValueError:
+            logger.debug("Rejected invalid auto throttle multiplier", exc_info=True)
+            return
+        snapshot = throttle.snapshot()
+        self._update_trade_throttle_snapshot(snapshot)
+        if multiplier is not None:
+            self._execution_stats["auto_throttle_multiplier"] = float(multiplier)
+        else:
+            self._execution_stats.pop("auto_throttle_multiplier", None)
+        if reason is not None:
+            self._execution_stats["auto_throttle_reason"] = str(reason)
+        else:
+            self._execution_stats.pop("auto_throttle_reason", None)
+
     def _refresh_throughput_snapshot(self) -> None:
         """Synchronise throughput metrics with the latest throttle posture."""
 

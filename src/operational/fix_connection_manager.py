@@ -128,26 +128,85 @@ class _FIXApplicationAdapter:
         self._queue: asyncio.Queue[FIXMessage] | None = None
         self._delivered = 0
         self._dropped = 0
+        self._backpressure_handler: (
+            Callable[[str, bool, Mapping[str, object]], None] | None
+        ) = None
+        self._backpressure_active = False
 
     def set_message_queue(self, queue: asyncio.Queue[FIXMessage]) -> None:
         self._queue = queue
+        self._backpressure_active = False
+
+    def set_backpressure_handler(
+        self,
+        handler: Callable[[str, bool, Mapping[str, object]], None] | None,
+    ) -> None:
+        """Register a callback invoked when queue back-pressure toggles."""
+
+        self._backpressure_handler = handler
+
+    def _notify_backpressure(
+        self,
+        *,
+        active: bool,
+        queue_size: int,
+        capacity: int,
+    ) -> None:
+        handler = self._backpressure_handler
+        if handler is None:
+            return
+        payload: dict[str, object] = {
+            "session": self._session_type,
+            "queue_size": queue_size,
+            "capacity": capacity,
+            "dropped_total": self._dropped,
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        try:
+            handler(self._session_type, active, payload)
+        except Exception:  # pragma: no cover - diagnostics only
+            logger.debug(
+                "Backpressure handler for session %s failed",
+                self._session_type,
+                exc_info=True,
+            )
 
     def dispatch(self, message: FIXMessage) -> None:
         queue = self._queue
         if queue is None:
             return
 
+        capacity = queue.maxsize
+        if (
+            self._backpressure_active
+            and capacity > 0
+            and not queue.full()
+        ):
+            self._backpressure_active = False
+            self._notify_backpressure(
+                active=False,
+                queue_size=queue.qsize(),
+                capacity=capacity,
+            )
         try:
             queue.put_nowait(message)
         except asyncio.QueueFull:
             self._dropped += 1
             logger.warning("FIX %s queue is full; dropping message", self._session_type)
+            if (capacity > 0) and not self._backpressure_active:
+                self._backpressure_active = True
+                self._notify_backpressure(
+                    active=True,
+                    queue_size=capacity,
+                    capacity=capacity,
+                )
         else:
             self._delivered += 1
 
     def reset_metrics(self) -> None:
         self._delivered = 0
         self._dropped = 0
+        self._backpressure_active = False
 
     def get_queue_metrics(self) -> dict[str, int]:
         return {"delivered": self._delivered, "dropped": self._dropped}

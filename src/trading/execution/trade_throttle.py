@@ -158,6 +158,9 @@ class TradeThrottle:
         self._external_cooldowns: dict[
             tuple[str, ...], TradeThrottle._ExternalCooldown
         ] = {}
+        self._auto_multiplier: float | None = None
+        self._auto_multiplier_reason: str | None = None
+        self._auto_multiplier_metadata: Mapping[str, Any] | None = None
         initial_snapshot = self._initial_snapshot()
         self._last_snapshot: Mapping[str, Any] = initial_snapshot
         if not self._config.scope_fields:
@@ -304,6 +307,17 @@ class TradeThrottle:
         if not allowed and throttle_state == "notional_limit":
             attempted_notional = trade_notional
 
+        auto_multiplier = self._auto_multiplier
+        multiplier: float | None
+        if auto_multiplier is not None:
+            multiplier = float(auto_multiplier)
+        elif self._config.multiplier is None:
+            multiplier = None
+        else:
+            multiplier = float(self._config.multiplier)
+            if not math.isfinite(multiplier):
+                multiplier = None
+
         snapshot = self._build_snapshot(
             state=throttle_state,
             active=active,
@@ -324,17 +338,13 @@ class TradeThrottle:
             ),
             notional_total=state.notional_total,
             attempted_notional=attempted_notional,
+            auto_multiplier=auto_multiplier,
+            auto_multiplier_reason=self._auto_multiplier_reason,
+            auto_multiplier_metadata=self._auto_multiplier_metadata,
+            applied_multiplier=multiplier,
         )
         self._last_snapshot = snapshot
         self._scope_snapshots[scope_key] = snapshot
-
-        multiplier: float | None
-        if self._config.multiplier is None:
-            multiplier = None
-        else:
-            multiplier = float(self._config.multiplier)
-            if not math.isfinite(multiplier):
-                multiplier = None
 
         remaining_notional: float | None = None
         notional_utilisation: float | None = None
@@ -371,6 +381,29 @@ class TradeThrottle:
         """Return the most recent throttle snapshot."""
 
         return dict(self._last_snapshot)
+
+    def set_auto_multiplier(
+        self,
+        multiplier: float | None,
+        *,
+        reason: str | None = None,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Override the trade size multiplier applied to future decisions."""
+
+        if multiplier is not None:
+            value = float(multiplier)
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError("multiplier must be a non-negative finite number")
+            self._auto_multiplier = value
+            self._auto_multiplier_reason = reason
+            self._auto_multiplier_metadata = (
+                MappingProxyType(dict(metadata)) if metadata is not None else None
+            )
+        else:
+            self._auto_multiplier = None
+            self._auto_multiplier_reason = None
+            self._auto_multiplier_metadata = None
 
     def scope_snapshots(self) -> tuple[Mapping[str, Any], ...]:
         """Return snapshots for each tracked scope."""
@@ -495,6 +528,15 @@ class TradeThrottle:
             window_reset_at = reset_target
             window_reset_in_seconds = max((reset_target - moment).total_seconds(), 0.0)
 
+        auto_multiplier = self._auto_multiplier
+        if auto_multiplier is not None:
+            resolved_multiplier = float(auto_multiplier)
+        elif self._config.multiplier is not None:
+            candidate_multiplier = float(self._config.multiplier)
+            resolved_multiplier = candidate_multiplier if math.isfinite(candidate_multiplier) else None
+        else:
+            resolved_multiplier = None
+
         snapshot = self._build_snapshot(
             state=throttle_state,
             active=active,
@@ -515,6 +557,10 @@ class TradeThrottle:
             ),
             notional_total=state.notional_total,
             attempted_notional=None,
+            auto_multiplier=auto_multiplier,
+            auto_multiplier_reason=self._auto_multiplier_reason,
+            auto_multiplier_metadata=self._auto_multiplier_metadata,
+            applied_multiplier=resolved_multiplier,
         )
 
         if scope_key == self._GLOBAL_SCOPE:
@@ -574,6 +620,14 @@ class TradeThrottle:
         )
 
         retry_in_seconds = max((cooldown_until - moment).total_seconds(), 0.0)
+        auto_multiplier = self._auto_multiplier
+        if auto_multiplier is not None:
+            resolved_multiplier = float(auto_multiplier)
+        elif self._config.multiplier is not None:
+            candidate_multiplier = float(self._config.multiplier)
+            resolved_multiplier = candidate_multiplier if math.isfinite(candidate_multiplier) else None
+        else:
+            resolved_multiplier = None
         snapshot = self._build_snapshot(
             state="cooldown",
             active=True,
@@ -592,6 +646,10 @@ class TradeThrottle:
             cooldown_metadata=metadata_payload,
             notional_total=state.notional_total,
             attempted_notional=None,
+            auto_multiplier=auto_multiplier,
+            auto_multiplier_reason=self._auto_multiplier_reason,
+            auto_multiplier_metadata=self._auto_multiplier_metadata,
+            applied_multiplier=resolved_multiplier,
         )
 
         self._last_snapshot = snapshot
@@ -600,6 +658,15 @@ class TradeThrottle:
 
     def _initial_snapshot(self) -> Mapping[str, Any]:
         now = datetime.now(tz=UTC)
+
+        auto_multiplier = self._auto_multiplier
+        if auto_multiplier is not None:
+            resolved_multiplier = float(auto_multiplier)
+        elif self._config.multiplier is not None:
+            candidate_multiplier = float(self._config.multiplier)
+            resolved_multiplier = candidate_multiplier if math.isfinite(candidate_multiplier) else None
+        else:
+            resolved_multiplier = None
 
         return self._build_snapshot(
             state="open",
@@ -618,6 +685,10 @@ class TradeThrottle:
             retry_in_seconds=None,
             notional_total=0.0,
             attempted_notional=None,
+            auto_multiplier=auto_multiplier,
+            auto_multiplier_reason=self._auto_multiplier_reason,
+            auto_multiplier_metadata=self._auto_multiplier_metadata,
+            applied_multiplier=resolved_multiplier,
         )
 
     def _build_snapshot(
@@ -640,6 +711,10 @@ class TradeThrottle:
         cooldown_metadata: Mapping[str, Any] | None = None,
         notional_total: float = 0.0,
         attempted_notional: float | None = None,
+        auto_multiplier: float | None = None,
+        auto_multiplier_reason: str | None = None,
+        auto_multiplier_metadata: Mapping[str, Any] | None = None,
+        applied_multiplier: float | None = None,
     ) -> Mapping[str, Any]:
         remaining_trades = max(self._config.max_trades - int(recent_trades), 0)
 
@@ -694,6 +769,12 @@ class TradeThrottle:
             meta_payload["window_reset_at"] = window_reset_at.astimezone(UTC).isoformat()
         if window_reset_in_seconds is not None:
             meta_payload["window_reset_in_seconds"] = max(window_reset_in_seconds, 0.0)
+        if auto_multiplier is not None:
+            meta_payload["auto_multiplier"] = float(auto_multiplier)
+            if auto_multiplier_reason:
+                meta_payload["auto_multiplier_reason"] = auto_multiplier_reason
+            if auto_multiplier_metadata is not None:
+                meta_payload["auto_multiplier_context"] = dict(auto_multiplier_metadata)
 
         retry_iso: str | None = None
         if retry_at is not None:
@@ -710,8 +791,8 @@ class TradeThrottle:
         }
         if self._config.scope_fields:
             snapshot["scope_key"] = list(scope_key)
-        if self._config.multiplier is not None:
-            snapshot["multiplier"] = float(self._config.multiplier)
+        if applied_multiplier is not None:
+            snapshot["multiplier"] = float(applied_multiplier)
         if reason:
             snapshot["reason"] = reason
             if isinstance(reason, str) and "cooldown" in reason:

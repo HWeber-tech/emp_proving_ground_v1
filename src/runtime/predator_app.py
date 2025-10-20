@@ -32,7 +32,7 @@ from src.compliance.kyc import KycAmlMonitor
 from src.compliance.trade_compliance import TradeComplianceMonitor, TradeCompliancePolicy
 from src.config.risk.risk_config import RiskConfig
 from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
-from src.core.event_bus import EventBus
+from src.core.event_bus import Event, EventBus
 from src.core.interfaces import DecisionGenome
 from src.data_foundation.batch.spark_export import (
     SparkExportSnapshot,
@@ -203,6 +203,8 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 logger = logging.getLogger(__name__)
 
+FIX_QUEUE_MAXSIZE = 1024
+
 
 def _call_manager_method(manager: Any, method_name: str) -> Any:
     target = getattr(manager, method_name, None)
@@ -335,6 +337,8 @@ class ProfessionalPredatorApp:
         self._last_risk_configuration: dict[str, Any] | None = None
         self._kafka_bridge_metadata: dict[str, object] | None = None
         self._runtime_application: "RuntimeApplication | None" = None
+        self._backpressure_sessions: set[str] = set()
+        self._backpressure_metadata: dict[str, object] | None = None
 
     async def __aenter__(self) -> "ProfessionalPredatorApp":
         await self.start()
@@ -788,6 +792,141 @@ class ProfessionalPredatorApp:
 
         self.fix_pilot = pilot
 
+    def bind_fix_backpressure_handlers(self) -> None:
+        """Wire FIX session adapters so back-pressure toggles degrade mode."""
+
+        manager = self.fix_connection_manager
+        if manager is None:
+            return
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # pragma: no cover - defensive guard for exotic loops
+            loop = None
+
+        def _wrap_handler() -> Callable[[str, bool, Mapping[str, object]], None]:
+            def _handler(session: str, active: bool, payload: Mapping[str, object]) -> None:
+                details = dict(payload)
+                target_loop = loop
+                if target_loop is None or not target_loop.is_running():
+                    try:
+                        target_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        target_loop = None
+                if target_loop is not None and target_loop.is_running():
+                    target_loop.call_soon_threadsafe(
+                        self._process_backpressure_event,
+                        session,
+                        active,
+                        details,
+                    )
+                else:  # pragma: no cover - best effort fallback
+                    self._process_backpressure_event(session, active, details)
+
+            return _handler
+
+        for session in ("price", "trade"):
+            adapter = manager.get_application(session)
+            if adapter is None:
+                continue
+            setter = getattr(adapter, "set_backpressure_handler", None)
+            if callable(setter):
+                setter(_wrap_handler())
+
+    def _process_backpressure_event(
+        self,
+        session: str,
+        active: bool,
+        details: Mapping[str, object],
+    ) -> None:
+        if active:
+            if session in self._backpressure_sessions:
+                self._backpressure_metadata = dict(details)
+                return
+            previously_degraded = bool(self._backpressure_sessions)
+            self._backpressure_sessions.add(session)
+            self._backpressure_metadata = dict(details)
+            if not previously_degraded:
+                self._enter_degraded_mode(session, details)
+        else:
+            if session not in self._backpressure_sessions:
+                return
+            self._backpressure_sessions.discard(session)
+            self._backpressure_metadata = dict(details)
+            if not self._backpressure_sessions:
+                self._exit_degraded_mode(session, details)
+
+    def _enter_degraded_mode(self, session: str, details: Mapping[str, object]) -> None:
+        payload = {
+            "session": session,
+            "details": dict(details),
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        self._logger.warning(
+            "FIX %s queue back-pressure detected; entering degraded mode",
+            session,
+        )
+        self._publish_runtime_mode(payload, recovered=False)
+        self._set_auto_throttle_multiplier(
+            0.0,
+            reason="backpressure_degraded",
+            metadata=payload,
+        )
+
+    def _exit_degraded_mode(self, session: str, details: Mapping[str, object]) -> None:
+        payload = {
+            "session": session,
+            "details": dict(details),
+            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        self._logger.info("FIX back-pressure cleared; resuming normal sizing")
+        self._publish_runtime_mode(payload, recovered=True)
+        self._set_auto_throttle_multiplier(
+            None,
+            reason="backpressure_recovered",
+            metadata=payload,
+        )
+
+    def _publish_runtime_mode(
+        self,
+        payload: Mapping[str, object],
+        *,
+        recovered: bool,
+    ) -> None:
+        event_type = "RUNTIME_MODE_NORMAL" if recovered else "DEGRADED_MODE"
+        event_payload = dict(payload)
+        event_payload.setdefault("mode", event_type)
+        publish_sync = getattr(self.event_bus, "publish_from_sync", None)
+        event = Event(type=event_type, source="professional_runtime", payload=event_payload)
+        if callable(publish_sync):
+            publish_sync(event)
+        else:  # pragma: no cover - fallback when publish_from_sync unavailable
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            loop.create_task(self.event_bus.publish_async(event))
+
+    def _set_auto_throttle_multiplier(
+        self,
+        multiplier: float | None,
+        *,
+        reason: str,
+        metadata: Mapping[str, object],
+    ) -> None:
+        trading_manager = getattr(self.sensory_organ, "trading_manager", None)
+        if trading_manager is None:
+            return
+        setter = getattr(trading_manager, "set_auto_throttle_multiplier", None)
+        if not callable(setter):
+            return
+        try:
+            setter(multiplier, reason=reason, metadata=dict(metadata))
+        except Exception:  # pragma: no cover - diagnostics only
+            self._logger.debug(
+                "Failed to apply auto throttle multiplier", exc_info=True
+            )
+
     def _resolve_strategy_id(self) -> str:
         extras = self.config.extras or {}
         strategy_hint = (
@@ -1103,6 +1242,13 @@ class ProfessionalPredatorApp:
             "fix_manager": "FIXConnectionManager" if self.fix_connection_manager else None,
             "sensors": sorted(self._sensors.keys()),
         }
+
+        if self._backpressure_sessions:
+            components["degraded_mode"] = True
+            if self._backpressure_metadata:
+                components["degraded_details"] = dict(self._backpressure_metadata)
+        else:
+            components["degraded_mode"] = False
 
         sensor_audit: list[Mapping[str, Any]] = []
 
@@ -1705,8 +1851,8 @@ def _ensure_fix_components(
     fix_config = cast(SystemConfigProtocol, config)
     fix_connection_manager = FIXConnectionManager(fix_config)
 
-    price_queue: asyncio.Queue[Any] = asyncio.Queue()
-    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    price_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=FIX_QUEUE_MAXSIZE)
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=FIX_QUEUE_MAXSIZE)
 
     price_app = fix_connection_manager.get_application("price")
     if price_app:
@@ -2946,6 +3092,7 @@ async def build_professional_predator_app(
             logger=logger,
         )
         app.attach_fix_pilot(pilot)
+        app.bind_fix_backpressure_handlers()
         app.add_cleanup_callback(fix_manager.stop_sessions)
         if compliance_monitor is not None:
             app.add_cleanup_callback(compliance_monitor.close)

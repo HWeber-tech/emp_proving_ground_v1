@@ -88,6 +88,14 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute("ALTER TABLE findings ADD COLUMN progress_at TEXT")
         if "completed_at" not in columns:
             conn.execute("ALTER TABLE findings ADD COLUMN completed_at TEXT")
+        conn.execute(
+            """
+            UPDATE findings
+               SET completed_at = COALESCE(completed_at, progress_at, tested_at)
+             WHERE completed_at IS NULL
+               AND (progress_at IS NOT NULL OR tested_at IS NOT NULL)
+            """
+        )
         conn.execute("CREATE INDEX IF NOT EXISTS idx_params_hash ON findings(params_hash)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON findings(created_at)")
 
@@ -259,7 +267,6 @@ def promote_tested(
                SET full_metrics_json = ?,
                    stage = ?,
                    tested_at = COALESCE(tested_at, CURRENT_TIMESTAMP),
-                   completed_at = COALESCE(completed_at, tested_at, CURRENT_TIMESTAMP),
                    progress_at = CASE
                                      WHEN ? = 'progress' THEN COALESCE(progress_at, CURRENT_TIMESTAMP)
                                      ELSE progress_at
@@ -267,6 +274,14 @@ def promote_tested(
              WHERE id = ?
             """,
             (metrics_json, stage, stage, int(fid)),
+        )
+        conn.execute(
+            """
+            UPDATE findings
+               SET completed_at = COALESCE(completed_at, progress_at, tested_at, CURRENT_TIMESTAMP)
+             WHERE id = ?
+            """,
+            (int(fid),),
         )
 
 

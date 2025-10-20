@@ -94,6 +94,9 @@ class EMPException(Exception):
             },
         )
 
+    def __str__(self) -> str:
+        return f"[{self.error_code}] {self.message}"
+
 
 # Trading System Exceptions
 class TradingException(EMPException):

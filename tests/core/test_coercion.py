@@ -19,3 +19,7 @@ def test_coerce_helpers_accept_numeric_separators() -> None:
 def test_coerce_float_rejects_non_finite_strings() -> None:
     assert coerce_float("nan") is None
     assert coerce_float("inf", default=7.0) == 7.0
+
+
+def test_coerce_int_handles_prefixed_bases() -> None:
+    assert coerce_int("0x10") == 16

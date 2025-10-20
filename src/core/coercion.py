@@ -110,6 +110,12 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
         try:
             return int(normalized)
         except ValueError:
+            prefix = normalized.lower().lstrip("+-")
+            if prefix.startswith(("0x", "0o", "0b")):
+                try:
+                    return int(normalized, 0)
+                except ValueError:
+                    pass
             try:
                 return int(float(normalized))
             except ValueError:

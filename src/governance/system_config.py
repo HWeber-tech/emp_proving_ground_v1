@@ -566,6 +566,91 @@ class SystemConfig:
         return cls.from_env(env=env, defaults=base)
 
 
+ANSI_RESET = "\x1b[0m"
+ANSI_BOLD = "\x1b[1m"
+ANSI_RED = "\x1b[31m"
+ANSI_GREEN = "\x1b[32m"
+ANSI_DIM = "\x1b[90m"
+
+
+def _format_value(value: object) -> str:
+    if value is None:
+        return "<unset>"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, Path):
+        return str(value)
+    return str(value)
+
+
+def _format_diff_line(
+    label: str,
+    baseline_value: object,
+    current_value: object,
+    *,
+    indent: str = "",
+) -> list[str]:
+    baseline_repr = _format_value(baseline_value)
+    current_repr = _format_value(current_value)
+
+    if baseline_value == current_value:
+        return [f"{indent}{ANSI_DIM}= {label}: {current_repr}{ANSI_RESET}"]
+
+    lines: list[str] = []
+    if baseline_value is not None:
+        lines.append(f"{indent}{ANSI_RED}- {label}: {baseline_repr}{ANSI_RESET}")
+    else:
+        lines.append(f"{indent}{ANSI_RED}- {label}: <unset>{ANSI_RESET}")
+
+    if current_value is not None:
+        lines.append(f"{indent}{ANSI_GREEN}+ {label}: {current_repr}{ANSI_RESET}")
+    else:
+        lines.append(f"{indent}{ANSI_GREEN}+ {label}: <unset>{ANSI_RESET}")
+
+    return lines
+
+
+def _format_extras_diff(
+    baseline_extras: Mapping[str, str] | None, current_extras: Mapping[str, str] | None
+) -> list[str]:
+    base = dict(baseline_extras or {})
+    current = dict(current_extras or {})
+
+    keys = sorted(set(base) | set(current))
+    if not keys:
+        return [f"{ANSI_DIM}= extras: (none){ANSI_RESET}"]
+
+    lines: list[str] = []
+    for key in keys:
+        lines.extend(_format_diff_line(f"extras.{key}", base.get(key), current.get(key)))
+    return lines
+
+
+def render_config_diff(
+    current: SystemConfig, *, baseline: SystemConfig | None = None
+) -> str:
+    base = baseline if baseline is not None else SystemConfig()
+    lines: list[str] = [f"{ANSI_BOLD}Live config diff (vs defaults){ANSI_RESET}"]
+
+    fields = (
+        ("run_mode", "run_mode"),
+        ("environment", "environment"),
+        ("tier", "tier"),
+        ("confirm_live", "confirm_live"),
+        ("connection_protocol", "connection_protocol"),
+        ("data_backbone_mode", "data_backbone_mode"),
+        ("kill_switch_path", "kill_switch_path"),
+    )
+
+    for attr, label in fields:
+        lines.extend(
+            _format_diff_line(label, getattr(base, attr), getattr(current, attr))
+        )
+
+    lines.extend(_format_extras_diff(base.extras, current.extras))
+    return "\n".join(lines)
+
+
 __all__ = [
     "SystemConfig",
     "RunMode",
@@ -574,4 +659,5 @@ __all__ = [
     "ConnectionProtocol",
     "DataBackboneMode",
     "SystemConfigLoadError",
+    "render_config_diff",
 ]

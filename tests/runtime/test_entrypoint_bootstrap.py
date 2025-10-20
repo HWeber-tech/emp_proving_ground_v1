@@ -2,6 +2,9 @@
 
 import json
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 from src.governance.system_config import SystemConfig
 
@@ -39,3 +42,46 @@ def test_capture_configuration_snapshot_persists(tmp_path) -> None:
     assert metadata.get("rng_seed") == 99
     assert metadata.get("source") == "runtime_boot"
 
+
+@pytest.mark.asyncio()
+async def test_main_logs_live_config_diff(monkeypatch: pytest.MonkeyPatch) -> None:
+    import main as entrypoint
+
+    class _StubLogger:
+        def __init__(self) -> None:
+            self.infos: list[str] = []
+
+        def info(self, message: Any, *args: Any, **kwargs: Any) -> None:
+            if args:
+                message = message % args
+            self.infos.append(str(message))
+
+        def warning(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+        def debug(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+        def exception(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+    stub_logger = _StubLogger()
+    monkeypatch.setattr(entrypoint, "logger", stub_logger)
+
+    def _stub_from_env(cls):  # type: ignore[override]
+        return SystemConfig().with_updated(extras={"LIVE_FLAG": "enabled"})
+
+    monkeypatch.setattr(entrypoint.SystemConfig, "from_env", classmethod(_stub_from_env))
+    monkeypatch.setattr(entrypoint, "configure_structlog", lambda **_: None)
+
+    async def _failing_build_app(*, config: Any):
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(entrypoint, "build_professional_predator_app", _failing_build_app)
+
+    with pytest.raises(RuntimeError):
+        await entrypoint.main()
+
+    diff_messages = [msg for msg in stub_logger.infos if "Live config diff" in msg]
+    assert diff_messages, "expected live config diff log entry"
+    assert "extras.LIVE_FLAG" in diff_messages[0]

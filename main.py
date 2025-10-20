@@ -16,6 +16,7 @@ from src.governance.system_config import (
     EmpTier,
     RunMode,
     SystemConfig,
+    render_config_diff,
 )
 from src.observability.tracing import parse_opentelemetry_settings
 from src.operations.configuration_audit import (
@@ -204,6 +205,8 @@ async def main() -> None:
             confirm_live=True,
             connection_protocol=ConnectionProtocol.fix,
         )
+
+    logger.info(render_config_diff(config))
 
     try:
         app = await build_professional_predator_app(config=config)

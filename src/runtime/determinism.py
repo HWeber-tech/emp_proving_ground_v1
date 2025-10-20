@@ -64,28 +64,42 @@ def resolve_seed(
     if not extras:
         return None, invalid
 
+    direct_keys: set[str] = {key for key in extras.keys() if isinstance(key, str)}
+    casefold_lookup: dict[str, str] = {key.casefold(): key for key in direct_keys}
+
     for key in keys:
-        raw_value = extras.get(key)
-        if raw_value is None:
+        source_key: str | None = None
+        raw_value: object | None = None
+
+        if isinstance(key, str) and key in direct_keys:
+            source_key = key
+            raw_value = extras.get(key)
+        elif isinstance(key, str):
+            fallback_key = casefold_lookup.get(key.casefold())
+            if fallback_key is not None:
+                source_key = fallback_key
+                raw_value = extras.get(fallback_key)
+
+        if source_key is None or raw_value is None:
             continue
         if isinstance(raw_value, bool):
-            invalid.append((key, raw_value))
+            invalid.append((source_key, raw_value))
             continue
 
         candidate = coerce_int(raw_value, default=None)
         if candidate is None:
-            invalid.append((key, raw_value))
+            invalid.append((source_key, raw_value))
             continue
 
         if isinstance(raw_value, Real):
             float_value = float(raw_value)
             if not math.isfinite(float_value) or float_value != float(candidate):
-                invalid.append((key, raw_value))
+                invalid.append((source_key, raw_value))
                 continue
         elif isinstance(raw_value, str):
             text = raw_value.strip()
             if not text:
-                invalid.append((key, raw_value))
+                invalid.append((source_key, raw_value))
                 continue
             try:
                 float_value = float(text)
@@ -96,7 +110,7 @@ def resolve_seed(
                 and math.isfinite(float_value)
                 and float_value != float(candidate)
             ):
-                invalid.append((key, raw_value))
+                invalid.append((source_key, raw_value))
                 continue
 
         return candidate, invalid

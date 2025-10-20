@@ -41,6 +41,13 @@ def test_resolve_seed_handles_missing_values() -> None:
     assert invalid == []
 
 
+def test_resolve_seed_matches_case_insensitive_key() -> None:
+    seed, invalid = resolve_seed({"rng_seed": "313"})
+
+    assert seed == 313
+    assert invalid == []
+
+
 def test_resolve_seed_accepts_integral_float_strings() -> None:
     seed, invalid = resolve_seed({"RNG_SEED": "17.0"})
 

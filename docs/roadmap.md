@@ -6,7 +6,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## I. Perception - Seeing All
 
-- [ ] **FIX + Multivenue Depth**: Parse and merge full-depth (L1â€“L20) order books from all connected exchanges to construct a unified liquidity map.
+- [ ] **FIX + Multivenue Depth**: Parse and merge full-depth (L1-L20) order books from all connected exchanges to construct a unified liquidity map.
 - [ ] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
 - [ ] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
 - [ ] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.

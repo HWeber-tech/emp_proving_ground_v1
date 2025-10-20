@@ -7,7 +7,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## I. Perception - Seeing All
 
 - [ ] **FIX + Multivenue Depth**: Parse and merge full-depth (L1-L20) order books from all connected exchanges to construct a unified liquidity map.
-- [ ] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
+- [x] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
 - [x] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
 - [x] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
 - [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
@@ -39,7 +39,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## IV. Belief & Memory - Never Forgetting, Always Contextualizing
 
 - [x] **Belief Packets**: Each decision records context (features, regime, reasoning, confidence).
-- [ ] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
+- [x] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
 - [ ] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
 - [x] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
 - [ ] **Decay Protocol**: Prune stale memories, reinforce recurring successful ones.
@@ -107,14 +107,14 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Automated Promotion/Reversion**: CI promotes only fully passing models; auto-rollbacks on gate regression.
 - [ ] **Gate Dashboard**: Real-time visual of each metric vs threshold.
 - [x] **Immutable Audit Trail**: Sign and store every policy, belief, and runtime decision.
-- [ ] **Performance Covenant**: Gate advancement on sharpness, calibration, and exploitability metrics.
+- [x] **Performance Covenant**: Gate advancement on sharpness, calibration, and exploitability metrics.
 
 ---
 
 ## XII. Deployment & Operations
 
 - [ ] **Helm Failover with Replay Smoke Test**: Validate pod readiness by running historical replay.
-- [ ] **Docker Reproducibility**: Images tagged with policy hash and config fingerprint.
+- [x] **Docker Reproducibility**: Images tagged with policy hash and config fingerprint.
 - [ ] **Terraform Infra Resilience**: Single-command rebuild of degraded nodes.
 - [ ] **Live Config Diff**: All toggles and flags logged with color-coded diff at startup.
 

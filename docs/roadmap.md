@@ -38,7 +38,7 @@
 
 ## 4. Role-Based Access Control (RBAC) Scaffolding
 
-- [ ] Define initial roles (e.g. admin, reader, ingest_process)  
+- [x] Define initial roles (e.g. admin, reader, ingest_process)  
 - [x] Add role checks (decorators or guards) to protected routes  
 - [x] Embed role information in auth tokens (e.g. JWT claims)  
 - [x] Apply RBAC to at least a few critical endpoints  
@@ -48,11 +48,11 @@
 
 ## 5. Secrets Rotation & Credential Expiry
 
-- [ ] Build a script to check age of API keys and secrets  
+- [x] Build a script to check age of API keys and secrets  
 - [x] Log or alert if secrets exceed defined age thresholds  
 - [ ] (Optional) Integrate with a secrets manager (e.g. AWS Secrets Manager, Vault)  
 - [x] Set expiration time on user tokens (e.g. JWT expiry)  
-- [ ] Document secret rotation practices and automation goals  
+- [x] Document secret rotation practices and automation goals  
 
 ---
 

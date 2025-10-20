@@ -27,11 +27,11 @@
 
 ## 3. Real-World Data Validation & Quality Checks
 
-- [ ] Build validation layer for incoming data streams  
-- [ ] Define rules for required fields, value ranges, and data types  
-- [ ] Implement anomaly/outlier detection (e.g. IQR, z-score)  
+- [x] Build validation layer for incoming data streams  
+- [x] Define rules for required fields, value ranges, and data types  
+- [x] Implement anomaly/outlier detection (e.g. IQR, z-score)  
 - [x] Log validation failures with contextual details  
-- [ ] Create unit tests for invalid data scenarios  
+- [x] Create unit tests for invalid data scenarios  
 - [ ] Document validation logic and how to handle failures  
 
 ---
@@ -60,9 +60,9 @@
 
 - [x] Log all auth events, RBAC rejections, and validation failures  
 - [x] Track key metrics (e.g. failed logins, rejected records per hour)  
-- [ ] Expose metrics endpoint or write logs compatible with monitoring stack  
+- [x] Expose metrics endpoint or write logs compatible with monitoring stack  
 - [ ] Add config options for log level, output format (e.g. JSON), and destination  
 - [x] Ensure sensitive data is excluded or masked in logs  
-- [ ] Document observability practices and alerting roadmap  
+- [x] Document observability practices and alerting roadmap  
 
 ---

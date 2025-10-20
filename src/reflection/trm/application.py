@@ -244,10 +244,13 @@ def _auto_apply_succeeded(auto_apply_block: object) -> bool:
         return False
 
     invariant_breaches = evaluation.get("invariant_breaches")
-    try:
-        invariant_breaches_value = int(invariant_breaches)
-    except (TypeError, ValueError):
-        return False
+    if invariant_breaches is None:
+        invariant_breaches_value = 0
+    else:
+        try:
+            invariant_breaches_value = int(invariant_breaches)
+        except (TypeError, ValueError):
+            return False
     if invariant_breaches_value != 0:
         return False
 

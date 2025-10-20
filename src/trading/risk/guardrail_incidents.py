@@ -159,10 +159,23 @@ def extract_guardrail_incident(
             status = _normalise_status(entry.get("status"))
             if status not in {"violation", "warn"}:
                 if threshold is not None and value is not None:
-                    if value > threshold:
-                        status = "violation"
-                    elif threshold > 0 and value / threshold >= 0.8:
-                        status = "warn"
+                    lowered_name = name.lower()
+                    is_min_guardrail = (
+                        ".min_" in lowered_name
+                        or lowered_name.startswith("min_")
+                        or lowered_name.endswith("_min")
+                    )
+                    if is_min_guardrail:
+                        if value < threshold:
+                            if threshold > 0 and value / threshold >= 0.8:
+                                status = "warn"
+                            else:
+                                status = "violation"
+                    else:
+                        if value > threshold:
+                            status = "violation"
+                        elif threshold > 0 and value / threshold >= 0.8:
+                            status = "warn"
             metadata = _coerce_mapping(entry.get("metadata"))
             guardrail_checks.append(
                 GuardrailCheck(name=name, status=status, value=value, threshold=threshold, metadata=dict(metadata)),

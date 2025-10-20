@@ -18,3 +18,22 @@ def test_validation_result_metadata_is_isolated() -> None:
 
     assert result.metadata["alpha"] == 1
     assert source_metadata["alpha"] == 0
+
+
+def test_validation_result_to_dict_returns_metadata_copy() -> None:
+    result = ValidationResult(
+        test_name="example",
+        passed=True,
+        value=1.0,
+        threshold=0.5,
+        unit="percent",
+        metadata={"beta": 2},
+    )
+
+    payload = result.to_dict()
+
+    assert payload["metadata"] is not result.metadata
+
+    payload["metadata"]["beta"] = 3
+
+    assert result.metadata["beta"] == 2

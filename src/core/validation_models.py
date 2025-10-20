@@ -34,7 +34,7 @@ class ValidationResult:
             "threshold": self.threshold,
             "unit": self.unit,
             "details": self.details,
-            "metadata": self.metadata,
+            "metadata": self.metadata.copy(),
             "timestamp": self.timestamp.isoformat(),
         }
 

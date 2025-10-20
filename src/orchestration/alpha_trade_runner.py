@@ -436,6 +436,17 @@ class AlphaTradeLoopRunner:
                     theory_packet_payload = updated_packet
 
         if theory_packet_payload:
+            self._enrich_action_logs(
+                theory_packet_payload,
+                intent_payload=intent_payload,
+                trade_metadata=trade_metadata,
+                trade_outcome=trade_outcome,
+            )
+            trade_metadata["theory_packet"] = dict(theory_packet_payload)
+            if isinstance(intent_payload, MutableMapping):
+                intent_meta = intent_payload.get("metadata")
+                if isinstance(intent_meta, MutableMapping):
+                    intent_meta["theory_packet"] = dict(theory_packet_payload)
             packet_copy = dict(theory_packet_payload)
             if has_diary_entry:
                 diary_annotations["theory_packet"] = packet_copy
@@ -1088,6 +1099,162 @@ class AlphaTradeLoopRunner:
 
         return replace(trade_outcome, metadata=metadata)
 
+    def _ensure_action_log_shape(
+        self,
+        action: MutableMapping[str, Any],
+        *,
+        default_reason: str | None = None,
+        default_context_mult: float | None = None,
+    ) -> None:
+        reason_value = (
+            action.get("reason_code")
+            or action.get("reason")
+            or default_reason
+            or action.get("action")
+        )
+        if reason_value is not None:
+            action["reason_code"] = str(reason_value)
+        else:
+            action.setdefault("reason_code", None)
+
+        context_value = action.get("context_mult")
+        coerced_context = _coerce_float(context_value)
+        if coerced_context is not None:
+            action["context_mult"] = coerced_context
+        else:
+            fallback = _coerce_float(action.get("value"))
+            if fallback is None and default_context_mult is not None:
+                fallback = default_context_mult
+            if fallback is not None:
+                action["context_mult"] = fallback
+            else:
+                action.setdefault("context_mult", None)
+
+        for key in ("edge_ticks", "cost_to_take", "inventory", "latency_ms"):
+            action.setdefault(key, None)
+
+    def _extract_execution_risk_payload(
+        self,
+        intent_payload: Mapping[str, Any] | None,
+        trade_metadata: Mapping[str, Any] | None,
+        trade_outcome: "TradeIntentOutcome | None",
+    ) -> Mapping[str, Any] | None:
+        def _from_mapping(
+            candidate: Mapping[str, Any] | None,
+            key: str = "execution_risk",
+        ) -> Mapping[str, Any] | None:
+            if not isinstance(candidate, Mapping):
+                return None
+            value = candidate.get(key)
+            if isinstance(value, Mapping):
+                return dict(value)
+            return None
+
+        meta = intent_payload.get("metadata") if isinstance(intent_payload, Mapping) else None
+        exec_payload = _from_mapping(meta)
+        if exec_payload is not None:
+            return exec_payload
+        risk_assessment = meta.get("risk_assessment") if isinstance(meta, Mapping) else None
+        exec_payload = _from_mapping(risk_assessment, "execution")
+        if exec_payload is not None:
+            return exec_payload
+
+        exec_payload = _from_mapping(trade_metadata)
+        if exec_payload is not None:
+            return exec_payload
+
+        outcome_metadata = getattr(trade_outcome, "metadata", None)
+        exec_payload = _from_mapping(outcome_metadata)
+        if exec_payload is not None:
+            return exec_payload
+
+        resolver = getattr(self._trading_manager, "get_last_risk_decision", None)
+        if callable(resolver):
+            try:
+                decision = resolver()
+            except Exception:
+                decision = None
+            if isinstance(decision, Mapping):
+                execution_section = decision.get("execution")
+                if isinstance(execution_section, Mapping):
+                    return dict(execution_section)
+        return None
+
+    def _resolve_inventory_snapshot(self) -> Mapping[str, Any] | None:
+        monitor = getattr(self._trading_manager, "portfolio_monitor", None)
+        if monitor is None:
+            return None
+        getter = getattr(monitor, "get_state", None)
+        if not callable(getter):
+            return None
+        try:
+            state = getter()
+        except Exception:
+            return None
+        if not isinstance(state, Mapping):
+            return None
+        positions = state.get("open_positions")
+        if not isinstance(positions, Mapping):
+            return None
+        snapshot: dict[str, Any] = {}
+        for symbol, payload in positions.items():
+            if isinstance(payload, Mapping):
+                snapshot[str(symbol)] = {str(key): value for key, value in payload.items()}
+            else:
+                snapshot[str(symbol)] = payload
+        return snapshot
+
+    def _enrich_action_logs(
+        self,
+        packet: MutableMapping[str, Any] | None,
+        *,
+        intent_payload: Mapping[str, Any] | None,
+        trade_metadata: Mapping[str, Any] | None,
+        trade_outcome: "TradeIntentOutcome | None",
+    ) -> None:
+        if not isinstance(packet, MutableMapping):
+            return
+        actions = packet.get("actions")
+        if not isinstance(actions, list):
+            return
+
+        exec_risk = self._extract_execution_risk_payload(
+            intent_payload,
+            trade_metadata,
+            trade_outcome,
+        )
+        if exec_risk is not None and isinstance(trade_metadata, MutableMapping):
+            trade_metadata.setdefault("execution_risk", dict(exec_risk))
+
+        inventory_snapshot = self._resolve_inventory_snapshot()
+        latency_ms = None
+        if trade_outcome is not None:
+            outcome_metadata = getattr(trade_outcome, "metadata", None)
+            if isinstance(outcome_metadata, Mapping):
+                latency_ms = _coerce_float(outcome_metadata.get("latency_ms"))
+
+        for entry in actions:
+            if not isinstance(entry, MutableMapping):
+                continue
+            self._ensure_action_log_shape(entry)
+            if exec_risk is not None:
+                entry["edge_ticks"] = _coerce_float(exec_risk.get("edge_ticks"))
+                total_cost = exec_risk.get("total_cost_ticks")
+                if total_cost is None:
+                    total_cost = exec_risk.get("total_cost_bps")
+                entry["cost_to_take"] = _coerce_float(total_cost)
+            else:
+                entry.setdefault("edge_ticks", None)
+                entry.setdefault("cost_to_take", None)
+            if inventory_snapshot is not None:
+                entry["inventory"] = inventory_snapshot
+            else:
+                entry.setdefault("inventory", None)
+            if latency_ms is not None:
+                entry["latency_ms"] = latency_ms
+            else:
+                entry.setdefault("latency_ms", None)
+
     def _handle_exploration_freeze(
         self,
         *,
@@ -1313,6 +1480,12 @@ class AlphaTradeLoopRunner:
             packet_payload = (
                 dict(theory_packet) if isinstance(theory_packet, Mapping) else None
             )
+            if isinstance(packet_payload, MutableMapping):
+                actions_block = packet_payload.get("actions")
+                if isinstance(actions_block, list):
+                    for entry in actions_block:
+                        if isinstance(entry, MutableMapping):
+                            self._ensure_action_log_shape(entry)
             return dict(existing), packet_payload
 
         multiplier = 0.5
@@ -1396,11 +1569,16 @@ class AlphaTradeLoopRunner:
                 "action": "freeze_exploration",
                 "status": "triggered",
                 "reason": reason,
+                "reason_code": reason,
+                "context_mult": 0.0,
             },
             {
                 "action": "size_multiplier",
                 "value": multiplier,
                 "applied": adjusted_quantity is not None,
+                "reason": reason,
+                "reason_code": reason,
+                "context_mult": multiplier,
             },
         ]
         if adjusted_quantity is not None:
@@ -1414,8 +1592,16 @@ class AlphaTradeLoopRunner:
                 {
                     "action": "force_paper",
                     "status": bool(drift_decision.force_paper),
+                    "reason": reason,
+                    "reason_code": reason,
+                    "context_mult": 1.0,
                 }
             )
+
+        self._ensure_action_log_shape(actions[0], default_reason=reason, default_context_mult=0.0)
+        self._ensure_action_log_shape(actions[1], default_reason=reason, default_context_mult=multiplier)
+        if drift_decision.force_paper:
+            self._ensure_action_log_shape(actions[2], default_reason=reason, default_context_mult=1.0)
 
         drift_snapshot = serialise_drift_decision(drift_decision, evaluated_at=applied_at)
 
@@ -2029,6 +2215,9 @@ class AlphaTradeLoopRunner:
             "value": multiplier,
             "applied_at": applied_iso,
             "status": throttle_payload["status"],
+            "reason": throttle_payload.get("reason") or "alpha_decay",
+            "reason_code": throttle_payload.get("reason") or "alpha_decay",
+            "context_mult": multiplier,
         }
         if quantity_before is not None:
             action_entry["quantity_before"] = quantity_before
@@ -2036,6 +2225,12 @@ class AlphaTradeLoopRunner:
             action_entry["quantity_after"] = quantity_after
         if isinstance(throttle_snapshot, Mapping):
             action_entry["throttle_state"] = throttle_snapshot.get("state")
+
+        self._ensure_action_log_shape(
+            action_entry,
+            default_reason=throttle_payload.get("reason") or "alpha_decay",
+            default_context_mult=multiplier,
+        )
 
         if existing_theory_packet is not None:
             packet = dict(existing_theory_packet)
@@ -2061,6 +2256,13 @@ class AlphaTradeLoopRunner:
         packet.setdefault("reason", throttle_payload.get("reason"))
         if isinstance(throttle_snapshot, Mapping):
             packet["throttle_snapshot"] = dict(throttle_snapshot)
+
+        self._enrich_action_logs(
+            packet,
+            intent_payload=intent_payload,
+            trade_metadata=trade_metadata,
+            trade_outcome=trade_outcome,
+        )
 
         trade_metadata["theory_packet"] = dict(packet)
 

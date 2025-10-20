@@ -41,6 +41,17 @@ def _coerce_float_sequence(values: Iterable[object]) -> list[float]:
     return cleaned
 
 
+def _coerce_float_optional(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
 def _variance(values: Sequence[float]) -> float:
     if len(values) < 2:
         return 0.0
@@ -93,6 +104,23 @@ _SEVERITY_ORDER: Mapping[DriftSeverity, int] = {
 
 def _max_severity(first: DriftSeverity, second: DriftSeverity) -> DriftSeverity:
     return first if _SEVERITY_ORDER[first] >= _SEVERITY_ORDER[second] else second
+
+
+def _normalise_action_log(action: Mapping[str, object]) -> dict[str, object]:
+    entry = dict(action)
+    reason_value = entry.get("reason_code") or entry.get("reason") or entry.get("action")
+    entry["reason_code"] = str(reason_value) if reason_value is not None else None
+
+    context_value = _coerce_float_optional(entry.get("context_mult"))
+    if context_value is None:
+        context_value = _coerce_float_optional(entry.get("value"))
+    entry["context_mult"] = context_value
+
+    entry.setdefault("edge_ticks", None)
+    entry.setdefault("cost_to_take", None)
+    entry.setdefault("inventory", None)
+    entry.setdefault("latency_ms", None)
+    return entry
 
 
 @dataclass(slots=True, frozen=True)
@@ -378,19 +406,22 @@ def evaluate_drift_sentry(
     recommended_actions_tuple: tuple[dict[str, object], ...] = ()
     if status in (DriftSeverity.warn, DriftSeverity.alert):
         reason_suffix = status.value
-        recommended_actions = [
+        base_actions = [
             {
                 "action": "freeze_exploration",
                 "status": "recommended",
                 "reason": f"drift_sentry_{reason_suffix}",
+                "context_mult": 0.0,
             },
             {
                 "action": "size_multiplier",
                 "status": "recommended",
                 "value": 0.5,
                 "reason": f"drift_sentry_{reason_suffix}",
+                "context_mult": 0.5,
             },
         ]
+        recommended_actions = [_normalise_action_log(action) for action in base_actions]
         snapshot_metadata["actions"] = recommended_actions
 
         trigger_labels = ", ".join(

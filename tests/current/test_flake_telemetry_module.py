@@ -23,6 +23,7 @@ def test_resolve_output_path_creates_parent(tmp_path: Path) -> None:
 def test_should_record_event_matrix() -> None:
     assert should_record_event("failed", False) is True
     assert should_record_event("error", False) is True
+    assert should_record_event("FAILED ", False) is True
     assert should_record_event("passed", True) is True
     assert should_record_event("passed", False) is False
     assert should_record_event("skipped", False) is False

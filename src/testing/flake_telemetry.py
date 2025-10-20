@@ -103,7 +103,10 @@ def should_record_event(outcome: object, was_xfail: bool) -> bool:
         return True
     if not isinstance(outcome, str):
         return False
-    return outcome.lower() in {"failed", "error"}
+    normalized = outcome.strip().lower()
+    if not normalized:
+        return False
+    return normalized in {"failed", "error"}
 
 
 def clip_longrepr(

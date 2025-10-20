@@ -37,6 +37,10 @@ def test_clip_longrepr_truncates_when_needed() -> None:
     assert clip_longrepr("abcdef", limit=3) == "abc… [truncated 3 chars]"
 
 
+def test_clip_longrepr_clamps_negative_limits() -> None:
+    assert clip_longrepr("abcdef", limit=-1) == "… [truncated 6 chars]"
+
+
 def test_sink_writes_payload(tmp_path: Path) -> None:
     sink = FlakeTelemetrySink(tmp_path / "out.json")
     sink.record_event(

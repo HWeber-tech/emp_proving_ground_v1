@@ -102,6 +102,8 @@ def clip_longrepr(text: str | None, limit: int = MAX_LONGREPR_LENGTH) -> str | N
         return None
 
     normalized = text.rstrip("\n")
+    if limit < 0:
+        limit = 0
     if len(normalized) <= limit:
         return normalized
 

@@ -92,8 +92,10 @@ def _promotion_guard(
     diary_path = tmp_path / "decision_diary.json"
     diary = DecisionDiaryStore(diary_path, publish_on_record=False)
     base = datetime(2024, 3, 1, tzinfo=timezone.utc)
-    for index, regime in enumerate(regimes):
-        recorded_at = base + timedelta(minutes=index * 5)
+    paper_span_days = 15
+    for day in range(paper_span_days):
+        regime = regimes[day % len(regimes)]
+        recorded_at = base + timedelta(days=day)
         diary.record(
             policy_id=policy_id,
             decision={
@@ -114,14 +116,57 @@ def _promotion_guard(
             },
             outcomes={"paper_pnl": 0.0},
             metadata={
-                "release_stage": stage.value,
+                "release_stage": PolicyLedgerStage.PAPER.value,
+                "drift_decision": {
+                    "severity": "normal",
+                    "force_paper": False,
+                },
                 "release_execution": {
-                    "stage": stage.value,
-                    "route": "live" if stage is PolicyLedgerStage.LIMITED_LIVE else "paper",
+                    "stage": PolicyLedgerStage.PAPER.value,
+                    "route": "paper",
+                    "forced": False,
                 },
             },
             recorded_at=recorded_at,
         )
+
+    if stage is PolicyLedgerStage.LIMITED_LIVE:
+        live_base = base + timedelta(days=paper_span_days, hours=1)
+        for index, regime in enumerate(regimes):
+            recorded_at = live_base + timedelta(minutes=index * 5)
+            diary.record(
+                policy_id=policy_id,
+                decision={
+                    "tactic_id": policy_id,
+                    "parameters": {},
+                    "selected_weight": 1.0,
+                    "guardrails": {},
+                    "rationale": "promotion-check",
+                    "experiments_applied": (),
+                    "reflection_summary": {},
+                    "weight_breakdown": {},
+                },
+                regime_state={
+                    "regime": regime,
+                    "confidence": 0.78,
+                    "features": {},
+                    "timestamp": recorded_at.isoformat(),
+                },
+                outcomes={"paper_pnl": 0.0},
+                metadata={
+                    "release_stage": PolicyLedgerStage.LIMITED_LIVE.value,
+                    "drift_decision": {
+                        "severity": "normal",
+                        "force_paper": False,
+                    },
+                    "release_execution": {
+                        "stage": PolicyLedgerStage.LIMITED_LIVE.value,
+                        "route": "live",
+                        "forced": False,
+                    },
+                },
+                recorded_at=recorded_at,
+            )
     return PromotionGuard(
         ledger_path=ledger_path,
         diary_path=diary_path,

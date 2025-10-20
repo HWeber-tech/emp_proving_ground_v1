@@ -11,6 +11,7 @@ from src.governance.strategy_registry import (
     StrategyStatus,
 )
 from src.understanding.decision_diary import DecisionDiaryStore
+from tests.util import promotion_checklist_metadata
 
 
 def _promotion_guard(
@@ -403,6 +404,92 @@ def test_strategy_registry_guard_blocks_promoted_registration_without_coverage(
     stored = registry.get_strategy(genome.id)
     assert stored is not None
     assert stored["status"] == StrategyStatus.APPROVED.value
+
+
+def test_strategy_registry_guard_blocks_active_without_paper_green_span(tmp_path) -> None:
+    ledger_path = tmp_path / "policy_guard.json"
+    diary_path = tmp_path / "decision_guard.json"
+    policy_id = "alpha-live"
+
+    store = PolicyLedgerStore(ledger_path)
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.LIMITED_LIVE,
+        approvals=("risk", "compliance"),
+        evidence_id=f"dd-{policy_id}-pilot",
+        metadata=promotion_checklist_metadata(),
+    )
+
+    diary = DecisionDiaryStore(diary_path, publish_on_record=False)
+    base = datetime(2024, 2, 1, tzinfo=timezone.utc)
+    regimes = ("balanced", "bullish", "bearish")
+    for day in range(7):
+        recorded_at = base + timedelta(days=day)
+        regime = regimes[day % len(regimes)]
+        diary.record(
+            policy_id=policy_id,
+            decision={
+                "tactic_id": policy_id,
+                "parameters": {},
+                "selected_weight": 1.0,
+                "guardrails": {},
+                "rationale": "span-check",
+                "experiments_applied": (),
+                "reflection_summary": {},
+                "weight_breakdown": {},
+            },
+            regime_state={
+                "regime": regime,
+                "confidence": 0.8,
+                "features": {},
+                "timestamp": recorded_at.isoformat(),
+            },
+            outcomes={"paper_pnl": 0.0},
+            metadata={
+                "release_stage": PolicyLedgerStage.PAPER.value,
+                "drift_decision": {
+                    "severity": "normal",
+                    "force_paper": False,
+                },
+                "release_execution": {
+                    "stage": PolicyLedgerStage.PAPER.value,
+                    "route": "paper",
+                    "forced": False,
+                },
+            },
+            recorded_at=recorded_at,
+        )
+
+    guard = PromotionGuard(
+        ledger_path=ledger_path,
+        diary_path=diary_path,
+        required_regimes=regimes,
+        min_decisions_per_regime=1,
+    )
+    registry = StrategyRegistry(db_path=str(tmp_path / "registry-span.db"), promotion_guard=guard)
+
+    genome = SimpleNamespace(
+        id=policy_id,
+        decision_tree={"nodes": 3},
+        name=policy_id,
+        generation=1,
+    )
+    fitness_report = {
+        "fitness_score": 1.05,
+        "max_drawdown": 0.04,
+        "sharpe_ratio": 1.4,
+        "total_return": 0.11,
+        "volatility": 0.03,
+        "metadata": {},
+    }
+
+    assert registry.register_champion(genome, dict(fitness_report))
+
+    with pytest.raises(StrategyRegistryError) as excinfo:
+        registry.update_strategy_status(genome.id, StrategyStatus.ACTIVE)
+
+    assert "paper_green_gate_duration_below" in str(excinfo.value)
 
 
 def test_strategy_registry_surfaces_database_errors(tmp_path) -> None:

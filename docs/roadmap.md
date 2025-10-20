@@ -92,7 +92,7 @@
 
 ### C.4 Heads & calibration
 - [x] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
-- [ ] **C.4.2** Add **quantile head** (Ï„=0.25/0.5/0.75).  
+- [ ] **C.4.2** Add **quantile head** (τ=0.25/0.5/0.75).  
 - [ ] **C.4.3** Calibrate: temperature scaling or isotonic on held-out day; report **ECE** & **Brier**.
 
 **DoD (C):** p99 model latency â‰¤ **0.35 ms**, total â‰¤ **0.85 ms**; training converges at 16k; ECE/Brier non-worse vs baseline.

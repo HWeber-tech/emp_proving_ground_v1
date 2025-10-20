@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 import pandas as pd
+import pandas.testing as tm
 import pytest
 
 from src.data_foundation.pipelines.class_priors import (
@@ -49,3 +50,14 @@ def test_assign_daily_pos_weight_aligned_with_frame_index() -> None:
     assert weights.iloc[2] == pytest.approx(0.0)
     assert weights.iloc[3] == pytest.approx(0.0)
     assert weights.iloc[4] == pytest.approx(1.0)
+
+
+def test_daily_prior_helpers_preserve_source_frame() -> None:
+    frame = _frame()
+    frame["feature"] = [0.1, 0.2, 0.3, 0.4, 0.5]
+    original = frame.copy(deep=True)
+
+    compute_daily_class_priors(frame, smoothing=0.5, default_weight=0.8)
+    assign_daily_pos_weight(frame, smoothing=0.5, default_weight=0.8)
+
+    tm.assert_frame_equal(frame, original)

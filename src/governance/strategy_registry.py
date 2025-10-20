@@ -355,6 +355,16 @@ class StrategyRegistry:
     ) -> bool:
         genome_id = str(getattr(genome, "id", genome))
         status_value = self._normalise_status(status, default=StrategyStatus.EVOLVED)
+        status_enum: StrategyStatus | None
+        try:
+            status_enum = StrategyStatus(status_value)
+        except ValueError:
+            status_enum = None
+        if self._promotion_guard is not None:
+            try:
+                self._promotion_guard.validate(genome_id, status_enum or status_value)
+            except PromotionIntegrityError as exc:
+                raise StrategyRegistryError(str(exc)) from exc
 
         try:
             dna_source = getattr(genome, "decision_tree", None)

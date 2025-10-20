@@ -113,7 +113,7 @@
 
 ### D.3 Sizing & inventory
 - [x] **D.3.1** Size ∝ edge / σ̂ (from quantile head).  
-- [ ] **D.3.2** Inventory as a state with mean?reversion pressure; turnover caps per minute/hour.
+- [x] **D.3.2** Inventory as a state with mean?reversion pressure; turnover caps per minute/hour.
 
 ### D.4 Slow context (OpenBB)
 - [ ] **D.4.1** Macro/vol/earnings → **size multiplier** ∈ {0, 0.3, 1}.  
@@ -134,7 +134,7 @@
 
 ### E.2 FX adaptation
 - [x] **E.2.1** Freeze bottom 60–80%; enable **LoRA rank 8–16** on top 30–40%.  
-- [ ] **E.2.2** **EWC or L2?SP** + **20–30% equity rehearsal**.  
+- [x] **E.2.2** **EWC or L2?SP** + **20–30% equity rehearsal**.  
 - [ ] **E.2.3** Retention gates per horizon; reject if any exceed cap.
 
 **DoD (E):** Equity retention drop ≤ {1ev 3%, 5ev 4%, 20ev 5%}; FX gains ≥ 3% F1 with matched turnover.
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T06:47:14Z
+## Automation updates — 2025-10-20T07:33:29Z
 
 ### Last 4 commits
-- 653da17f chore(docker-compose.yml): tune 1 file (2025-10-20)
-- 62273713 refactor(trading): tune 2 files (2025-10-20)
-- 1877d43a test(scripts): tune 3 files (2025-10-20)
-- d997cc48 chore(docker-compose.yml): tune 1 file (2025-10-20)
+- a1fc6a32 feat(artifacts): add 21 files (2025-10-20)
+- a504f467 refactor(trading): tune 3 files (2025-10-20)
+- 8e2ac3d6 refactor(data_foundation): tune 5 files (2025-10-20)
+- 94ba9da6 feat(thinking): add 3 files (2025-10-20)

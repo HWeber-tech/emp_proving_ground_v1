@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 # Export simple portfolio risk utilities and policy evaluators
+from .adverse_selection import MicropriceDriftResult, compute_microprice_drift
 from .policy_telemetry import (
     PolicyCheckStatus,
     RiskPolicyCheckSnapshot,
@@ -25,4 +26,6 @@ __all__ = [
     "build_policy_snapshot",
     "format_policy_markdown",
     "publish_policy_snapshot",
+    "MicropriceDriftResult",
+    "compute_microprice_drift",
 ]

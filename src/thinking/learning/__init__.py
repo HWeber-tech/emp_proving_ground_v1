@@ -9,6 +9,7 @@ from .horizon_evaluation import (
     evaluate_predictions_by_horizon,
 )
 from .lora_freeze import LoRAFreezePlan, LoRALayerConfig, plan_lora_freeze
+from .trainer_chunker import SequenceChunk, TrainerChunker
 
 __all__ = [
     "MetaCognitionEngine",
@@ -21,4 +22,6 @@ __all__ = [
     "LoRAFreezePlan",
     "LoRALayerConfig",
     "plan_lora_freeze",
+    "SequenceChunk",
+    "TrainerChunker",
 ]

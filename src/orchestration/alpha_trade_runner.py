@@ -400,8 +400,6 @@ class AlphaTradeLoopRunner:
         elif loop_metadata_updates:
             merged_loop_metadata = dict(loop_result.metadata)
             merged_loop_metadata.update(loop_metadata_updates)
-            if not has_diary_entry:
-                merged_loop_metadata.pop("attribution", None)
             loop_result = replace(
                 loop_result,
                 metadata=MappingProxyType(merged_loop_metadata),

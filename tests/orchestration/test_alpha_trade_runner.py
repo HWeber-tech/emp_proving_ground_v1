@@ -1323,6 +1323,12 @@ async def test_alpha_trade_runner_handles_missing_diary_entry(
     assert coverage_snapshot.get("missing") == 1
     assert outcome.metadata.get("attribution") == attribution
 
+    loop_metadata = result.loop_result.metadata
+    assert loop_metadata.get("attribution") == attribution
+    loop_coverage = loop_metadata.get("diary_coverage")
+    assert isinstance(loop_coverage, Mapping)
+    assert loop_coverage.get("missing") == 1
+
     assert diary_store.entries(), "expected diary store to keep previously recorded entries"
 
 

@@ -18,6 +18,12 @@ from .planner_edge_gate import (
     PlannerEdgeGateDecision,
     evaluate_planner_edge_gate,
 )
+from .muzero_lite_tree import (
+    MuZeroLitePath,
+    MuZeroLiteStep,
+    MuZeroLiteTreeResult,
+    simulate_short_horizon_futures,
+)
 
 __all__ = [
     "AblationGateOutcome",
@@ -32,4 +38,8 @@ __all__ = [
     "evaluate_retention_gates",
     "PlannerEdgeGateDecision",
     "evaluate_planner_edge_gate",
+    "MuZeroLitePath",
+    "MuZeroLiteStep",
+    "MuZeroLiteTreeResult",
+    "simulate_short_horizon_futures",
 ]

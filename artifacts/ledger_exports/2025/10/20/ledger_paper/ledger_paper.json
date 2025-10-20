@@ -2,11 +2,11 @@
   "records": {
     "shadow": {
       "approvals": [],
-      "created_at": "2025-10-20T01:07:03.651711+00:00",
+      "created_at": "2025-10-20T01:33:16.009866+00:00",
       "evidence_id": "dd-shadow",
       "history": [
         {
-          "applied_at": "2025-10-20T01:07:03.651711+00:00",
+          "applied_at": "2025-10-20T01:33:16.009866+00:00",
           "approvals": [],
           "evidence_id": "dd-shadow",
           "next_stage": "paper",
@@ -16,8 +16,8 @@
       "policy_id": "shadow",
       "stage": "paper",
       "tactic_id": "shadow",
-      "updated_at": "2025-10-20T01:07:03.651711+00:00"
+      "updated_at": "2025-10-20T01:33:16.009866+00:00"
     }
   },
-  "updated_at": "2025-10-20T01:07:03.651892+00:00"
+  "updated_at": "2025-10-20T01:33:16.010215+00:00"
 }

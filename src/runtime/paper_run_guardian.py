@@ -500,11 +500,12 @@ class PaperRunMonitor:
         error_snapshot = dict(payload)
         self.error_events.append(error_snapshot)
 
-        if self.config.allow_invariant_errors:
-            return
         if _looks_like_invariant(error_snapshot):
             self.invariant_breaches.append(error_snapshot)
             self._register_alert("Risk invariant breach detected")
+            if self.config.allow_invariant_errors:
+                self._update_status(PaperRunStatus.DEGRADED)
+                return
             self._update_status(PaperRunStatus.FAILED)
             self.request_stop("risk-invariant-breach")
 

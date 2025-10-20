@@ -104,6 +104,41 @@ def test_guardian_detects_invariant_violation() -> None:
     assert monitor.invariant_breaches
 
 
+def test_guardian_tracks_invariant_when_allowing_errors() -> None:
+    config = PaperRunConfig(allow_invariant_errors=True)
+    tracker = _iterating_sampler([100.0, 100.1])
+    monitor = PaperRunMonitor(config, memory_tracker=tracker)
+
+    invariant_error = {
+        "stage": "risk_validation",
+        "message": "Invariant breach: exposure",
+    }
+
+    monitor.record_progress(
+        _progress(
+            runtime_seconds=5.0,
+            orders=1,
+            p99_latency=0.01,
+            avg_latency=0.01,
+            last_error=invariant_error,
+        )
+    )
+
+    report = PaperTradingSimulationReport(
+        orders=[],
+        errors=[invariant_error],
+        decisions=1,
+        diary_entries=0,
+        runtime_seconds=600.0,
+    )
+
+    summary = monitor.finalise(report)
+
+    assert summary.status is PaperRunStatus.DEGRADED
+    assert summary.invariant_breaches
+    assert summary.metrics["objective_compliance"]["no_invariant_breaches"] is False
+
+
 def test_guardian_summary_includes_metrics(tmp_path: Path) -> None:
     config = PaperRunConfig(memory_growth_threshold_mb=5.0)
     tracker = _iterating_sampler([100.0, 108.0, 108.0])

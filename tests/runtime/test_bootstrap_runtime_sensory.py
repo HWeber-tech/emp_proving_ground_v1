@@ -157,7 +157,14 @@ async def test_bootstrap_runtime_exposes_sensory_status() -> None:
 
         latest_lineage = status.get("sensory_lineage_latest")
         assert isinstance(latest_lineage, Mapping)
-        assert latest_lineage.get("dimension") in {"WHY", "WHAT", "WHEN", "HOW", "ANOMALY"}
+        assert latest_lineage.get("dimension") in {
+            "WHY",
+            "WHAT",
+            "WHEN",
+            "HOW",
+            "ANOMALY",
+            "CORRELATION",
+        }
     finally:
         await runtime.stop()
 

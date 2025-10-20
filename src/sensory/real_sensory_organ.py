@@ -9,6 +9,7 @@ from typing import Any, Callable, Mapping, MutableMapping, Sequence
 import pandas as pd
 
 from src.sensory.anomaly.anomaly_sensor import AnomalySensor
+from src.sensory.correlation import CrossMarketCorrelationSensor
 from src.sensory.how.how_sensor import HowSensor
 from src.sensory.calibration import CalibrationUpdate, ContinuousSensorCalibrator
 from src.sensory.lineage import SensorLineageRecord, build_lineage_record
@@ -36,7 +37,7 @@ class SensoryDriftConfig:
     evaluation_window: int = 20
     min_observations: int = 10
     z_threshold: float = 3.0
-    sensors: tuple[str, ...] = ("WHY", "WHAT", "WHEN", "HOW", "ANOMALY")
+    sensors: tuple[str, ...] = ("WHY", "WHAT", "WHEN", "HOW", "ANOMALY", "CORRELATION")
 
     def required_samples(self) -> int:
         return self.baseline_window + self.evaluation_window
@@ -53,6 +54,7 @@ class RealSensoryOrgan:
         what_sensor: WhatSensor | None = None,
         when_sensor: WhenSensor | None = None,
         anomaly_sensor: AnomalySensor | None = None,
+        correlation_sensor: CrossMarketCorrelationSensor | None = None,
         event_bus: Any | None = None,
         event_type: str = "telemetry.sensory.snapshot",
         audit_window: int = 128,
@@ -66,6 +68,7 @@ class RealSensoryOrgan:
         self._what = what_sensor or WhatSensor()
         self._when = when_sensor or WhenSensor()
         self._anomaly = anomaly_sensor or AnomalySensor()
+        self._correlation = correlation_sensor or CrossMarketCorrelationSensor()
         self._event_bus = event_bus
         self._event_type = event_type
         self._drift_config = self._validate_drift_config(drift_config)
@@ -94,7 +97,7 @@ class RealSensoryOrgan:
             clamp_min=0.0,
             clamp_max=1.0,
         )
-        for dimension in ("WHY", "WHAT", "WHEN"):
+        for dimension in ("WHY", "WHAT", "WHEN", "CORRELATION"):
             self._calibrator.register_dimension(
                 dimension,
                 calibrate=False,
@@ -172,6 +175,10 @@ class RealSensoryOrgan:
             self._anomaly.process(anomaly_payload),
             "ANOMALY",
         )
+        correlation_signal = self._first_signal(
+            self._correlation.process(frame),
+            "CORRELATION",
+        )
 
         signals = {
             "WHY": why_signal,
@@ -179,6 +186,7 @@ class RealSensoryOrgan:
             "WHEN": when_signal,
             "HOW": how_signal,
             "ANOMALY": anomaly_signal,
+            "CORRELATION": correlation_signal,
         }
 
         dimension_payloads: dict[str, dict[str, Any]] = {}

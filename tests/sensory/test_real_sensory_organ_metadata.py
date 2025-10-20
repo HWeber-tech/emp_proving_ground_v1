@@ -36,6 +36,7 @@ def test_real_sensory_organ_backfills_quality_and_lineage() -> None:
         "WHEN": _BareSensor("WHEN", strength=-0.12, confidence=0.4),
         "HOW": _BareSensor("HOW", strength=0.33, confidence=0.72),
         "ANOMALY": _BareSensor("ANOMALY", strength=0.44, confidence=0.81),
+        "CORRELATION": _BareSensor("CORRELATION", strength=0.05, confidence=0.35),
     }
 
     organ = RealSensoryOrgan(
@@ -44,12 +45,20 @@ def test_real_sensory_organ_backfills_quality_and_lineage() -> None:
         when_sensor=sensors["WHEN"],
         how_sensor=sensors["HOW"],
         anomaly_sensor=sensors["ANOMALY"],
+        correlation_sensor=sensors["CORRELATION"],
     )
 
     snapshot = organ.observe(pd.DataFrame())
     dimensions = snapshot["dimensions"]
 
-    assert set(dimensions.keys()) == {"WHY", "WHAT", "WHEN", "HOW", "ANOMALY"}
+    assert set(dimensions.keys()) == {
+        "WHY",
+        "WHAT",
+        "WHEN",
+        "HOW",
+        "ANOMALY",
+        "CORRELATION",
+    }
 
     for dimension, payload in dimensions.items():
         metadata = payload["metadata"]

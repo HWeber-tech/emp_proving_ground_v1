@@ -431,7 +431,7 @@ class BootstrapRuntime:
             baseline_window=24,
             evaluation_window=12,
             min_observations=6,
-            sensors=("WHY", "WHAT", "WHEN", "HOW", "ANOMALY"),
+            sensors=("WHY", "WHAT", "WHEN", "HOW", "ANOMALY", "CORRELATION"),
         )
         self._sensory_drift_config = drift_config
         self._sensory_lineage_publisher = SensoryLineagePublisher(event_bus=event_bus)

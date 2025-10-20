@@ -12,7 +12,7 @@ def test_build_registry_includes_all_dimensions() -> None:
     entries = registry.build_registry()
 
     dimensions = {entry.dimension for entry in entries}
-    assert dimensions == {"HOW", "WHAT", "WHEN", "WHY", "ANOMALY"}
+    assert dimensions == {"HOW", "WHAT", "WHEN", "WHY", "ANOMALY", "CORRELATION"}
 
 
 def test_format_markdown_lists_config_fields() -> None:

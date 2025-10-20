@@ -93,6 +93,11 @@ _DEFAULT_DEFINITIONS: tuple[SensorDefinition, ...] = (
         class_name="AnomalySensor",
         config_name="AnomalySensorConfig",
     ),
+    SensorDefinition(
+        dimension="CORRELATION",
+        module="sensory.correlation.cross_market_correlation_sensor",
+        class_name="CrossMarketCorrelationSensor",
+    ),
 )
 
 

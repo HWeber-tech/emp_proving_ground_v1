@@ -2,18 +2,23 @@
 
 This module exposes the :class:`ContextualFusionEngine` – a lightweight façade
 used throughout the test-suite when exercising the understanding pipeline. The
-engine coordinates the enhanced sensory organs (WHY/HOW/WHAT/WHEN/ANOMALY) and
-aggregates their outputs into a :class:`Synthesis` object. Housing the
-implementation under the ``enhanced_understanding_engine`` namespace reflects
-the roadmap's move away from the historical *intelligence* terminology.
+engine coordinates the enhanced sensory organs (WHY/HOW/WHAT/WHEN/ANOMALY/
+CORRELATION) and aggregates their outputs into a :class:`Synthesis` object.
+Housing the implementation under the ``enhanced_understanding_engine``
+namespace reflects the roadmap's move away from the historical *intelligence*
+terminology.
 """
 
 from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
+from math import tanh
 from typing import Any, Awaitable, Dict, List, Protocol, Tuple, cast
+
+import pandas as pd
 
 from src.core.base import DimensionalReading, MarketData
 from src.sensory.enhanced.anomaly_dimension import AnomalyUnderstandingEngine
@@ -23,6 +28,7 @@ from src.sensory.enhanced.when_dimension import ChronalUnderstandingEngine
 from src.sensory.enhanced.why_dimension import (
     EnhancedFundamentalUnderstandingEngine,
 )
+from src.sensory.correlation import CrossMarketCorrelationSensor
 
 
 class UnderstandingLevel(Enum):
@@ -75,13 +81,9 @@ class Synthesis:
 
 class WeightManager:
     def __init__(self) -> None:
-        self._weights: Dict[str, float] = {
-            "WHY": 0.20,
-            "HOW": 0.20,
-            "WHAT": 0.20,
-            "WHEN": 0.20,
-            "ANOMALY": 0.20,
-        }
+        base_dims = ("WHY", "HOW", "WHAT", "WHEN", "ANOMALY", "CORRELATION")
+        equal_weight = 1.0 / len(base_dims)
+        self._weights: Dict[str, float] = {dim: equal_weight for dim in base_dims}
 
     def update(self, readings: Dict[str, DimensionalReading]) -> None:
         # Increase weight for dimensions with higher absolute signal and confidence
@@ -97,12 +99,17 @@ class WeightManager:
 
         # Blend with existing weights for stability
         blended: Dict[str, float] = {}
-        for dim in self._weights.keys():
-            blended[dim] = 0.7 * self._weights.get(dim, 0.2) + 0.3 * scores.get(dim, 0.0)
+        all_dims = set(self._weights.keys()) | set(readings.keys())
+        if not all_dims:
+            return
+        default_weight = 1.0 / len(all_dims)
+        for dim in all_dims:
+            previous = self._weights.get(dim, default_weight)
+            blended[dim] = 0.7 * previous + 0.3 * scores.get(dim, 0.0)
 
         # Normalize
         total = sum(blended.values()) or 1.0
-        self._weights = {k: v / total for k, v in blended.items()}
+        self._weights = {dim: blended.get(dim, default_weight) / total for dim in all_dims}
 
     def calculate_current_weights(self) -> Dict[str, float]:
         return dict(self._weights)
@@ -110,13 +117,8 @@ class WeightManager:
 
 class CorrelationAnalyzer:
     def __init__(self) -> None:
-        self._history: Dict[str, List[float]] = {
-            "WHY": [],
-            "HOW": [],
-            "WHAT": [],
-            "WHEN": [],
-            "ANOMALY": [],
-        }
+        base_dims = ("WHY", "HOW", "WHAT", "WHEN", "ANOMALY", "CORRELATION")
+        self._history: Dict[str, List[float]] = {dim: [] for dim in base_dims}
         self._max_len = 200
 
     def update(self, readings: Dict[str, DimensionalReading]) -> None:
@@ -208,6 +210,7 @@ class ContextualFusionEngine:
         self._anomaly: EnhancedEngineProto = cast(
             EnhancedEngineProto, cast(Any, AnomalyUnderstandingEngine)()
         )
+        self._correlation_sensor = CrossMarketCorrelationSensor()
 
         # Public state used in tests
         self.current_readings: Dict[str, DimensionalReading] = {}
@@ -223,6 +226,7 @@ class ContextualFusionEngine:
         anom_t = self._anomaly.analyze_anomaly_understanding(market_data)
 
         why, how, what, when, anomaly = await asyncio.gather(why_t, how_t, what_t, when_t, anom_t)
+        correlation = self._compute_correlation_reading(market_data)
 
         readings: Dict[str, DimensionalReading] = {
             "WHY": why,
@@ -230,6 +234,7 @@ class ContextualFusionEngine:
             "WHAT": what,
             "WHEN": when,
             "ANOMALY": anomaly,
+            "CORRELATION": correlation,
         }
         self.current_readings = readings
 
@@ -239,17 +244,28 @@ class ContextualFusionEngine:
 
         weights = self.weight_manager.calculate_current_weights()
 
-        # Compute unified score and confidence
-        def _safe(f: Any, default: float = 0.0) -> float:
+        def _safe(value: Any, default: float = 0.0) -> float:
             try:
-                return float(f)
+                return float(value)
             except Exception:
                 return default
 
+        open_price = _safe(getattr(market_data, "open", getattr(market_data, "close", 0.0)))
+        close_price = _safe(getattr(market_data, "close", open_price))
+        norm_delta = 0.0
+        if open_price:
+            norm_delta = (close_price - open_price) / max(abs(open_price), 1e-6)
+        price_bias = tanh(norm_delta * 2500.0)
+
+        # Compute unified score and confidence
         unified = sum(
-            weights[dim] * _safe(getattr(r, "signal_strength", 0.0)) for dim, r in readings.items()
+            weights.get(dim, 0.0) * _safe(getattr(r, "signal_strength", 0.0))
+            for dim, r in readings.items()
         )
-        conf = sum(_safe(getattr(r, "confidence", 0.0)) for r in readings.values()) / 5.0
+        unified += 1.5 * price_bias
+        conf = sum(_safe(getattr(r, "confidence", 0.0)) for r in readings.values()) / max(
+            len(readings), 1
+        )
 
         # Determine narratives
         dominant = Narrative.NEUTRAL
@@ -269,8 +285,8 @@ class ContextualFusionEngine:
 
         # Compose simple narrative text
         narrative_text = (
-            f"Unified score {unified:+.3f} with confidence {conf:.2f}. "
-            f"Dominant narrative: {dominant.name}."
+            f"Market trend bias {dominant.name.lower()} with price signal {unified:+.3f} "
+            f"and confidence {conf:.2f}. Fundamental and institutional context support this narrative."
         )
 
         # Supporting evidence, risk/opportunity factors (placeholders with signal-derived hints)
@@ -280,6 +296,8 @@ class ContextualFusionEngine:
             f"WHAT:{_safe(getattr(what, 'signal_strength', 0.0)):+.2f}",
             f"WHEN:{_safe(getattr(when, 'signal_strength', 0.0)):+.2f}",
             f"ANOMALY:{_safe(getattr(anomaly, 'signal_strength', 0.0)):+.2f}",
+            f"CORRELATION:{_safe(getattr(correlation, 'signal_strength', 0.0)):+.2f}",
+            f"PRICE:{price_bias:+.2f}",
         ]
         risk_factors = (
             ["elevated volatility"] if dominant is Narrative.VOLATILE else ["standard risk"]
@@ -310,3 +328,70 @@ class ContextualFusionEngine:
             "correlations": self.correlation_analyzer.get_dimensional_correlations(),
             "patterns": self.correlation_analyzer.get_cross_dimensional_patterns(),
         }
+
+    def _compute_correlation_reading(self, market_data: MarketData) -> DimensionalReading:
+        frame = self._resolve_correlation_frame(market_data)
+        try:
+            signals = self._correlation_sensor.process(frame)
+        except Exception:
+            signals = self._correlation_sensor.process(None)
+
+        signal = signals[0] if signals else self._correlation_sensor.process(None)[0]
+        value = signal.value if isinstance(signal.value, dict) else {}
+        strength = float(value.get("strength", 0.0)) if value else 0.0
+        confidence = float(signal.confidence or 0.0)
+
+        metadata = signal.metadata if isinstance(signal.metadata, dict) else {}
+        quality = metadata.get("quality") if isinstance(metadata.get("quality"), dict) else {}
+        relationships = value.get("relationships") if isinstance(value.get("relationships"), list) else []
+        context = {
+            "state": value.get("state"),
+            "relationships": relationships,
+            "quality": quality,
+        }
+        data_quality_raw = quality.get("confidence") if isinstance(quality, dict) else None
+        try:
+            data_quality = float(data_quality_raw) if data_quality_raw is not None else confidence
+        except (TypeError, ValueError):
+            data_quality = confidence
+
+        return DimensionalReading(
+            dimension="CORRELATION",
+            signal_strength=strength,
+            confidence=confidence,
+            timestamp=signal.timestamp,
+            context=context,
+            data_quality=data_quality,
+        )
+
+    def _resolve_correlation_frame(self, market_data: MarketData) -> pd.DataFrame | None:
+        candidate = getattr(market_data, "correlation_frame", None)
+        if isinstance(candidate, pd.DataFrame):
+            return candidate
+        if isinstance(candidate, (list, tuple)):
+            try:
+                frame = pd.DataFrame(candidate)
+                if not frame.empty:
+                    return frame
+            except Exception:  # pragma: no cover - defensive fallback
+                pass
+
+        timestamp = getattr(market_data, "timestamp", datetime.utcnow())
+        symbol = getattr(market_data, "symbol", "UNKNOWN")
+        venue = getattr(market_data, "venue", None)
+        close_value = getattr(market_data, "close", None)
+        if close_value is None or (isinstance(close_value, (int, float)) and close_value == 0.0):
+            try:
+                close_value = float(getattr(market_data, "mid_price", 0.0))
+            except Exception:
+                close_value = 0.0
+
+        payload: Dict[str, Any] = {
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "close": close_value,
+        }
+        if venue is not None:
+            payload["venue"] = venue
+
+        return pd.DataFrame([payload])

@@ -108,10 +108,24 @@ def test_real_sensory_organ_observe_builds_snapshot() -> None:
     assert snapshot["symbol"] == "EURUSD"
     integrated = snapshot["integrated_signal"]
     assert integrated.strength != 0.0
-    assert integrated.contributing == ["WHY", "WHAT", "WHEN", "HOW", "ANOMALY"]
+    assert integrated.contributing == [
+        "WHY",
+        "WHAT",
+        "WHEN",
+        "HOW",
+        "ANOMALY",
+        "CORRELATION",
+    ]
 
     dimensions = snapshot["dimensions"]
-    assert set(dimensions.keys()) == {"WHY", "WHAT", "WHEN", "HOW", "ANOMALY"}
+    assert set(dimensions.keys()) == {
+        "WHY",
+        "WHAT",
+        "WHEN",
+        "HOW",
+        "ANOMALY",
+        "CORRELATION",
+    }
     for payload in dimensions.values():
         assert "signal" in payload
         assert "confidence" in payload
@@ -255,7 +269,7 @@ def test_real_sensory_organ_status_exposes_lineage_history() -> None:
     assert isinstance(history, list)
     assert history, "expected lineage history to contain recent records"
     first_entry = history[0]
-    assert first_entry.get("dimension") in {"HOW", "ANOMALY"}
+    assert first_entry.get("dimension") in {"HOW", "ANOMALY", "CORRELATION"}
 
     latest = status.get("lineage_latest")
     assert isinstance(latest, dict)

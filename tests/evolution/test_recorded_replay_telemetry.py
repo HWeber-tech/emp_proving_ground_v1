@@ -20,7 +20,7 @@ def _snapshot(ts: datetime, price: float, strength: float, confidence: float) ->
             direction=1.0 if strength >= 0 else -1.0,
             strength=strength,
             confidence=confidence,
-            contributing=["WHY", "WHAT", "WHEN", "HOW", "ANOMALY"],
+            contributing=["WHY", "WHAT", "WHEN", "HOW", "ANOMALY", "CORRELATION"],
         ),
         "dimensions": {
             "WHAT": {

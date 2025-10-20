@@ -108,7 +108,14 @@ async def test_bootstrap_pipeline_generates_snapshots() -> None:
     assert audit
     entry = audit[0]
     assert entry["symbol"] == "EURUSD"
-    assert set(entry["dimensions"].keys()) == {"WHY", "HOW", "WHAT", "WHEN", "ANOMALY"}
+    assert set(entry["dimensions"].keys()) == {
+        "WHY",
+        "HOW",
+        "WHAT",
+        "WHEN",
+        "ANOMALY",
+        "CORRELATION",
+    }
 
 
 @pytest.mark.asyncio()

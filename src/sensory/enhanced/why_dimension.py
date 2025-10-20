@@ -38,10 +38,11 @@ class EnhancedFundamentalUnderstandingEngine:
         # Participation saturates using tanh to keep values in [-1, 1]
         participation = tanh(volume / max(1.0, price_base * 750.0))
         volatility_penalty = tanh(max(0.0, volatility) * 6.0)
+        signed_participation = participation if momentum >= 0 else -participation
 
         raw_signal = (
             0.55 * tanh(momentum * 3.0)
-            + 0.30 * participation
+            + 0.30 * signed_participation
             + 0.20 * tanh(macro_bias)
             - 0.25 * volatility_penalty
         )
@@ -70,6 +71,7 @@ class EnhancedFundamentalUnderstandingEngine:
             "source": "sensory.why",
             "momentum": float(momentum),
             "participation": float(participation),
+            "signed_participation": float(signed_participation),
             "volatility_penalty": float(volatility_penalty),
             "macro_bias": float(macro_bias),
             "quality_hint": float(quality_hint),
@@ -89,6 +91,7 @@ class EnhancedFundamentalUnderstandingEngine:
             "volume": float(volume),
             "momentum": float(momentum),
             "participation": float(participation),
+            "signed_participation": float(signed_participation),
             "volatility_penalty": float(volatility_penalty),
             "macro_bias": float(macro_bias),
         }

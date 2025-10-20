@@ -115,7 +115,14 @@ def test_sensory_pipeline_emits_belief_and_detects_drift() -> None:
         window = frame.iloc[: idx + 1]
         snapshot = organ.observe(window)
         dimensions = snapshot["dimensions"]
-        assert set(dimensions.keys()) == {"WHY", "WHAT", "WHEN", "HOW", "ANOMALY"}
+        assert set(dimensions.keys()) == {
+            "WHY",
+            "WHAT",
+            "WHEN",
+            "HOW",
+            "ANOMALY",
+            "CORRELATION",
+        }
 
         anomaly_payload = dimensions["ANOMALY"].get("value")
         if isinstance(anomaly_payload, Mapping) and anomaly_payload.get("is_anomaly"):

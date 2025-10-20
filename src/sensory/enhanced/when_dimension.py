@@ -72,10 +72,15 @@ class ChronalUnderstandingEngine:
         elif active_count == 0 and session_token != "auction_open":
             regime = MarketRegime.CONSOLIDATING
 
+        session_tokens = list(session_snapshot.active_sessions)
+        if session_token not in session_tokens:
+            session_tokens.append(session_token)
+
         context: dict[str, Any] = {
             "source": "sensory.when",
             "minute_of_day": float(minute_of_day),
-            "session": session_token,
+            "session": session_tokens,
+            "primary_session": session_token,
             "weekday": weekday,
             "is_weekend": is_weekend,
         }
@@ -94,5 +99,9 @@ class ChronalUnderstandingEngine:
             processing_time_ms=0.0,
             timestamp=ts,
         )
-        extras = {"session": session_token, "minute_of_day": float(minute_of_day)}
+        extras = {
+            "session": session_token,
+            "session_tokens": session_tokens,
+            "minute_of_day": float(minute_of_day),
+        }
         return build_legacy_payload(reading, source="sensory.when", extras=extras)

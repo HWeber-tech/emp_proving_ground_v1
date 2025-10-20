@@ -47,6 +47,7 @@ class TestDataGenerator:
         self.base_price = base_price
         self.current_price = base_price
         self.time_counter = 0
+        self._rng = np.random.default_rng(42)
 
     def generate_market_data(self, scenario: str = "normal") -> MarketData:
         """Generate market data for different scenarios"""
@@ -54,42 +55,50 @@ class TestDataGenerator:
         self.time_counter += 1
         current_time = datetime.now() + timedelta(minutes=self.time_counter)
 
+        prev_price = self.current_price
+
         if scenario == "trending_bull":
-            price_change = np.random.normal(0.0001, 0.0002)  # Upward bias
-            volume = np.random.normal(1500, 300)
-            volatility = np.random.exponential(0.006)
+            price_change = self._rng.normal(0.0001, 0.0002)  # Upward bias
+            volume = self._rng.normal(1600, 300)
+            volatility = self._rng.exponential(0.006)
+            macro_bias = 0.85
 
         elif scenario == "trending_bear":
-            price_change = np.random.normal(-0.0001, 0.0002)  # Downward bias
-            volume = np.random.normal(1800, 400)  # Higher volume in bear moves
-            volatility = np.random.exponential(0.008)
+            price_change = self._rng.normal(-0.0001, 0.0002)  # Downward bias
+            volume = self._rng.normal(900, 200)
+            volatility = max(self._rng.exponential(0.012), 0.004)
+            macro_bias = -0.85
 
         elif scenario == "ranging":
             # Mean-reverting behavior
             deviation = self.current_price - self.base_price
-            price_change = np.random.normal(-deviation * 0.1, 0.0001)
-            volume = np.random.normal(1200, 200)
-            volatility = np.random.exponential(0.004)
+            price_change = self._rng.normal(-deviation * 0.1, 0.0001)
+            volume = self._rng.normal(1200, 200)
+            volatility = self._rng.exponential(0.004)
+            macro_bias = 0.0
 
         elif scenario == "volatile":
-            price_change = np.random.normal(0, 0.0005)  # High volatility
-            volume = np.random.normal(2000, 600)
-            volatility = np.random.exponential(0.015)
+            price_change = self._rng.normal(0, 0.0005)  # High volatility
+            volume = self._rng.normal(2000, 600)
+            volatility = self._rng.exponential(0.015)
+            macro_bias = 0.05
 
         elif scenario == "anomaly":
             # Inject anomalous behavior
-            if np.random.random() < 0.3:  # 30% chance of anomaly
-                price_change = np.random.choice([-0.002, 0.002])  # Large moves
-                volume = np.random.choice([500, 5000])  # Extreme volume
+            if self._rng.random() < 0.3:  # 30% chance of anomaly
+                price_change = self._rng.choice([-0.002, 0.002])  # Large moves
+                volume = self._rng.choice([500, 5000])  # Extreme volume
             else:
-                price_change = np.random.normal(0, 0.0001)
-                volume = np.random.normal(1000, 200)
-            volatility = np.random.exponential(0.010)
+                price_change = self._rng.normal(0, 0.0001)
+                volume = self._rng.normal(1000, 200)
+            volatility = self._rng.exponential(0.010)
+            macro_bias = 0.0
 
         else:  # normal
-            price_change = np.random.normal(0, 0.0001)
-            volume = np.random.normal(1000, 200)
-            volatility = np.random.exponential(0.005)
+            price_change = self._rng.normal(0, 0.0001)
+            volume = self._rng.normal(1000, 200)
+            volatility = self._rng.exponential(0.005)
+            macro_bias = 0.0
 
         self.current_price += price_change
         volume = max(volume, 100)  # Minimum volume
@@ -97,10 +106,13 @@ class TestDataGenerator:
 
         return MarketData(
             timestamp=current_time,
+            open=prev_price,
+            close=self.current_price,
             bid=self.current_price - 0.0001,
             ask=self.current_price + 0.0001,
             volume=volume,
             volatility=volatility,
+            macro_bias=macro_bias,
         )
 
     def generate_sequence(self, scenario: str, length: int) -> List[MarketData]:
@@ -373,8 +385,8 @@ class TestContextualFusion:
 
         # Verify correlation structure
         for (dim_a, dim_b), correlation in correlations.items():
-            assert dim_a in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
-            assert dim_b in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY"]
+            assert dim_a in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY", "CORRELATION"]
+            assert dim_b in ["WHY", "HOW", "WHAT", "WHEN", "ANOMALY", "CORRELATION"]
             assert -1.0 <= correlation.correlation <= 1.0
             assert 0.0 <= correlation.significance <= 1.0
 

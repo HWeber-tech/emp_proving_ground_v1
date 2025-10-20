@@ -170,6 +170,7 @@ from src.operations.retention import (
     format_data_retention_markdown,
 )
 from src.sensory.anomaly import AnomalySensor
+from src.sensory.correlation import CrossMarketCorrelationSensor
 from src.sensory.how.how_sensor import HowSensor
 from src.sensory.organs.fix_sensory_organ import FIXSensoryOrgan
 from src.sensory.what.what_sensor import WhatSensor
@@ -1886,6 +1887,7 @@ def _default_sensors() -> Dict[str, MarketDataSensor]:
         "when": WhenSensor(),
         "how": HowSensor(),
         "anomaly": AnomalySensor(),
+        "correlation": CrossMarketCorrelationSensor(),
     }
 
 

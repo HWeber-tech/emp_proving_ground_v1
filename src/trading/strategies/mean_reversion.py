@@ -129,52 +129,43 @@ class InventoryState:
                 ),
                 "flatten_component": 0.0,
             }
-
         limited_by: list[str] = []
         prior_position = self.net_position
-        flatten_component = 0.0
+        requested_flatten = 0.0
         if prior_position != 0.0 and desired_delta != 0.0:
             if prior_position * desired_delta < 0.0:
-                flatten_component = min(abs(prior_position), amount)
-
-        residual_amount = max(0.0, amount - flatten_component)
+                requested_flatten = min(abs(prior_position), amount)
 
         available_minute: float | None = None
         available_hour: float | None = None
-        allowed_residual = residual_amount
+        allowed_total = amount
 
-        if residual_amount > 0.0:
-            available: list[float] = []
-            if minute_cap is not None:
-                available_minute = max(0.0, minute_cap - self.minute_total)
-                available.append(available_minute)
-                if residual_amount > available_minute + 1e-9:
-                    limited_by.append("minute")
-            if hour_cap is not None:
-                available_hour = max(0.0, hour_cap - self.hour_total)
-                available.append(available_hour)
-                if residual_amount > available_hour + 1e-9:
-                    limited_by.append("hour")
-            if available:
-                allowed_residual = min(max(val, 0.0) for val in available)
-                allowed_residual = min(residual_amount, allowed_residual)
-        else:
-            if minute_cap is not None:
-                available_minute = max(0.0, minute_cap - self.minute_total)
-            if hour_cap is not None:
-                available_hour = max(0.0, hour_cap - self.hour_total)
+        if minute_cap is not None:
+            available_minute = max(0.0, minute_cap - self.minute_total)
+            allowed_total = min(allowed_total, available_minute)
+            if amount > available_minute + 1e-9:
+                limited_by.append("minute")
+        if hour_cap is not None:
+            available_hour = max(0.0, hour_cap - self.hour_total)
+            allowed_total = min(allowed_total, available_hour)
+            if amount > available_hour + 1e-9:
+                limited_by.append("hour")
 
-        total_allowed = flatten_component + allowed_residual
-        executed = math.copysign(total_allowed, desired_delta) if total_allowed > 0.0 else 0.0
-        if abs(executed) > 0.0:
-            self.record_turnover(abs(executed), now)
+        allowed_total = max(0.0, allowed_total)
+        executed_abs = min(amount, allowed_total)
+
+        flatten_executed = min(requested_flatten, executed_abs)
+
+        executed = math.copysign(executed_abs, desired_delta) if executed_abs > 0.0 else 0.0
+        if executed_abs > 0.0:
+            self.record_turnover(executed_abs, now)
 
         turnover_meta = {
             "limited": bool(limited_by),
             "limited_by": limited_by,
             "available_minute": available_minute,
             "available_hour": available_hour,
-            "flatten_component": flatten_component if flatten_component > 0.0 else 0.0,
+            "flatten_component": flatten_executed if flatten_executed > 0.0 else 0.0,
         }
         return executed, turnover_meta
 

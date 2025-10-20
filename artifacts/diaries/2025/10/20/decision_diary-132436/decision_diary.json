@@ -1,0 +1,49 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T132436Z-67914917",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-01T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-01T00:00:00+00:00"
+      },
+      "signature": "9cb0ce3d4b46a3e0dad470403ff7ba5eb6c18de89863a9868ed160dbad84ce24"
+    }
+  ],
+  "generated_at": "2025-10-20T13:24:36.998140+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T13:24:36.997493+00:00",
+    "probes": {}
+  }
+}

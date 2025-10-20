@@ -11,6 +11,13 @@ __all__ = ["coerce_float", "coerce_int"]
 
 
 _NUMERIC_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[_,](?=\d)")
+_GROUP_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[\s\u00A0\u2007\u202F\u2009](?=\d)")
+
+
+def _strip_group_separators(value: str) -> str:
+    """Remove common locale-specific grouping separators embedded in numbers."""
+
+    return _GROUP_SEPARATOR_PATTERN.sub("", value)
 
 
 @overload

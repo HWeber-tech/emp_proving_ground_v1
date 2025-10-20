@@ -33,3 +33,8 @@ def test_coerce_int_handles_prefixed_bases() -> None:
 def test_coerce_helpers_accept_grouped_numeric_strings() -> None:
     assert coerce_float("1,234.5") == 1234.5
     assert coerce_int("-2,500") == -2500
+
+
+def test_coerce_helpers_accept_space_grouped_numbers() -> None:
+    assert coerce_float("1 234.5") == 1234.5
+    assert coerce_int("7 654") == 7654

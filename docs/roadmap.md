@@ -19,7 +19,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## II. Cognition - Knowing What Is True
 
-- [ ] **Causal Graph Engine**: Formal DAG linking macro → liquidity → microprice → fills. Enables intervention testing.
+- [x] **Causal Graph Engine**: Formal DAG linking macro → liquidity → microprice → fills. Enables intervention testing.
 - [ ] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
 - [ ] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
 - [ ] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
@@ -85,7 +85,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## IX. Security, Provenance & Compliance
 
-- [ ] **Time Integrity Daemon**: Halt if system clock drift > threshold.
+- [x] **Time Integrity Daemon**: Halt if system clock drift > threshold.
 - [ ] **Data Lineage Hashing**: Every decision references immutable feature hashes.
 - [x] **Adversarial Feed Quarantine**: Suspicious ticks isolated until verified.
 - [x] **Manipulation Sentinel**: Detect and block spoof-like order patterns.

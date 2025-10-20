@@ -11,7 +11,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
 - [x] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
 - [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
-- [ ] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
+- [x] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
 - [x] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
 - [x] **Adaptive Sampling**: Adjust sensor frequency to volatility state; always high resolution in chaos.
 
@@ -76,7 +76,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## VIII. Risk Doctrine - No Avoidably Bad Trades
 
-- [ ] **Dominance Gate**: Execute only if chosen action dominates all alternatives across belief ensemble.
+- [x] **Dominance Gate**: Execute only if chosen action dominates all alternatives across belief ensemble.
 - [x] **Pre-Trade Loss Bound**: Compute worst-case fill outcome; veto if lower bound â‰¤ 0.
 - [x] **Structural Exits**: Use liquidity-weighted unwind paths, not fixed stops.
 - [x] **Portfolio-Level Antifragility**: Diversify by regime correlation, not instrument name.
@@ -96,7 +96,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## X. Cognitive Resource Management
 
-- [ ] **Cognitive Scheduler**: Allocate compute by information gain potential.
+- [x] **Cognitive Scheduler**: Allocate compute by information gain potential.
 - [x] **Signal ROI Monitor**: Track marginal predictive value of each data stream.
 - [ ] **Graceful Degradation**: If sensors fail, revert to baseline policy with explicit uncertainty inflation.
 

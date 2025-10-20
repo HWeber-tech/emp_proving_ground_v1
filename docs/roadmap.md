@@ -61,7 +61,7 @@
 - [x] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
 
 ### B.3 Targets & guards
-- [ ] **B.3.1** Robust Ïƒ: EWMA(|returns|) or rolling MADÃ—1.4826 over **past-only** window.  
+- [ ] **B.3.1** Robust σ: EWMA(|returns|) or rolling MAD×1.4826 over past‑only window  
 - [ ] **B.3.2** Dimensionless delta_hat = (mid[t+H]-mid[t])/(tick*max(spread, kσ).  
 - [ ] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
 - [ ] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  

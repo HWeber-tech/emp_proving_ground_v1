@@ -12,7 +12,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
 - [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
 - [ ] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
-- [ ] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
+- [x] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
 - [x] **Adaptive Sampling**: Adjust sensor frequency to volatility state; always high resolution in chaos.
 
 ---
@@ -20,7 +20,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## II. Cognition - Knowing What Is True
 
 - [x] **Causal Graph Engine**: Formal DAG linking macro → liquidity → microprice → fills. Enables intervention testing.
-- [ ] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
+- [x] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
 - [ ] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
 - [ ] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
 - [ ] **Out-of-Distribution Sentry**: Detect when live data diverges from training; reduce aggressiveness accordingly.
@@ -50,8 +50,8 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **MuZero-Lite Tree**: Simulate short-horizon futures with causal edge adjustments.
 - [ ] **Veto Logic**: No action executes without positive expected return under ensemble belief.
-- [ ] **Latency-Aware Planning**: Discard planner branch if total decision latency > 0.85ms.
-- [ ] **Adversarial Simulation**: Inject spoofers, front-runners, and reversion agents into planner rollouts.
+- [x] **Latency-Aware Planning**: Discard planner branch if total decision latency > 0.85ms.
+- [x] **Adversarial Simulation**: Inject spoofers, front-runners, and reversion agents into planner rollouts.
 
 ---
 

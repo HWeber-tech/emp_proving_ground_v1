@@ -21,10 +21,13 @@ from src.core.exceptions import TradingException
 
 if TYPE_CHECKING:
     from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
-else:
-    AnalysisResult: TypeAlias = Any
-    SensorySignal: TypeAlias = Any
-    ThinkingPattern: TypeAlias = Any
+else:  # pragma: no cover - runtime import guard for test environments
+    try:
+        from src.core.interfaces import AnalysisResult, SensorySignal, ThinkingPattern
+    except ImportError:  # pragma: no cover - fall back to permissive stubs
+        AnalysisResult: TypeAlias = Dict[str, Any]
+        SensorySignal: TypeAlias = Any
+        ThinkingPattern = object  # type: ignore[assignment]
 
 from .performance_analyzer import PerformanceAnalyzer
 from .risk_analyzer import RiskAnalyzer
@@ -50,6 +53,9 @@ class _PlannerState:
     drawdown: float
     signal_quality: float
     reward_hint: float
+    latency_pressure: float
+    queue_position: float
+    execution_certainty: float
 
 
 @dataclass(slots=True)
@@ -208,6 +214,9 @@ class _ExecutionMCTS:
         drawdown = state.drawdown
         signal_quality = state.signal_quality
         reward_hint = state.reward_hint
+        latency_pressure = state.latency_pressure
+        queue_position = state.queue_position
+        execution_certainty = state.execution_certainty
 
         noise = random.uniform(-0.02, 0.02)
 
@@ -219,10 +228,18 @@ class _ExecutionMCTS:
                 - 0.6 * risk
                 - 0.2 * var_95
                 - 0.1 * drawdown
+                + 0.2 * latency_pressure
+                + 0.1 * (1.0 - queue_position)
+                + 0.15 * (1.0 - execution_certainty)
             )
             opportunity = max(0.0, opportunity - 0.2 + noise)
             sentiment = max(0.0, min(1.0, sentiment + 0.04 + noise))
             risk = min(1.0, max(0.0, risk + 0.12 + abs(noise)))
+            latency_pressure = max(0.0, min(1.0, latency_pressure * (0.55 + abs(noise))))
+            queue_position = max(0.0, min(1.0, queue_position * (0.4 + abs(noise) * 0.5)))
+            execution_certainty = max(
+                0.0, min(1.0, execution_certainty * 0.8 + 0.25 + noise * 0.3)
+            )
         elif action == "post":
             reward = (
                 reward_hint
@@ -232,10 +249,20 @@ class _ExecutionMCTS:
                 - 0.35 * risk
                 - 0.15 * var_95
                 - 0.05 * drawdown
+                - 0.18 * latency_pressure
+                - 0.2 * queue_position
+                + 0.25 * execution_certainty
             )
             opportunity = max(0.0, min(1.0, opportunity - 0.08 + noise))
             sentiment = max(0.0, min(1.0, sentiment + 0.02 + noise * 0.5))
             risk = max(0.0, min(1.0, risk + 0.05 + max(noise, 0.0)))
+            latency_pressure = max(0.0, min(1.0, latency_pressure * (0.75 + abs(noise) * 0.4)))
+            queue_position = max(
+                0.0, min(1.0, queue_position * (0.85 + abs(noise) * 0.3) + 0.1 * max(noise, 0.0))
+            )
+            execution_certainty = max(
+                0.0, min(1.0, execution_certainty * (0.95 - noise * 0.2) + (1.0 - queue_position) * 0.15)
+            )
         else:  # hold
             reward = (
                 reward_hint
@@ -243,10 +270,17 @@ class _ExecutionMCTS:
                 + 0.1 * signal_quality
                 - 0.25 * opportunity
                 - 0.05 * sentiment
+                - 0.12 * latency_pressure
+                - 0.08 * (1.0 - execution_certainty)
             )
             opportunity = max(0.0, min(1.0, opportunity * (0.85 + noise)))
             sentiment = max(0.0, min(1.0, sentiment * (0.92 + noise * 0.5)))
             risk = max(0.0, risk - 0.08 + abs(noise) * 0.5)
+            latency_pressure = max(0.0, min(1.0, latency_pressure * (0.95 + abs(noise) * 0.6)))
+            queue_position = max(
+                0.0, min(1.0, queue_position * (0.9 + abs(noise) * 0.4) + 0.05 * abs(noise))
+            )
+            execution_certainty = max(0.0, min(1.0, execution_certainty * (0.9 - noise * 0.2)))
 
         var_95 = max(0.0, min(1.0, var_95 * (0.9 if action != "cross" else 1.05) + abs(noise) * 0.1))
         drawdown = max(0.0, min(1.0, drawdown * (0.85 if action == "hold" else 0.95) + abs(noise) * 0.08))
@@ -260,6 +294,9 @@ class _ExecutionMCTS:
             drawdown=drawdown,
             signal_quality=signal_quality,
             reward_hint=reward_hint * 0.7 + reward * 0.3,
+            latency_pressure=latency_pressure,
+            queue_position=queue_position,
+            execution_certainty=execution_certainty,
         )
         return next_state, reward
 
@@ -271,6 +308,9 @@ class _ExecutionMCTS:
             - 0.5 * state.risk
             - 0.2 * state.var_95
             - 0.1 * state.drawdown
+            - 0.3 * state.latency_pressure
+            - 0.25 * state.queue_position
+            + 0.35 * state.execution_certainty
         )
 
 
@@ -399,6 +439,8 @@ class MarketAnalyzer(ThinkingPattern):
         market_sentiment = self._calculate_market_sentiment(signals)
 
         # Create combined analysis
+        infrastructure = self._extract_infrastructure_metrics(signals)
+
         combined_analysis = {
             "market_sentiment": market_sentiment,
             "performance_metrics": performance_metrics,
@@ -409,9 +451,11 @@ class MarketAnalyzer(ThinkingPattern):
                 risk_metrics,
                 market_sentiment,
                 signal_quality,
+                infrastructure,
             ),
             "risk_level": self._assess_risk_level(risk_metrics),
             "signal_quality": signal_quality,
+            "infrastructure": infrastructure,
         }
 
         return combined_analysis
@@ -478,6 +522,7 @@ class MarketAnalyzer(ThinkingPattern):
         risk_metrics: dict[str, object],
         market_sentiment: dict[str, object],
         signal_quality: dict[str, object],
+        infrastructure: dict[str, float],
     ) -> dict[str, object]:
         """Assess trading opportunity based on analysis."""
 
@@ -522,6 +567,7 @@ class MarketAnalyzer(ThinkingPattern):
                 var_95=var_95,
                 drawdown=current_drawdown,
                 signal_quality=signal_quality_score,
+                infrastructure=infrastructure,
             ),
         }
 
@@ -582,6 +628,64 @@ class MarketAnalyzer(ThinkingPattern):
             "quality_status": quality_status,
         }
 
+    def _extract_infrastructure_metrics(
+        self, signals: list[SensorySignal]
+    ) -> dict[str, float]:
+        """Derive infrastructure context for the planner from sensory signals."""
+
+        signals_t = cast(list[_SignalProto], signals)
+        latency_samples: list[float] = []
+        queue_samples: list[float] = []
+        execution_samples: list[float] = []
+
+        for signal in signals_t:
+            signal_type = signal.signal_type.lower()
+            value = float(signal.value)
+            if "latency" in signal_type:
+                latency_samples.append(self._coerce_latency_value(value, signal_type))
+            elif "queue" in signal_type and (
+                "position" in signal_type or "depth" in signal_type or "rank" in signal_type
+            ):
+                queue_samples.append(self._normalise_queue_position(value))
+            elif (
+                ("execution" in signal_type and (
+                    "certainty" in signal_type
+                    or "confidence" in signal_type
+                    or "prob" in signal_type
+                ))
+                or ("fill" in signal_type and "prob" in signal_type)
+            ):
+                execution_samples.append(self._normalise_probability(value))
+
+        latency_s: float | None
+        if latency_samples:
+            latency_mean = float(np.mean(latency_samples))
+            latency_s = latency_mean if math.isfinite(latency_mean) and latency_mean >= 0.0 else None
+        else:
+            latency_s = None
+
+        if latency_s is None:
+            latency_s = self._last_total_decision_latency_s or 0.0
+
+        queue_position = float(np.mean(queue_samples)) if queue_samples else 0.5
+        if not math.isfinite(queue_position):
+            queue_position = 0.5
+        queue_position = self._clamp(queue_position)
+
+        execution_certainty = float(np.mean(execution_samples)) if execution_samples else 0.5
+        if not math.isfinite(execution_certainty):
+            execution_certainty = 0.5
+        execution_certainty = self._clamp(execution_certainty)
+
+        latency_pressure = self._compute_latency_pressure(latency_s)
+
+        return {
+            "latency_s": float(latency_s),
+            "latency_pressure": latency_pressure,
+            "queue_position": queue_position,
+            "execution_certainty": execution_certainty,
+        }
+
     def _calculate_overall_confidence(
         self, performance_result: AnalysisResult, risk_result: AnalysisResult
     ) -> float:
@@ -589,6 +693,50 @@ class MarketAnalyzer(ThinkingPattern):
         performance_confidence = float(cast(Any, getattr(performance_result, "confidence", 0.0)))
         risk_confidence = float(cast(Any, getattr(risk_result, "confidence", 0.0)))
         return float((performance_confidence + risk_confidence) / 2.0)
+
+    def _compute_latency_pressure(self, latency_s: float | None) -> float:
+        if latency_s is None or not math.isfinite(latency_s) or latency_s <= 0.0:
+            return 0.0
+        threshold = self._planner_latency_threshold_s
+        if threshold <= 0.0:
+            threshold = 0.001
+        pressure = latency_s / threshold
+        return self._clamp(pressure)
+
+    @staticmethod
+    def _coerce_latency_value(raw_value: float, signal_type: str) -> float:
+        if not math.isfinite(raw_value) or raw_value < 0.0:
+            return 0.0
+        signal_type = signal_type.lower()
+        if "ms" in signal_type:
+            return raw_value / 1000.0
+        if "s" in signal_type:
+            return raw_value
+        if raw_value > 1.0:
+            return raw_value / 1000.0
+        return raw_value
+
+    def _normalise_queue_position(self, raw_value: float) -> float:
+        if not math.isfinite(raw_value):
+            return 0.5
+        if raw_value <= 0.0:
+            return 0.0
+        if raw_value <= 1.0:
+            return float(raw_value)
+        # treat values above one as absolute depth; map to unit interval
+        normalised = raw_value / (raw_value + 5.0)
+        return self._clamp(float(normalised))
+
+    def _normalise_probability(self, raw_value: float) -> float:
+        if not math.isfinite(raw_value):
+            return 0.0
+        if raw_value < 0.0:
+            return 0.0
+        if raw_value <= 1.0:
+            return float(raw_value)
+        if raw_value <= 100.0:
+            return min(1.0, float(raw_value) / 100.0)
+        return 1.0
 
     def _classify_health_status(self, health_score: float) -> str:
         """Classify market health status."""
@@ -621,10 +769,31 @@ class MarketAnalyzer(ThinkingPattern):
         var_95: float,
         drawdown: float,
         signal_quality: float,
+        infrastructure: dict[str, float] | None = None,
     ) -> str:
         """Recommend execution style for the opportunity window."""
 
         self._planner_latency_guard_reason = None
+
+        infrastructure = infrastructure or {}
+        latency_s = infrastructure.get("latency_s")
+        if latency_s is None:
+            latency_s = self._last_total_decision_latency_s
+        latency_pressure = infrastructure.get(
+            "latency_pressure", self._compute_latency_pressure(latency_s)
+        )
+        queue_position = self._clamp(float(infrastructure.get("queue_position", 0.5)))
+        execution_certainty = self._clamp(
+            float(infrastructure.get("execution_certainty", 0.5))
+        )
+
+        reward_hint = (
+            (opportunity_score * 0.6 + sentiment * 0.4)
+            - (risk_score * 0.5)
+            - 0.3 * latency_pressure
+            - 0.2 * queue_position
+            + 0.35 * execution_certainty
+        )
 
         planner_state = _PlannerState(
             opportunity=max(0.0, min(1.0, opportunity_score)),
@@ -633,7 +802,10 @@ class MarketAnalyzer(ThinkingPattern):
             var_95=max(0.0, min(1.0, var_95)),
             drawdown=max(0.0, min(1.0, drawdown)),
             signal_quality=max(0.0, min(1.0, signal_quality)),
-            reward_hint=(opportunity_score * 0.6 + sentiment * 0.4) - (risk_score * 0.5),
+            reward_hint=reward_hint,
+            latency_pressure=latency_pressure,
+            queue_position=queue_position,
+            execution_certainty=execution_certainty,
         )
 
         planner_action: Optional[str] = None
@@ -658,18 +830,43 @@ class MarketAnalyzer(ThinkingPattern):
         if planner_action:
             return planner_action
 
-        return self._fallback_action(opportunity_score, sentiment)
+        return self._fallback_action(
+            opportunity_score,
+            sentiment,
+            infrastructure={
+                "latency_pressure": latency_pressure,
+                "queue_position": queue_position,
+                "execution_certainty": execution_certainty,
+            },
+        )
 
-    def _fallback_action(self, opportunity_score: float, sentiment: float) -> str:
+    def _fallback_action(
+        self,
+        opportunity_score: float,
+        sentiment: float,
+        *,
+        infrastructure: dict[str, float],
+    ) -> str:
         """Deterministic fallback policy when MCTS planner is unavailable."""
 
         alignment = min(float(opportunity_score), float(sentiment))
         urgency = max(float(opportunity_score), float(sentiment))
+        latency_pressure = float(infrastructure.get("latency_pressure", 0.0))
+        queue_position = float(infrastructure.get("queue_position", 0.5))
+        execution_certainty = float(infrastructure.get("execution_certainty", 0.5))
 
         if alignment <= 0.25:
             return "hold"
+        if latency_pressure >= 0.9:
+            return "cross"
+        if queue_position >= 0.75 and execution_certainty >= 0.6 and urgency >= 0.4:
+            return "post"
         if opportunity_score >= 0.75 and sentiment >= 0.65:
             return "cross"
+        if execution_certainty <= 0.35 and queue_position >= 0.6:
+            return "cross" if opportunity_score >= 0.45 else "hold"
+        if execution_certainty >= 0.7 and queue_position <= 0.4 and alignment >= 0.35:
+            return "post"
         if alignment >= 0.4 and urgency >= 0.45:
             return "post"
         return "hold"

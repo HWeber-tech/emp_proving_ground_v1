@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Deque, Iterable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
+from .entropy_governor import EntropyGovernor
 from .fast_weights import FastWeightController
 from .regime_fitness import RegimeFitnessTable
 
@@ -676,6 +677,7 @@ class PolicyRouter:
         tournament_bonus: float = 0.25,
         allow_forced_exploration: bool = True,
         linear_attention_router: "LinearAttentionRouter" | None = None,
+        entropy_governor: "EntropyGovernor" | None = None,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -706,6 +708,7 @@ class PolicyRouter:
         self._tournament_bonus = max(0.0, float(tournament_bonus))
         self.allow_forced_exploration = allow_forced_exploration
         self._linear_attention_router: LinearAttentionRouter | None = linear_attention_router
+        self._entropy_governor: EntropyGovernor | None = entropy_governor
 
     def exploration_freeze_active(self) -> bool:
         """Return ``True`` when exploration is currently frozen."""
@@ -1239,6 +1242,17 @@ class PolicyRouter:
             winner_entry = candidate_entry
             switch_forced = forced
 
+        entropy_rotation_context: Mapping[str, object] | None = None
+        if self._entropy_governor is not None:
+            rotated_entry, rotation_context = self._entropy_governor.apply_rotation(
+                ranked=working_entries,
+                current=winner_entry,
+                forced=switch_forced,
+            )
+            if rotated_entry is not winner_entry:
+                winner_entry = rotated_entry
+            entropy_rotation_context = dict(rotation_context)
+
         if winner_entry is working_entries[0]:
             ordered_ranked: list[Mapping[str, object]] = list(working_entries)
         else:
@@ -1251,6 +1265,12 @@ class PolicyRouter:
             decision_time = decision_time.replace(tzinfo=timezone.utc)
         else:
             decision_time = decision_time.astimezone(timezone.utc)
+
+        entropy_microtiming_context: Mapping[str, object] | None = None
+        if self._entropy_governor is not None:
+            jittered_time, microtiming_context = self._entropy_governor.jitter_timestamp(decision_time)
+            decision_time = jittered_time
+            entropy_microtiming_context = dict(microtiming_context)
 
         tactic: PolicyTactic = winner_entry["tactic"]  # type: ignore[assignment]
         experiments: Sequence[FastWeightExperiment] = winner_entry["experiments"]  # type: ignore[assignment]
@@ -1303,6 +1323,16 @@ class PolicyRouter:
             tournament_snapshot["selected_score"] = float(winner_entry["score"])
             tournament_snapshot.setdefault("regime", regime_state.regime)
             reflection_summary["tournament_selection"] = tournament_snapshot
+
+        if self._entropy_governor is not None:
+            entropy_snapshot: dict[str, object] = {}
+            if entropy_rotation_context is not None:
+                entropy_snapshot["rotation"] = entropy_rotation_context
+            if entropy_microtiming_context is not None:
+                entropy_snapshot["microtiming"] = entropy_microtiming_context
+            if entropy_snapshot:
+                entropy_snapshot.setdefault("history", list(self._entropy_governor.history()))
+                reflection_summary["entropy_governor"] = entropy_snapshot
 
         if linear_attention_applied and linear_router is not None:
             linear_router.observe_selection(tactic.tactic_id)

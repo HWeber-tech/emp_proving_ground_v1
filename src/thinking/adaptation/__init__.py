@@ -39,6 +39,7 @@ from .operators import (
     op_swap_execution_topology,
     op_tighten_risk,
 )
+from .entropy_governor import EntropyGovernor, EntropyGovernorConfig
 from .feature_toggles import (
     AdaptationFeatureToggles,
     EXPLORATION_FLAG,
@@ -69,6 +70,8 @@ __all__ = [
     "PolicyRouter",
     "PolicyTactic",
     "RegimeState",
+    "EntropyGovernor",
+    "EntropyGovernorConfig",
     "RegimeFitnessTable",
     "FastWeightConstraints",
     "FastWeightController",

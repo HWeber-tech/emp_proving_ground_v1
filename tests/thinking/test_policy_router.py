@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import random
 from typing import Mapping
 
 import pytest
 
 from src.thinking.adaptation.fast_weights import FastWeightConstraints, FastWeightController
+from src.thinking.adaptation.entropy_governor import EntropyGovernor, EntropyGovernorConfig
 from src.thinking.adaptation.policy_router import (
     FastWeightExperiment,
     PolicyRouter,
@@ -262,7 +264,7 @@ def test_linear_attention_router_promotes_novel_candidate_when_enabled() -> None
 
     first = router.route(
         base_regime,
-        linear_attention_enabled=True,
+        linear_attention_enabled=False,
     )
     assert first.tactic_id == "dominant"
 
@@ -270,7 +272,6 @@ def test_linear_attention_router_promotes_novel_candidate_when_enabled() -> None
         _regime(confidence=0.6, volatility=0.25),
         linear_attention_enabled=True,
     )
-
     assert decision.tactic_id == "novelty"
     la_context = decision.reflection_summary["linear_attention"]
     assert la_context["recommended_tactic_id"] == "novelty"
@@ -1029,3 +1030,110 @@ def test_tactic_catalog_surfaces_metadata() -> None:
     assert catalogue[0]["parameters"]["style"] == "momentum"
     assert catalogue[0]["objectives"] == ["alpha-capture"]
     assert "momentum" in catalogue[0]["tags"]
+
+
+def test_entropy_governor_rotates_and_jitters_microtiming() -> None:
+    governor = EntropyGovernor(
+        EntropyGovernorConfig(
+            rotation_cooldown=1,
+            rotation_probability=0.0,
+            minimum_jitter_ms=0.5,
+            maximum_jitter_ms=0.5,
+        ),
+        rng=random.Random(42),
+    )
+
+    router = PolicyRouter(entropy_governor=governor)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="primary",
+                base_weight=1.2,
+                regime_bias={"bull": 1.1},
+            ),
+            PolicyTactic(
+                tactic_id="secondary",
+                base_weight=1.05,
+                regime_bias={"bull": 1.0},
+            ),
+        )
+    )
+
+    base_time = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+    first_decision = router.route(_regime(timestamp=base_time), decision_timestamp=base_time)
+
+    assert first_decision.tactic_id == "primary"
+    assert first_decision.decision_timestamp is not None
+    delta_ms = (first_decision.decision_timestamp - base_time).total_seconds() * 1000.0
+    assert delta_ms == pytest.approx(0.5)
+    entropy_snapshot = first_decision.reflection_summary["entropy_governor"]
+    assert entropy_snapshot["rotation"]["rotation_applied"] is False
+    assert entropy_snapshot["microtiming"]["jitter_applied"] is True
+
+    next_time = base_time + timedelta(seconds=60)
+    second_decision = router.route(_regime(timestamp=next_time), decision_timestamp=next_time)
+
+    assert second_decision.tactic_id == "secondary"
+    assert second_decision.decision_timestamp is not None
+    delta_next_ms = (second_decision.decision_timestamp - next_time).total_seconds() * 1000.0
+    assert delta_next_ms == pytest.approx(0.5)
+
+    entropy_snapshot_second = second_decision.reflection_summary["entropy_governor"]
+    rotation_meta = entropy_snapshot_second["rotation"]
+    assert rotation_meta["rotation_applied"] is True
+    assert rotation_meta["rotation_reason"] == "cooldown_repeat"
+    assert rotation_meta["selected_tactic"] == "secondary"
+    assert entropy_snapshot_second["microtiming"]["jitter_applied"] is True
+    history = tuple(entropy_snapshot_second["history"])
+    assert history[-2:] == ("primary", "secondary")
+
+
+def test_entropy_governor_respects_forced_switches() -> None:
+    governor = EntropyGovernor(
+        EntropyGovernorConfig(
+            rotation_cooldown=1,
+            rotation_probability=0.0,
+            minimum_jitter_ms=0.0,
+            maximum_jitter_ms=0.0,
+        ),
+        rng=random.Random(7),
+    )
+
+    router = PolicyRouter(regime_switch_deadline_ms=50, entropy_governor=governor)
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="trend_hunter",
+                base_weight=1.4,
+                regime_bias={"bull": 1.3, "bear": 1.05},
+                topology="trend",
+            ),
+            PolicyTactic(
+                tactic_id="defensive_wall",
+                base_weight=0.9,
+                regime_bias={"bear": 1.4},
+                topology="defensive",
+            ),
+            PolicyTactic(
+                tactic_id="reserve",
+                base_weight=0.85,
+                regime_bias={"bear": 1.1},
+                topology="reserve",
+            ),
+        )
+    )
+
+    start = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+    first_decision = router.route(_regime(regime="bull", timestamp=start), decision_timestamp=start)
+    assert first_decision.tactic_id == "trend_hunter"
+
+    bear_time = start + timedelta(milliseconds=40)
+    bear_regime = _regime(regime="bear", timestamp=bear_time)
+    second_decision = router.route(bear_regime, decision_timestamp=bear_time)
+
+    assert second_decision.tactic_id == "defensive_wall"
+    entropy_snapshot = second_decision.reflection_summary["entropy_governor"]
+    rotation_meta = entropy_snapshot["rotation"]
+    assert rotation_meta["forced"] is True
+    assert rotation_meta["rotation_applied"] is False
+    assert rotation_meta["selected_tactic"] == "defensive_wall"

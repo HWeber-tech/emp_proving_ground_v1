@@ -31,6 +31,20 @@ from src.core.coercion import coerce_float
 logger = logging.getLogger(__name__)
 
 
+def _parse_iso_datetime(value: str) -> datetime | None:
+    """Parse ISO-8601 timestamps, accepting a trailing ``Z`` for UTC."""
+
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
 class MarketRegime(Enum):
     UNKNOWN = "unknown"
     TRENDING_STRONG = "trending_strong"
@@ -133,6 +147,12 @@ class MarketData:
             try:
                 self.timestamp = datetime.utcfromtimestamp(ts_raw)
             except (OverflowError, OSError, ValueError):
+                self.timestamp = datetime.utcnow()
+        elif isinstance(ts_raw, str):
+            parsed_ts = _parse_iso_datetime(ts_raw)
+            if parsed_ts is not None:
+                self.timestamp = parsed_ts
+            else:
                 self.timestamp = datetime.utcnow()
         else:
             self.timestamp = datetime.utcnow()

@@ -97,6 +97,49 @@ def _build_provenance() -> dict[str, object]:
     }
 
 
+def test_strategy_registry_supports_model_tag_statuses(tmp_path) -> None:
+    policy_id = "model-default"
+    guard = _promotion_guard(tmp_path, policy_id)
+    registry = StrategyRegistry(
+        db_path=str(tmp_path / "registry-model.db"),
+        promotion_guard=guard,
+    )
+    genome = SimpleNamespace(
+        id=policy_id,
+        decision_tree={"nodes": 6},
+        name=policy_id,
+        generation=1,
+    )
+    fitness_report = {
+        "fitness_score": 1.05,
+        "max_drawdown": 0.08,
+        "sharpe_ratio": 1.25,
+        "total_return": 0.18,
+        "volatility": 0.03,
+        "metadata": {},
+    }
+
+    assert registry.register_champion(
+        genome,
+        dict(fitness_report),
+        status=StrategyStatus.APPROVED_DEFAULT,
+    )
+
+    stored_default = registry.get_strategy(policy_id)
+    assert stored_default is not None
+    assert stored_default["status"] == StrategyStatus.APPROVED_DEFAULT.value
+
+    assert registry.update_strategy_status(policy_id, StrategyStatus.APPROVED_FALLBACK)
+    stored_fallback = registry.get_strategy(policy_id)
+    assert stored_fallback is not None
+    assert stored_fallback["status"] == StrategyStatus.APPROVED_FALLBACK.value
+
+    assert registry.update_strategy_status(policy_id, StrategyStatus.REJECTED)
+    stored_rejected = registry.get_strategy(policy_id)
+    assert stored_rejected is not None
+    assert stored_rejected["status"] == StrategyStatus.REJECTED.value
+
+
 @pytest.mark.parametrize("status", ["evolved", "approved"])
 def test_strategy_registry_records_catalogue_provenance(tmp_path, status: str) -> None:
     guard = _promotion_guard(tmp_path, "catalogue/trend-alpha::0")

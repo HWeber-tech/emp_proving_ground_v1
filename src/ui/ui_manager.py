@@ -20,6 +20,8 @@ else:
         from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
     except ImportError:
         # Mock implementations for standalone testing (suffixed to avoid redefinition at type time)
+        from enum import Enum
+
         class EventBusStub:
             def __init__(self) -> None:
                 self.connected = False
@@ -33,11 +35,14 @@ else:
             async def publish(self, subject: str, data: Dict[str, Any]) -> None:
                 print(f"📡 Event: {subject} -> {data}")
 
-        class StrategyStatusStub:
+        class StrategyStatusStub(Enum):
             EVOLVED = "evolved"
             APPROVED = "approved"
+            APPROVED_DEFAULT = "approved_default"
+            APPROVED_FALLBACK = "approved_fallback"
             ACTIVE = "active"
             INACTIVE = "inactive"
+            REJECTED = "rejected"
 
         class StrategyRegistryStub:
             def __init__(self) -> None:
@@ -46,7 +51,7 @@ else:
             def register_strategy(self, strategy_id: str, config: Dict[str, Any]) -> bool:
                 self.strategies[strategy_id] = {
                     "id": strategy_id,
-                    "status": StrategyStatusStub.EVOLVED,
+                    "status": StrategyStatusStub.EVOLVED.value,
                     "config": config,
                     "created_at": datetime.now().isoformat(),
                 }
@@ -60,7 +65,8 @@ else:
 
             def update_strategy_status(self, strategy_id: str, status: str) -> bool:
                 if strategy_id in self.strategies:
-                    self.strategies[strategy_id]["status"] = status
+                    status_value = status.value if hasattr(status, "value") else status
+                    self.strategies[strategy_id]["status"] = status_value
                     return True
                 return False
 

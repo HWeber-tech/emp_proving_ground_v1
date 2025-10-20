@@ -34,8 +34,11 @@ _DEFAULT_DIARY_PATH = Path("artifacts/governance/decision_diary.json")
 class StrategyStatus(Enum):
     EVOLVED = "evolved"
     APPROVED = "approved"
+    APPROVED_DEFAULT = "approved_default"
+    APPROVED_FALLBACK = "approved_fallback"
     ACTIVE = "active"
     INACTIVE = "inactive"
+    REJECTED = "rejected"
 
 
 class StrategyRegistryError(RuntimeError):
@@ -511,7 +514,13 @@ class StrategyRegistry:
             cursor.execute(
                 """
                 SELECT * FROM strategies
-                WHERE status IN ('evolved', 'approved', 'active')
+                WHERE status IN (
+                    'evolved',
+                    'approved',
+                    'approved_default',
+                    'approved_fallback',
+                    'active'
+                )
                 ORDER BY fitness_score DESC
                 LIMIT ?
             """,

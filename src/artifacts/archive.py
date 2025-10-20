@@ -82,7 +82,10 @@ def archive_artifact(
         logger.exception("Failed to prepare artifact directory: %s", dest_dir)
         return None
 
-    destination = dest_dir / (target_name or src_path.name)
+    dest_name = Path(target_name).name if target_name else src_path.name
+    if not dest_name:
+        dest_name = src_path.name
+    destination = dest_dir / dest_name
     try:
         shutil.copy2(src_path, destination)
     except Exception:  # pragma: no cover - filesystem edge cases

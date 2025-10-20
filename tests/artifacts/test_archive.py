@@ -56,3 +56,24 @@ def test_archive_artifact_normalises_kind_segment(tmp_path: Path) -> None:
 
     assert destination is not None
     assert destination.relative_to(root).parts[0] == "alert"
+
+
+def test_archive_artifact_sanitises_target_name(tmp_path: Path) -> None:
+    source = tmp_path / "report.txt"
+    source.write_text("ok", encoding="utf-8")
+
+    root = tmp_path / "artifacts-root"
+    timestamp = datetime(2023, 7, 14, 6, 30, tzinfo=UTC)
+
+    destination = archive_artifact(
+        "reports",
+        source,
+        root=root,
+        timestamp=timestamp,
+        target_name="../../escape/override.log",
+    )
+
+    assert destination is not None
+    assert destination.parent == root / "reports" / "2023" / "07" / "14" / "run-063000"
+    assert destination.name == "override.log"
+    assert destination.read_text(encoding="utf-8") == "ok"

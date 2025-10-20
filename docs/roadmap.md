@@ -19,7 +19,7 @@
 
 ### A.1 Event bus & runtime correctness
 - [x] **A.1.1** Add `emit()` alias to EventBus that forwards to `publish_async()`; deprecate later.  
-- [ ] **A.1.2** Make per-instrument queues **bounded**; publish `DEGRADED_MODE` when back-pressure triggers; auto-throttle decisions to size = 0.  
+- [x] **A.1.2** Make per-instrument queues **bounded**; publish `DEGRADED_MODE` when back-pressure triggers; auto-throttle decisions to size = 0.  
 - [x] **A.1.3** Guarantee **ordering per instrument** (monotone {ts,seqno}); drop or quarantine out-of-order with a reason code.
 
 ### A.2 Config single source of truth (SoT)
@@ -30,7 +30,7 @@
 ### A.3 Market access & sensory organs
 - [x] **A.3.1** Implement FIX **MarketDataRequest** subscribe/unsubscribe on start/stop.  
 - [ ] **A.3.2** Parse W/X messages: build L1-L5 snapshots; emit "market_data_update" with `{bid,ask,bid_sz,ask_sz,depth[L],ts,seq}`.  
-- [ ] **A.3.3** cTrader adapter: replace missing domain events with typed payloads or plain bus events; ensure async usage is correct.
+- [x] **A.3.3** cTrader adapter: replace missing domain events with typed payloads or plain bus events; ensure async usage is correct.
 
 ### A.4 Minimal compose & health
 - [x] **A.4.1** `docker-compose.yml` services: **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
@@ -63,7 +63,7 @@
 ### B.3 Targets & guards
 - [x] **B.3.1** Robust σ: EWMA(|returns|) or rolling MAD×1.4826 over past‑only window  
 - [x] **B.3.2** Dimensionless delta_hat = (mid[t+H]-mid[t])/(tick*max(spread, kσ).  
-- [ ] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
+- [x] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
 - [x] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  
 - [x] **B.3.5** Unit test: masking future data must not change features/labels.
 
@@ -291,7 +291,7 @@ body:
 ## Automation updates — 2025-10-20T11:09:39Z
 
 ### Last 4 commits
-- d5ae0dc6 feat(thinking): add 3 files (2025-10-20)
-- 282c36eb refactor(thinking): tune 2 files (2025-10-20)
-- 46041509 refactor(config): tune 5 files (2025-10-20)
-- e007b8d9 feat(thinking): add 3 files (2025-10-20)
+- f0fc8b2a refactor(artifacts): tune 5 files (2025-10-20)
+- 8a8ac6fd refactor(artifacts): tune 4 files (2025-10-20)
+- 56cbcf9c feat(trading): add 2 files (2025-10-20)
+- 803e5a16 feat(operational): add 6 files (2025-10-20)

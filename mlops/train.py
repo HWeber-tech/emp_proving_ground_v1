@@ -15,7 +15,7 @@ import argparse
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import mlflow
 import mlflow.pytorch
@@ -26,6 +26,57 @@ import torch.nn as nn
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from torch.utils.data import DataLoader, Dataset
+
+
+class LoRAAdapter(nn.Module):
+    """Low-rank adapter applied to the top slice of a hidden representation."""
+
+    def __init__(
+        self,
+        hidden_size: int,
+        *,
+        rank: int = 8,
+        top_fraction: float = 0.35,
+        alpha: float = 1.0,
+    ) -> None:
+        super().__init__()
+
+        if hidden_size <= 0:
+            raise ValueError("hidden_size must be positive")
+        if not 0.0 < top_fraction <= 1.0:
+            raise ValueError("top_fraction must be within (0, 1]")
+
+        target_dim = max(1, int(round(hidden_size * top_fraction)))
+        target_dim = min(target_dim, hidden_size)
+        effective_rank = max(1, min(rank, target_dim))
+
+        self.hidden_size = hidden_size
+        self.target_dim = target_dim
+        self.rank = effective_rank
+        self.alpha = alpha
+
+        self.lora_down = nn.Linear(target_dim, effective_rank, bias=False)
+        self.lora_up = nn.Linear(effective_rank, target_dim, bias=False)
+
+        nn.init.normal_(self.lora_down.weight, mean=0.0, std=0.01)
+        nn.init.zeros_(self.lora_up.weight)
+
+        self.scaling = self.alpha / float(self.rank)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.target_dim == self.hidden_size:
+            segment = x
+            base = None
+        else:
+            segment = x[..., -self.target_dim :]
+            base = x[..., :-self.target_dim]
+
+        delta = self.lora_up(self.lora_down(segment)) * self.scaling
+        adapted = segment + delta
+
+        if base is None:
+            return adapted
+        return torch.cat((base, adapted), dim=-1)
 
 warnings.filterwarnings("ignore")
 
@@ -53,18 +104,85 @@ class MarketDataset(Dataset):
 
 
 class LSTMModel(nn.Module):
-    """LSTM model for market prediction."""
+    """LSTM baseline augmented with frozen lower layers and a LoRA adapter."""
 
     def __init__(
-        self, input_size: int, hidden_size: int = 64, num_layers: int = 2, num_classes: int = 3
-    ):
-        super(LSTMModel, self).__init__()
+        self,
+        input_size: int,
+        hidden_size: int = 64,
+        num_layers: int = 3,
+        num_classes: int = 3,
+        *,
+        freeze_ratio_bounds: tuple[float, float] = (0.6, 0.8),
+        lora_rank_bounds: tuple[int, int] = (8, 16),
+        lora_top_fraction_bounds: tuple[float, float] = (0.3, 0.4),
+    ) -> None:
+        super().__init__()
+
+        if num_layers < 2:
+            raise ValueError("num_layers must be at least 2 to support partial freezing")
+
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, dropout=0.2)
-        self.fc = nn.Linear(hidden_size, num_classes)
+        self.lstm = nn.LSTM(
+            input_size,
+            hidden_size,
+            num_layers,
+            batch_first=True,
+            dropout=0.2,
+        )
         self.dropout = nn.Dropout(0.2)
+
+        freeze_ratio = sum(freeze_ratio_bounds) / 2.0
+        freeze_ratio = min(max(freeze_ratio, 0.0), 1.0)
+        freeze_layers = max(1, min(num_layers - 1, int(round(num_layers * freeze_ratio))))
+        self.frozen_layers = freeze_layers
+        self._freeze_bottom_layers(freeze_layers)
+
+        top_fraction = sum(lora_top_fraction_bounds) / 2.0
+        top_fraction = min(max(top_fraction, 0.0), 1.0)
+        lora_rank_target = int(round(sum(lora_rank_bounds) / 2.0))
+        lora_rank_target = max(lora_rank_bounds[0], min(lora_rank_bounds[1], lora_rank_target))
+
+        self.lora_top_fraction = top_fraction
+        self.lora_rank = lora_rank_target
+
+        self.lora_adapter = LoRAAdapter(
+            hidden_size,
+            rank=lora_rank_target,
+            top_fraction=top_fraction,
+            alpha=1.0,
+        )
+
+        self.fc = nn.Linear(hidden_size, num_classes)
+
+    def _freeze_bottom_layers(self, freeze_layers: int) -> None:
+        for name, param in self.lstm.named_parameters():
+            layer_idx = self._extract_layer_index(name)
+            if layer_idx is None:
+                continue
+            if layer_idx < freeze_layers:
+                param.requires_grad = False
+
+    @staticmethod
+    def _extract_layer_index(parameter_name: str) -> Optional[int]:
+        marker = "_l"
+        if marker not in parameter_name:
+            return None
+        try:
+            suffix = parameter_name.split(marker, 1)[1]
+            digits = []
+            for char in suffix:
+                if char.isdigit():
+                    digits.append(char)
+                else:
+                    break
+            if not digits:
+                return None
+            return int("".join(digits))
+        except (IndexError, ValueError):
+            return None
 
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
@@ -72,6 +190,7 @@ class LSTMModel(nn.Module):
 
         out, _ = self.lstm(x, (h0, c0))
         out = self.dropout(out[:, -1, :])
+        out = self.lora_adapter(out)
         out = self.fc(out)
         return out
 
@@ -181,6 +300,23 @@ class ModelTrainer:
 
         # Initialize model
         model = LSTMModel(input_size=X_train.shape[1])
+
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        frozen_ratio = 1.0 - (trainable_params / total_params if total_params else 0.0)
+
+        logger.info(
+            "Model freeze summary: frozen_layers=%s/%s (%.2f%% frozen params)",
+            getattr(model, "frozen_layers", "?"),
+            model.num_layers,
+            frozen_ratio * 100.0,
+        )
+        logger.info(
+            "LoRA configuration: rank=%s, top_fraction=%.2f",
+            getattr(model, "lora_rank", "?"),
+            getattr(model, "lora_top_fraction", 0.0),
+        )
+
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 

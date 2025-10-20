@@ -9,7 +9,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [ ] **FIX + Multivenue Depth**: Parse and merge full-depth (L1-L20) order books from all connected exchanges to construct a unified liquidity map.
 - [ ] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
 - [ ] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
-- [ ] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
+- [x] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
 - [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
 - [ ] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
 - [ ] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
@@ -61,7 +61,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [ ] **Mutation Ledger**: Record all parameter mutations, fitness improvements, and exploitability results.
 - [ ] **Surrogate Simulation**: Fast proxy model (GraphNet) for testing policy evolution.
 - [ ] **Curriculum Scheduler**: Inject rare or catastrophic events into training more frequently.
-- [ ] **Auto-Demotion**: Any live policy failing drift or exploitability gates is rolled back automatically.
+- [x] **Auto-Demotion**: Any live policy failing drift or exploitability gates is rolled back automatically.
 
 ---
 
@@ -78,7 +78,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **Dominance Gate**: Execute only if chosen action dominates all alternatives across belief ensemble.
 - [ ] **Pre-Trade Loss Bound**: Compute worst-case fill outcome; veto if lower bound â‰¤ 0.
-- [ ] **Structural Exits**: Use liquidity-weighted unwind paths, not fixed stops.
+- [x] **Structural Exits**: Use liquidity-weighted unwind paths, not fixed stops.
 - [ ] **Portfolio-Level Antifragility**: Diversify by regime correlation, not instrument name.
 
 ---
@@ -88,7 +88,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [ ] **Time Integrity Daemon**: Halt if system clock drift > threshold.
 - [ ] **Data Lineage Hashing**: Every decision references immutable feature hashes.
 - [x] **Adversarial Feed Quarantine**: Suspicious ticks isolated until verified.
-- [ ] **Manipulation Sentinel**: Detect and block spoof-like order patterns.
+- [x] **Manipulation Sentinel**: Detect and block spoof-like order patterns.
 - [ ] **Compliance-Constrained Planner**: Rollouts obey regulatory and venue constraints.
 - [ ] **Plain-Language Rationale Export**: Each trade emits an explainable reason tied to observable factors.
 
@@ -104,7 +104,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## XI. CI/CD & Governance
 
-- [ ] **Automated Promotion/Reversion**: CI promotes only fully passing models; auto-rollbacks on gate regression.
+- [x] **Automated Promotion/Reversion**: CI promotes only fully passing models; auto-rollbacks on gate regression.
 - [ ] **Gate Dashboard**: Real-time visual of each metric vs threshold.
 - [x] **Immutable Audit Trail**: Sign and store every policy, belief, and runtime decision.
 - [ ] **Performance Covenant**: Gate advancement on sharpness, calibration, and exploitability metrics.

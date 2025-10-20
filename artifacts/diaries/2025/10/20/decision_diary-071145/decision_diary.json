@@ -1,0 +1,33 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "bootstrap release",
+        "reflection_summary": {},
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T071145Z-53a68d1d",
+      "metadata": {},
+      "notes": [],
+      "outcomes": {},
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2025-10-20T07:11:45.364855+00:00",
+      "regime_state": {
+        "confidence": 1.0,
+        "features": {},
+        "regime": "calm",
+        "timestamp": "2025-10-20T07:11:45.364786+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-20T07:11:45.364889+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T07:11:45.364764+00:00",
+    "probes": {}
+  }
+}

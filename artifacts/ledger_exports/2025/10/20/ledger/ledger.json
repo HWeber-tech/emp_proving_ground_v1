@@ -5,11 +5,11 @@
         "qa",
         "risk"
       ],
-      "created_at": "2025-10-20T05:48:56.244985+00:00",
+      "created_at": "2025-10-20T07:13:23.775610+00:00",
       "evidence_id": "replay-evidence",
       "history": [
         {
-          "applied_at": "2025-10-20T05:48:56.244985+00:00",
+          "applied_at": "2025-10-20T07:13:23.775610+00:00",
           "approvals": [
             "qa",
             "risk"
@@ -29,8 +29,8 @@
       "policy_id": "bootstrap-strategy",
       "stage": "limited_live",
       "tactic_id": "bootstrap-strategy",
-      "updated_at": "2025-10-20T05:48:56.244985+00:00"
+      "updated_at": "2025-10-20T07:13:23.775610+00:00"
     }
   },
-  "updated_at": "2025-10-20T05:48:56.245124+00:00"
+  "updated_at": "2025-10-20T07:13:23.775761+00:00"
 }

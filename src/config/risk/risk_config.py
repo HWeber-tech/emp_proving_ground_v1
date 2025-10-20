@@ -42,6 +42,26 @@ class RiskConfig(BaseModel):
         default=False,
         description="Research mode disables some safety checks",
     )
+    turnover_cap_per_minute: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Maximum absolute turnover allowed within any rolling minute window (notional units)",
+    )
+    turnover_cap_per_hour: Decimal | None = Field(
+        default=None,
+        ge=Decimal("0"),
+        description="Maximum absolute turnover allowed within any rolling hour window (notional units)",
+    )
+    inventory_mean_reversion_half_life_minutes: float = Field(
+        default=15.0,
+        gt=0.0,
+        description="Half-life in minutes for exponential decay applied to inventory mean-reversion pressure",
+    )
+    inventory_pressure_normaliser: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        description="Optional notional scale used when normalising inventory pressure computations",
+    )
     target_volatility_pct: Decimal = Field(
         default=Decimal("0.10"),
         description="Target volatility for volatility-target sizing",
@@ -96,6 +116,12 @@ class RiskConfig(BaseModel):
         if v <= 0:
             raise ValueError("Position sizes must be positive")
         return v
+
+    @validator("inventory_mean_reversion_half_life_minutes")
+    def validate_inventory_half_life(cls, value: float) -> float:
+        if value <= 0.0:
+            raise ValueError("inventory_mean_reversion_half_life_minutes must be positive")
+        return value
 
     @validator("sector_exposure_limits", pre=True)
     def _normalise_sector_limit_keys(
@@ -176,6 +202,12 @@ class RiskConfig(BaseModel):
         if isinstance(max_drawdown, Decimal) and isinstance(max_risk, Decimal):
             if max_drawdown < max_risk:
                 raise ValueError("max_drawdown_pct must be >= max_risk_per_trade_pct")
+
+        per_min = values.get("turnover_cap_per_minute")
+        per_hour = values.get("turnover_cap_per_hour")
+        if isinstance(per_min, Decimal) and isinstance(per_hour, Decimal):
+            if per_hour < per_min:
+                raise ValueError("turnover_cap_per_hour must be >= turnover_cap_per_minute")
 
         mandatory_stop_loss = values.get("mandatory_stop_loss")
         research_mode = values.get("research_mode")

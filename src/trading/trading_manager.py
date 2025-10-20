@@ -135,10 +135,20 @@ class TradeIntentOutcome:
         return payload
 
 
+@dataclass(frozen=True, slots=True)
+class InventoryGuardDecision:
+    """Result of evaluating turnover and inventory constraints."""
+
+    allowed: bool
+    reason: str | None = None
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
 @dataclass(slots=True)
 class _PositionState:
     quantity: float = 0.0
     avg_price: float = 0.0
+    last_price: float = 0.0
 
 
 @dataclass(slots=True)
@@ -163,6 +173,54 @@ class StrategyExecutionStats:
     last_error: str | None = None
     last_order_id: str | None = None
     last_updated: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    turnover_cap_per_minute: float | None = None
+    turnover_cap_per_hour: float | None = None
+    inventory_half_life_minutes: float = 15.0
+    inventory_normaliser: float | None = None
+    inventory_pressure_blocks: int = 0
+    turnover_cap_blocks_minute: int = 0
+    turnover_cap_blocks_hour: int = 0
+    _turnover_minute_records: deque[tuple[datetime, float]] = field(
+        default_factory=deque, init=False, repr=False
+    )
+    _turnover_hour_records: deque[tuple[datetime, float]] = field(
+        default_factory=deque, init=False, repr=False
+    )
+    _turnover_minute_sum: float = field(default=0.0, init=False, repr=False)
+    _turnover_hour_sum: float = field(default=0.0, init=False, repr=False)
+    _avg_trade_notional: float = field(default=0.0, init=False, repr=False)
+    _inventory_pressure_state: float = field(default=0.0, init=False, repr=False)
+    _inventory_last_update: datetime | None = field(default=None, init=False, repr=False)
+    _inventory_net_notional: float = field(default=0.0, init=False, repr=False)
+    _inventory_gross_notional: float = field(default=0.0, init=False, repr=False)
+    _inventory_net_quantity: float = field(default=0.0, init=False, repr=False)
+    _inventory_normaliser_value: float = field(default=1.0, init=False, repr=False)
+    _inventory_ema_alpha: float = field(default=0.2, init=False, repr=False)
+
+    def configure_inventory(
+        self,
+        *,
+        turnover_cap_per_minute: float | None,
+        turnover_cap_per_hour: float | None,
+        inventory_half_life_minutes: float | None = None,
+        inventory_normaliser: float | None = None,
+    ) -> None:
+        self.turnover_cap_per_minute = (
+            float(turnover_cap_per_minute)
+            if turnover_cap_per_minute is not None and turnover_cap_per_minute > 0.0
+            else None
+        )
+        self.turnover_cap_per_hour = (
+            float(turnover_cap_per_hour)
+            if turnover_cap_per_hour is not None and turnover_cap_per_hour > 0.0
+            else None
+        )
+        if inventory_half_life_minutes is not None and inventory_half_life_minutes > 0.0:
+            self.inventory_half_life_minutes = float(inventory_half_life_minutes)
+        if inventory_normaliser is not None and inventory_normaliser > 0.0:
+            self.inventory_normaliser = float(inventory_normaliser)
+        elif inventory_normaliser is not None:
+            self.inventory_normaliser = None
 
     def record_success(
         self,
@@ -174,10 +232,14 @@ class StrategyExecutionStats:
         notional: float,
         latency_ms: float | None,
         order_id: Any,
+        timestamp: datetime | None = None,
     ) -> None:
+        now = timestamp or datetime.now(tz=timezone.utc)
+        trade_notional = abs(float(notional))
+        trade_quantity = abs(float(quantity))
         self.executed += 1
-        self.total_notional += abs(float(notional))
-        self.volume += abs(float(quantity))
+        self.total_notional += trade_notional
+        self.volume += trade_quantity
         if order_id not in (None, ""):
             self.last_order_id = str(order_id)
         self.last_error = None
@@ -188,7 +250,7 @@ class StrategyExecutionStats:
         realised_delta, closed_trade = self._apply_trade(
             symbol=symbol,
             side=side,
-            quantity=quantity,
+            quantity=trade_quantity,
             price=price,
         )
         self.realized_pnl += realised_delta
@@ -198,7 +260,19 @@ class StrategyExecutionStats:
             self.losses += 1
         if closed_trade:
             self.completed_trades += 1
-        self.last_updated = datetime.now(tz=timezone.utc)
+
+        if trade_notional > 0.0:
+            if self._avg_trade_notional <= 0.0:
+                self._avg_trade_notional = trade_notional
+            else:
+                alpha = self._inventory_ema_alpha
+                self._avg_trade_notional = (
+                    alpha * trade_notional + (1.0 - alpha) * self._avg_trade_notional
+                )
+
+        self._register_turnover(timestamp=now, notional=trade_notional)
+        self._refresh_inventory_metrics(timestamp=now)
+        self.last_updated = now
 
     def record_failure(self, reason: str | None = None) -> None:
         self.failed += 1
@@ -220,6 +294,15 @@ class StrategyExecutionStats:
         if reason:
             self.last_error = reason
         self.last_updated = datetime.now(tz=timezone.utc)
+
+    def record_inventory_block(self, reason: str) -> None:
+        self.record_blocked(reason)
+        if reason == "turnover_cap_minute":
+            self.turnover_cap_blocks_minute += 1
+        elif reason == "turnover_cap_hour":
+            self.turnover_cap_blocks_hour += 1
+        else:
+            self.inventory_pressure_blocks += 1
 
     def avg_latency_ms(self) -> float | None:
         if self.latency_samples == 0:
@@ -255,13 +338,110 @@ class StrategyExecutionStats:
             symbol: {
                 "quantity": state.quantity,
                 "avg_price": state.avg_price,
+                "last_price": state.last_price,
             }
             for symbol, state in self.positions.items()
             if abs(state.quantity) > 1e-9
         }
         if open_positions:
             payload["open_positions"] = open_positions
+
+        payload["inventory_state"] = self.inventory_snapshot()
+        payload["turnover_state"] = self.turnover_snapshot()
+        payload["inventory_blocks"] = {
+            "pressure": self.inventory_pressure_blocks,
+            "per_minute_cap": self.turnover_cap_blocks_minute,
+            "per_hour_cap": self.turnover_cap_blocks_hour,
+        }
         return payload
+
+    def inventory_snapshot(self, timestamp: datetime | None = None) -> dict[str, Any]:
+        now = timestamp or datetime.now(tz=timezone.utc)
+        self._refresh_inventory_metrics(timestamp=now)
+        return {
+            "net_quantity": self._inventory_net_quantity,
+            "net_notional": self._inventory_net_notional,
+            "gross_notional": self._inventory_gross_notional,
+            "mean_reversion_pressure": self._inventory_pressure_state,
+            "normaliser": self._inventory_normaliser_value,
+            "half_life_minutes": self.inventory_half_life_minutes,
+            "updated_at": now.isoformat(),
+        }
+
+    def turnover_snapshot(self, timestamp: datetime | None = None) -> dict[str, Any]:
+        now = timestamp or datetime.now(tz=timezone.utc)
+        self._prune_turnover(now)
+        per_minute = max(self._turnover_minute_sum, 0.0)
+        per_hour = max(self._turnover_hour_sum, 0.0)
+        snapshot: dict[str, Any] = {
+            "per_minute": per_minute,
+            "per_hour": per_hour,
+            "cap_per_minute": self.turnover_cap_per_minute,
+            "cap_per_hour": self.turnover_cap_per_hour,
+        }
+        if self.turnover_cap_per_minute:
+            snapshot["minute_utilisation"] = per_minute / self.turnover_cap_per_minute
+        if self.turnover_cap_per_hour:
+            snapshot["hour_utilisation"] = per_hour / self.turnover_cap_per_hour
+        snapshot["updated_at"] = now.isoformat()
+        return snapshot
+
+    def assess_inventory_guard(
+        self,
+        *,
+        symbol: str,
+        side: str | None,
+        quantity: float,
+        price: float,
+        notional: float,
+        timestamp: datetime,
+    ) -> InventoryGuardDecision:
+        now = timestamp if timestamp.tzinfo else timestamp.replace(tzinfo=timezone.utc)
+        side_value = (side or "BUY").upper()
+        trade_notional = abs(float(notional))
+        trade_quantity = abs(float(quantity))
+        price_abs = abs(float(price))
+
+        current_turnover = self.turnover_snapshot(now)
+        projected_minute = current_turnover["per_minute"] + trade_notional
+        projected_hour = current_turnover["per_hour"] + trade_notional
+
+        turnover_metadata = dict(current_turnover)
+        turnover_metadata["projected_per_minute"] = projected_minute
+        turnover_metadata["projected_per_hour"] = projected_hour
+
+        inventory_metadata = self.inventory_snapshot(now)
+        projected_pressure = self._projected_pressure(
+            symbol=symbol,
+            side=side_value,
+            quantity=trade_quantity,
+            price=price_abs,
+        )
+        inventory_metadata["projected_pressure"] = projected_pressure
+
+        allowed = True
+        reason: str | None = None
+        if (
+            self.turnover_cap_per_minute is not None
+            and projected_minute > self.turnover_cap_per_minute + 1e-9
+        ):
+            allowed = False
+            reason = "turnover_cap_minute"
+            turnover_metadata["blocked_by"] = "per_minute"
+        elif (
+            self.turnover_cap_per_hour is not None
+            and projected_hour > self.turnover_cap_per_hour + 1e-9
+        ):
+            allowed = False
+            reason = "turnover_cap_hour"
+            turnover_metadata["blocked_by"] = "per_hour"
+
+        metadata = {
+            "turnover": turnover_metadata,
+            "inventory": inventory_metadata,
+        }
+
+        return InventoryGuardDecision(allowed=allowed, reason=reason, metadata=metadata)
 
     def _win_rate(self) -> float | None:
         total = self.wins + self.losses
@@ -274,6 +454,115 @@ class StrategyExecutionStats:
             return None
         return self.realized_pnl / self.total_notional
 
+    def _register_turnover(self, *, timestamp: datetime, notional: float) -> None:
+        value = abs(float(notional))
+        if value <= 0.0:
+            self._prune_turnover(timestamp)
+            return
+        record = (timestamp, value)
+        self._turnover_minute_records.append(record)
+        self._turnover_hour_records.append(record)
+        self._turnover_minute_sum += value
+        self._turnover_hour_sum += value
+        self._prune_turnover(timestamp)
+
+    def _prune_turnover(self, timestamp: datetime) -> None:
+        cutoff_minute = timestamp - timedelta(minutes=1)
+        while self._turnover_minute_records and self._turnover_minute_records[0][0] <= cutoff_minute:
+            _, aged_value = self._turnover_minute_records.popleft()
+            self._turnover_minute_sum -= aged_value
+        cutoff_hour = timestamp - timedelta(hours=1)
+        while self._turnover_hour_records and self._turnover_hour_records[0][0] <= cutoff_hour:
+            _, aged_value = self._turnover_hour_records.popleft()
+            self._turnover_hour_sum -= aged_value
+        if self._turnover_minute_sum < 0.0:
+            self._turnover_minute_sum = 0.0
+        if self._turnover_hour_sum < 0.0:
+            self._turnover_hour_sum = 0.0
+
+    def _refresh_inventory_metrics(self, *, timestamp: datetime) -> None:
+        net_qty, net_notional, gross_notional = self._compute_inventory_metrics_for_positions(
+            self.positions
+        )
+        normaliser_value = self._determine_normaliser_value(gross_notional)
+
+        target_pressure = 0.0
+        if normaliser_value > 0.0:
+            target_pressure = math.tanh(net_notional / normaliser_value)
+
+        if self._inventory_last_update is None:
+            self._inventory_pressure_state = target_pressure
+        else:
+            delta_seconds = (timestamp - self._inventory_last_update).total_seconds()
+            if delta_seconds < 0.0:
+                delta_seconds = 0.0
+            half_life = max(self.inventory_half_life_minutes, 1e-6)
+            decay = math.exp(-math.log(2) * (delta_seconds / 60.0) / half_life)
+            self._inventory_pressure_state = (
+                self._inventory_pressure_state * decay + target_pressure * (1.0 - decay)
+            )
+        self._inventory_pressure_state = max(-1.0, min(1.0, self._inventory_pressure_state))
+
+        self._inventory_last_update = timestamp
+        self._inventory_net_quantity = net_qty
+        self._inventory_net_notional = net_notional
+        self._inventory_gross_notional = gross_notional
+        self._inventory_normaliser_value = normaliser_value
+
+    def _determine_normaliser_value(self, gross_notional: float) -> float:
+        candidates = [1.0]
+        if self.inventory_normaliser is not None and self.inventory_normaliser > 0.0:
+            candidates.append(self.inventory_normaliser)
+        if self._avg_trade_notional > 0.0:
+            candidates.append(self._avg_trade_notional)
+        elif gross_notional > 0.0:
+            candidates.append(gross_notional)
+        return float(max(candidates))
+
+    @staticmethod
+    def _compute_inventory_metrics_for_positions(
+        positions: Mapping[str, _PositionState]
+    ) -> tuple[float, float, float]:
+        net_qty = 0.0
+        net_notional = 0.0
+        gross_notional = 0.0
+        for state in positions.values():
+            price_basis = state.last_price if state.last_price else state.avg_price
+            price_val = float(price_basis)
+            net_qty += state.quantity
+            net_notional += state.quantity * price_val
+            gross_notional += abs(state.quantity) * abs(price_val)
+        return net_qty, net_notional, gross_notional
+
+    def _projected_pressure(
+        self,
+        *,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+    ) -> float:
+        snapshot = {
+            sym: _PositionState(
+                quantity=state.quantity,
+                avg_price=state.avg_price,
+                last_price=state.last_price,
+            )
+            for sym, state in self.positions.items()
+        }
+        self._apply_trade_to_positions(
+            snapshot,
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            price=price,
+        )
+        _, net_notional, gross_notional = self._compute_inventory_metrics_for_positions(snapshot)
+        normaliser_value = self._determine_normaliser_value(gross_notional)
+        if normaliser_value <= 0.0:
+            return 0.0
+        return max(-1.0, min(1.0, math.tanh(net_notional / normaliser_value)))
+
     def _apply_trade(
         self,
         *,
@@ -282,14 +571,31 @@ class StrategyExecutionStats:
         quantity: float,
         price: float,
     ) -> tuple[float, bool]:
+        return self._apply_trade_to_positions(
+            self.positions,
+            symbol=symbol,
+            side=side,
+            quantity=quantity,
+            price=price,
+        )
+
+    @staticmethod
+    def _apply_trade_to_positions(
+        positions: dict[str, _PositionState],
+        *,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+    ) -> tuple[float, bool]:
         qty = float(quantity)
-        if qty <= 0:
+        if qty <= 0.0:
             return 0.0, False
 
-        state = self.positions.get(symbol)
+        state = positions.get(symbol)
         if state is None:
             state = _PositionState()
-            self.positions[symbol] = state
+            positions[symbol] = state
 
         position_qty = state.quantity
         avg_price = state.avg_price
@@ -331,11 +637,11 @@ class StrategyExecutionStats:
 
         state.quantity = new_qty
         state.avg_price = new_avg
+        state.last_price = float(price)
         if abs(state.quantity) < 1e-9:
-            # Remove flat positions to keep summaries tidy.
-            self.positions.pop(symbol, None)
+            positions.pop(symbol, None)
         else:
-            self.positions[symbol] = state
+            positions[symbol] = state
         return realised, closed_trade
 
 def _coerce_risk_config(
@@ -477,6 +783,27 @@ class TradingManager:
             }
         )
         self._risk_config = effective_config
+        self._inventory_half_life_minutes = max(
+            float(effective_config.inventory_mean_reversion_half_life_minutes), 1e-6
+        )
+        normaliser_value = effective_config.inventory_pressure_normaliser
+        self._inventory_normaliser: float | None = (
+            float(normaliser_value)
+            if normaliser_value is not None and float(normaliser_value) > 0.0
+            else None
+        )
+        turnover_minute_value = effective_config.turnover_cap_per_minute
+        self._turnover_cap_per_minute: float | None = (
+            float(turnover_minute_value)
+            if turnover_minute_value is not None and float(turnover_minute_value) > 0.0
+            else None
+        )
+        turnover_hour_value = effective_config.turnover_cap_per_hour
+        self._turnover_cap_per_hour: float | None = (
+            float(turnover_hour_value)
+            if turnover_hour_value is not None and float(turnover_hour_value) > 0.0
+            else None
+        )
         self._portfolio_risk_manager: RiskManager = create_risk_manager(
             config=effective_config,
             initial_balance=initial_equity,
@@ -666,6 +993,35 @@ class TradingManager:
         self._risk_config = new_config
         self._risk_policy = RiskPolicy.from_config(new_config)
         self._last_policy_snapshot = None
+        self._inventory_half_life_minutes = max(
+            float(new_config.inventory_mean_reversion_half_life_minutes), 1e-6
+        )
+        normaliser_value = new_config.inventory_pressure_normaliser
+        self._inventory_normaliser = (
+            float(normaliser_value)
+            if normaliser_value is not None and float(normaliser_value) > 0.0
+            else None
+        )
+        turnover_minute_value = new_config.turnover_cap_per_minute
+        self._turnover_cap_per_minute = (
+            float(turnover_minute_value)
+            if turnover_minute_value is not None and float(turnover_minute_value) > 0.0
+            else None
+        )
+        turnover_hour_value = new_config.turnover_cap_per_hour
+        self._turnover_cap_per_hour = (
+            float(turnover_hour_value)
+            if turnover_hour_value is not None and float(turnover_hour_value) > 0.0
+            else None
+        )
+
+        for stats in self._strategy_stats.values():
+            stats.configure_inventory(
+                turnover_cap_per_minute=self._turnover_cap_per_minute,
+                turnover_cap_per_hour=self._turnover_cap_per_hour,
+                inventory_half_life_minutes=self._inventory_half_life_minutes,
+                inventory_normaliser=self._inventory_normaliser,
+            )
 
         if propagate:
             try:
@@ -1113,6 +1469,62 @@ class TradingManager:
                 original_quantity_float = float(quantity)
                 notional = abs(original_quantity_float) * abs(float(price))
                 drift_notional_value = notional
+                side_value = self._extract_side(validated_intent) or side_hint or "BUY"
+
+                inventory_decision = strategy_stats.assess_inventory_guard(
+                    symbol=symbol,
+                    side=side_value,
+                    quantity=abs(original_quantity_float),
+                    price=float(price),
+                    notional=notional,
+                    timestamp=started_wall,
+                )
+                if not inventory_decision.allowed:
+                    block_reason = inventory_decision.reason or "inventory_guard_block"
+                    outcome_status = (
+                        "turnover_capped" if block_reason.startswith("turnover_cap") else "inventory_blocked"
+                    )
+                    metadata_payload = dict(inventory_decision.metadata)
+                    metadata_payload["reason"] = block_reason
+                    self._maybe_attach_guardrails(
+                        metadata_payload,
+                        validated_intent,
+                        event,
+                    )
+                    strategy_stats.record_inventory_block(block_reason)
+                    self._record_experiment_event(
+                        event_id=event_id,
+                        status=outcome_status,
+                        strategy_id=strategy_id,
+                        symbol=symbol,
+                        confidence=confidence,
+                        notional=notional,
+                        metadata=metadata_payload,
+                        decision=self._get_last_risk_decision(),
+                        fast_weight=fast_weight_metadata,
+                    )
+                    drift_event_status = outcome_status
+                    drift_confidence_value = confidence
+                    drift_notional_value = notional
+                    trade_outcome = TradeIntentOutcome(
+                        status=outcome_status,
+                        executed=False,
+                        throttle=self.get_trade_throttle_snapshot(),
+                        metadata=metadata_payload,
+                    )
+                    if gate_decision is not None and not drift_event_emitted:
+                        await self._publish_drift_gate_event(
+                            decision=gate_decision,
+                            event_id=event_id,
+                            status=drift_event_status,
+                            strategy_id=strategy_id,
+                            symbol=symbol,
+                            confidence=drift_confidence_value,
+                            notional=drift_notional_value,
+                            release_metadata=None,
+                        )
+                        drift_event_emitted = True
+                    return trade_outcome
 
                 throttle_snapshot: Mapping[str, Any] | None = None
                 throttle_blocked = False
@@ -1144,6 +1556,8 @@ class TradingManager:
                         metadata_payload["retry_in_seconds"] = throttle_decision.retry_in_seconds
                     if gate_decision_payload is not None:
                         metadata_payload["drift_gate"] = dict(gate_decision_payload)
+                    metadata_payload["turnover"] = strategy_stats.turnover_snapshot()
+                    metadata_payload["inventory_state"] = strategy_stats.inventory_snapshot()
                     self._maybe_attach_guardrails(
                         metadata_payload,
                         validated_intent,
@@ -1466,7 +1880,6 @@ class TradingManager:
                             self._record_execution_success(latency_ms, result)
                             decision = self._get_last_risk_decision()
                         if self._execution_stats.get("last_successful_order"):
-                            side_value = self._extract_side(validated_intent) or side_hint or "BUY"
                             strategy_stats.record_success(
                                 symbol=symbol,
                                 side=side_value,
@@ -1475,6 +1888,7 @@ class TradingManager:
                                 notional=float(notional),
                                 latency_ms=latency_ms,
                                 order_id=result,
+                                timestamp=datetime.now(tz=timezone.utc),
                             )
                             if notional > 0:
                                 self._roi_executed_trades += 1
@@ -1487,6 +1901,12 @@ class TradingManager:
                             }
                             if throttle_scaling_summary:
                                 success_metadata.update(throttle_scaling_summary)
+                            success_metadata["inventory_state"] = (
+                                strategy_stats.inventory_snapshot()
+                            )
+                            success_metadata["turnover_state"] = (
+                                strategy_stats.turnover_snapshot()
+                            )
                             if gate_decision_payload is not None:
                                 success_metadata["drift_gate"] = dict(gate_decision_payload)
                             release_metadata = self._extract_release_execution_metadata(
@@ -3462,8 +3882,21 @@ class TradingManager:
         key = strategy_id or "unknown"
         stats = self._strategy_stats.get(key)
         if stats is None:
-            stats = StrategyExecutionStats(strategy_id=key)
+            stats = StrategyExecutionStats(
+                strategy_id=key,
+                turnover_cap_per_minute=self._turnover_cap_per_minute,
+                turnover_cap_per_hour=self._turnover_cap_per_hour,
+                inventory_half_life_minutes=self._inventory_half_life_minutes,
+                inventory_normaliser=self._inventory_normaliser,
+            )
             self._strategy_stats[key] = stats
+        else:
+            stats.configure_inventory(
+                turnover_cap_per_minute=self._turnover_cap_per_minute,
+                turnover_cap_per_hour=self._turnover_cap_per_hour,
+                inventory_half_life_minutes=self._inventory_half_life_minutes,
+                inventory_normaliser=self._inventory_normaliser,
+            )
         return stats
 
     def get_strategy_execution_summary(self) -> Mapping[str, Any]:

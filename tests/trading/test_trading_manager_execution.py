@@ -61,7 +61,7 @@ from src.trading.execution.resource_monitor import ResourceUsageMonitor
 from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 from src.trading.gating import DriftSentryGate
 from src.trading.risk.risk_api import RISK_API_RUNBOOK
-from src.trading.trading_manager import TradingManager
+from src.trading.trading_manager import StrategyExecutionStats, TradingManager
 from src.trading.risk.guardrail_incidents import extract_guardrail_incident
 from tests.util import promotion_checklist_metadata
 
@@ -260,6 +260,95 @@ def test_trading_manager_requires_risk_config() -> None:
         )
 
 
+def test_strategy_execution_stats_inventory_pressure_and_decay() -> None:
+    stats = StrategyExecutionStats(
+        strategy_id="alpha",
+        inventory_half_life_minutes=5.0,
+        inventory_normaliser=10.0,
+    )
+    now = datetime.now(tz=timezone.utc)
+    stats.record_success(
+        symbol="EURUSD",
+        side="BUY",
+        quantity=5.0,
+        price=1.2,
+        notional=6.0,
+        latency_ms=None,
+        order_id="t1",
+        timestamp=now,
+    )
+    initial_snapshot = stats.inventory_snapshot(now)
+    assert initial_snapshot["mean_reversion_pressure"] > 0.0
+
+    guard = stats.assess_inventory_guard(
+        symbol="EURUSD",
+        side="SELL",
+        quantity=2.5,
+        price=1.2,
+        notional=3.0,
+        timestamp=now + timedelta(seconds=1),
+    )
+    projected_pressure = guard.metadata["inventory"]["projected_pressure"]
+    assert abs(projected_pressure) < initial_snapshot["mean_reversion_pressure"]
+
+    later = now + timedelta(minutes=6)
+    stats.record_success(
+        symbol="EURUSD",
+        side="SELL",
+        quantity=5.0,
+        price=1.2,
+        notional=6.0,
+        latency_ms=None,
+        order_id="t2",
+        timestamp=later + timedelta(minutes=1),
+    )
+    flattened_snapshot = stats.inventory_snapshot(later + timedelta(minutes=1))
+    assert flattened_snapshot["mean_reversion_pressure"] < initial_snapshot["mean_reversion_pressure"] * 0.5
+
+
+def test_strategy_execution_stats_turnover_cap_enforcement() -> None:
+    stats = StrategyExecutionStats(
+        strategy_id="alpha",
+        turnover_cap_per_minute=50.0,
+        turnover_cap_per_hour=200.0,
+    )
+    now = datetime.now(tz=timezone.utc)
+    decision_initial = stats.assess_inventory_guard(
+        symbol="EURUSD",
+        side="BUY",
+        quantity=1.0,
+        price=10.0,
+        notional=10.0,
+        timestamp=now,
+    )
+    assert decision_initial.allowed is True
+
+    stats.record_success(
+        symbol="EURUSD",
+        side="BUY",
+        quantity=1.0,
+        price=10.0,
+        notional=10.0,
+        latency_ms=None,
+        order_id="turnover-1",
+        timestamp=now,
+    )
+
+    later = now + timedelta(seconds=10)
+    decision_block = stats.assess_inventory_guard(
+        symbol="EURUSD",
+        side="BUY",
+        quantity=4.5,
+        price=10.0,
+        notional=45.0,
+        timestamp=later,
+    )
+    assert decision_block.allowed is False
+    assert decision_block.reason == "turnover_cap_minute"
+    turnover_meta = decision_block.metadata["turnover"]
+    assert turnover_meta["projected_per_minute"] == pytest.approx(55.0)
+
+
 def test_trading_manager_accepts_custom_monitor_configuration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -295,6 +384,43 @@ def test_trading_manager_accepts_custom_monitor_configuration(
     stats = manager.get_execution_stats()
     assert stats["throughput"]["samples"] == 0
     assert stats["backlog"]["threshold_ms"] == pytest.approx(125.0)
+
+
+@pytest.mark.asyncio()
+async def test_turnover_cap_blocks_trade(monkeypatch: pytest.MonkeyPatch) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    manager = TradingManager(
+        event_bus=DummyBus(),
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=50_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+            turnover_cap_per_minute=Decimal("15"),
+            turnover_cap_per_hour=Decimal("100"),
+        ),
+    )
+    manager.execution_engine = ImmediateFillExecutionAdapter(manager.portfolio_monitor)
+
+    first_intent = SimpleIntent(symbol="EURUSD", quantity=1.0, price=10.0)
+    setattr(first_intent, "event_id", "turnover-cap-1")
+    first_outcome = await manager.on_trade_intent(first_intent)
+    assert first_outcome.executed is True
+
+    second_intent = SimpleIntent(symbol="EURUSD", quantity=1.0, price=10.0)
+    setattr(second_intent, "event_id", "turnover-cap-2")
+    outcome = await manager.on_trade_intent(second_intent)
+
+    assert outcome.status == "turnover_capped"
+    assert outcome.executed is False
+    assert outcome.metadata.get("reason") == "turnover_cap_minute"
+
+    summary = manager.get_strategy_execution_summary()
+    blocks = summary["unknown"]["inventory_blocks"]["per_minute_cap"]
+    assert blocks == 1
 
 
 def test_trading_manager_rejects_conflicting_monitor_configuration(

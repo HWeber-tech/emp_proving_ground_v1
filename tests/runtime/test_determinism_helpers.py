@@ -34,6 +34,13 @@ def test_resolve_seed_handles_missing_values() -> None:
     assert invalid == []
 
 
+def test_resolve_seed_accepts_integral_float_strings() -> None:
+    seed, invalid = resolve_seed({"RNG_SEED": "17.0"})
+
+    assert seed == 17
+    assert invalid == []
+
+
 def test_seed_runtime_overrides_pythonhashseed(monkeypatch) -> None:
     monkeypatch.setenv("PYTHONHASHSEED", "999")
     original_state = random.getstate()

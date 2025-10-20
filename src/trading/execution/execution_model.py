@@ -113,10 +113,69 @@ def estimate_total_cost_ticks(
     return total
 
 
+def calculate_dimensionless_delta_hat(
+    mid_now: float | int | None,
+    mid_future: float | int | None,
+    tick_size: float | int | None,
+    spread_ticks: float | int | None,
+    *,
+    spread_floor_ticks: float | int | None = None,
+) -> float:
+    """Normalise the forward mid-price change by the effective spread in ticks.
+
+    Implements roadmap task **B.3.2**::
+
+        delta_hat = (mid[t+H] - mid[t]) / (tick * max(spread, kσ))
+
+    Parameters
+    ----------
+    mid_now:
+        Observed mid-price at time ``t``.
+    mid_future:
+        Forward-looking mid-price at horizon ``t + H``.
+    tick_size:
+        Minimum price increment (``tick``) for the instrument.
+    spread_ticks:
+        Bid/ask spread expressed in ticks.
+    spread_floor_ticks:
+        Optional volatility-derived floor ``kσ`` in ticks.
+    """
+
+    mid_current = _safe_float(mid_now)
+    mid_horizon = _safe_float(mid_future)
+    tick = _safe_float(tick_size)
+    spread = _safe_float(spread_ticks)
+    spread_floor = _safe_float(spread_floor_ticks) if spread_floor_ticks is not None else None
+
+    if (
+        mid_current is None
+        or mid_horizon is None
+        or tick is None
+        or tick <= 0.0
+    ):
+        return 0.0
+
+    spread_value = spread if spread is not None else 0.0
+    effective_spread_ticks = max(
+        spread_value,
+        spread_floor if spread_floor is not None else 0.0,
+        0.0,
+    )
+    if effective_spread_ticks <= 0.0:
+        return 0.0
+
+    denom = tick * effective_spread_ticks
+    if denom == 0.0:
+        return 0.0
+
+    return (mid_horizon - mid_current) / denom
+
+
 __all__ = [
     "ExecContext",
     "estimate_slippage_bps",
     "estimate_commission_bps",
+    "calculate_dimensionless_delta_hat",
     "calculate_edge_ticks",
     "estimate_total_cost_ticks",
 ]

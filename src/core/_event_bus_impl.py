@@ -229,11 +229,17 @@ class AsyncEventBus:
             )
 
     async def publish(self, event: Event) -> None:
+        """Deprecated alias maintained for backwards compatibility."""
+        await self.publish_async(event)
+
+    async def publish_async(self, event: Event) -> None:
         """Enqueue event for async processing; logs and no-ops if not running."""
         if not self._running or self._loop is None:
             if not self._warned_not_running_publish:
                 self._warned_not_running_publish = True
-                logger.warning("AsyncEventBus.publish called while bus not running; event dropped")
+                logger.warning(
+                    "AsyncEventBus.publish called while bus not running; event dropped"
+                )
             self._record_dropped_event()
             return
         metadata = {
@@ -351,15 +357,15 @@ class AsyncEventBus:
     async def emit(
         self, topic: str, payload: dict[str, Any] | Any, source: str | None = None
     ) -> None:
-        """Deprecated alias: await publish(Event(...))."""
+        """Deprecated alias: await publish_async(Event(...))."""
         if not self._warned_emit_deprecated:
             self._warned_emit_deprecated = True
             warnings.warn(
-                "AsyncEventBus.emit() is deprecated; use publish(Event(type=..., payload=...))",
+                "AsyncEventBus.emit() is deprecated; use publish_async(Event(type=..., payload=...))",
                 DeprecationWarning,
                 stacklevel=2,
             )
-        await self.publish(Event(type=topic, payload=payload, source=source))
+        await self.publish_async(Event(type=topic, payload=payload, source=source))
 
     async def _worker(self) -> None:
         """Internal queue consumer."""

@@ -481,19 +481,30 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     belief_summary = attribution.get("belief")
     assert isinstance(belief_summary, dict)
     assert belief_summary.get("belief_id") == result.belief_state.belief_id
-    assert attribution.get("brief_explanation")
-    assert attribution.get("explanation") == attribution.get("brief_explanation")
+    brief_explanation = attribution.get("brief_explanation")
+    assert brief_explanation
+    assert attribution.get("explanation") == brief_explanation
     probes = attribution.get("probes")
     assert isinstance(probes, list) and probes, "expected attribution probes to be populated"
     probe_ids = {probe.get("probe_id") for probe in probes if isinstance(probe, Mapping)}
     assert "governance.guardrails" in probe_ids
     assert "governance.drift_sentry" in probe_ids
+    assert result.trade_metadata.get("brief_explanation") == brief_explanation
+    assert result.trade_metadata.get("policy_id") == attribution.get("policy_id")
+    assert result.trade_metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
     intent_attribution = trading_manager.intents[0]["metadata"].get("attribution")
     assert intent_attribution == attribution
+    intent_metadata = trading_manager.intents[0]["metadata"]
+    assert intent_metadata.get("brief_explanation") == brief_explanation
+    assert intent_metadata.get("policy_id") == attribution.get("policy_id")
+    assert intent_metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
     assert diary_store.entries(), "expected decision diary entry to be recorded"
     assert result.trade_outcome is not None
     assert result.trade_outcome.status == "executed"
     assert result.trade_outcome.metadata.get("attribution") == attribution
+    assert result.trade_outcome.metadata.get("brief_explanation") == brief_explanation
+    assert result.trade_outcome.metadata.get("policy_id") == attribution.get("policy_id")
+    assert result.trade_outcome.metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
     assert result.trade_outcome.metadata.get("guardrails") == guardrails
     entry = diary_store.entries()[0]
     trade_execution = entry.metadata.get("trade_execution")
@@ -506,6 +517,9 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert intent_coverage == expected_coverage
     assert result.trade_metadata.get("diary_coverage") == expected_coverage
     assert result.loop_result.metadata.get("diary_coverage") == expected_coverage
+    assert result.loop_result.metadata.get("brief_explanation") == brief_explanation
+    assert result.loop_result.metadata.get("policy_id") == attribution.get("policy_id")
+    assert result.loop_result.metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
     assert entry.metadata.get("diary_coverage") == expected_coverage
     assert entry.metadata.get("attribution") == attribution
     performance_health = entry.metadata.get("performance_health")
@@ -1297,9 +1311,13 @@ async def test_alpha_trade_runner_handles_missing_diary_entry(
     assert "diary_entry_id" not in attribution
     probes = attribution.get("probes")
     assert isinstance(probes, list) and probes
-    assert attribution.get("brief_explanation")
-    assert attribution.get("explanation") == attribution.get("brief_explanation")
+    brief_explanation = attribution.get("brief_explanation")
+    assert brief_explanation
+    assert attribution.get("explanation") == brief_explanation
     assert result.trade_metadata.get("diary_coverage", {}).get("missing") == 1
+    assert result.trade_metadata.get("brief_explanation") == brief_explanation
+    assert result.trade_metadata.get("policy_id") == attribution.get("policy_id")
+    assert "diary_entry_id" not in result.trade_metadata
 
     stats = runner.describe_diary_coverage()
     assert stats["iterations"] == 1
@@ -1315,6 +1333,9 @@ async def test_alpha_trade_runner_handles_missing_diary_entry(
         coverage_snapshot = intent_metadata.get("diary_coverage")
         assert isinstance(coverage_snapshot, Mapping)
         assert coverage_snapshot.get("missing") == 1
+        assert intent_metadata.get("brief_explanation") == brief_explanation
+        assert intent_metadata.get("policy_id") == attribution.get("policy_id")
+        assert "diary_entry_id" not in intent_metadata
 
     outcome = result.trade_outcome
     assert outcome is not None
@@ -1322,12 +1343,18 @@ async def test_alpha_trade_runner_handles_missing_diary_entry(
     assert isinstance(coverage_snapshot, Mapping)
     assert coverage_snapshot.get("missing") == 1
     assert outcome.metadata.get("attribution") == attribution
+    assert outcome.metadata.get("brief_explanation") == brief_explanation
+    assert outcome.metadata.get("policy_id") == attribution.get("policy_id")
+    assert "diary_entry_id" not in outcome.metadata
 
     loop_metadata = result.loop_result.metadata
     assert loop_metadata.get("attribution") == attribution
     loop_coverage = loop_metadata.get("diary_coverage")
     assert isinstance(loop_coverage, Mapping)
     assert loop_coverage.get("missing") == 1
+    assert loop_metadata.get("brief_explanation") == brief_explanation
+    assert loop_metadata.get("policy_id") == attribution.get("policy_id")
+    assert "diary_entry_id" not in loop_metadata
 
     assert diary_store.entries(), "expected diary store to keep previously recorded entries"
 

@@ -263,10 +263,48 @@ class AlphaTradeLoopRunner:
             decision_bundle=loop_result.decision_bundle,
             diary_entry=diary_entry,
         )
+        brief_explanation_text = ""
+        policy_identifier = ""
+        diary_entry_identifier = ""
         if attribution_payload:
             trade_metadata["attribution"] = attribution_payload
+            explanation_value = (
+                attribution_payload.get("brief_explanation")
+                if isinstance(attribution_payload, Mapping)
+                else None
+            )
+            if not isinstance(explanation_value, str) or not explanation_value.strip():
+                explanation_value = (
+                    attribution_payload.get("explanation")
+                    if isinstance(attribution_payload, Mapping)
+                    else None
+                )
+            if isinstance(explanation_value, str):
+                brief_explanation_text = AlphaTradeLoopRunner._build_brief_explanation(
+                    explanation_value
+                )
+            if isinstance(attribution_payload, Mapping):
+                raw_policy_id = attribution_payload.get("policy_id")
+                if raw_policy_id:
+                    policy_identifier = str(raw_policy_id).strip()
+                raw_diary_entry_id = attribution_payload.get("diary_entry_id")
+                if raw_diary_entry_id:
+                    diary_entry_identifier = str(raw_diary_entry_id).strip()
         else:
             trade_metadata.pop("attribution", None)
+
+        if brief_explanation_text:
+            trade_metadata["brief_explanation"] = brief_explanation_text
+        else:
+            trade_metadata.pop("brief_explanation", None)
+
+        if policy_identifier:
+            trade_metadata["policy_id"] = policy_identifier
+
+        if diary_entry_identifier:
+            trade_metadata["diary_entry_id"] = diary_entry_identifier
+        else:
+            trade_metadata.pop("diary_entry_id", None)
 
         intent_payload = None
         if trade_plan.intent is not None:
@@ -278,6 +316,19 @@ class AlphaTradeLoopRunner:
                 metadata_payload["attribution"] = attribution_payload
             else:
                 metadata_payload.pop("attribution", None)
+
+            if brief_explanation_text:
+                metadata_payload["brief_explanation"] = brief_explanation_text
+            else:
+                metadata_payload.pop("brief_explanation", None)
+
+            if policy_identifier:
+                metadata_payload["policy_id"] = policy_identifier
+
+            if diary_entry_identifier:
+                metadata_payload["diary_entry_id"] = diary_entry_identifier
+            else:
+                metadata_payload.pop("diary_entry_id", None)
             if resolved_guardrails is not None:
                 metadata_payload["guardrails"] = self._merge_guardrail_payload(
                     metadata_payload.get("guardrails"),
@@ -329,6 +380,14 @@ class AlphaTradeLoopRunner:
             diary_annotations["attribution"] = attribution_payload
         if attribution_payload:
             loop_metadata_updates["attribution"] = attribution_payload
+            if brief_explanation_text:
+                loop_metadata_updates["brief_explanation"] = brief_explanation_text
+            if policy_identifier:
+                loop_metadata_updates["policy_id"] = policy_identifier
+            if diary_entry_identifier:
+                loop_metadata_updates["diary_entry_id"] = diary_entry_identifier
+        elif brief_explanation_text:
+            loop_metadata_updates["brief_explanation"] = brief_explanation_text
         if mitigation_payload:
             mitigation_copy = dict(mitigation_payload)
             if has_diary_entry:
@@ -940,6 +999,24 @@ class AlphaTradeLoopRunner:
 
         changed = False
 
+        brief_explanation_text = ""
+        policy_identifier = ""
+        diary_entry_identifier = ""
+        if isinstance(attribution_payload, Mapping):
+            explanation_value = attribution_payload.get("brief_explanation")
+            if not isinstance(explanation_value, str) or not explanation_value.strip():
+                explanation_value = attribution_payload.get("explanation")
+            if isinstance(explanation_value, str):
+                brief_explanation_text = AlphaTradeLoopRunner._build_brief_explanation(
+                    explanation_value
+                )
+            raw_policy_id = attribution_payload.get("policy_id")
+            if raw_policy_id:
+                policy_identifier = str(raw_policy_id).strip()
+            raw_diary_entry_id = attribution_payload.get("diary_entry_id")
+            if raw_diary_entry_id:
+                diary_entry_identifier = str(raw_diary_entry_id).strip()
+
         coverage_payload = dict(coverage_snapshot)
         if metadata.get("diary_coverage") != coverage_payload:
             metadata["diary_coverage"] = coverage_payload
@@ -950,6 +1027,25 @@ class AlphaTradeLoopRunner:
                 metadata["attribution"] = attribution_payload
                 changed = True
         elif metadata.pop("attribution", None) is not None:
+            changed = True
+
+        if brief_explanation_text:
+            if metadata.get("brief_explanation") != brief_explanation_text:
+                metadata["brief_explanation"] = brief_explanation_text
+                changed = True
+        elif metadata.pop("brief_explanation", None) is not None:
+            changed = True
+
+        if policy_identifier:
+            if metadata.get("policy_id") != policy_identifier:
+                metadata["policy_id"] = policy_identifier
+                changed = True
+
+        if diary_entry_identifier:
+            if metadata.get("diary_entry_id") != diary_entry_identifier:
+                metadata["diary_entry_id"] = diary_entry_identifier
+                changed = True
+        elif metadata.pop("diary_entry_id", None) is not None:
             changed = True
 
         if guardrails is not None:
@@ -1764,6 +1860,11 @@ class AlphaTradeLoopRunner:
             "regime": regime_signal.regime_state.regime,
             "confidence": intent_confidence,
         }
+
+        for key in ("brief_explanation", "policy_id", "diary_entry_id"):
+            value = metadata.get(key)
+            if value:
+                intent_metadata[key] = value
 
         def _attach_metadata_block(key: str) -> None:
             value = metadata.get(key)

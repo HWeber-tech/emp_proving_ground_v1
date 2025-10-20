@@ -70,6 +70,14 @@ async def test_phase3_orchestrator_pipeline_smoke(monkeypatch: pytest.MonkeyPatc
         assert overall["success_ratio"] >= 0.0
         assert overall["presence"]["adversarial"] is True
         assert overall["presence"]["understanding"] is True
+
+        scheduler = analysis["scheduler"]
+        assert scheduler["budget"] >= scheduler["consumed"]
+        decisions = {entry["task"]: entry for entry in scheduler["decisions"]}
+        assert decisions["predictive"]["selected"] is True
+        assert analysis["systems"]["predictive"]["information_gain"] > 0
+        skipped = [entry for entry in scheduler["decisions"] if not entry["selected"]]
+        assert skipped, "expected at least one task to be deferred by the scheduler"
     finally:
         await orchestrator.stop()
         await event_bus.stop()

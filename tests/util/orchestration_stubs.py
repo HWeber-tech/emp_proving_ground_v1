@@ -177,6 +177,16 @@ def install_phase3_orchestrator(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     )
 
     repo_root = Path(__file__).resolve().parents[2]
+
+    scheduler_path = repo_root / "src" / "thinking" / "cognitive_scheduler.py"
+    scheduler_spec = importlib.util.spec_from_file_location(
+        "src.thinking.cognitive_scheduler", scheduler_path
+    )
+    assert scheduler_spec and scheduler_spec.loader is not None
+    scheduler_module = importlib.util.module_from_spec(scheduler_spec)
+    monkeypatch.setitem(sys.modules, "src.thinking.cognitive_scheduler", scheduler_module)
+    scheduler_spec.loader.exec_module(scheduler_module)
+
     phase3_path = repo_root / "src" / "thinking" / "phase3_orchestrator.py"
     spec = importlib.util.spec_from_file_location("src.thinking.phase3_orchestrator", phase3_path)
     assert spec and spec.loader is not None

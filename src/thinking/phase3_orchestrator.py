@@ -32,6 +32,11 @@ from src.ecosystem.evolution.specialized_predator_evolution import SpecializedPr
 from src.runtime.task_supervisor import TaskSupervisor
 from src.thinking.adversarial.market_gan import MarketGAN
 from src.thinking.adversarial.red_team_ai import RedTeamAI
+from src.thinking.cognitive_scheduler import (
+    CognitiveScheduler,
+    CognitiveTask,
+    CognitiveTaskDecision,
+)
 from src.thinking.competitive.competitive_understanding_system import (
     CompetitiveUnderstandingSystem,
 )
@@ -142,6 +147,56 @@ class Phase3Orchestrator:
             "competitive_enabled": True,
             "update_frequency": 300,  # 5 minutes
             "full_analysis_frequency": 3600,  # 1 hour
+        }
+
+        self.config.setdefault("cognitive_compute_budget", 3.0)
+
+        self._cognitive_scheduler = CognitiveScheduler()
+        self._analysis_history: dict[str, dict[str, object]] = {}
+        self._cognitive_task_profiles: dict[str, dict[str, object]] = {
+            "predictive": {
+                "compute_cost": 1.2,
+                "base_gain": 0.75,
+                "priority": 5,
+                "staleness_seconds": 300,
+                "first_run_boost": 1.2,
+                "max_gain": 2.4,
+                "min_allocation": 0.6,
+            },
+            "adversarial": {
+                "compute_cost": 1.0,
+                "base_gain": 0.7,
+                "priority": 4,
+                "staleness_seconds": 540,
+                "first_run_boost": 1.15,
+                "max_gain": 2.2,
+                "min_allocation": 0.5,
+            },
+            "sentient": {
+                "compute_cost": 1.1,
+                "base_gain": 0.55,
+                "priority": 3,
+                "staleness_seconds": 480,
+                "first_run_boost": 1.4,
+                "max_gain": 2.5,
+                "min_allocation": 0.5,
+            },
+            "understanding": {
+                "compute_cost": 0.9,
+                "base_gain": 0.45,
+                "priority": 2,
+                "staleness_seconds": 900,
+                "first_run_boost": 1.1,
+                "max_gain": 2.0,
+            },
+            "specialized": {
+                "compute_cost": 0.8,
+                "base_gain": 0.4,
+                "priority": 1,
+                "staleness_seconds": 900,
+                "first_run_boost": 1.1,
+                "max_gain": 1.8,
+            },
         }
 
         # State tracking
@@ -292,6 +347,139 @@ class Phase3Orchestrator:
             logger.error(f"Error stopping Phase 3 orchestrator: {e}")
             return False
 
+    def _is_task_enabled(self, task_name: str) -> bool:
+        mapping = {
+            "sentient": "sentient_enabled",
+            "predictive": "predictive_enabled",
+            "adversarial": "adversarial_enabled",
+            "specialized": "specialized_enabled",
+            "understanding": "competitive_enabled",
+        }
+        key = mapping.get(task_name)
+        return bool(self.config.get(key, True))
+
+    @staticmethod
+    def _safe_float(value: object, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _clamp(value: float, *, min_value: float = 0.0, max_value: float = 1.0) -> float:
+        if value < min_value:
+            return min_value
+        if value > max_value:
+            return max_value
+        return value
+
+    def _estimate_expected_information_gain(self, task_name: str, now: datetime) -> float:
+        profile = self._cognitive_task_profiles.get(task_name, {})
+        base_gain = self._safe_float(profile.get("base_gain"), default=0.3)
+        history = self._analysis_history.get(task_name)
+        last_gain = self._safe_float(history.get("information_gain")) if history else base_gain
+        expected = max(base_gain, last_gain)
+        last_run = history.get("last_run") if history else None
+        staleness_seconds = self._safe_float(profile.get("staleness_seconds"), default=0.0)
+        if last_run is None:
+            expected *= self._safe_float(profile.get("first_run_boost"), default=1.2)
+        elif staleness_seconds > 0:
+            age = max((now - cast(datetime, last_run)).total_seconds(), 0.0)
+            boost_cap = self._safe_float(profile.get("max_staleness_boost"), default=2.5)
+            staleness_boost = 1.0 + age / staleness_seconds
+            expected *= min(boost_cap, staleness_boost)
+        minimum_gain = self._safe_float(profile.get("minimum_gain"), default=0.05)
+        maximum_gain = self._safe_float(profile.get("max_gain"), default=expected)
+        return self._clamp(expected, min_value=minimum_gain, max_value=maximum_gain)
+
+    def _build_cognitive_tasks(self, now: datetime) -> list[CognitiveTask]:
+        tasks: list[CognitiveTask] = []
+        for name, profile in self._cognitive_task_profiles.items():
+            enabled = self._is_task_enabled(name)
+            info_gain = self._estimate_expected_information_gain(name, now) if enabled else 0.0
+            history = self._analysis_history.get(name)
+            task = CognitiveTask(
+                name=name,
+                information_gain=info_gain,
+                compute_cost=self._safe_float(profile.get("compute_cost"), default=1.0),
+                priority=int(profile.get("priority", 0)),
+                last_run=cast(datetime | None, history.get("last_run") if history else None),
+                min_allocation=self._safe_float(profile.get("min_allocation"), default=0.0),
+                max_allocation=(
+                    self._safe_float(profile.get("max_allocation"))
+                    if profile.get("max_allocation") is not None
+                    else None
+                ),
+                metadata={
+                    "enabled": enabled,
+                    "baseline_gain": profile.get("base_gain"),
+                },
+            )
+            tasks.append(task)
+        return tasks
+
+    def _plan_cognitive_schedule(self, now: datetime) -> list[CognitiveTaskDecision]:
+        tasks = self._build_cognitive_tasks(now)
+        budget = self._safe_float(self.config.get("cognitive_compute_budget"), default=0.0)
+        return self._cognitive_scheduler.allocate(tasks, compute_budget=budget)
+
+    def _record_information_gain(self, task_name: str, information_gain: float, run_time: datetime) -> None:
+        self._analysis_history[task_name] = {
+            "last_run": run_time,
+            "information_gain": max(0.0, float(information_gain)),
+        }
+
+    def _derive_information_gain(self, task_name: str, result: Mapping[str, object]) -> float:
+        if not isinstance(result, Mapping):
+            return 0.0
+        if result.get("error") or result.get("skipped"):
+            return 0.0
+
+        if task_name == "sentient":
+            quality = self._safe_float(result.get("learning_quality"))
+            confidence = self._safe_float(result.get("confidence"))
+            adaptations = self._safe_float(result.get("adaptations_applied"))
+            info_gain = quality * 0.6 + confidence * 0.3 + self._clamp(adaptations / 5.0) * 0.1
+            return self._clamp(info_gain, max_value=2.5)
+
+        if task_name == "predictive":
+            avg_conf = self._safe_float(result.get("average_confidence"))
+            accuracy = self._safe_float(result.get("prediction_accuracy"))
+            scenarios = max(int(self._safe_float(result.get("scenarios_generated"), default=0.0)), 1)
+            high_prob = self._safe_float(result.get("high_probability_scenarios"))
+            scenario_ratio = self._clamp(high_prob / scenarios)
+            info_gain = avg_conf * 0.5 + accuracy * 0.3 + scenario_ratio * 0.2
+            return self._clamp(info_gain, max_value=2.5)
+
+        if task_name == "adversarial":
+            improved = self._safe_float(result.get("strategies_improved"))
+            vulnerabilities = self._safe_float(result.get("vulnerabilities_found"))
+            survival_rate = self._clamp(self._safe_float(result.get("survival_rate")), max_value=1.0)
+            info_gain = (
+                self._clamp(improved / 3.0) * 0.45
+                + self._clamp(vulnerabilities / 4.0) * 0.35
+                + (1.0 - survival_rate) * 0.2
+            )
+            return self._clamp(info_gain, max_value=2.3)
+
+        if task_name == "specialized":
+            modules = self._safe_float(result.get("modules"))
+            status_ok = 1.0 if str(result.get("status", "")).lower() == "ok" else 0.0
+            info_gain = status_ok * 0.3 + self._clamp(modules / 4.0) * 0.7
+            return self._clamp(info_gain, max_value=1.8)
+
+        if task_name == "understanding":
+            competitors = self._safe_float(result.get("competitors_analyzed"))
+            threats_payload = result.get("threats", [])
+            if isinstance(threats_payload, (list, tuple)):
+                threat_count = len(threats_payload)
+            else:
+                threat_count = 0
+            info_gain = self._clamp(competitors / 4.0) * 0.6 + self._clamp(threat_count / 4.0) * 0.4
+            return self._clamp(info_gain, max_value=2.0)
+
+        return 0.0
+
     async def run_full_analysis(self) -> dict[str, object]:
         """Run comprehensive Phase 3 analysis."""
         try:
@@ -304,30 +492,92 @@ class Phase3Orchestrator:
                 "systems": {},
             }
 
-            # Run sentient adaptation analysis
-            if self.config["sentient_enabled"]:
-                results["systems"]["sentient"] = await self._run_sentient_analysis()
+            decisions = self._plan_cognitive_schedule(analysis_start)
+            systems = cast(Dict[str, dict[str, object]], results["systems"])
+            schedule_summary: list[dict[str, object]] = []
 
-            # Run predictive modeling
-            if self.config["predictive_enabled"]:
-                results["systems"]["predictive"] = await self._run_predictive_analysis()
+            task_runners: dict[str, Any] = {
+                "sentient": self._run_sentient_analysis,
+                "predictive": self._run_predictive_analysis,
+                "adversarial": self._run_adversarial_analysis,
+                "specialized": self._run_specialized_analysis,
+                "understanding": self._run_understanding_analysis,
+            }
 
-            # Run adversarial training
-            if self.config["adversarial_enabled"]:
-                results["systems"]["adversarial"] = await self._run_adversarial_analysis()
+            for decision in decisions:
+                task_name = decision.task.name
+                summary_entry: dict[str, object] = {
+                    "task": task_name,
+                    "selected": decision.selected,
+                    "allocated_compute": decision.allocated_compute,
+                    "score": decision.score,
+                    "expected_information_gain": decision.task.information_gain,
+                    "priority": decision.task.priority,
+                }
+                if decision.task.last_run is not None:
+                    summary_entry["last_run_at"] = decision.task.last_run.isoformat()
+                if decision.reason:
+                    summary_entry["reason"] = decision.reason
+                if decision.task.metadata:
+                    summary_entry["metadata"] = dict(decision.task.metadata)
+                schedule_summary.append(summary_entry)
 
-            # Run specialized evolution
-            if self.config["specialized_enabled"]:
-                results["systems"]["specialized"] = await self._run_specialized_analysis()
+                enabled = bool(decision.task.metadata.get("enabled", True))
+                runner = task_runners.get(task_name)
 
-            # Run competitive understanding
-            if self._understanding_enabled():
-                results["systems"]["understanding"] = (
-                    await self._run_understanding_analysis()
-                )
+                if not enabled:
+                    systems[task_name] = {
+                        "skipped": True,
+                        "reason": "disabled",
+                    }
+                    continue
+
+                if not decision.selected:
+                    systems[task_name] = {
+                        "skipped": True,
+                        "reason": decision.reason or "not_selected",
+                    }
+                    continue
+
+                if runner is None:
+                    systems[task_name] = {
+                        "skipped": True,
+                        "reason": "no_runner",
+                    }
+                    continue
+
+                runner_coro = runner()
+                payload = await runner_coro if asyncio.iscoroutine(runner_coro) else runner_coro
+                if isinstance(payload, dict):
+                    task_result: dict[str, object] = dict(payload)
+                else:
+                    task_result = {"result": payload}
+
+                task_result["compute_allocation"] = decision.allocated_compute
+                information_gain = self._derive_information_gain(task_name, task_result)
+                task_result["information_gain"] = information_gain
+                systems[task_name] = task_result
+                self._record_information_gain(task_name, information_gain, analysis_start)
 
             # Calculate overall metrics
             results["overall_metrics"] = await self._calculate_overall_metrics(results)
+
+            budget = self._safe_float(self.config.get("cognitive_compute_budget"), default=0.0)
+            consumed = sum(
+                decision.allocated_compute for decision in decisions if decision.selected
+            )
+            results["scheduler"] = {
+                "budget": budget,
+                "consumed": consumed,
+                "remaining": max(budget - consumed, 0.0),
+                "generated_at": analysis_start.isoformat(),
+                "decisions": schedule_summary,
+            }
+
+            self.performance_metrics["cognitive_scheduler"] = {
+                "generated_at": analysis_start.isoformat(),
+                "decisions": schedule_summary,
+            }
 
             # Store results
             await self._store_analysis_results(results)

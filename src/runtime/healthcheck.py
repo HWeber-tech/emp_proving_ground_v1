@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from collections.abc import Iterable, Mapping
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Sequence
 
 from aiohttp import web
 
@@ -283,16 +283,75 @@ def evaluate_runtime_health(
     )
 
 
-def _format_prometheus_metrics(metrics: Mapping[str, float]) -> str:
+MetricSample = tuple[float, Mapping[str, str]]
+MetricValue = float | MetricSample | Sequence[MetricSample]
+
+
+def _escape_label_value(value: object) -> str:
+    text = str(value)
+    return (
+        text.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\t", "\\t")
+        .replace("\"", '\\"')
+    )
+
+
+def _format_prometheus_metrics(metrics: Mapping[str, MetricValue]) -> str:
+    def _iter_samples(value: MetricValue) -> Iterable[MetricSample]:
+        if isinstance(value, (int, float)):
+            yield float(value), {}
+            return
+        if isinstance(value, tuple) and len(value) == 2:
+            numeric, labels = value
+            if isinstance(numeric, (int, float)) and isinstance(labels, Mapping):
+                yield float(numeric), labels
+            return
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            for item in value:
+                if not (isinstance(item, tuple) and len(item) == 2):
+                    continue
+                numeric, labels = item
+                if not isinstance(labels, Mapping):
+                    continue
+                if isinstance(numeric, (int, float)):
+                    yield float(numeric), labels
+
     lines: list[str] = []
     for name, value in metrics.items():
         lines.append(f"# TYPE {name} gauge")
-        lines.append(f"{name} {format(value, 'g')}")
+        samples = list(_iter_samples(value))
+        if not samples:
+            samples = [(0.0, {})]
+        for numeric, labels in samples:
+            label_text = ""
+            if labels:
+                rendered = ",".join(
+                    f"{str(key)}=\"{_escape_label_value(val)}\""
+                    for key, val in sorted(labels.items(), key=lambda item: str(item[0]))
+                )
+                label_text = f"{{{rendered}}}"
+            lines.append(f"{name}{label_text} {format(numeric, 'g')}")
     return "\n".join(lines) + "\n"
 
 
-def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
-    metrics: dict[str, float] = {
+def _status_to_value(status: str) -> float:
+    if status == RuntimeHealthStatus.FAIL:
+        return 2.0
+    if status == RuntimeHealthStatus.WARN:
+        return 1.0
+    return 0.0
+
+
+def _collect_runtime_metrics(
+    app: ProfessionalPredatorApp,
+    *,
+    ingest_warn_after: float = 900.0,
+    ingest_fail_after: float = 1800.0,
+    decision_warn_after: float = 180.0,
+    decision_fail_after: float = 600.0,
+) -> dict[str, MetricValue]:
+    metrics: dict[str, MetricValue] = {
         "event_lag_ms": 0.0,
         "queue_depth": 0.0,
         "p50_infer_ms": 0.0,
@@ -300,6 +359,12 @@ def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
         "p99_infer_ms": 0.0,
         "drops": 0.0,
         "risk_halted": 0.0,
+        "runtime_latency_p99_seconds": 0.0,
+        "event_handler_exception_rate_per_minute": 0.0,
+        "event_handler_exceptions_total": 0.0,
+        "runtime_exception_rate_per_minute": 0.0,
+        "runtime_exceptions_total": 0.0,
+        "runtime_health_status": 0.0,
     }
 
     event_bus = getattr(app, "event_bus", None)
@@ -319,6 +384,15 @@ def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
             if isinstance(last_event, (int, float)):
                 lag_ms = max(0.0, (time.time() - float(last_event)) * 1000.0)
                 metrics["event_lag_ms"] = lag_ms
+            handler_errors = getattr(stats, "handler_errors", None)
+            uptime_seconds = getattr(stats, "uptime_seconds", None)
+            if isinstance(handler_errors, (int, float)):
+                metrics["event_handler_exceptions_total"] = float(handler_errors)
+                metrics["runtime_exceptions_total"] = float(handler_errors)
+                if isinstance(uptime_seconds, (int, float)) and uptime_seconds > 0:
+                    rate = float(handler_errors) / (float(uptime_seconds) / 60.0)
+                    metrics["event_handler_exception_rate_per_minute"] = rate
+                    metrics["runtime_exception_rate_per_minute"] = rate
 
     latency_snapshot: Mapping[str, object] | None = None
     broker = getattr(app, "broker_interface", None)
@@ -347,6 +421,7 @@ def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
                         latency_snapshot = candidate
 
     if latency_snapshot is not None:
+        p99_seconds: float | None = None
         for source_key, metric_name in (
             ("p50_latency_s", "p50_infer_ms"),
             ("p90_latency_s", "p90_infer_ms"),
@@ -365,8 +440,15 @@ def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
             except (TypeError, ValueError):
                 continue
             if source_key.endswith("_s"):
-                numeric *= 1000.0
+                seconds_value = max(numeric, 0.0)
+                numeric = seconds_value * 1000.0
+                if metric_name == "p99_infer_ms" and p99_seconds is None:
+                    p99_seconds = seconds_value
+            elif metric_name == "p99_infer_ms" and p99_seconds is None:
+                p99_seconds = max(numeric / 1000.0, 0.0)
             metrics[metric_name] = max(numeric, 0.0)
+        if p99_seconds is not None:
+            metrics["runtime_latency_p99_seconds"] = p99_seconds
 
     trading_manager = getattr(app, "trading_manager", None)
     if trading_manager is not None:
@@ -386,6 +468,20 @@ def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
                         expires_at = _parse_iso_datetime(expires_raw)
                         if expires_at is not None and expires_at > datetime.now(tz=UTC):
                             metrics["risk_halted"] = 1.0
+
+    snapshot = evaluate_runtime_health(
+        app,
+        ingest_warn_after=ingest_warn_after,
+        ingest_fail_after=ingest_fail_after,
+        decision_warn_after=decision_warn_after,
+        decision_fail_after=decision_fail_after,
+    )
+    metrics["runtime_health_status"] = _status_to_value(snapshot.status)
+    check_samples: list[MetricSample] = []
+    for check in snapshot.checks:
+        check_samples.append((_status_to_value(check.status), {"check": str(check.name)}))
+    if check_samples:
+        metrics["runtime_health_check_status"] = tuple(check_samples)
 
     return metrics
 
@@ -460,7 +556,13 @@ class RuntimeHealthServer:
             return web.json_response(snapshot.as_dict())
 
         async def _handle_metrics(_request: web.Request) -> web.Response:
-            metrics = _collect_runtime_metrics(self._app)
+            metrics = _collect_runtime_metrics(
+                self._app,
+                ingest_warn_after=self._ingest_warn_after,
+                ingest_fail_after=self._ingest_fail_after,
+                decision_warn_after=self._decision_warn_after,
+                decision_fail_after=self._decision_fail_after,
+            )
             body = _format_prometheus_metrics(metrics)
             return web.Response(
                 text=body,

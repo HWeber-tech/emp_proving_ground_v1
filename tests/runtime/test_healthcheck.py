@@ -223,7 +223,7 @@ async def test_runtime_health_server_serves_metrics() -> None:
         topic_subscribers={},
         published_events=12,
         dropped_events=4,
-        handler_errors=0,
+        handler_errors=6,
         last_event_timestamp=now - 1.5,
         last_error_timestamp=None,
         started_at=now - 60,
@@ -255,5 +255,11 @@ async def test_runtime_health_server_serves_metrics() -> None:
         assert "event_lag_ms" in body
         assert "p50_infer_ms" in body
         assert "risk_halted 1" in body
+        assert "runtime_latency_p99_seconds 0.75" in body
+        assert "event_handler_exception_rate_per_minute 6" in body
+        assert "runtime_exception_rate_per_minute 6" in body
+        assert "runtime_exceptions_total 6" in body
+        assert "runtime_health_status 0" in body
+        assert 'runtime_health_check_status{check="market_data"} 0' in body
     finally:
         await server.stop()

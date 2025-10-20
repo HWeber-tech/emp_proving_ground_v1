@@ -638,7 +638,7 @@ class ReviewGateRegistry:
             "generated_at": summary_generated_at.isoformat(),
             "gates": entries,
             "patch_proposals": patch_proposals,
-            "auto_rfc_proposals": proposals,
+            "auto_rfc_proposals": auto_rfc_payloads,
         }
 
     def to_markdown(self) -> str:

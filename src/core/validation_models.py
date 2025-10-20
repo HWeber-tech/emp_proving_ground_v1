@@ -23,7 +23,7 @@ class ValidationResult:
         self.threshold = threshold
         self.unit = unit
         self.details = details
-        self.metadata = metadata or {}
+        self.metadata = dict(metadata) if metadata else {}
         self.timestamp = datetime.now()
 
     def to_dict(self) -> dict[str, object]:

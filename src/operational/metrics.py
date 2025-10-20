@@ -5,8 +5,14 @@ creating metrics at import time. All wrappers are non-raising.
 
 import logging
 import os
+import ssl
+import threading
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from threading import Lock
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Type, TypeVar, cast
+
+from socketserver import ThreadingMixIn
 
 from src.core.interfaces import GaugeLike
 from src.operational.metrics_registry import get_registry
@@ -16,6 +22,68 @@ _log = logging.getLogger(__name__)
 # Internal state for exporter
 _started_lock = Lock()
 _started = False
+_TLS_METRICS_PATHS = {"/metrics", "/metrics/"}
+
+
+class _ThreadingTLSServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        request_handler_class: Type[BaseHTTPRequestHandler],
+        ssl_context: ssl.SSLContext,
+    ) -> None:
+        self._ssl_context = ssl_context
+        super().__init__(server_address, request_handler_class)
+
+    def get_request(self):  # type: ignore[override]
+        raw_socket, addr = super().get_request()
+        tls_socket = self._ssl_context.wrap_socket(raw_socket, server_side=True)
+        return tls_socket, addr
+
+
+def _make_metrics_server(
+    port: int,
+    handler_cls: Type[BaseHTTPRequestHandler],
+    ssl_context: ssl.SSLContext,
+) -> _ThreadingTLSServer:
+    return _ThreadingTLSServer(("", port), handler_cls, ssl_context)
+
+
+def _build_metrics_handler(
+    *,
+    generate_latest: Callable[..., bytes],
+    registry,
+    content_type: str,
+) -> Type[BaseHTTPRequestHandler]:
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - 3rd-party interface
+            if self.path not in _TLS_METRICS_PATHS:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            payload = generate_latest(registry)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_HEAD(self) -> None:  # noqa: N802 - 3rd-party interface
+            if self.path not in _TLS_METRICS_PATHS:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            payload = generate_latest(registry)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+
+        def log_message(self, fmt: str, *args: object) -> None:  # pragma: no cover - noise control
+            _log.debug("Prometheus metrics request: " + fmt, *args)
+
+    return _Handler
 
 _warned_lock = Lock()
 _warned_metrics: set[str] = set()
@@ -780,7 +848,12 @@ def set_replay_determinism_mismatches(probe: str, count: int) -> None:
 
 
 # Exporter
-def start_metrics_server(port: Optional[int] = None) -> None:
+def start_metrics_server(
+    port: Optional[int] = None,
+    *,
+    cert_path: Optional[str] = None,
+    key_path: Optional[str] = None,
+) -> None:
     """
     Start the Prometheus exporter HTTP server in-process (idempotent).
     Defaults to EMP_METRICS_PORT (8081). Silently no-ops if prometheus_client
@@ -805,21 +878,54 @@ def start_metrics_server(port: Optional[int] = None) -> None:
             effective_port = 8081
 
         try:
-            from prometheus_client import start_http_server
+            from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
         except ImportError:
             _log.debug("prometheus_client not installed; metrics exporter disabled")
             return
 
+        resolved_cert_path = cert_path or os.environ.get("EMP_METRICS_TLS_CERT_PATH")
+        resolved_key_path = key_path or os.environ.get("EMP_METRICS_TLS_KEY_PATH")
+        if not resolved_cert_path or not resolved_key_path:
+            raise ValueError(
+                "Metrics exporter requires TLS configuration via cert_path/key_path or "
+                "EMP_METRICS_TLS_CERT_PATH / EMP_METRICS_TLS_KEY_PATH"
+            )
+
         try:
-            start_http_server(effective_port)
-        except (OSError, RuntimeError, ValueError) as exc:  # pragma: no cover - depends on runtime
+            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+            ssl_context.load_cert_chain(
+                certfile=os.path.expanduser(str(resolved_cert_path)),
+                keyfile=os.path.expanduser(str(resolved_key_path)),
+            )
+        except (OSError, ValueError, ssl.SSLError) as exc:
+            _log.warning("Failed to load TLS assets for metrics exporter: %s", exc, exc_info=exc)
+            return
+
+        handler_cls = _build_metrics_handler(
+            generate_latest=generate_latest,
+            registry=REGISTRY,
+            content_type=CONTENT_TYPE_LATEST,
+        )
+
+        try:
+            httpd = _make_metrics_server(effective_port, handler_cls, ssl_context)
+        except OSError as exc:  # pragma: no cover - depends on runtime
             _log.warning(
                 "Failed to start metrics exporter on port %s: %s", effective_port, exc, exc_info=exc
             )
             return
 
+        thread = threading.Thread(
+            target=httpd.serve_forever,
+            name="metrics-exporter",
+            daemon=True,
+        )
+        thread.start()
+
         _started = True
-        _log.info("Prometheus metrics exporter started on port %s", effective_port)
+        bound_port = httpd.server_address[1]
+        _log.info("Prometheus metrics exporter started with TLS on port %s", bound_port)
 
 
 # ---- Core telemetry sink adapter registration (ports/adapters) ----

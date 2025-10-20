@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -336,15 +337,36 @@ def test_start_metrics_server_no_prom(monkeypatch):
 def test_start_metrics_server_with_prom(monkeypatch):
     monkeypatch.setattr(metrics, "_started", False, raising=True)
 
-    captured_ports: list[int] = []
+    cert = Path(__file__).resolve().parent.parent / "runtime" / "certs" / "server.pem"
+    key = Path(__file__).resolve().parent.parent / "runtime" / "certs" / "server.key"
 
-    def start_http_server(port: int) -> None:
-        captured_ports.append(int(port))
-
-    fake_mod = types.SimpleNamespace(start_http_server=start_http_server)
+    fake_mod = types.SimpleNamespace(
+        CONTENT_TYPE_LATEST="text/plain",
+        REGISTRY=object(),
+        generate_latest=lambda _registry: b"metric 1\n",
+    )
     monkeypatch.setitem(sys.modules, "prometheus_client", fake_mod)
 
-    metrics.start_metrics_server(port=9123)
-    metrics.start_metrics_server(port=9123)  # idempotent
+    ports: list[int] = []
 
-    assert captured_ports == [9123]
+    class _Server:
+        def __init__(self, port: int) -> None:
+            self.server_address = ("", port)
+
+        def serve_forever(self) -> None:
+            ports.append(self.server_address[1])
+
+    class _Thread:
+        def __init__(self, target, **_kwargs) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            self._target()
+
+    monkeypatch.setattr(metrics, "_make_metrics_server", lambda port, _handler, _context: _Server(port))
+    monkeypatch.setattr(metrics.threading, "Thread", _Thread)
+
+    metrics.start_metrics_server(port=9123, cert_path=str(cert), key_path=str(key))
+    metrics.start_metrics_server(port=9123, cert_path=str(cert), key_path=str(key))  # idempotent
+
+    assert ports == [9123]

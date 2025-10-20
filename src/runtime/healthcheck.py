@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import ssl
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
 from aiohttp import web
@@ -534,6 +536,9 @@ class RuntimeHealthServer:
         ingest_fail_after: float = 1800.0,
         decision_warn_after: float = 180.0,
         decision_fail_after: float = 600.0,
+        ssl_context: ssl.SSLContext | None = None,
+        cert_path: str | None = None,
+        key_path: str | None = None,
     ) -> None:
         self._app = app
         self._host = host
@@ -558,6 +563,29 @@ class RuntimeHealthServer:
         self._ingest_fail_after = float(ingest_fail_after)
         self._decision_warn_after = float(decision_warn_after)
         self._decision_fail_after = float(decision_fail_after)
+        self._ssl_context = self._prepare_ssl_context(ssl_context, cert_path, key_path)
+
+    @staticmethod
+    def _prepare_ssl_context(
+        ssl_context: ssl.SSLContext | None,
+        cert_path: str | None,
+        key_path: str | None,
+    ) -> ssl.SSLContext:
+        if ssl_context is not None:
+            return ssl_context
+
+        cert = Path(cert_path) if cert_path else None
+        key = Path(key_path) if key_path else None
+
+        if not cert or not key:
+            raise ValueError(
+                "RuntimeHealthServer requires an SSL context or certificate and key paths"
+            )
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile=str(cert.expanduser()), keyfile=str(key.expanduser()))
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        return context
 
     @staticmethod
     def _normalise_roles(
@@ -674,7 +702,7 @@ class RuntimeHealthServer:
 
         self._runner = web.AppRunner(web_app)
         await self._runner.setup()
-        self._site = web.TCPSite(self._runner, self._host, self._port)
+        self._site = web.TCPSite(self._runner, self._host, self._port, ssl_context=self._ssl_context)
         await self._site.start()
 
         sockets = getattr(self._site, "_server", None)
@@ -705,11 +733,11 @@ class RuntimeHealthServer:
 
     @property
     def url(self) -> str:
-        return f"http://{self._host}:{self.port}{self._path}"
+        return f"https://{self._host}:{self.port}{self._path}"
 
     @property
     def metrics_url(self) -> str:
-        return f"http://{self._host}:{self.port}{self._metrics_path}"
+        return f"https://{self._host}:{self.port}{self._metrics_path}"
 
     def summary(self) -> Mapping[str, object]:
         return {

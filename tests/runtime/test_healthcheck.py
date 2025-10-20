@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-from typing import Mapping
 import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Mapping
 
 import aiohttp
 import pytest
@@ -29,6 +30,10 @@ def _build_token(*roles: str) -> str:
         expires_in=timedelta(minutes=5),
     )
 
+
+
+_TEST_CERT = Path(__file__).parent / "certs" / "server.pem"
+_TEST_KEY = Path(__file__).parent / "certs" / "server.key"
 
 
 class _DummyConfig:

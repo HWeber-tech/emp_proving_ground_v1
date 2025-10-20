@@ -5168,6 +5168,8 @@ def build_professional_runtime_application(
             host=host,
             port=port,
             path=path,
+            cert_path=str(cert_path),
+            key_path=str(key_path),
             ingest_warn_after=_coerce_float(
                 extras.get("RUNTIME_HEALTHCHECK_INGEST_WARN_SECONDS"), 900.0
             ),

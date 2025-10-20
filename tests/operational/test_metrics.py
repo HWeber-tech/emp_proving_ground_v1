@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import types
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pytest
@@ -170,30 +171,97 @@ def test_lazy_gauge_proxy_labels_returns_noop_when_registry_unavailable(
 def test_start_metrics_server_uses_environment_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[int] = []
+    cert = (
+        Path(__file__).resolve().parent.parent / "runtime" / "certs" / "server.pem"
+    )
+    key = (
+        Path(__file__).resolve().parent.parent / "runtime" / "certs" / "server.key"
+    )
+    payload = b"metric 1\n"
 
-    module = types.SimpleNamespace(start_http_server=lambda port: calls.append(port))
+    module = types.SimpleNamespace(
+        CONTENT_TYPE_LATEST="text/plain",
+        REGISTRY=object(),
+        generate_latest=lambda _registry: payload,
+    )
     monkeypatch.setitem(sys.modules, "prometheus_client", module)
     monkeypatch.setenv("EMP_METRICS_PORT", "9123")
+    monkeypatch.setenv("EMP_METRICS_TLS_CERT_PATH", str(cert))
+    monkeypatch.setenv("EMP_METRICS_TLS_KEY_PATH", str(key))
+
+    ports: list[int] = []
+
+    class _Server:
+        def __init__(self, port: int) -> None:
+            self.server_address = ("", port)
+            self.calls = 0
+
+        def serve_forever(self) -> None:
+            self.calls += 1
+            ports.append(self.server_address[1])
+
+    def _fake_make_metrics_server(port: int, _handler, _context) -> _Server:
+        return _Server(port)
+
+    class _Thread:
+        def __init__(self, target, **_kwargs) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            self._target()
+
+    monkeypatch.setattr(metrics, "_make_metrics_server", _fake_make_metrics_server)
+    monkeypatch.setattr(metrics.threading, "Thread", _Thread)
 
     metrics.start_metrics_server()
     metrics.start_metrics_server()
 
-    assert calls == [9123]
+    assert ports == [9123]
 
 
 def test_start_metrics_server_warns_on_invalid_port(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    calls: list[int] = []
-    module = types.SimpleNamespace(start_http_server=lambda port: calls.append(port))
+    cert = (
+        Path(__file__).resolve().parent.parent / "runtime" / "certs" / "server.pem"
+    )
+    key = (
+        Path(__file__).resolve().parent.parent / "runtime" / "certs" / "server.key"
+    )
+    module = types.SimpleNamespace(
+        CONTENT_TYPE_LATEST="text/plain",
+        REGISTRY=object(),
+        generate_latest=lambda _registry: b"metric 1\n",
+    )
     monkeypatch.setitem(sys.modules, "prometheus_client", module)
     monkeypatch.setenv("EMP_METRICS_PORT", "invalid")
+    monkeypatch.setenv("EMP_METRICS_TLS_CERT_PATH", str(cert))
+    monkeypatch.setenv("EMP_METRICS_TLS_KEY_PATH", str(key))
+
+    ports: list[int] = []
+
+    class _Server:
+        def __init__(self, port: int) -> None:
+            self.server_address = ("", port)
+
+        def serve_forever(self) -> None:
+            ports.append(self.server_address[1])
+
+    monkeypatch.setattr(metrics, "_make_metrics_server", lambda port, _handler, _context: _Server(port))
+
+    class _Thread:
+        def __init__(self, target, **_kwargs) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            self._target()
+
+    monkeypatch.setattr(metrics.threading, "Thread", _Thread)
 
     with caplog.at_level(logging.WARNING):
         metrics.start_metrics_server()
 
-    assert calls == [8081]
+    assert ports == [8081]
     assert any("defaulting to 8081" in record.getMessage() for record in caplog.records)
 
 

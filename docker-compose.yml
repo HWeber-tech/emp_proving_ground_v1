@@ -29,6 +29,7 @@ services:
       - ./reports:/app/reports
       - ./config:/app/config
     depends_on:
+      - timescaledb
       - redis
       - timescaledb
       - kafka

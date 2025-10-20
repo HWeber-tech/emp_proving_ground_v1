@@ -48,7 +48,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## V. Planner & Foresight - Acting Only When the Future Aligns
 
-- [ ] **MuZero-Lite Tree**: Simulate short-horizon futures with causal edge adjustments.
+- [x] **MuZero-Lite Tree**: Simulate short-horizon futures with causal edge adjustments.
 - [ ] **Veto Logic**: No action executes without positive expected return under ensemble belief.
 - [x] **Latency-Aware Planning**: Discard planner branch if total decision latency > 0.85ms.
 - [x] **Adversarial Simulation**: Inject spoofers, front-runners, and reversion agents into planner rollouts.
@@ -105,7 +105,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## XI. CI/CD & Governance
 
 - [x] **Automated Promotion/Reversion**: CI promotes only fully passing models; auto-rollbacks on gate regression.
-- [ ] **Gate Dashboard**: Real-time visual of each metric vs threshold.
+- [x] **Gate Dashboard**: Real-time visual of each metric vs threshold.
 - [x] **Immutable Audit Trail**: Sign and store every policy, belief, and runtime decision.
 - [x] **Performance Covenant**: Gate advancement on sharpness, calibration, and exploitability metrics.
 

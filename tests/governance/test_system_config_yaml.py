@@ -65,7 +65,7 @@ extras:
     assert config.extras == {"CUSTOM_FLAG": "enabled"}
 
 
-def test_from_yaml_overrides_env_values_when_provided(tmp_path: Path) -> None:
+def test_from_yaml_env_overrides_yaml_when_provided(tmp_path: Path) -> None:
     config_path = tmp_path / "system_config.yaml"
     config_path.write_text(
         """
@@ -85,8 +85,8 @@ system_config:
 
     config = SystemConfig.from_yaml(config_path, env=env_mapping)
 
-    assert config.run_mode is RunMode.live  # YAML overrides env
-    assert config.environment is EmpEnvironment.demo
+    assert config.run_mode is RunMode.paper  # Env overrides YAML when explicitly set
+    assert config.environment is EmpEnvironment.production
     # Extras merged from top-level and nested with nested winning when keys collide
     assert config.extras == {"CUSTOM_FLAG": "disabled"}
 

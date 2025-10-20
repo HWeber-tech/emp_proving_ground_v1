@@ -516,8 +516,8 @@ class SystemConfig:
         The loader keeps backward compatibility with legacy configuration files by
         accepting either top-level configuration keys or a nested ``system_config``
         mapping. Extras are normalised to ``dict[str, str]`` and environment
-        variables remain authoritative unless the YAML file explicitly overrides
-        them.
+        variables override only when explicitly provided, allowing YAML values to
+        serve as the primary source.
         """
 
         cfg_path = Path(path)
@@ -560,10 +560,10 @@ class SystemConfig:
             merged_extras.update(model_extras)
             overrides["extras"] = merged_extras
 
-        base = cls.from_env(env=env)
+        base = cls()
         if overrides:
             base = base.with_updated(**overrides)
-        return base
+        return cls.from_env(env=env, defaults=base)
 
 
 __all__ = [

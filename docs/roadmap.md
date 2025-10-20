@@ -40,9 +40,9 @@
 
 - [ ] Define initial roles (e.g. admin, reader, ingest_process)  
 - [ ] Add role checks (decorators or guards) to protected routes  
-- [ ] Embed role information in auth tokens (e.g. JWT claims)  
+- [x] Embed role information in auth tokens (e.g. JWT claims)  
 - [ ] Apply RBAC to at least a few critical endpoints  
-- [ ] Document how RBAC works and how to extend it  
+- [x] Document how RBAC works and how to extend it  
 
 ---
 
@@ -51,7 +51,7 @@
 - [ ] Build a script to check age of API keys and secrets  
 - [ ] Log or alert if secrets exceed defined age thresholds  
 - [ ] (Optional) Integrate with a secrets manager (e.g. AWS Secrets Manager, Vault)  
-- [ ] Set expiration time on user tokens (e.g. JWT expiry)  
+- [x] Set expiration time on user tokens (e.g. JWT expiry)  
 - [ ] Document secret rotation practices and automation goals  
 
 ---
@@ -59,7 +59,7 @@
 ## 6. Observability & Security Monitoring
 
 - [ ] Log all auth events, RBAC rejections, and validation failures  
-- [ ] Track key metrics (e.g. failed logins, rejected records per hour)  
+- [x] Track key metrics (e.g. failed logins, rejected records per hour)  
 - [ ] Expose metrics endpoint or write logs compatible with monitoring stack  
 - [ ] Add config options for log level, output format (e.g. JSON), and destination  
 - [ ] Ensure sensitive data is excluded or masked in logs  

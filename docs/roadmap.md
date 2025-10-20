@@ -1,7 +1,7 @@
 # ROADMAP.md - EMP / Alphatrade
 
 > **North star:** human-tweakable parameters are bandaids.  
-> We build an autonomous, instrument-agnostic trading system that reasons in **dimensionless units** (ticks, spreads, Ïƒ) and promotes models only through **hard, machine-readable gates**.
+> We build an autonomous, instrument-agnostic trading system that reasons in **dimensionless units** (ticks, spreads, σ) and promotes models only through **hard, machine-readable gates**.
 
 ---
 

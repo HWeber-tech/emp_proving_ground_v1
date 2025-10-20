@@ -20,7 +20,7 @@ import math
 import sys
 import tracemalloc
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
@@ -82,6 +82,9 @@ def _json_ready(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, Path):
         return str(value)
+    if is_dataclass(value) and not isinstance(value, type):
+        with contextlib.suppress(Exception):
+            return _json_ready(asdict(value))
     if hasattr(value, "to_dict") and callable(value.to_dict):
         with contextlib.suppress(Exception):
             return _json_ready(value.to_dict())

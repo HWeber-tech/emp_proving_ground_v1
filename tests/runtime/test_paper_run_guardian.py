@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -13,6 +14,7 @@ from src.runtime.paper_run_guardian import (
     PaperRunConfig,
     PaperRunMonitor,
     PaperRunStatus,
+    _json_ready,
     persist_error_events,
     persist_summary,
 )
@@ -200,6 +202,20 @@ def test_guardian_enforces_minimum_runtime() -> None:
     assert metrics["minimum_runtime_seconds"] == pytest.approx(3600.0)
     assert metrics["meets_minimum_runtime"] is False
     assert metrics["runtime_shortfall_seconds"] == pytest.approx(2700.0)
+
+
+def test_json_ready_handles_dataclasses() -> None:
+    @dataclass
+    class Payload:
+        name: str
+        amount: Decimal
+
+    payload = Payload(name="alpha", amount=Decimal("1.25"))
+
+    result = _json_ready(payload)
+
+    assert result == {"name": "alpha", "amount": 1.25}
+    assert isinstance(_json_ready(Payload), str)
 
 
 def test_guardian_requests_stop_on_memory_growth_threshold() -> None:

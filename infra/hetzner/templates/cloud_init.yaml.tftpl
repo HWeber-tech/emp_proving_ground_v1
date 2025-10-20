@@ -1,0 +1,27 @@
+#cloud-config
+hostname: ${hostname}
+manage_etc_hosts: true
+users:
+  - default
+  - name: ${admin_username}
+    groups: sudo
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+package_update: true
+package_upgrade: false
+packages:
+  - qemu-guest-agent
+write_files:
+  - path: /etc/motd
+    permissions: '0644'
+    content: |
+      EMP single-box provisioned via Terraform.
+      Hostname: ${hostname}
+runcmd:
+  - systemctl enable --now qemu-guest-agent
+  - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+  - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+  - systemctl restart ssh

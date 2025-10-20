@@ -3,6 +3,8 @@
 Phase J.2 requires Docker installation plus a compose stack that runs the data
 services (TimescaleDB, Redis, Kafka) alongside the trading engine. This runbook
 assumes Ubuntu 22.04 on a dedicated Hetzner host with a sudo-capable operator.
+Provision the host with the Terraform module under `infra/hetzner` before
+continuing.
 
 ## 1. Prepare the host
 

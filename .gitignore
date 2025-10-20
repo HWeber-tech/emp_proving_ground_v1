@@ -116,5 +116,11 @@ changed_files*.txt
 *.orig
 *.rej
 
+# Terraform state and artifacts
+.terraform/
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+
 # K8s overlay secrets
 k8s/overlays/*/*.env

@@ -1,0 +1,19 @@
+# Copy to terraform.tfvars and fill in secrets locally (never commit the filled file).
+
+# Either set the token here or export HCLOUD_TOKEN before running terraform.
+# hcloud_token = "your-token"
+
+server_name    = "emp-hetzner-single-box"
+ssh_public_key = "ssh-ed25519 AAAA... operator@example"
+
+# Uncomment to restrict SSH to specific networks.
+# trusted_admin_cidrs = [
+#   "203.0.113.0/24",
+# ]
+
+# Override the default cx52 instance if you need a larger machine within
+# the 8+ core / 32-64 GB RAM envelope.
+# server_type = "ccx33"
+
+# enable_backups = true
+# admin_username = "empops"

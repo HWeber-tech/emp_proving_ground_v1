@@ -1688,6 +1688,50 @@ class AlphaTradeLoopRunner:
 
         return memory_payload
 
+    @staticmethod
+    def _extract_size_multiplier_from_actions(actions: Any) -> float | None:
+        if isinstance(actions, Sequence):
+            for entry in actions:
+                if not isinstance(entry, Mapping):
+                    continue
+                if entry.get("action") != "size_multiplier":
+                    continue
+                multiplier = _coerce_float(entry.get("value"))
+                if multiplier is None:
+                    multiplier = _coerce_float(entry.get("context_mult"))
+                if multiplier is not None:
+                    return max(0.0, min(multiplier, 1.0))
+        return None
+
+    def _resolve_drift_size_multiplier(
+        self,
+        drift_decision: DriftSentryDecision | None,
+    ) -> float:
+        default_multiplier = 0.5
+        if drift_decision is None:
+            return default_multiplier
+
+        requirements = drift_decision.requirements
+        if isinstance(requirements, Mapping):
+            candidate = requirements.get("size_multiplier")
+            if candidate is None:
+                candidate = requirements.get("recommended_size_multiplier")
+            resolved = _coerce_float(candidate)
+            if resolved is not None:
+                return max(0.0, min(resolved, 1.0))
+
+        metadata = drift_decision.snapshot_metadata
+        if isinstance(metadata, Mapping):
+            resolved = _coerce_float(metadata.get("recommended_size_multiplier"))
+            if resolved is None:
+                resolved = self._extract_size_multiplier_from_actions(
+                    metadata.get("actions")
+                )
+            if resolved is not None:
+                return max(0.0, min(resolved, 1.0))
+
+        return default_multiplier
+
     def _apply_drift_mitigation(
         self,
         *,
@@ -1721,7 +1765,7 @@ class AlphaTradeLoopRunner:
                             self._ensure_action_log_shape(entry)
             return dict(existing), packet_payload
 
-        multiplier = 0.5
+        multiplier = self._resolve_drift_size_multiplier(drift_decision)
         applied_at = _coerce_datetime(trade_metadata.get("timestamp"))
         if applied_at is None and isinstance(intent_payload, Mapping):
             applied_at = _coerce_datetime(intent_payload.get("timestamp"))

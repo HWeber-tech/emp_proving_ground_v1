@@ -138,6 +138,10 @@ class DriftSentryConfig:
     cusum_alert: float = 6.0
     variance_ratio_warn: float = 1.6
     variance_ratio_alert: float = 2.4
+    training_mean_diff_warn: float = 0.06
+    training_mean_diff_alert: float = 0.12
+    training_variance_ratio_warn: float = 1.8
+    training_variance_ratio_alert: float = 3.0
 
     def as_dict(self) -> Mapping[str, float | int]:
         return {
@@ -152,6 +156,10 @@ class DriftSentryConfig:
             "cusum_alert": self.cusum_alert,
             "variance_ratio_warn": self.variance_ratio_warn,
             "variance_ratio_alert": self.variance_ratio_alert,
+            "training_mean_diff_warn": self.training_mean_diff_warn,
+            "training_mean_diff_alert": self.training_mean_diff_alert,
+            "training_variance_ratio_warn": self.training_variance_ratio_warn,
+            "training_variance_ratio_alert": self.training_variance_ratio_alert,
         }
 
 
@@ -170,6 +178,11 @@ class DriftSentryMetric:
     page_hinkley_stat: float | None
     cusum_stat: float | None
     variance_ratio: float | None
+    training_mean: float | None = None
+    training_variance: float | None = None
+    training_count: int | None = None
+    training_mean_delta: float | None = None
+    training_variance_ratio: float | None = None
     detectors: tuple[str, ...] = ()
     metadata: Mapping[str, object] = field(default_factory=dict)
 
@@ -190,6 +203,16 @@ class DriftSentryMetric:
             payload["cusum_stat"] = self.cusum_stat
         if self.variance_ratio is not None:
             payload["variance_ratio"] = self.variance_ratio
+        if self.training_mean is not None:
+            payload["training_mean"] = self.training_mean
+        if self.training_variance is not None:
+            payload["training_variance"] = self.training_variance
+        if self.training_count is not None:
+            payload["training_count"] = self.training_count
+        if self.training_mean_delta is not None:
+            payload["training_mean_delta"] = self.training_mean_delta
+        if self.training_variance_ratio is not None:
+            payload["training_variance_ratio"] = self.training_variance_ratio
         if self.detectors:
             payload["detectors"] = list(self.detectors)
         if self.metadata:
@@ -256,12 +279,53 @@ def _severity_from_thresholds(
     return DriftSeverity.normal
 
 
+def _coerce_training_stats(
+    reference: object,
+) -> tuple[float | None, float | None, int]:
+    if reference is None:
+        return None, None, 0
+
+    samples: list[float] = []
+    mean: float | None = None
+    variance: float | None = None
+    count: int = 0
+
+    if isinstance(reference, Mapping):
+        candidate = None
+        for key in ("values", "samples", "series", "data"):
+            payload = reference.get(key)
+            if isinstance(payload, Sequence) and not isinstance(payload, (str, bytes, bytearray)):
+                candidate = payload
+                break
+        if candidate is not None:
+            samples = _coerce_float_sequence(candidate)
+        mean = _coerce_float_optional(reference.get("mean"))
+        variance = _coerce_float_optional(reference.get("variance"))
+        count_value = reference.get("count")
+        if count_value is not None:
+            try:
+                count = int(float(count_value))
+            except (TypeError, ValueError):
+                count = 0
+    elif isinstance(reference, Sequence) and not isinstance(reference, (str, bytes, bytearray)):
+        samples = _coerce_float_sequence(reference)
+    else:
+        samples = _coerce_float_sequence([reference])
+
+    if samples:
+        mean = fmean(samples)
+        variance = _variance(samples) if len(samples) >= 2 else 0.0
+        count = len(samples)
+    return mean, variance, count
+
+
 def evaluate_drift_sentry(
     metrics: Mapping[str, Sequence[object]],
     *,
     config: DriftSentryConfig | None = None,
     generated_at: datetime | None = None,
     metadata: Mapping[str, object] | None = None,
+    training_reference: Mapping[str, object] | None = None,
 ) -> DriftSentrySnapshot:
     """Evaluate belief/regime drift using Page–Hinkley and variance detectors."""
 
@@ -272,6 +336,9 @@ def evaluate_drift_sentry(
     severity_counts: Counter[str] = Counter()
     detector_catalog: dict[str, dict[str, object]] = {}
     triggered_metrics: list[dict[str, object]] = []
+    training_inputs = training_reference or {}
+    training_divergence_metrics: list[dict[str, object]] = []
+    training_divergence_status = DriftSeverity.normal
 
     window = cfg.baseline_window + cfg.evaluation_window
     if window <= 0:
@@ -339,6 +406,75 @@ def evaluate_drift_sentry(
         elif variance_severity is DriftSeverity.alert:
             detectors.append("variance_alert")
 
+        training_mean: float | None = None
+        training_variance: float | None = None
+        training_count: int | None = None
+        training_mean_delta: float | None = None
+        training_variance_ratio: float | None = None
+        training_detectors: list[str] = []
+        training_severity = DriftSeverity.normal
+        training_entry = training_inputs.get(name)
+        if training_entry is not None:
+            t_mean, t_variance, t_count = _coerce_training_stats(training_entry)
+            training_mean = t_mean
+            training_variance = t_variance
+            training_count = t_count or None
+
+            mean_severity = DriftSeverity.normal
+            var_severity = DriftSeverity.normal
+
+            if training_mean is not None:
+                training_mean_delta = evaluation_mean - training_mean
+                mean_severity = _severity_from_thresholds(
+                    abs(training_mean_delta),
+                    cfg.training_mean_diff_warn,
+                    cfg.training_mean_diff_alert,
+                )
+                if mean_severity is DriftSeverity.warn:
+                    training_detectors.append("training_mean_warn")
+                elif mean_severity is DriftSeverity.alert:
+                    training_detectors.append("training_mean_alert")
+
+            if training_variance is not None and training_variance > 0.0:
+                training_variance_ratio = evaluation_variance / training_variance
+                var_severity = _severity_from_thresholds(
+                    training_variance_ratio,
+                    cfg.training_variance_ratio_warn,
+                    cfg.training_variance_ratio_alert,
+                )
+                if var_severity is DriftSeverity.warn:
+                    training_detectors.append("training_variance_warn")
+                elif var_severity is DriftSeverity.alert:
+                    training_detectors.append("training_variance_alert")
+
+            training_severity = _max_severity(mean_severity, var_severity)
+            if training_detectors:
+                detectors.extend(training_detectors)
+            metric_severity = _max_severity(metric_severity, training_severity)
+
+            if training_severity is not DriftSeverity.normal:
+                training_divergence_status = _max_severity(
+                    training_divergence_status,
+                    training_severity,
+                )
+                training_summary_entry: dict[str, object] = {
+                    "metric": name,
+                    "severity": training_severity.value,
+                }
+                if training_mean_delta is not None:
+                    training_summary_entry["mean_delta"] = training_mean_delta
+                if training_variance_ratio is not None:
+                    training_summary_entry["variance_ratio"] = training_variance_ratio
+                if training_mean is not None:
+                    training_summary_entry["training_mean"] = training_mean
+                if training_variance is not None:
+                    training_summary_entry["training_variance"] = training_variance
+                if training_count is not None:
+                    training_summary_entry["training_count"] = training_count
+                if training_detectors:
+                    training_summary_entry["detectors"] = list(training_detectors)
+                training_divergence_metrics.append(training_summary_entry)
+
         metric_payloads[name] = DriftSentryMetric(
             name=name,
             severity=metric_severity,
@@ -351,6 +487,11 @@ def evaluate_drift_sentry(
             page_hinkley_stat=page_stat,
             cusum_stat=cusum_stat,
             variance_ratio=variance_ratio,
+            training_mean=training_mean,
+            training_variance=training_variance,
+            training_count=training_count if training_count else None,
+            training_mean_delta=training_mean_delta,
+            training_variance_ratio=training_variance_ratio,
             detectors=tuple(detectors),
         )
         status = _max_severity(status, metric_severity)
@@ -364,6 +505,16 @@ def evaluate_drift_sentry(
             detector_entry["cusum_stat"] = cusum_stat
         if variance_ratio is not None:
             detector_entry["variance_ratio"] = variance_ratio
+        if training_mean is not None:
+            detector_entry["training_mean"] = training_mean
+        if training_variance is not None:
+            detector_entry["training_variance"] = training_variance
+        if training_mean_delta is not None:
+            detector_entry["training_mean_delta"] = training_mean_delta
+        if training_variance_ratio is not None:
+            detector_entry["training_variance_ratio"] = training_variance_ratio
+        if training_count is not None:
+            detector_entry["training_count"] = training_count
         detector_catalog[name] = detector_entry
 
         if metric_severity is not DriftSeverity.normal:
@@ -384,6 +535,10 @@ def evaluate_drift_sentry(
             trigger_entry["evaluation_mean"] = evaluation_mean
             trigger_entry["baseline_count"] = len(baseline)
             trigger_entry["evaluation_count"] = len(evaluation)
+            if training_mean_delta is not None:
+                trigger_entry["training_mean_delta"] = training_mean_delta
+            if training_variance_ratio is not None:
+                trigger_entry["training_variance_ratio"] = training_variance_ratio
             triggered_metrics.append(trigger_entry)
 
     if not metric_payloads:
@@ -402,6 +557,27 @@ def evaluate_drift_sentry(
     if metadata:
         snapshot_metadata.update(dict(metadata))
 
+    size_multiplier_value = 0.5
+    if training_divergence_status is DriftSeverity.alert:
+        size_multiplier_value = 0.2
+    elif training_divergence_status is DriftSeverity.warn:
+        size_multiplier_value = 0.35
+
+    snapshot_metadata["recommended_size_multiplier"] = size_multiplier_value
+
+    if training_divergence_metrics:
+        snapshot_metadata["training_divergence"] = {
+            "status": training_divergence_status.value,
+            "metrics": training_divergence_metrics,
+            "thresholds": {
+                "mean_warn": cfg.training_mean_diff_warn,
+                "mean_alert": cfg.training_mean_diff_alert,
+                "variance_warn": cfg.training_variance_ratio_warn,
+                "variance_alert": cfg.training_variance_ratio_alert,
+            },
+            "recommended_size_multiplier": size_multiplier_value,
+        }
+
     recommended_actions: list[dict[str, object]] = []
     recommended_actions_tuple: tuple[dict[str, object], ...] = ()
     if status in (DriftSeverity.warn, DriftSeverity.alert):
@@ -416,9 +592,9 @@ def evaluate_drift_sentry(
             {
                 "action": "size_multiplier",
                 "status": "recommended",
-                "value": 0.5,
+                "value": size_multiplier_value,
                 "reason": f"drift_sentry_{reason_suffix}",
-                "context_mult": 0.5,
+                "context_mult": size_multiplier_value,
             },
         ]
         recommended_actions = [_normalise_action_log(action) for action in base_actions]
@@ -431,7 +607,7 @@ def evaluate_drift_sentry(
         theory_packet: dict[str, object] = {
             "summary": (
                 "Drift sentry status "
-                f"{status.value} recommends freezing exploration and applying a 0.50x size multiplier"
+                f"{status.value} recommends freezing exploration and applying a {size_multiplier_value:.2f}x size multiplier"
                 f"{trigger_clause}"
             ),
             "generated_at": generated.isoformat(),

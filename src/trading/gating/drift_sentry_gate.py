@@ -169,6 +169,18 @@ class DriftSentryGate:
         if metadata:
             requirements.update({f"context.{key}": value for key, value in metadata.items()})
 
+        training_block = snapshot_metadata.get("training_divergence")
+        size_override = self._coerce_float(snapshot_metadata.get("recommended_size_multiplier"))
+        if size_override is None and isinstance(training_block, Mapping):
+            size_override = self._coerce_float(training_block.get("recommended_size_multiplier"))
+        if size_override is None:
+            size_override = self._extract_size_multiplier_from_actions(snapshot_metadata)
+        if size_override is not None:
+            size_override = max(0.0, min(size_override, 1.0))
+            requirements["size_multiplier"] = size_override
+        if isinstance(training_block, Mapping):
+            requirements["training_divergence"] = dict(training_block)
+
         if threshold_overrides:
             inflation_override = threshold_overrides.get("uncertainty_inflation")
             if inflation_override is not None:
@@ -272,6 +284,33 @@ class DriftSentryGate:
             snapshot_metadata=snapshot_metadata,
             applied_stage=applied_stage,
         )
+
+    @staticmethod
+    def _coerce_float(value: object) -> float | None:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if value is None:
+            return None
+        try:
+            return float(str(value).strip())
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _extract_size_multiplier_from_actions(metadata: Mapping[str, Any]) -> float | None:
+        actions = metadata.get("actions")
+        if isinstance(actions, Sequence):
+            for entry in actions:
+                if not isinstance(entry, Mapping):
+                    continue
+                if entry.get("action") != "size_multiplier":
+                    continue
+                value = DriftSentryGate._coerce_float(entry.get("value"))
+                if value is None:
+                    value = DriftSentryGate._coerce_float(entry.get("context_mult"))
+                if value is not None:
+                    return value
+        return None
 
     @staticmethod
     def _blocked_dimensions(

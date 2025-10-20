@@ -1084,6 +1084,91 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
 
 
 @pytest.mark.asyncio()
+async def test_alpha_trade_runner_training_divergence_multiplier(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+    runner, _ = _build_runner(monkeypatch, tmp_path, trading_manager)
+
+    drift_gate = runner._orchestrator._drift_gate
+    config = DriftSentryConfig(
+        baseline_window=8,
+        evaluation_window=4,
+        min_observations=4,
+        page_hinkley_delta=10.0,
+        page_hinkley_warn=1e6,
+        page_hinkley_alert=1e6,
+        cusum_warn=1e6,
+        cusum_alert=1e6,
+        variance_ratio_warn=float("inf"),
+        variance_ratio_alert=float("inf"),
+        training_mean_diff_warn=0.04,
+        training_mean_diff_alert=0.1,
+        training_variance_ratio_warn=float("inf"),
+        training_variance_ratio_alert=float("inf"),
+    )
+    baseline = [0.1, 0.102, 0.099, 0.101, 0.098, 0.103, 0.097, 0.102]
+    evaluation = [0.15, 0.16, 0.14, 0.15]
+    snapshot = evaluate_drift_sentry(
+        {"belief_confidence": baseline + evaluation},
+        config=config,
+        generated_at=datetime(2025, 1, 6, tzinfo=UTC),
+        training_reference={"belief_confidence": [0.098, 0.101, 0.099, 0.102] * 6},
+    )
+    assert snapshot.status is DriftSeverity.warn
+    drift_gate.update_snapshot(snapshot)
+
+    sensory_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.2, "confidence": 0.7},
+            "momentum": {"signal": 0.55, "confidence": 0.65},
+        },
+        "integrated_signal": {"strength": 0.18, "confidence": 0.82},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    result = await runner.process(
+        sensory_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    trade_metadata = result.trade_metadata
+    mitigation = trade_metadata.get("drift_mitigation")
+    assert isinstance(mitigation, dict)
+    assert mitigation.get("requirements", {}).get("size_multiplier") == pytest.approx(0.35)
+    assert pytest.approx(mitigation["size_multiplier"], rel=1e-9) == 0.35
+    assert pytest.approx(mitigation["original_quantity"], rel=1e-9) == 25_000.0
+    assert pytest.approx(mitigation["drift_adjusted_quantity"], rel=1e-9) == pytest.approx(8_750.0)
+
+    memory_gate = trade_metadata.get("memory_gate")
+    assert isinstance(memory_gate, dict)
+    assert memory_gate.get("multiplier") == pytest.approx(0.5)
+
+    expected_final_quantity = 25_000.0 * 0.35 * 0.5
+    assert pytest.approx(memory_gate["adjusted_quantity"], rel=1e-9) == pytest.approx(expected_final_quantity, rel=1e-9)
+    assert pytest.approx(mitigation["combined_multiplier"], rel=1e-9) == pytest.approx(0.175)
+
+    final_quantity = trade_metadata["quantity"]
+    assert pytest.approx(final_quantity, rel=1e-9) == pytest.approx(expected_final_quantity, rel=1e-9)
+
+    theory_packet = trade_metadata.get("theory_packet")
+    assert isinstance(theory_packet, dict)
+    assert theory_packet.get("severity") == "warn"
+    assert "0.35x" in theory_packet.get("summary", "")
+
+    training_block = mitigation.get("requirements", {}).get("training_divergence")
+    assert isinstance(training_block, dict)
+    assert training_block.get("status") == "warn"
+
+    assert trading_manager.intents, "expected trade intent to be submitted"
+    recorded_intent = trading_manager.intents[-1]
+    assert pytest.approx(recorded_intent["quantity"], rel=1e-9) == pytest.approx(expected_final_quantity, rel=1e-9)
+
+
+@pytest.mark.asyncio()
 async def test_memory_gate_relaxes_with_support(monkeypatch, tmp_path) -> None:
     trading_manager = _FakeTradingManager()
     runner, _ = _build_runner(

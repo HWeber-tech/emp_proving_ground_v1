@@ -190,3 +190,59 @@ def test_drift_sentry_requires_sufficient_observations() -> None:
 
     with pytest.raises(ValueError):
         evaluate_drift_sentry({"belief": [0.1, 0.2, 0.3]}, config=config)
+
+
+def test_drift_sentry_training_divergence_adjusts_multiplier() -> None:
+    config = DriftSentryConfig(
+        baseline_window=8,
+        evaluation_window=4,
+        min_observations=4,
+        page_hinkley_delta=10.0,
+        page_hinkley_warn=1e6,
+        page_hinkley_alert=1e6,
+        cusum_warn=1e6,
+        cusum_alert=1e6,
+        variance_ratio_warn=float("inf"),
+        variance_ratio_alert=float("inf"),
+        training_mean_diff_warn=0.04,
+        training_mean_diff_alert=0.1,
+        training_variance_ratio_warn=float("inf"),
+        training_variance_ratio_alert=float("inf"),
+    )
+
+    baseline = [0.1, 0.102, 0.099, 0.101, 0.098, 0.103, 0.097, 0.102]
+    evaluation = [0.15, 0.16, 0.14, 0.15]
+    series = baseline + evaluation
+    training_reference = {"belief_confidence": [0.098, 0.101, 0.099, 0.102] * 6}
+
+    snapshot = evaluate_drift_sentry(
+        {"belief_confidence": series},
+        config=config,
+        generated_at=datetime(2025, 1, 6, tzinfo=UTC),
+        training_reference=training_reference,
+    )
+
+    assert snapshot.status is DriftSeverity.warn
+
+    metric = snapshot.metrics["belief_confidence"]
+    assert metric.training_mean is not None
+    assert metric.training_mean_delta is not None
+    assert "training_mean_warn" in metric.detectors
+
+    metadata = snapshot.metadata
+    assert metadata.get("recommended_size_multiplier") == pytest.approx(0.35)
+
+    training_block = metadata.get("training_divergence")
+    assert isinstance(training_block, dict)
+    assert training_block.get("status") == "warn"
+    assert training_block.get("recommended_size_multiplier") == pytest.approx(0.35)
+
+    actions = metadata.get("actions")
+    assert isinstance(actions, list)
+    size_action = next(entry for entry in actions if entry.get("action") == "size_multiplier")
+    assert size_action.get("value") == pytest.approx(0.35)
+    assert size_action.get("context_mult") == pytest.approx(0.35)
+
+    assert snapshot.actions
+    size_snapshot = next(entry for entry in snapshot.actions if entry.get("action") == "size_multiplier")
+    assert size_snapshot.get("value") == pytest.approx(0.35)

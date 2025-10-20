@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, cast
 
@@ -54,6 +57,115 @@ class _BasePatternMemory:
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
         self.memory_counter = 0
         self.metadata: dict[str, Any] = {}
+        self.max_memories = int(config.get("max_memories", 10000))
+        stale_seconds_cfg = config.get("stale_after_seconds")
+        stale_days_cfg = config.get("stale_after_days")
+        if stale_seconds_cfg is None and stale_days_cfg is not None:
+            stale_seconds_cfg = float(stale_days_cfg) * 86400.0
+        if stale_seconds_cfg is None:
+            stale_seconds_cfg = 30.0 * 86400.0
+        stale_seconds = max(float(stale_seconds_cfg), 0.0)
+        self._stale_after = timedelta(seconds=stale_seconds)
+        self.reinforcement_threshold = max(1, int(config.get("reinforcement_threshold", 3)))
+        self.success_pnl_threshold = float(config.get("reinforcement_success_pnl", 0.0))
+        signature_fields_cfg = config.get("reinforcement_signature_fields")
+        if signature_fields_cfg is None:
+            signature_fields_cfg = ["market_condition", "strategy"]
+        self.reinforcement_signature_fields = [
+            str(field) for field in signature_fields_cfg if field
+        ]
+        self.decay_interval = int(config.get("decay_interval", 50))
+        if self.decay_interval < 0:
+            self.decay_interval = 0
+
+    def _should_run_decay(self) -> bool:
+        return self.decay_interval > 0 and self.memory_counter % self.decay_interval == 0
+
+    @staticmethod
+    def _parse_timestamp(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                return datetime.utcnow()
+        return datetime.utcnow()
+
+    @staticmethod
+    def _normalise_signature_value(value: Any) -> Any:
+        if isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
+
+    def _extract_success_signature(
+        self, metadata: Mapping[str, Any] | None
+    ) -> tuple[bool, Optional[str]]:
+        if not metadata:
+            return False, None
+
+        learning = metadata.get("learning_signal")
+        if not isinstance(learning, Mapping):
+            learning = {}
+
+        outcome = metadata.get("outcome")
+        if not isinstance(outcome, Mapping):
+            outcome = {}
+
+        pnl_value: Optional[float] = None
+        for candidate in (
+            learning.get("pnl"),
+            metadata.get("pnl"),
+            outcome.get("pnl"),
+        ):
+            if candidate is None:
+                continue
+            try:
+                candidate_float = float(candidate)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(candidate_float):
+                pnl_value = candidate_float
+                break
+
+        is_success = pnl_value is not None and pnl_value > self.success_pnl_threshold
+
+        signal_type = learning.get("signal_type") if isinstance(learning, Mapping) else None
+        if isinstance(signal_type, str) and signal_type.lower() == "profitable":
+            is_success = True
+
+        if not is_success:
+            return False, None
+
+        context = metadata.get("context")
+        if not isinstance(context, Mapping) and isinstance(learning, Mapping):
+            context = learning.get("context")
+        if not isinstance(context, Mapping):
+            context = {}
+
+        signature_payload: dict[str, Any] = {}
+        if self.reinforcement_signature_fields:
+            for field in self.reinforcement_signature_fields:
+                if isinstance(context, Mapping) and field in context:
+                    signature_payload[field] = self._normalise_signature_value(context[field])
+        else:
+            if isinstance(context, Mapping):
+                for key, value in context.items():
+                    signature_payload[str(key)] = self._normalise_signature_value(value)
+
+        if not signature_payload:
+            if isinstance(signal_type, str):
+                signature_payload = {"signal_type": signal_type}
+            else:
+                signature_payload = {"group": "profitable"}
+
+        try:
+            signature = json.dumps(signature_payload, sort_keys=True, default=str)
+        except TypeError:
+            signature = json.dumps(str(signature_payload), sort_keys=True)
+        return True, signature
 
     @staticmethod
     def _normalise(vector: np.ndarray) -> np.ndarray:
@@ -161,14 +273,17 @@ if faiss is not None:
 
             memory_id = f"memory_{self.memory_counter}"
             self.memory_counter += 1
+            timestamp = datetime.utcnow().isoformat()
             self.metadata[memory_id] = {
                 "vector": normalised.tolist(),
-                "metadata": metadata,
-                "timestamp": datetime.utcnow().isoformat(),
+                "metadata": dict(metadata),
+                "timestamp": timestamp,
                 "index_position": int(self.index.ntotal) - 1,
             }
             self._save_metadata()
             faiss.write_index(self.index, str(self.index_path))
+            if self._should_run_decay():
+                self.apply_decay_protocol()
             logger.info("Added experience to memory: %s", memory_id)
             return memory_id
 
@@ -251,6 +366,158 @@ if faiss is not None:
                 for mid, data in sorted_memories[:count]
             ]
 
+        def apply_decay_protocol(self) -> dict[str, Any]:
+            now = datetime.utcnow()
+            stale_cutoff: datetime | None
+            if self._stale_after.total_seconds() > 0:
+                stale_cutoff = now - self._stale_after
+            else:
+                stale_cutoff = None
+
+            removed_ids: list[str] = []
+            reinforced_ids: list[str] = []
+            success_lookup: dict[str, str] = {}
+            keep_entries: list[dict[str, Any]] = []
+            changed = False
+
+            for memory_id, record in list(self.metadata.items()):
+                if not isinstance(record, dict):
+                    removed_ids.append(memory_id)
+                    changed = True
+                    continue
+
+                vector_raw = record.get("vector")
+                if vector_raw is None:
+                    removed_ids.append(memory_id)
+                    changed = True
+                    continue
+
+                try:
+                    vector_array = np.asarray(vector_raw, dtype=np.float32)
+                except Exception:
+                    removed_ids.append(memory_id)
+                    changed = True
+                    continue
+
+                if vector_array.ndim != 1 or vector_array.shape[0] != self.dimension:
+                    removed_ids.append(memory_id)
+                    changed = True
+                    continue
+
+                timestamp_value = self._parse_timestamp(record.get("timestamp"))
+                if stale_cutoff and timestamp_value < stale_cutoff:
+                    removed_ids.append(memory_id)
+                    changed = True
+                    continue
+
+                payload = record.get("metadata")
+                if not isinstance(payload, dict):
+                    payload = {}
+
+                success, signature = self._extract_success_signature(payload)
+                if success and signature is not None:
+                    success_lookup[memory_id] = signature
+                else:
+                    if payload.get("reinforced"):
+                        payload["reinforced"] = False
+                        payload["reinforcement_count"] = int(
+                            payload.get("reinforcement_count", 0)
+                        )
+                        payload.pop("last_reinforced_at", None)
+                        changed = True
+
+                record["metadata"] = payload
+                record["timestamp"] = timestamp_value.isoformat()
+                keep_entries.append(
+                    {
+                        "memory_id": memory_id,
+                        "record": record,
+                        "timestamp": timestamp_value,
+                        "vector": vector_array,
+                    }
+                )
+
+            if not keep_entries:
+                if removed_ids:
+                    self.metadata = {}
+                    self.index = faiss.IndexFlatL2(self.dimension)
+                    self._save_metadata()
+                    faiss.write_index(self.index, str(self.index_path))
+                return {
+                    "removed": len(removed_ids),
+                    "reinforced": 0,
+                    "removed_ids": removed_ids,
+                    "reinforced_ids": reinforced_ids,
+                    "remaining": 0,
+                }
+
+            if self.max_memories > 0 and len(keep_entries) > self.max_memories:
+                keep_entries.sort(key=lambda entry: entry["timestamp"])
+                overflow = len(keep_entries) - self.max_memories
+                for entry in keep_entries[:overflow]:
+                    removed_ids.append(entry["memory_id"])
+                    success_lookup.pop(entry["memory_id"], None)
+                keep_entries = keep_entries[overflow:]
+                changed = True
+
+            signature_counts = Counter(success_lookup.values())
+            for entry in keep_entries:
+                memory_id = entry["memory_id"]
+                payload = entry["record"]["metadata"]
+                signature = success_lookup.get(memory_id)
+                if signature and signature_counts[signature] >= self.reinforcement_threshold:
+                    payload["reinforced"] = True
+                    payload["reinforcement_count"] = int(
+                        payload.get("reinforcement_count", 0)
+                    ) + 1
+                    payload["last_reinforced_at"] = now.isoformat()
+                    entry["timestamp"] = now
+                    entry["record"]["timestamp"] = now.isoformat()
+                    reinforced_ids.append(memory_id)
+                    changed = True
+                elif signature:
+                    if payload.get("reinforced"):
+                        payload["reinforced"] = False
+                        payload["reinforcement_count"] = int(
+                            payload.get("reinforcement_count", 0)
+                        )
+                        payload.pop("last_reinforced_at", None)
+                        changed = True
+
+            if not changed:
+                return {
+                    "removed": 0,
+                    "reinforced": 0,
+                    "removed_ids": [],
+                    "reinforced_ids": [],
+                    "remaining": len(self.metadata),
+                }
+
+            keep_entries.sort(key=lambda entry: entry["timestamp"], reverse=False)
+
+            new_index = faiss.IndexFlatL2(self.dimension)
+            new_metadata: dict[str, Any] = {}
+            for position, entry in enumerate(keep_entries):
+                vector_array = entry["vector"]
+                new_index.add(vector_array.reshape(1, -1))
+                record = entry["record"]
+                record["index_position"] = position
+                record["timestamp"] = entry["timestamp"].isoformat()
+                new_metadata[entry["memory_id"]] = record
+
+            self.metadata = new_metadata
+            self.index = new_index
+            self._save_metadata()
+            faiss.write_index(self.index, str(self.index_path))
+
+            return {
+                "removed": len(removed_ids),
+                "reinforced": len(reinforced_ids),
+                "removed_ids": removed_ids,
+                "reinforced_ids": reinforced_ids,
+                "remaining": len(new_metadata),
+            }
+
 
 else:
 
@@ -319,6 +586,8 @@ else:
             )
             self._memories[memory_id] = entry
             self._save_metadata()
+            if self._should_run_decay():
+                self.apply_decay_protocol()
             return memory_id
 
         def search_similar(
@@ -381,3 +650,79 @@ else:
                 }
                 for entry in entries[:count]
             ]
+
+        def apply_decay_protocol(self) -> dict[str, Any]:
+            now = datetime.utcnow()
+            stale_cutoff = (
+                now - self._stale_after if self._stale_after.total_seconds() > 0 else None
+            )
+
+            removed_ids: list[str] = []
+            reinforced_ids: list[str] = []
+            success_lookup: dict[str, str] = {}
+            changed = False
+
+            for memory_id, entry in list(self._memories.items()):
+                if stale_cutoff and entry.timestamp < stale_cutoff:
+                    del self._memories[memory_id]
+                    removed_ids.append(memory_id)
+                    success_lookup.pop(memory_id, None)
+                    changed = True
+                    continue
+
+                success, signature = self._extract_success_signature(entry.metadata)
+                if success and signature is not None:
+                    success_lookup[memory_id] = signature
+                else:
+                    if entry.metadata.get("reinforced"):
+                        entry.metadata["reinforced"] = False
+                        entry.metadata["reinforcement_count"] = int(
+                            entry.metadata.get("reinforcement_count", 0)
+                        )
+                        entry.metadata.pop("last_reinforced_at", None)
+                        changed = True
+
+            if self.max_memories > 0 and len(self._memories) > self.max_memories:
+                sorted_entries = sorted(
+                    self._memories.items(), key=lambda item: item[1].timestamp
+                )
+                overflow = len(sorted_entries) - self.max_memories
+                for memory_id, _ in sorted_entries[:overflow]:
+                    del self._memories[memory_id]
+                    removed_ids.append(memory_id)
+                    success_lookup.pop(memory_id, None)
+                    changed = True
+
+            signature_counts = Counter(success_lookup.values())
+            for memory_id, signature in success_lookup.items():
+                count = signature_counts[signature]
+                entry = self._memories.get(memory_id)
+                if entry is None:
+                    continue
+                if count >= self.reinforcement_threshold:
+                    entry.metadata["reinforced"] = True
+                    entry.metadata["reinforcement_count"] = int(
+                        entry.metadata.get("reinforcement_count", 0)
+                    ) + 1
+                    entry.metadata["last_reinforced_at"] = now.isoformat()
+                    entry.timestamp = now
+                    reinforced_ids.append(memory_id)
+                    changed = True
+                elif entry.metadata.get("reinforced"):
+                    entry.metadata["reinforced"] = False
+                    entry.metadata["reinforcement_count"] = int(
+                        entry.metadata.get("reinforcement_count", 0)
+                    )
+                    entry.metadata.pop("last_reinforced_at", None)
+                    changed = True
+
+            if changed:
+                self._save_metadata()
+
+            return {
+                "removed": len(removed_ids),
+                "reinforced": len(reinforced_ids),
+                "removed_ids": removed_ids,
+                "reinforced_ids": reinforced_ids,
+                "remaining": len(self._memories),
+            }

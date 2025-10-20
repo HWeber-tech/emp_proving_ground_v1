@@ -50,7 +50,7 @@ class FlakeTelemetrySink:
                 "outcome": outcome,
                 "duration": float(duration),
                 "was_xfail": was_xfail,
-                "longrepr": longrepr,
+                "longrepr": clip_longrepr(longrepr),
             }
         )
 

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from src.testing.flake_telemetry import (
+    MAX_LONGREPR_LENGTH,
     FlakeTelemetrySink,
     clip_longrepr,
     resolve_output_path,
@@ -65,3 +66,20 @@ def test_sink_writes_payload(tmp_path: Path) -> None:
             "longrepr": "trace",
         }
     ]
+
+
+def test_sink_clips_longrepr_on_record(tmp_path: Path) -> None:
+    sink = FlakeTelemetrySink(tmp_path / "out.json")
+    longrepr = "x" * (MAX_LONGREPR_LENGTH + 5)
+
+    sink.record_event(
+        nodeid="test_module::longrepr",
+        outcome="failed",
+        duration=0.1,
+        was_xfail=False,
+        longrepr=longrepr,
+    )
+
+    stored = sink.events[0]["longrepr"]
+    assert stored == clip_longrepr(longrepr)
+    assert stored != longrepr

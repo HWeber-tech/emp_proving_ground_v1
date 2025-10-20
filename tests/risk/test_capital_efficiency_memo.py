@@ -12,8 +12,8 @@ from src.risk import (
 
 def build_sample_report() -> RiskReport:
     exposures = (
-        ExposureBreakdown(symbol="EURUSD", notional=0.6, percentage=60.0),
-        ExposureBreakdown(symbol="GBPUSD", notional=0.4, percentage=40.0),
+        ExposureBreakdown(symbol="regime:carry-balanced", notional=0.6, percentage=60.0),
+        ExposureBreakdown(symbol="regime:flight-to-safety", notional=0.4, percentage=40.0),
     )
     limits = PortfolioRiskLimits(
         per_asset_cap=0.5,
@@ -33,7 +33,7 @@ def build_sample_report() -> RiskReport:
         parametric_expected_shortfall=0.022,
         total_exposure=1.0,
         exposures=exposures,
-        breaches={"per_asset": {"symbols": ["EURUSD"], "limit": 0.5}},
+        breaches={"per_asset": {"symbols": ["regime:carry-balanced"], "limit": 0.5}},
         limits=limits,
     )
 

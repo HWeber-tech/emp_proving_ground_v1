@@ -84,7 +84,7 @@ def generate_capital_efficiency_memo(report: RiskReport) -> str:
     if report.exposures:
         lines.extend(
             [
-                "| Symbol | Notional | Share | Limit Flag |",
+                "| Bucket | Notional | Share | Limit Flag |",
                 "| --- | ---: | ---: | :---: |",
             ]
         )

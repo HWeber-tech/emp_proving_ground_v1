@@ -18,7 +18,9 @@ from src.risk.reporting.report_generator import parse_returns_file
 
 def _parse_exposure(value: str) -> tuple[str, float]:
     if "=" not in value:
-        raise argparse.ArgumentTypeError("exposures must be provided as SYMBOL=value")
+        raise argparse.ArgumentTypeError(
+            "exposures must be provided as BUCKET=value (e.g. regime:carry=1.5)"
+        )
     symbol, raw = value.split("=", 1)
     try:
         return symbol.strip(), float(raw)
@@ -64,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--exposure",
         action="append",
         type=_parse_exposure,
-        help="Repeatable SYMBOL=value exposure inputs",
+        help="Repeatable BUCKET=value exposure inputs (e.g. regime:carry=1.5)",
     )
     return parser
 

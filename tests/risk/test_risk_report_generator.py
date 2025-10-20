@@ -21,7 +21,11 @@ def sample_returns() -> list[float]:
 
 def test_generate_risk_report_includes_expected_metrics(sample_returns: list[float]) -> None:
     limits = load_portfolio_limits()
-    exposures = {"EURUSD": 2.5, "GBPUSD": 1.2}
+    exposures = {
+        "EURUSD": {"notional": 2.5, "regime_correlation": "carry-balanced"},
+        "GBPUSD": {"notional": 1.2, "regime_correlation": "carry-balanced"},
+        "XAUUSD": {"notional": -0.8, "regime_correlation": "flight-to-safety"},
+    }
 
     report = generate_risk_report(
         sample_returns,
@@ -37,7 +41,14 @@ def test_generate_risk_report_includes_expected_metrics(sample_returns: list[flo
     assert report.historical_var > 0
     assert report.parametric_expected_shortfall >= report.historical_expected_shortfall
     # Exposure totals
-    assert pytest.approx(report.total_exposure, rel=1e-12) == sum(abs(v) for v in exposures.values())
+    expected_total = sum(abs(entry["notional"]) for entry in exposures.values())
+    assert pytest.approx(report.total_exposure, rel=1e-12) == expected_total
+
+    buckets = {exposure.symbol: exposure for exposure in report.exposures}
+    assert "regime:carry-balanced" in buckets
+    assert "regime:flight-to-safety" in buckets
+    assert pytest.approx(buckets["regime:carry-balanced"].notional, rel=1e-12) == 3.7
+    assert pytest.approx(buckets["regime:flight-to-safety"].notional, rel=1e-12) == -0.8
     # Breach detection (aggregate + per asset + VaR)
     assert "aggregate_exposure" in report.breaches
     assert "per_asset" in report.breaches

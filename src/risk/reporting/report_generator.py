@@ -33,7 +33,13 @@ __all__ = [
 
 @dataclass(slots=True)
 class ExposureBreakdown:
-    """Summary of exposure for a single instrument."""
+    """Summary of exposure for a single diversification bucket.
+
+    The ``symbol`` attribute historically referenced an instrument identifier.
+    Portfolio-level antifragility now aggregates exposures by regime correlation
+    buckets, so the value may represent a regime label such as
+    ``"regime:carry-balanced"``.
+    """
 
     symbol: str
     notional: float
@@ -206,26 +212,172 @@ def _normalise_returns(returns: Sequence[float] | Iterable[float]) -> np.ndarray
     return array
 
 
+def _coerce_float(value: object) -> float | None:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+def _stringify_label(raw: object) -> str | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        candidate = raw.strip()
+        return candidate or None
+    value_attr = getattr(raw, "value", None)
+    if isinstance(value_attr, str):
+        candidate = value_attr.strip()
+        return candidate or None
+    return None
+
+
+def _prefix_regime(label: str) -> str:
+    stripped = label.strip()
+    if not stripped:
+        return stripped
+    lower = stripped.lower()
+    if lower.startswith("regime:"):
+        return stripped
+    return f"regime:{stripped}"
+
+
+def _resolve_notional(entry: Mapping[str, object]) -> float | None:
+    for key in ("notional", "exposure", "value", "size", "amount"):
+        if key in entry:
+            maybe = _coerce_float(entry[key])
+            if maybe is not None:
+                return maybe
+    return None
+
+
+def _resolve_bucket_label(
+    entry: Mapping[str, object], fallback: object | None = None
+) -> str | None:
+    regime_keys = (
+        "regime_correlation",
+        "correlation_regime",
+        "regime_cluster",
+        "regime_bucket",
+        "regime_group",
+        "regime",
+    )
+    correlation_keys = (
+        "correlation_cluster",
+        "correlation_group",
+        "correlation_bucket",
+        "correlation_id",
+    )
+    symbol_like_keys = ("bucket", "group", "symbol", "instrument", "asset", "name", "id")
+
+    for key in regime_keys:
+        if key in entry:
+            candidate = _stringify_label(entry[key])
+            if candidate:
+                return _prefix_regime(candidate)
+
+    for key in correlation_keys:
+        if key in entry:
+            candidate = _stringify_label(entry[key])
+            if candidate:
+                return _prefix_regime(candidate)
+
+    for key in symbol_like_keys:
+        if key in entry:
+            candidate = _stringify_label(entry[key])
+            if candidate:
+                return candidate
+
+    fallback_label = _stringify_label(fallback)
+    if fallback_label:
+        return fallback_label
+    return None
+
+
+def _normalise_bucket_label(label: str) -> str:
+    stripped = label.strip()
+    if not stripped:
+        return stripped
+    lower = stripped.lower()
+    if lower.startswith("regime:"):
+        _, _, remainder = stripped.partition(":")
+        remainder = remainder.strip()
+        return f"regime:{remainder}" if remainder else "regime"
+    return stripped
+
+
+def _iter_exposure_entries(
+    exposures: Mapping[str, object] | Sequence[object],
+) -> list[tuple[str, float]]:
+    entries: list[tuple[str, float]] = []
+
+    if isinstance(exposures, Mapping):
+        for key, value in exposures.items():
+            fallback_label = key
+            if isinstance(value, Mapping):
+                notional = _resolve_notional(value)
+                if notional is None:
+                    continue
+                label = _resolve_bucket_label(value, fallback=fallback_label)
+            else:
+                notional = _coerce_float(value)
+                if notional is None:
+                    continue
+                label = _stringify_label(fallback_label)
+            if notional is None or label is None:
+                continue
+            entries.append((_normalise_bucket_label(label), float(notional)))
+        return entries
+
+    if isinstance(exposures, Sequence) and not isinstance(exposures, (str, bytes)):
+        for entry in exposures:
+            label: str | None
+            notional: float | None
+            if isinstance(entry, Mapping):
+                notional = _resolve_notional(entry)
+                if notional is None:
+                    continue
+                label = _resolve_bucket_label(entry)
+            elif isinstance(entry, (tuple, list)) and len(entry) >= 2:
+                label = _stringify_label(entry[0])
+                notional = _coerce_float(entry[1])
+            else:
+                continue
+            if label is None or notional is None:
+                continue
+            entries.append((_normalise_bucket_label(label), float(notional)))
+
+    return entries
+
+
 def _prepare_exposures(
-    exposures: Mapping[str, float] | None,
+    exposures: Mapping[str, object] | Sequence[object] | None,
 ) -> tuple[tuple[ExposureBreakdown, ...], float]:
     if not exposures:
         return tuple(), 0.0
 
-    resolved: list[ExposureBreakdown] = []
-    total_abs = sum(abs(float(value)) for value in exposures.values())
-    total_abs = float(total_abs)
+    entries = _iter_exposure_entries(exposures)
+    if not entries:
+        return tuple(), 0.0
 
-    for symbol, value in sorted(
-        exposures.items(), key=lambda item: abs(float(item[1])), reverse=True
+    aggregated: dict[str, float] = {}
+    for label, notional in entries:
+        if not label:
+            continue
+        aggregated[label] = aggregated.get(label, 0.0) + float(notional)
+
+    if not aggregated:
+        return tuple(), 0.0
+
+    total_abs = float(sum(abs(value) for value in aggregated.values()))
+    resolved: list[ExposureBreakdown] = []
+
+    for label, notional in sorted(
+        aggregated.items(), key=lambda item: (abs(item[1]), item[0]), reverse=True
     ):
-        notional = float(value)
-        if total_abs == 0.0:
-            pct = 0.0
-        else:
-            pct = abs(notional) / total_abs * 100.0
+        percentage = 0.0 if total_abs == 0.0 else abs(notional) / total_abs * 100.0
         resolved.append(
-            ExposureBreakdown(symbol=symbol, notional=notional, percentage=pct)
+            ExposureBreakdown(symbol=label, notional=float(notional), percentage=float(percentage))
         )
 
     return tuple(resolved), total_abs
@@ -275,10 +427,25 @@ def generate_risk_report(
     *,
     confidence: float = 0.99,
     simulations: int = 10_000,
-    exposures: Mapping[str, float] | None = None,
+    exposures: Mapping[str, object] | Sequence[object] | None = None,
     limits: PortfolioRiskLimits | None = None,
 ) -> RiskReport:
-    """Compute a risk report from historical returns and exposures."""
+    """Compute a risk report from historical returns and exposures.
+
+    Parameters
+    ----------
+    returns:
+        Historical return series used to estimate distributional risk metrics.
+    exposures:
+        Optional mapping or sequence describing current portfolio exposures.
+        Entries can be raw floats keyed by identifier or structured mappings
+        containing ``notional`` and regime correlation metadata (for example,
+        ``{"notional": 1.2, "regime_correlation": "carry-balanced"}``).
+        When regime metadata is supplied, exposures are aggregated by the
+        regime correlation bucket rather than instrument name.
+    limits:
+        Optional portfolio risk limits used for breach detection.
+    """
 
     sample = _normalise_returns(returns)
 
@@ -345,7 +512,7 @@ def render_risk_report_markdown(report: RiskReport) -> str:
         lines.extend(
             [
                 "",
-                "| Symbol | Notional | Share |",
+                "| Bucket | Notional | Share |",
                 "| --- | ---: | ---: |",
             ]
         )

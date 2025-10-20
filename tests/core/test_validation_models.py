@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from src.core.validation_models import ValidationResult
 
 
@@ -37,3 +39,19 @@ def test_validation_result_to_dict_returns_metadata_copy() -> None:
     payload["metadata"]["beta"] = 3
 
     assert result.metadata["beta"] == 2
+
+
+def test_validation_result_preserves_explicit_timestamp() -> None:
+    timestamp = datetime(2023, 1, 1, 12, 30, tzinfo=timezone.utc)
+
+    result = ValidationResult(
+        test_name="example",
+        passed=False,
+        value=2.0,
+        threshold=1.5,
+        unit="percent",
+        timestamp=timestamp,
+    )
+
+    assert result.timestamp is timestamp
+    assert result.to_dict()["timestamp"] == timestamp.isoformat()

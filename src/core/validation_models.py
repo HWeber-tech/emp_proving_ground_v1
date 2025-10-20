@@ -16,6 +16,7 @@ class ValidationResult:
         unit: str,
         details: str = "",
         metadata: Optional[dict[str, object]] = None,
+        timestamp: datetime | None = None,
     ):
         self.test_name = test_name
         self.passed = passed
@@ -24,7 +25,7 @@ class ValidationResult:
         self.unit = unit
         self.details = details
         self.metadata = dict(metadata) if metadata else {}
-        self.timestamp = datetime.now()
+        self.timestamp = timestamp if timestamp is not None else datetime.now()
 
     def to_dict(self) -> dict[str, object]:
         return {

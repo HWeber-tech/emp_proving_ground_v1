@@ -18,6 +18,7 @@ except ImportError:  # pragma: no cover - fallback for older runtimes
     except ImportError as exc:  # pragma: no cover - make failure explicit during import
         raise ImportError("typing.Unpack requires Python 3.11 or typing_extensions") from exc
 
+from src.core.coercion import coerce_float
 from src.core.types import JSONObject
 
 
@@ -64,15 +65,8 @@ __all__ = [
 
 def _coerce_to_float(value: object, default: float) -> float:
     """Best-effort coercion of value to float; falls back to default on failure."""
-    if value is None:
-        return default
-    try:
-        if isinstance(value, (int, float)):
-            return float(value)
-        s = str(value).strip().replace(",", "").replace("_", "")
-        return float(s)
-    except Exception:
-        return default
+    coerced = coerce_float(value, default=default)
+    return default if coerced is None else coerced
 
 
 @dataclass

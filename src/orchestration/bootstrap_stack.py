@@ -279,6 +279,7 @@ class BootstrapTradingStack:
                 quantity=self.requested_quantity,
                 price=market_price,
                 confidence=float(snapshot.synthesis.confidence),
+                timestamp=snapshot.generated_at,
             )
             intent.metadata.setdefault("stop_loss_pct", self.stop_loss_pct)
             understanding_snapshot = {

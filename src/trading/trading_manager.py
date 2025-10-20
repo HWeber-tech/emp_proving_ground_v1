@@ -356,8 +356,14 @@ class StrategyExecutionStats:
         return payload
 
     def inventory_snapshot(self, timestamp: datetime | None = None) -> dict[str, Any]:
-        now = timestamp or datetime.now(tz=timezone.utc)
-        self._refresh_inventory_metrics(timestamp=now)
+        if timestamp is not None:
+            if timestamp.tzinfo is None:
+                now = timestamp.replace(tzinfo=timezone.utc)
+            else:
+                now = timestamp.astimezone(timezone.utc)
+            self._refresh_inventory_metrics(timestamp=now)
+        else:
+            now = self._inventory_last_update or datetime.now(tz=timezone.utc)
         return {
             "net_quantity": self._inventory_net_quantity,
             "net_notional": self._inventory_net_notional,
@@ -864,6 +870,7 @@ class TradingManager:
                 backlog_kwargs["window"] = int(backlog_window)
             backlog_instance = EventBacklogTracker(**backlog_kwargs)
         self._backlog_tracker = backlog_instance
+        self._backlog_replay_horizon_ms = 24 * 60 * 60 * 1000.0
 
         self._resource_monitor = resource_monitor or ResourceUsageMonitor()
         self._backlog_cooldown_seconds = (
@@ -1351,6 +1358,7 @@ class TradingManager:
         """
         event_id = getattr(event, "event_id", getattr(event, "id", "unknown"))
         started_wall = datetime.now(tz=timezone.utc)
+        ingested_at = self._resolve_intent_timestamp(event)
         gate_decision: DriftSentryDecision | None = None
         drift_event_emitted = False
         drift_event_status: str | None = None
@@ -1916,7 +1924,7 @@ class TradingManager:
                                 notional=float(notional),
                                 latency_ms=latency_ms,
                                 order_id=result,
-                                timestamp=datetime.now(tz=timezone.utc),
+                                timestamp=ingested_at or started_wall,
                             )
                             if notional > 0:
                                 self._roi_executed_trades += 1
@@ -1929,11 +1937,11 @@ class TradingManager:
                             }
                             if throttle_scaling_summary:
                                 success_metadata.update(throttle_scaling_summary)
-                            success_metadata["inventory_state"] = (
-                                strategy_stats.inventory_snapshot()
+                            success_metadata["inventory_state"] = strategy_stats.inventory_snapshot(
+                                timestamp=ingested_at or started_wall
                             )
-                            success_metadata["turnover_state"] = (
-                                strategy_stats.turnover_snapshot()
+                            success_metadata["turnover_state"] = strategy_stats.turnover_snapshot(
+                                timestamp=ingested_at or started_wall
                             )
                             if gate_decision_payload is not None:
                                 success_metadata["drift_gate"] = dict(gate_decision_payload)
@@ -2176,16 +2184,17 @@ class TradingManager:
                 )
         finally:
             finished_wall = datetime.now(tz=timezone.utc)
-            ingestion_timestamp = self._resolve_intent_timestamp(event)
             lag_ms: float | None = None
-            if ingestion_timestamp is not None:
-                lag_delta = (started_wall - ingestion_timestamp).total_seconds() * 1000.0
-                lag_ms = max(lag_delta, 0.0)
+            if ingested_at is not None:
+                lag_delta = (started_wall - ingested_at).total_seconds() * 1000.0
+                if lag_delta > self._backlog_replay_horizon_ms or lag_delta < 0.0:
+                    lag_delta = 0.0
+                lag_ms = lag_delta
             try:
                 self._throughput_monitor.record(
                     started_at=started_wall,
                     finished_at=finished_wall,
-                    ingested_at=ingestion_timestamp,
+                    ingested_at=ingested_at,
                 )
             except Exception:  # pragma: no cover - diagnostics only
                 logger.debug("Failed to record throughput metrics", exc_info=True)

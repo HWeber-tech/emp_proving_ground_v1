@@ -10,7 +10,10 @@ from src.sensory.enhanced._shared import (
     ensure_market_data,
     safe_timestamp,
 )
-from src.sensory.when.session_analytics import SessionAnalytics
+from src.sensory.when.session_analytics import (
+    SessionAnalytics,
+    extract_session_event_flags,
+)
 
 __all__ = ["ChronalUnderstandingEngine"]
 
@@ -25,6 +28,7 @@ class ChronalUnderstandingEngine:
         """Assess the temporal context of the market snapshot."""
 
         market_data = ensure_market_data(data)
+        halted_flag, _ = extract_session_event_flags(dict(vars(market_data)))
         ts = safe_timestamp(market_data)
         minute_of_day = ts.hour * 60 + ts.minute
         weekday = ts.weekday()

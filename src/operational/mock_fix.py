@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 import threading
 import time
 from collections import deque
@@ -33,6 +34,48 @@ class TelemetryEvent:
     timestamp: float
     event: str
     details: dict[str, object]
+
+
+@dataclass(slots=True)
+class ChaosSettings:
+    """Configuration profile for injecting perturbations into mock executions."""
+
+    drop_probability: float = 0.05
+    duplicate_probability: float = 0.05
+    stall_probability: float = 0.05
+    stall_duration_range: tuple[float, float] = (0.3, 0.3)
+    reject_probability: float = 0.0
+    seed: int | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "drop_probability",
+            "duplicate_probability",
+            "stall_probability",
+            "reject_probability",
+        ):
+            value = getattr(self, field_name)
+            if not 0.0 <= value <= 1.0:
+                raise ValueError(f"{field_name} must be between 0 and 1")
+
+        low, high = self._normalise_range(self.stall_duration_range)
+        object.__setattr__(self, "stall_duration_range", (low, high))
+
+    @staticmethod
+    def _normalise_range(candidate: tuple[float, float] | Sequence[float]) -> tuple[float, float]:
+        if len(candidate) != 2:
+            raise ValueError("stall_duration_range must contain exactly two values")
+        low = max(float(candidate[0]), 0.0)
+        high = max(float(candidate[1]), 0.0)
+        if high < low:
+            low, high = high, low
+        return low, high
+
+    def sample_stall(self, rng: random.Random) -> float:
+        low, high = self.stall_duration_range
+        if high <= low:
+            return low
+        return rng.uniform(low, high)
 
 
 def _clone_execution(record: ExecutionRecordPayload) -> ExecutionRecordPayload:
@@ -585,6 +628,9 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         self._active_threads: set[threading.Thread] = set()
         self._idle_event = threading.Event()
         self._idle_event.set()
+        self._chaos_settings: ChaosSettings | None = None
+        self._chaos_rng: random.Random | None = None
+        self.configure_chaos(None)
 
     def _spawn(self, target: Callable[[], None]) -> None:
         """Execute ``target`` on a background thread tracked for idleness."""
@@ -943,42 +989,92 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         return f"{prefix}-EXEC-{suffix}"
 
     def _dispatch(self, info: MockOrderInfo, exec_type: str) -> None:
-        self._telemetry.record(
-            "order_execution",
-            cl_ord_id=info.cl_ord_id,
-            exec_type=exec_type,
-            sequence=len(info.executions),
-            ord_status=info.ord_status,
-            last_qty=info.last_qty,
-            last_px=info.last_px,
-            cum_qty=info.cum_qty,
-            leaves_qty=info.leaves_qty,
-            avg_px=info.avg_px,
-            order_id=info.order_id,
-            exec_id=info.exec_id,
-            text=info.text,
-            ord_rej_reason=info.ord_rej_reason,
-            cancel_reason=info.cancel_reason,
-            transact_time=info.transact_time,
-            sending_time=info.sending_time,
-            account=info.account,
-            order_type=info.order_type,
-            time_in_force=info.time_in_force,
-            last_commission=info.last_commission,
-            cum_commission=info.cum_commission,
-            comm_type=info.comm_type,
-            currency=info.currency,
-            settle_type=info.settle_type,
-            settle_date=info.settle_date,
-            trade_date=info.trade_date,
-            order_capacity=info.order_capacity,
-            customer_or_firm=info.customer_or_firm,
-        )
-        for cb in self._order_cbs:
-            try:
-                cb(info)
-            except Exception:  # pragma: no cover - defensive guard for tests
-                logger.exception("Mock order callback raised")
+        chaos = self._chaos_settings
+        payloads = [info]
+
+        if chaos is not None:
+            rng = self._chaos_rng
+            if rng is None:
+                rng = random.Random(chaos.seed)
+                self._chaos_rng = rng
+
+            if chaos.stall_probability > 0.0 and rng.random() < chaos.stall_probability:
+                stall_seconds = chaos.sample_stall(rng)
+                if stall_seconds > 0.0:
+                    self._telemetry.record(
+                        "chaos_stall",
+                        cl_ord_id=info.cl_ord_id,
+                        exec_type=exec_type,
+                        exec_id=info.exec_id,
+                        stall_seconds=stall_seconds,
+                    )
+                    self._sleep(stall_seconds)
+
+            drop_event = False
+            if chaos.drop_probability > 0.0 and rng.random() < chaos.drop_probability:
+                drop_event = True
+                self._telemetry.record(
+                    "chaos_drop",
+                    cl_ord_id=info.cl_ord_id,
+                    exec_type=exec_type,
+                    exec_id=info.exec_id,
+                )
+
+            duplicate_count = 0
+            if chaos.duplicate_probability > 0.0 and rng.random() < chaos.duplicate_probability:
+                duplicate_count = 1
+                self._telemetry.record(
+                    "chaos_duplicate",
+                    cl_ord_id=info.cl_ord_id,
+                    exec_type=exec_type,
+                    exec_id=info.exec_id,
+                    copies=duplicate_count + 1,
+                )
+
+            if drop_event:
+                return
+
+            if duplicate_count:
+                payloads.extend(_clone_order_info(info) for _ in range(duplicate_count))
+
+        for idx, payload in enumerate(payloads):
+            self._telemetry.record(
+                "order_execution",
+                cl_ord_id=payload.cl_ord_id,
+                exec_type=exec_type,
+                sequence=len(payload.executions),
+                ord_status=payload.ord_status,
+                last_qty=payload.last_qty,
+                last_px=payload.last_px,
+                cum_qty=payload.cum_qty,
+                leaves_qty=payload.leaves_qty,
+                avg_px=payload.avg_px,
+                order_id=payload.order_id,
+                exec_id=payload.exec_id,
+                text=payload.text,
+                ord_rej_reason=payload.ord_rej_reason,
+                cancel_reason=payload.cancel_reason,
+                transact_time=payload.transact_time,
+                sending_time=payload.sending_time,
+                account=payload.account,
+                order_type=payload.order_type,
+                time_in_force=payload.time_in_force,
+                last_commission=payload.last_commission,
+                cum_commission=payload.cum_commission,
+                comm_type=payload.comm_type,
+                currency=payload.currency,
+                settle_type=payload.settle_type,
+                settle_date=payload.settle_date,
+                trade_date=payload.trade_date,
+                order_capacity=payload.order_capacity,
+                customer_or_firm=payload.customer_or_firm,
+                duplicate=idx > 0,
+            )
+            for cb in self._order_cbs:
+                try:
+                    cb(payload)
+                except Exception:  # pragma: no cover - defensive guard for tests
+                    logger.exception("Mock order callback raised")
 
     def _ensure_state(self, msg: object, *, force_update: bool = False) -> _OrderState:
         sentinel = object()
@@ -2228,6 +2324,15 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         # Emit scripted execution plan with optional default fallbacks
         def _emit_flow() -> None:
             completed = False
+            chaos = self._chaos_settings
+            rng = self._chaos_rng
+            force_reject = False
+            if chaos is not None:
+                if rng is None:
+                    rng = random.Random(chaos.seed)
+                    self._chaos_rng = rng
+                if chaos.reject_probability > 0.0 and rng.random() < chaos.reject_probability:
+                    force_reject = True
 
             def _dispatch_step(
                 exec_type: str,
@@ -2281,6 +2386,24 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
                 self._dispatch(info, exec_type)
                 if exec_type in {"F", "4", "8"}:
                     completed = True
+
+            if force_reject:
+                reject_reason = state.reject_reason or "99"
+                reject_text = state.reject_text or "chaos_reject"
+                self._telemetry.record(
+                    "chaos_reject",
+                    cl_ord_id=state.cl_ord_id,
+                    exec_type="8",
+                    exec_id=state.last_info.exec_id if state.last_info else None,
+                    reason=reject_reason,
+                )
+                _dispatch_step(
+                    "8",
+                    text_override=reject_text,
+                    ord_rej_reason_override=reject_reason,
+                )
+                self._clear_state(state.cl_ord_id)
+                return
 
             if initial_exec_type is not None:
                 _dispatch_step(initial_exec_type)
@@ -2360,6 +2483,15 @@ class _MockTradeConnection(FIXTradeConnectionProtocol):
         self._spawn(_emit_flow)
         return True
 
+    def configure_chaos(self, settings: ChaosSettings | None) -> None:
+        """Install chaos configuration for subsequent executions."""
+
+        self._chaos_settings = settings
+        if settings is None:
+            self._chaos_rng = None
+        else:
+            self._chaos_rng = random.Random(settings.seed)
+
 
 class MockFIXManager:
     trade_connection: FIXTradeConnectionProtocol
@@ -2392,6 +2524,7 @@ class MockFIXManager:
         order_id_padding: int = 6,
         exec_id_start: int = 1,
         exec_id_prefix: str | None = None,
+        chaos_settings: ChaosSettings | None = None,
     ) -> None:
         self._md_cbs: list[Callable[[str, OrderBookProtocol], None]] = []
         self._order_cbs: list[Callable[[OrderInfoProtocol], None]] = []
@@ -2431,6 +2564,7 @@ class MockFIXManager:
             default_order_capacity=default_order_capacity,
             default_customer_or_firm=default_customer_or_firm,
         )
+        self._trade_connection.configure_chaos(chaos_settings)
         self.trade_connection = self._trade_connection
         self.price_connection = _MockPriceConnection(self._telemetry)
 
@@ -2515,6 +2649,11 @@ class MockFIXManager:
         with self._plan_lock:
             self._market_data_plan = resolved
             self._market_data_loop = bool(loop)
+
+    def configure_chaos(self, settings: ChaosSettings | None) -> None:
+        """Update the chaos profile applied to future mock executions."""
+
+        self._trade_connection.configure_chaos(settings)
 
     def configure_order_defaults(
         self,

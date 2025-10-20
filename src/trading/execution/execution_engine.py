@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import count
+import time
 from typing import Callable, Dict, Iterable, Optional
 
 from src.core.interfaces import IExecutionEngine
@@ -38,6 +39,20 @@ class _TrackedOrder:
         }
 
 
+@dataclass(frozen=True)
+class FlattenResult:
+    """Summary returned by :meth:`ExecutionEngine.flatten_positions`."""
+
+    positions: dict[str, dict[str, float]]
+    cancelled_orders: tuple[str, ...]
+    elapsed_ms: float
+
+    def within_budget(self, budget_ms: float) -> bool:
+        """Return ``True`` when the flattening completed within ``budget_ms``."""
+
+        return self.elapsed_ms <= budget_ms
+
+
 class ExecutionEngine(IExecutionEngine):
     """In-memory execution adapter with deterministic, test-friendly behaviour."""
 
@@ -47,15 +62,19 @@ class ExecutionEngine(IExecutionEngine):
         id_factory: Callable[[], str] | None = None,
         clock: Callable[[], datetime] | None = None,
         risk_context_provider: RiskContextProvider | None = None,
+        monotonic: Callable[[], float] | None = None,
     ) -> None:
         self._id_sequence = count(1)
         self._id_factory = id_factory or self._default_id_factory
         self._clock = clock or datetime.utcnow
+        self._monotonic = monotonic or time.perf_counter
         self._orders: Dict[str, _TrackedOrder] = {}
         self._positions: Dict[str, Position] = {}
         self._risk_context_provider: RiskContextProvider | None = None
         self._last_risk_metadata: dict[str, object] | None = None
         self._last_risk_error: dict[str, object] | None = None
+        self._last_flatten_latency_ms: float | None = None
+        self._last_flatten_cancelled: tuple[str, ...] = ()
         if risk_context_provider is not None:
             self.set_risk_context_provider(risk_context_provider)
 
@@ -199,6 +218,89 @@ class ExecutionEngine(IExecutionEngine):
             position.add_realized_pnl((price - position.average_price) * quantity)
             position.update_quantity(position.quantity - quantity, position.average_price)
 
+    async def flatten_positions(
+        self,
+        symbols: Iterable[str] | None = None,
+        *,
+        price_resolver: Callable[[str, Position], float | None] | None = None,
+        timeout: float | None = 0.2,
+    ) -> FlattenResult:
+        """Flatten outstanding exposure and cancel live orders."""
+
+        start = self._monotonic()
+        flattened: dict[str, dict[str, float]] = {}
+        cancelled: list[str] = []
+
+        target_symbols = list(symbols) if symbols is not None else list(self._positions.keys())
+        for symbol in target_symbols:
+            position = self._positions.get(symbol)
+            if position is None:
+                continue
+            qty = float(position.quantity)
+            if abs(qty) <= 1e-9:
+                continue
+
+            exit_price: float | None = None
+            if price_resolver is not None:
+                try:
+                    exit_price = price_resolver(symbol, position)
+                except Exception:
+                    exit_price = None
+            if exit_price is None:
+                exit_price = position.current_price
+            if exit_price is None:
+                exit_price = position.average_price
+            exit_price = float(exit_price)
+
+            realized = (exit_price - position.average_price) * qty
+            position.add_realized_pnl(realized)
+            position.update_market_price(exit_price)
+            position.update_quantity(0.0, position.average_price)
+            position.exit_time = self._clock()
+
+            flattened[symbol] = {
+                "flattened_quantity": qty,
+                "exit_price": exit_price,
+                "realized_pnl": position.realized_pnl,
+            }
+
+        for tracker in self._orders.values():
+            order = tracker.order
+            if order.status not in {
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+                OrderStatus.REJECTED,
+            }:
+                order.update_status(OrderStatus.CANCELLED)
+                cancelled.append(order.order_id)
+
+        elapsed_ms = (self._monotonic() - start) * 1000.0
+        self._last_flatten_latency_ms = elapsed_ms
+        self._last_flatten_cancelled = tuple(cancelled)
+
+        result = FlattenResult(
+            positions=flattened,
+            cancelled_orders=self._last_flatten_cancelled,
+            elapsed_ms=elapsed_ms,
+        )
+
+        if timeout is not None and elapsed_ms > timeout * 1000.0:
+            raise TimeoutError(
+                f"flatten_positions exceeded {timeout * 1000:.1f}ms budget: {elapsed_ms:.1f}ms"
+            )
+
+        return result
+
+    def last_flatten_latency_ms(self) -> float | None:
+        """Return the measured latency of the most recent flatten call."""
+
+        return self._last_flatten_latency_ms
+
+    def last_flatten_cancelled_orders(self) -> tuple[str, ...]:
+        """Expose the order identifiers cancelled during the last flatten."""
+
+        return self._last_flatten_cancelled
+
     def reconcile(self) -> dict[str, object]:
         open_orders: list[dict[str, object]] = []
         filled_orders: list[dict[str, object]] = []
@@ -222,13 +324,18 @@ class ExecutionEngine(IExecutionEngine):
                 "realized_pnl": position.realized_pnl,
             }
 
-        return {
+        summary: dict[str, object] = {
             "open_orders": open_orders,
             "filled_orders": filled_orders,
             "cancelled_orders": cancelled_orders,
             "positions": positions_snapshot,
             "risk_context": self.describe_risk_context(),
         }
+        if self._last_flatten_latency_ms is not None:
+            summary["last_flatten_latency_ms"] = self._last_flatten_latency_ms
+            summary["last_flatten_cancelled_orders"] = list(self._last_flatten_cancelled)
+
+        return summary
 
 
-__all__ = ["ExecutionEngine"]
+__all__ = ["ExecutionEngine", "FlattenResult"]

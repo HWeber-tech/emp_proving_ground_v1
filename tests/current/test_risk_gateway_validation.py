@@ -128,6 +128,57 @@ async def test_risk_gateway_rejects_when_drawdown_exceeded(
     assert gateway.telemetry["guardrail_near_misses"] == 0
 
 
+def test_portfolio_risk_map_groups_exposure_by_regime(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    policy = RiskPolicy.from_config(RiskConfig(min_position_size=1))
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+    )
+
+    state: dict[str, Any] = {
+        "open_positions": {
+            "EURUSD": {
+                "quantity": 10_000.0,
+                "last_price": 1.2,
+                "stop_loss_pct": 0.02,
+                "regime_state": {"regime": "Balanced"},
+            },
+            "GBPUSD": {
+                "quantity": 5_000.0,
+                "last_price": 1.1,
+                "stop_loss_pct": 0.02,
+                "metadata": {"regime": "balanced"},
+            },
+            "USDJPY": {
+                "quantity": -7_000.0,
+                "last_price": 0.9,
+                "stop_loss_pct": 0.015,
+                "regime_state": {"regime": "storm"},
+            },
+            "AUDCAD": {
+                "quantity": 3_000.0,
+                "last_price": 1.05,
+                "stop_loss_pct": 0.01,
+            },
+        }
+    }
+
+    risk_map = gateway._build_portfolio_risk_map(state)
+
+    balanced_exposure = (10_000.0 * 1.2 * 0.02) + (5_000.0 * 1.1 * 0.02)
+    storm_exposure = 7_000.0 * 0.9 * 0.015
+    unknown_exposure = 3_000.0 * 1.05 * 0.01
+
+    assert risk_map["REGIME::balanced"] == pytest.approx(balanced_exposure)
+    assert risk_map["REGIME::storm"] == pytest.approx(storm_exposure)
+    assert risk_map["REGIME::unknown"] == pytest.approx(unknown_exposure)
+
+
 @pytest.mark.asyncio()
 async def test_risk_gateway_rejects_on_synthetic_invariant_breach(
     portfolio_monitor: PortfolioMonitor,

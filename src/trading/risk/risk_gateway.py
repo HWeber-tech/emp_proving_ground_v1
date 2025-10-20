@@ -1632,7 +1632,11 @@ class RiskGateway:
 
         trade_exposure = self._compute_risk_exposure(quantity, price, stop_loss_pct)
         if trade_exposure > 0:
-            risk_map[symbol] = risk_map.get(symbol, 0.0) + trade_exposure
+            bucket = self._resolve_regime_correlation_bucket(
+                symbol,
+                self._locate_position(portfolio_state, symbol) or {},
+            )
+            risk_map[bucket] = risk_map.get(bucket, 0.0) + trade_exposure
 
         try:
             risk_score = manager.assess_risk(risk_map)
@@ -1977,7 +1981,8 @@ class RiskGateway:
             stop_loss = self._extract_position_stop_loss(payload)
             exposure = self._compute_risk_exposure(quantity, price, stop_loss)
             if exposure > 0:
-                exposures[str(symbol)] = exposure
+                bucket = self._resolve_regime_correlation_bucket(str(symbol), payload)
+                exposures[bucket] = exposures.get(bucket, 0.0) + exposure
 
         return exposures
 
@@ -2009,6 +2014,68 @@ class RiskGateway:
             if candidate > 0:
                 return candidate
         return 0.0
+
+    @staticmethod
+    def _extract_regime_metadata(
+        payload: Mapping[str, Any] | None,
+    ) -> tuple[str | None, str | None]:
+        if not isinstance(payload, Mapping):
+            return None, None
+
+        seen: set[int] = set()
+        regime_keys = {"regime", "regime_label"}
+        cluster_keys = {
+            "regime_correlation",
+            "correlation_cluster",
+            "regime_cluster",
+            "correlation_bucket",
+        }
+        regime: str | None = None
+        cluster: str | None = None
+
+        def _walk(mapping: Mapping[str, Any]) -> None:
+            nonlocal regime, cluster
+            marker = id(mapping)
+            if marker in seen:
+                return
+            seen.add(marker)
+
+            for key, value in mapping.items():
+                key_lower = str(key).lower()
+                if isinstance(value, str):
+                    text = value.strip()
+                    if not text:
+                        continue
+                    if regime is None and key_lower in regime_keys:
+                        regime = text
+                    elif cluster is None and key_lower in cluster_keys:
+                        cluster = text
+                elif isinstance(value, Mapping):
+                    _walk(value)
+                elif isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                    for item in value:
+                        if isinstance(item, Mapping):
+                            _walk(item)
+                if regime is not None and cluster is not None:
+                    return
+
+        _walk(payload)
+        return regime, cluster
+
+    def _resolve_regime_correlation_bucket(
+        self,
+        symbol: str,
+        payload: Mapping[str, Any] | None,
+    ) -> str:
+        regime, cluster = self._extract_regime_metadata(payload)
+        regime_label = (regime or "unknown").strip().lower() or "unknown"
+
+        bucket = f"REGIME::{regime_label}"
+        if cluster is not None:
+            cluster_label = cluster.strip().lower()
+            if cluster_label:
+                bucket = f"{bucket}::cluster={cluster_label}"
+        return bucket
 
     def _resolve_position_price(self, payload: Mapping[str, Any]) -> float:
         for key in ("current_price", "last_price", "avg_price", "price"):

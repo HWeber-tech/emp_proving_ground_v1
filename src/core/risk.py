@@ -11,6 +11,7 @@ and be injected at runtime by orchestration.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional, Protocol, runtime_checkable
@@ -59,9 +60,13 @@ class NoOpRiskManager:
         try:
             # Perform trivial sanity checks without rejecting
             qty = float(position.get("quantity", 0))
-            return qty >= 0
-        except Exception:
-            return True
+        except (TypeError, ValueError, OverflowError):
+            return False
+
+        if not math.isfinite(qty):
+            return False
+
+        return qty >= 0
 
 
 def is_risk_manager(obj: object) -> bool:

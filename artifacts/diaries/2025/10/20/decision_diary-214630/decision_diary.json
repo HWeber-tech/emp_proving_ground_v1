@@ -1,0 +1,639 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-ec41e198",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-01T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-01T00:00:00+00:00"
+      },
+      "signature": "f109b7d880a12cd5b0c8c290e90b5652797ced4218d2eca7b93032fbc3e7b604"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-0ee8a42c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-02T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-02T00:00:00+00:00"
+      },
+      "signature": "6382ad5e688b07ff164743a9596327d5f70b2e00c539114ae6189db67379670a"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-41c800c4",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-03T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-03T00:00:00+00:00"
+      },
+      "signature": "e2fefce65eac220b6b7856fd76bfeff15cf95a9fe35c226542c2545e3caa18ce"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-3c6bcc94",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-04T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-04T00:00:00+00:00"
+      },
+      "signature": "7d94908245183e01cc206de8dcb7d2cd1edd7e67bee2e4dc9589c7190e25fd2c"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-d7358ee6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-05T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-05T00:00:00+00:00"
+      },
+      "signature": "6b750841e267e711c8f6358407972b0fea6e5db9931878904c6a5af73ca8e722"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-ffa4d319",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-06T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-06T00:00:00+00:00"
+      },
+      "signature": "b3c9b07aceff15d63020e7ff11eab624dfd6a723a5b27882ce7109018947c2ec"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-c988832c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-07T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-07T00:00:00+00:00"
+      },
+      "signature": "732343da3d474bb695177ab570462d87f9da4c56e951c3b865d599c0160de8d0"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-8c823ba9",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-08T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-08T00:00:00+00:00"
+      },
+      "signature": "dfd0bc90883fc61bd84e494feb6982151b945de21964a845d3f1e5712639ff14"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-43cb5cf9",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-09T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-09T00:00:00+00:00"
+      },
+      "signature": "100adefd9646e43d31bb238f6bdd5a41e403472fee6837f5a784fe0fa55dfe63"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-7eddf5b8",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-10T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-10T00:00:00+00:00"
+      },
+      "signature": "0373420310a82d33b49d996c2b90b70ece5d063c5627fa9c4f8e6d6c905386a1"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-9381f5fe",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-11T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-11T00:00:00+00:00"
+      },
+      "signature": "8d00355b2c17043f29a3268e709ad34cf6e891271bb943af0463eb1a8c430c71"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-0e30aaad",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-12T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-12T00:00:00+00:00"
+      },
+      "signature": "118a00a2f672997fbb098e34312309880849cccf23dfe4132e169a1eca7eef59"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-a6ac2080",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-13T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-13T00:00:00+00:00"
+      },
+      "signature": "ebd6fa47e5c9b67e34f9bc490f4e27f63e4285dc65c1272eacdeb672afac2863"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-8769ebb4",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-14T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-14T00:00:00+00:00"
+      },
+      "signature": "09303f80a5c8a2f713636fece2c94ffad834587226158d5ab998fb8ef52535b8"
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T214630Z-43df10b4",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "ma_crossover_ga::2025::8-55-0.240",
+      "probes": [],
+      "recorded_at": "2024-03-15T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.78,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-15T00:00:00+00:00"
+      },
+      "signature": "8afbfbf153923170cc33e824b9b62fe98ed23ec32517f2dfa0bc5086f7855210"
+    }
+  ],
+  "generated_at": "2025-10-20T21:46:30.979815+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T21:46:30.952176+00:00",
+    "probes": {}
+  }
+}

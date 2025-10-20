@@ -570,20 +570,22 @@ class RuntimeHealthServer:
         ssl_context: ssl.SSLContext | None,
         cert_path: str | None,
         key_path: str | None,
-    ) -> ssl.SSLContext:
+    ) -> ssl.SSLContext | None:
         if ssl_context is not None:
             return ssl_context
 
-        cert = Path(cert_path) if cert_path else None
-        key = Path(key_path) if key_path else None
+        cert = Path(cert_path).expanduser() if cert_path else None
+        key = Path(key_path).expanduser() if key_path else None
 
-        if not cert or not key:
+        if cert is None and key is None:
+            return None
+        if cert is None or key is None:
             raise ValueError(
-                "RuntimeHealthServer requires an SSL context or certificate and key paths"
+                "RuntimeHealthServer requires both certificate and key paths when TLS is enabled"
             )
 
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(certfile=str(cert.expanduser()), keyfile=str(key.expanduser()))
+        context.load_cert_chain(certfile=str(cert), keyfile=str(key))
         context.minimum_version = ssl.TLSVersion.TLSv1_2
         return context
 

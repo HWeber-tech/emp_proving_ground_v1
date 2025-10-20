@@ -5171,30 +5171,45 @@ def build_professional_runtime_application(
         token_audience = extras.get("RUNTIME_HEALTHCHECK_TOKEN_AUDIENCE")
         if token_audience is not None:
             token_audience = str(token_audience).strip() or None
-        health_server = RuntimeHealthServer(
-            app,
-            host=host,
-            port=port,
-            path=path,
-            cert_path=str(cert_path),
-            key_path=str(key_path),
-            ingest_warn_after=_coerce_float(
+        def _coerce_path_setting(raw: object | None) -> str | None:
+            if raw is None:
+                return None
+            text = str(raw).strip()
+            return text or None
+
+        cert_path = _coerce_path_setting(extras.get("RUNTIME_HEALTHCHECK_CERT_PATH"))
+        key_path = _coerce_path_setting(extras.get("RUNTIME_HEALTHCHECK_KEY_PATH"))
+        if (cert_path and not key_path) or (key_path and not cert_path):
+            raise ValueError(
+                "RUNTIME_HEALTHCHECK_CERT_PATH and RUNTIME_HEALTHCHECK_KEY_PATH must both be set"
+            )
+
+        health_kwargs: dict[str, object] = {
+            "host": host,
+            "port": port,
+            "path": path,
+            "ingest_warn_after": _coerce_float(
                 extras.get("RUNTIME_HEALTHCHECK_INGEST_WARN_SECONDS"), 900.0
             ),
-            ingest_fail_after=_coerce_float(
+            "ingest_fail_after": _coerce_float(
                 extras.get("RUNTIME_HEALTHCHECK_INGEST_FAIL_SECONDS"), 1800.0
             ),
-            decision_warn_after=_coerce_float(
+            "decision_warn_after": _coerce_float(
                 extras.get("RUNTIME_HEALTHCHECK_DECISION_WARN_SECONDS"), 180.0
             ),
-            decision_fail_after=_coerce_float(
+            "decision_fail_after": _coerce_float(
                 extras.get("RUNTIME_HEALTHCHECK_DECISION_FAIL_SECONDS"), 600.0
             ),
-            auth_secret=auth_secret,
-            health_roles=health_roles,
-            metrics_roles=metrics_roles,
-            token_audience=token_audience,
-        )
+            "auth_secret": auth_secret,
+            "health_roles": health_roles,
+            "metrics_roles": metrics_roles,
+            "token_audience": token_audience,
+        }
+        if cert_path:
+            health_kwargs["cert_path"] = cert_path
+            health_kwargs["key_path"] = key_path
+
+        health_server = RuntimeHealthServer(app, **health_kwargs)
 
         async def _start_health() -> None:
             await health_server.start()

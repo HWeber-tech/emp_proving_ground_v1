@@ -108,3 +108,41 @@ def test_review_gate_registry_merges_state(tmp_path: Path) -> None:
     markdown = registry.to_markdown()
     assert "Alpha Gate" in markdown
     assert "Beta Gate" in markdown
+
+
+def test_review_gate_registry_generates_auto_rfc_proposals(tmp_path: Path) -> None:
+    definitions_path = tmp_path / "defs.yaml"
+    _write_definitions(definitions_path)
+    registry = ReviewGateRegistry.load(definitions_path)
+
+    decision = ReviewGateDecision(
+        gate_id="beta_gate",
+        verdict=ReviewVerdict.fail,
+        decided_at=datetime(2025, 1, 3, 6, 7, 8, tzinfo=timezone.utc),
+        decided_by=("Owner B",),
+        notes=("Missing control evidence",),
+        criteria_status={"control_a": ReviewCriterionStatus.not_met},
+    )
+    registry.record_decision(decision)
+
+    generated_at = datetime(2025, 1, 4, 9, 10, 11, tzinfo=timezone.utc)
+    proposals = registry.auto_rfc_proposals(generated_at=generated_at)
+    assert len(proposals) == 1
+    proposal = proposals[0]
+    assert proposal.gate_id == "beta_gate"
+    assert proposal.path == "docs/rfcs/auto/auto_rfc_beta_gate.md"
+    assert "Beta Gate" in proposal.summary
+    assert "FAIL" in proposal.summary.upper()
+    assert "## Proposed Remediation" in proposal.patch
+    assert "Missing control evidence" in proposal.patch
+    assert proposal.generated_at == generated_at
+
+    summary = registry.to_summary(generated_at=generated_at)
+    auto_rfcs = summary.get("auto_rfc_proposals")
+    assert isinstance(auto_rfcs, list)
+    assert len(auto_rfcs) == 1
+    payload = auto_rfcs[0]
+    assert payload["gate_id"] == "beta_gate"
+    assert payload["generated_at"] == generated_at.isoformat()
+    assert payload["path"] == "docs/rfcs/auto/auto_rfc_beta_gate.md"
+    assert "Beta Gate" in payload["summary"]

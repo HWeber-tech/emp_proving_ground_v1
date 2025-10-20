@@ -73,34 +73,81 @@ def _safe_getattr(obj: object, attr: str) -> object | None:
         return None
 
 
-def normalize_prediction(p: object) -> dict[str, float]:
+def normalize_prediction(p: object) -> dict[str, object]:
     """
     Normalize a prediction-like object into a minimal dict.
 
     Output keys:
       - confidence: float
       - probability: float
+      - expected_return: float
+      - lower_bound_return: float
+      - upper_bound_return: float
+      - actionable: bool
     """
     # If it looks like a pydantic/dataclass-like object with .dict()
     payload = _call_dict_method(p)
     if isinstance(payload, Mapping):
-        return {
-            "confidence": _to_float(payload.get("confidence", 0.0), 0.0),
-            "probability": _to_float(payload.get("probability", 0.0), 0.0),
-        }
+        return _normalise_prediction_mapping(payload)
 
     # Mapping path
     if isinstance(p, Mapping):
-        return {
-            "confidence": _to_float(p.get("confidence", 0.0), 0.0),
-            "probability": _to_float(p.get("probability", 0.0), 0.0),
-        }
+        return _normalise_prediction_mapping(p)
 
     # Attribute path (structural access)
     conf = _to_float(_safe_getattr(p, "confidence"), 0.0)
     prob = _to_float(_safe_getattr(p, "probability"), 0.0)
+    expected = _to_float(_safe_getattr(p, "expected_return"), 0.0)
+    lower = _to_float(_safe_getattr(p, "lower_bound_return"), expected)
+    upper = _to_float(_safe_getattr(p, "upper_bound_return"), expected)
+    actionable_attr = _safe_getattr(p, "actionable")
+    actionable = bool(actionable_attr) if actionable_attr is not None else lower > 0.0
 
-    return {"confidence": conf, "probability": prob}
+    interval_attr = _safe_getattr(p, "return_interval")
+    if isinstance(interval_attr, Mapping):
+        interval = cast(Mapping[str, object], interval_attr)
+        lower = _to_float(interval.get("lower"), lower)
+        upper = _to_float(interval.get("upper"), upper)
+
+    if lower > upper:
+        lower, upper = upper, lower
+
+    return {
+        "confidence": conf,
+        "probability": prob,
+        "expected_return": expected,
+        "lower_bound_return": lower,
+        "upper_bound_return": upper,
+        "actionable": actionable,
+    }
+
+
+def _normalise_prediction_mapping(payload: Mapping[str, object]) -> dict[str, object]:
+    """Normalise mapping-like prediction payloads with uncertainty metadata."""
+
+    expected = _to_float(payload.get("expected_return", payload.get("median_return", 0.0)), 0.0)
+    lower = _to_float(payload.get("lower_bound_return", payload.get("lower", expected)), expected)
+    upper = _to_float(payload.get("upper_bound_return", payload.get("upper", expected)), expected)
+
+    interval = payload.get("return_interval")
+    if isinstance(interval, Mapping):
+        lower = _to_float(interval.get("lower"), lower)
+        upper = _to_float(interval.get("upper"), upper)
+
+    if lower > upper:
+        lower, upper = upper, lower
+
+    actionable_raw = payload.get("actionable")
+    actionable = bool(actionable_raw) if actionable_raw is not None else lower > 0.0
+
+    return {
+        "confidence": _to_float(payload.get("confidence", 0.0), 0.0),
+        "probability": _to_float(payload.get("probability", 0.0), 0.0),
+        "expected_return": expected,
+        "lower_bound_return": lower,
+        "upper_bound_return": upper,
+        "actionable": actionable,
+    }
 
 
 def normalize_survival_result(r: object) -> dict[str, float]:

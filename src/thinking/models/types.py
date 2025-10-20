@@ -7,8 +7,12 @@ from typing import Protocol, TypedDict, runtime_checkable
 
 @runtime_checkable
 class PredictionLike(Protocol):
-    confidence: float
-    probability: float
+    confidence: float | Decimal
+    probability: float | Decimal
+    expected_return: float | Decimal
+    lower_bound_return: float | Decimal
+    upper_bound_return: float | Decimal
+    actionable: bool
 
 
 @runtime_checkable

@@ -6,8 +6,10 @@ Advanced market prediction and scenario modeling system.
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -46,6 +48,10 @@ class PredictionResult:
     confidence: Decimal
     calibration_factor: Decimal
     timestamp: datetime
+    expected_return: Decimal
+    lower_bound_return: Decimal
+    upper_bound_return: Decimal
+    actionable: bool
 
 
 class MarketScenarioGenerator:
@@ -243,12 +249,7 @@ class OutcomePredictor:
             for model_name, model_func in self.prediction_models.items():
                 predictions[model_name] = model_func(scenario)
 
-            return {
-                "scenario_id": scenario.scenario_id,
-                "predictions": predictions,
-                "confidence": scenario.confidence,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
+            return self._build_outcome_payload(scenario, predictions)
 
         except Exception as e:
             logger.error(f"Error predicting outcome: {e}")
@@ -256,6 +257,12 @@ class OutcomePredictor:
                 "scenario_id": scenario.scenario_id,
                 "predictions": {},
                 "confidence": Decimal("0.5"),
+                "expected_return": 0.0,
+                "return_interval": {"lower": 0.0, "upper": 0.0},
+                "lower_bound_return": 0.0,
+                "upper_bound_return": 0.0,
+                "actionable": False,
+                "action": "defer",
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
@@ -302,6 +309,79 @@ class OutcomePredictor:
             logger.error(f"Error predicting success probability: {e}")
             return 0.5
 
+    def _build_outcome_payload(
+        self, scenario: MarketScenario, predictions: dict[str, object]
+    ) -> dict[str, object]:
+        """Assemble the outcome payload with uncertainty annotations."""
+
+        metrics = self._compute_return_metrics(scenario)
+
+        predictions_with_uncertainty = dict(predictions)
+        predictions_with_uncertainty["expected_return"] = metrics["expected_return"]
+        predictions_with_uncertainty["return_interval"] = {
+            "lower": metrics["lower_bound"],
+            "upper": metrics["upper_bound"],
+        }
+
+        action_text = "execute" if metrics["actionable"] else "defer"
+
+        return {
+            "scenario_id": scenario.scenario_id,
+            "predictions": predictions_with_uncertainty,
+            "confidence": scenario.confidence,
+            "expected_return": metrics["expected_return"],
+            "return_interval": {
+                "lower": metrics["lower_bound"],
+                "upper": metrics["upper_bound"],
+            },
+            "lower_bound_return": metrics["lower_bound"],
+            "upper_bound_return": metrics["upper_bound"],
+            "actionable": metrics["actionable"],
+            "action": action_text,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    def _compute_return_metrics(self, scenario: MarketScenario) -> dict[str, float]:
+        """Compute expected return and interval bounds for a scenario."""
+
+        prices = np.asarray(scenario.price_path, dtype=float)
+        prices = prices[np.isfinite(prices)]
+        if prices.size < 2:
+            return {
+                "expected_return": 0.0,
+                "lower_bound": -0.01,
+                "upper_bound": 0.01,
+                "actionable": False,
+            }
+
+        returns = np.diff(prices) / prices[:-1]
+        compounded_return = float(np.prod(1.0 + returns) - 1.0)
+
+        std_ret = float(np.std(returns, ddof=1 if returns.size > 1 else 0))
+        horizon = max(returns.size, 1)
+
+        volatility_component = abs(float(scenario.volatility)) * math.sqrt(horizon)
+        dispersion_candidates = [abs(std_ret) * math.sqrt(horizon), volatility_component]
+        dispersion = max(max(dispersion_candidates), 1e-4)
+
+        interval_half_width = 1.96 * dispersion
+        lower = compounded_return - interval_half_width
+        upper = compounded_return + interval_half_width
+
+        lower = float(max(lower, -1.0))
+        upper = float(min(upper, 5.0))
+        if lower > upper:
+            lower, upper = upper, lower
+
+        actionable = lower > 0.0
+
+        return {
+            "expected_return": float(compounded_return),
+            "lower_bound": lower,
+            "upper_bound": upper,
+            "actionable": actionable,
+        }
+
 
 class ConfidenceCalibrator:
     """Calibrates confidence based on historical accuracy."""
@@ -335,14 +415,46 @@ class ConfidenceCalibrator:
                 # Ensure reasonable bounds
                 calibrated_confidence = max(0.1, min(1.0, calibrated_confidence))
 
+                outcome_payload = dict(outcome)
+
+                expected_return = self._to_float(outcome_payload.get("expected_return", 0.0))
+                interval_payload = outcome_payload.get("return_interval", {})
+                if isinstance(interval_payload, Mapping):
+                    lower_bound = self._to_float(interval_payload.get("lower", expected_return))
+                    upper_bound = self._to_float(interval_payload.get("upper", expected_return))
+                else:
+                    lower_bound = self._to_float(outcome_payload.get("lower_bound_return", expected_return))
+                    upper_bound = self._to_float(outcome_payload.get("upper_bound_return", expected_return))
+
+                if lower_bound > upper_bound:
+                    lower_bound, upper_bound = upper_bound, lower_bound
+
+                actionable_flag = bool(outcome_payload.get("actionable", lower_bound > 0.0))
+                actionable_flag = actionable_flag and lower_bound > 0.0
+
+                outcome_payload["expected_return"] = expected_return
+                outcome_payload["return_interval"] = {
+                    "lower": lower_bound,
+                    "upper": upper_bound,
+                }
+                outcome_payload["lower_bound_return"] = lower_bound
+                outcome_payload["upper_bound_return"] = upper_bound
+                outcome_payload["actionable"] = actionable_flag
+                outcome_payload["action"] = "execute" if actionable_flag else "defer"
+                outcome_payload["calibrated_confidence"] = calibrated_confidence
+
                 # Create prediction result
                 result = PredictionResult(
                     scenario_id=scenario.scenario_id,
                     probability=probability,
-                    predicted_outcome=outcome,
+                    predicted_outcome=outcome_payload,
                     confidence=Decimal(str(calibrated_confidence)),
                     calibration_factor=Decimal(str(calibration_factor)),
                     timestamp=datetime.utcnow(),
+                    expected_return=Decimal(str(expected_return)),
+                    lower_bound_return=Decimal(str(lower_bound)),
+                    upper_bound_return=Decimal(str(upper_bound)),
+                    actionable=actionable_flag,
                 )
 
                 calibrated_results.append(result)

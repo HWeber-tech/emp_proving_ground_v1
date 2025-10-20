@@ -211,7 +211,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--memory-growth-max",
         type=_non_negative_float,
         default=None,
-        help="Maximum allowed memory growth in MB before the run is marked degraded",
+        help=(
+            "Maximum allowed memory growth in MB before the guardian marks the run "
+            "as failed and stops the session"
+        ),
     )
     paper_parser.add_argument(
         "--minimum-runtime-hours",

@@ -71,6 +71,8 @@ _NOOP = _NoOpMetricsSink()
 def set_metrics_sink(sink: MetricsSink) -> None:
     """Register a process-wide metrics sink implementation."""
     global _SINK
+    if not isinstance(sink, MetricsSink):
+        raise TypeError("metrics sink must implement MetricsSink protocol")
     _SINK = sink
 
 

@@ -630,7 +630,7 @@ class ReviewGateRegistry:
                 )
                 patch_proposals.append(proposal)
             entries.append(entry_payload)
-        proposals = [
+        auto_rfc_payloads = [
             proposal.as_dict()
             for proposal in self.auto_rfc_proposals(generated_at=summary_generated_at)
         ]

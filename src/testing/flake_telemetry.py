@@ -11,6 +11,7 @@ from typing import Any
 
 DEFAULT_RELATIVE_PATH = Path("tests/.telemetry/flake_runs.json")
 MAX_LONGREPR_LENGTH = 4000
+_PathCandidate = str | os.PathLike[str]
 
 
 def _default_metadata() -> dict[str, Any]:
@@ -67,6 +68,17 @@ class FlakeTelemetrySink:
         }
         self.output_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
         return payload
+
+
+def _normalize_candidate(candidate: _PathCandidate | None) -> str | None:
+    if candidate is None:
+        return None
+    try:
+        text = os.fspath(candidate)
+    except TypeError:
+        return None
+    stripped = text.strip()
+    return stripped or None
 
 
 def resolve_output_path(

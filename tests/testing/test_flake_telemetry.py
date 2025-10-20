@@ -75,3 +75,17 @@ def test_clip_longrepr_retains_prefix_when_suffix_exceeds_limit() -> None:
 
     assert clipped.startswith("ab")
     assert clipped.endswith("… [truncated 4 chars]")
+
+
+def test_resolve_output_path_supports_pathlike(tmp_path: Path) -> None:
+    explicit_path = tmp_path / "telemetry" / "session.json"
+
+    path = resolve_output_path(
+        tmp_path,
+        explicit=explicit_path,
+        ini_value=None,
+        env_value=None,
+    )
+
+    assert path == explicit_path
+    assert path.parent.is_dir()

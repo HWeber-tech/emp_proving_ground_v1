@@ -23,6 +23,7 @@ from typing import Any, Callable, Deque, Iterable, Mapping, MutableMapping, Sequ
 from src.evolution.mutation_ledger import get_mutation_ledger
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
+from src.evolution.mutation_ledger import MutationLedger
 from src.governance.policy_ledger import PolicyLedgerStage
 from src.trading.strategies.catalog_loader import StrategyCatalog, load_strategy_catalog
 from src.thinking.adaptation.operator_constraints import (
@@ -157,6 +158,7 @@ class EvolutionManager:
         paper_only: bool = True,
         catalogue: StrategyCatalog | None = None,
         catalogue_loader: Callable[[], StrategyCatalog] | None = None,
+        mutation_ledger: MutationLedger | None = None,
     ) -> None:
         if window_size <= 0:
             raise ValueError("window_size must be positive")
@@ -173,6 +175,7 @@ class EvolutionManager:
         self._states: dict[str, _ManagedStrategyState] = {}
         self._catalogue = catalogue
         self._catalogue_loader = catalogue_loader or load_strategy_catalog
+        self._mutation_ledger = mutation_ledger or MutationLedger()
 
         for config in strategies:
             base_id = config.base_tactic_id
@@ -190,6 +193,10 @@ class EvolutionManager:
                 introduced_variants={},
                 constraints=constraint_set,
             )
+
+    @property
+    def mutation_ledger(self) -> MutationLedger:
+        return self._mutation_ledger
 
     @staticmethod
     def _resolve_constraints(
@@ -760,6 +767,27 @@ class EvolutionManager:
                 metadata={"parameter_mutation": mutation_details},
             )
             state.introduced_variants[variant_id] = variant
+            metadata = {
+                "parameter": parameter,
+                "suffix": suffix,
+                "scale": mutation.scale,
+                "offset": mutation.offset,
+                "min_value": mutation.min_value,
+                "max_value": mutation.max_value,
+                "mutation_index": state.mutation_index,
+                "base_weight": float(base.base_weight),
+                "adjusted_weight": float(adjusted_weight),
+                "weight_multiplier": float(mutation.weight_multiplier),
+                "rationale": rationale,
+            }
+            self._mutation_ledger.record_parameter_mutation(
+                base_tactic_id=tactic_id,
+                variant_id=variant_id,
+                parameter=parameter,
+                original_value=float(original),
+                mutated_value=float(mutated_value),
+                metadata=metadata,
+            )
             return variant
         return None
 

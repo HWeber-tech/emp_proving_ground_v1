@@ -28,6 +28,7 @@ from src.evolution.catalogue_telemetry import (
     build_catalogue_snapshot,
 )
 from src.evolution.feature_flags import AdaptiveRunDecision, EvolutionFeatureFlags
+from src.evolution.mutation_ledger import MutationLedger
 from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
     build_lineage_snapshot,
@@ -180,6 +181,7 @@ class EvolutionCycleOrchestrator:
         event_bus: EventBus | None = None,
         adaptive_runs_enabled: bool | None = None,
         feature_flags: EvolutionFeatureFlags | None = None,
+        mutation_ledger: MutationLedger | None = None,
     ) -> None:
         self._engine = evolution_engine
         self._callback = evaluation_callback
@@ -200,6 +202,7 @@ class EvolutionCycleOrchestrator:
         self._last_catalogue_fingerprint: tuple[object, ...] | None = None
         self._latest_lineage_snapshot: EvolutionLineageSnapshot | None = None
         self._last_lineage_fingerprint: tuple[object, ...] | None = None
+        self._mutation_ledger = mutation_ledger or MutationLedger()
 
     async def run_cycle(self) -> EvolutionCycleResult:
         """Evaluate the current population, evolve, and optionally register a champion."""
@@ -208,6 +211,7 @@ class EvolutionCycleOrchestrator:
         evaluations = await self._evaluate_population(population)
         decision = self._resolve_adaptive_runs_decision()
         adaptive_enabled = decision.enabled
+        previous_best = self._best_champion
         champion = self._promote_champion(
             population, evaluations, allow_registration=adaptive_enabled
         )
@@ -229,6 +233,31 @@ class EvolutionCycleOrchestrator:
                 _as_float(self.telemetry.get("best_fitness", 0.0)), champion.fitness
             )
             self.telemetry["champion"] = champion.as_payload()
+            if (
+                previous_best is None
+                or champion.fitness > _as_float(previous_best.fitness, float("-inf"))
+            ):
+                metadata: dict[str, Any] = {
+                    "registered": champion.registered,
+                    "parent_ids": list(champion.parent_ids),
+                    "species": champion.species,
+                    "mutation_history": list(champion.mutation_history),
+                    "fitness_report": champion.report.as_payload(),
+                }
+                if hasattr(summary, "best_fitness"):
+                    metadata.setdefault("summary_best_fitness", float(summary.best_fitness))
+                if hasattr(summary, "generation"):
+                    generation = getattr(summary, "generation", None)
+                else:
+                    generation = None
+                previous_best_value = previous_best.fitness if previous_best is not None else None
+                self._mutation_ledger.record_fitness_improvement(
+                    genome_id=champion.genome_id,
+                    new_fitness=champion.fitness,
+                    previous_fitness=previous_best_value,
+                    generation=generation,
+                    metadata=metadata,
+                )
             self._best_champion = champion
         else:
             self.telemetry["champion"] = None
@@ -243,6 +272,8 @@ class EvolutionCycleOrchestrator:
         elif "catalogue" in self.telemetry:
             self.telemetry.pop("catalogue", None)
 
+        self.telemetry["mutation_ledger"] = self._mutation_ledger.snapshot()
+
         return EvolutionCycleResult(summary=summary, evaluations=evaluations, champion=champion)
 
     @property
@@ -250,6 +281,10 @@ class EvolutionCycleOrchestrator:
         """Return the most recent adaptive-run gating decision."""
 
         return self._adaptive_runs_decision
+
+    @property
+    def mutation_ledger(self) -> MutationLedger:
+        return self._mutation_ledger
 
     async def _evaluate_population(
         self, population: Sequence[DecisionGenome]

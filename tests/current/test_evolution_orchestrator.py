@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from src.core.evolution.engine import EvolutionConfig, EvolutionEngine
+from src.evolution.mutation_ledger import MutationLedger
 from src.governance.strategy_registry import StrategyRegistry
 from src.orchestration.evolution_cycle import EvolutionCycleOrchestrator
 from src.operations.evolution_readiness import EvolutionReadinessStatus
@@ -168,6 +169,36 @@ async def test_orchestrator_supports_sync_evaluators_and_dataclass_reports():
     # Ensure metadata normalization handled the None metadata gracefully
     assert all("fitness_score" in record.report.as_payload() for record in second.evaluations)
     assert orchestrator.population_statistics["population_size"] == 3
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_records_fitness_improvements_in_ledger():
+    engine = EvolutionEngine(
+        EvolutionConfig(population_size=3, elite_count=1, crossover_rate=0.4, mutation_rate=0.3)
+    )
+    engine._rng.seed(17)  # type: ignore[attr-defined]
+
+    def evaluator(genome):
+        return {"fitness_score": 0.5 + _score_parameters(genome), "sharpe_ratio": 1.1}
+
+    ledger = MutationLedger()
+    orchestrator = EvolutionCycleOrchestrator(
+        engine,
+        evaluator,
+        adaptive_runs_enabled=True,
+        mutation_ledger=ledger,
+    )
+
+    result = await orchestrator.run_cycle()
+    assert result.champion is not None
+
+    records = ledger.fitness_improvements
+    assert len(records) == 1
+    payload = records[0].as_dict()
+    assert payload["genome_id"] == result.champion.genome_id
+    assert payload["new_fitness"] == pytest.approx(result.champion.fitness)
+    ledger_snapshot = orchestrator.telemetry["mutation_ledger"]
+    assert ledger_snapshot["fitness_improvements"], "ledger snapshot should include fitness entry"
 
 
 @pytest.mark.asyncio

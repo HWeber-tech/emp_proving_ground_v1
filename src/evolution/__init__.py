@@ -42,6 +42,7 @@ from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
     build_lineage_snapshot,
 )
+from src.evolution.mutation_ledger import MutationLedger
 
 _ = None  # Legacy facade: re-export core evolution interfaces
 
@@ -68,4 +69,5 @@ __all__ = [
     "dump_recorded_snapshots",
     "load_recorded_snapshots",
     "summarise_recorded_replay",
+    "MutationLedger",
 ]

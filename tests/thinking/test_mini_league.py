@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.evolution.mutation_ledger import MutationLedger
 from src.thinking.adversarial.mini_league import (
     ExploitabilityObservation,
     LeagueEntry,
@@ -185,6 +186,25 @@ def test_promotion_blocked_when_covenant_metrics_fail() -> None:
     promoted = league.promote_current_to_best()
     assert promoted is not None
     assert promoted.agent_id == "current"
+
+
+def test_mini_league_records_exploitability_in_ledger() -> None:
+    ledger = MutationLedger()
+    league = MiniLeague(mutation_ledger=ledger)
+    league.register(LeagueSlot.CURRENT, _entry("current", 1.10, 1.0))
+    league.register(LeagueSlot.BEST, _entry("best", 1.30, 1.05))
+    league.register(LeagueSlot.EXPLOIT, _entry("exploit", 1.25, 1.02))
+
+    observation = league.record_exploitability_observation(turnover_tolerance_pct=10.0)
+    assert observation.selected_agent_id is not None
+
+    records = ledger.exploitability_results
+    assert len(records) == 1
+    payload = records[0].as_dict()
+    assert payload["selected_agent_id"] == observation.selected_agent_id
+    assert payload["metric"] == observation.metric
+    snapshot = league.mutation_ledger.snapshot()
+    assert snapshot["exploitability_results"], "snapshot should include recorded observation"
 
 
 def test_lagrangian_constraints_penalize_variance() -> None:

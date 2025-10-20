@@ -347,6 +347,7 @@ class MiniLeague:
         sharpness_floor: float = 0.15,
         calibration_brier_ceiling: float = 0.12,
         exploitability_gap_ceiling: float = 0.05,
+        mutation_ledger: MutationLedger | None = None,
     ) -> None:
         if max_exploit <= 0:
             raise ValueError("max_exploit must be positive")
@@ -380,6 +381,7 @@ class MiniLeague:
         self._calibration_brier_ceiling = float(calibration_brier_ceiling)
         self._exploitability_gap_ceiling = float(exploitability_gap_ceiling)
         self._observer_watchlist: dict[str, dict[str, object]] = {}
+        self._mutation_ledger = mutation_ledger or MutationLedger()
 
     def register(self, slot: LeagueSlot, entry: LeagueEntry) -> None:
         roster = self._slots[slot]
@@ -514,6 +516,10 @@ class MiniLeague:
 
     def exploitability_observations(self) -> tuple[ExploitabilityObservation, ...]:
         return tuple(self._exploitability_observations)
+
+    @property
+    def mutation_ledger(self) -> MutationLedger:
+        return self._mutation_ledger
 
     def compute_exploitability_observation(
         self,

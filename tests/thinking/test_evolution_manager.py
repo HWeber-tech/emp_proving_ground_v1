@@ -6,6 +6,7 @@ from typing import Mapping
 import pytest
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
+from src.evolution.mutation_ledger import MutationLedger
 from src.governance.policy_ledger import PolicyLedgerStage
 from src.thinking.adaptation.evolution_manager import (
     CatalogueVariantRequest,
@@ -117,6 +118,64 @@ def test_evolution_manager_registers_variant_on_losses() -> None:
     actions = payload["actions"]
     action_types = {action["action"] for action in actions}
     assert {"register_variant", "degrade_base"}.issubset(action_types)
+
+
+def test_evolution_manager_records_parameter_mutation_in_ledger() -> None:
+    router = PolicyRouter()
+    router.register_tactic(
+        PolicyTactic(
+            tactic_id="mutant_core",
+            base_weight=1.0,
+            parameters={"threshold": 0.5},
+        )
+    )
+
+    ledger = MutationLedger()
+
+    manager = EvolutionManager(
+        policy_router=router,
+        strategies=(
+            ManagedStrategyConfig(
+                base_tactic_id="mutant_core",
+                parameter_mutations=(
+                    ParameterMutation(
+                        parameter="threshold",
+                        scale=1.1,
+                        suffix="threshold",
+                        rationale="increase threshold",
+                        weight_multiplier=0.9,
+                    ),
+                ),
+                degrade_multiplier=0.8,
+            ),
+        ),
+        window_size=2,
+        win_rate_threshold=0.75,
+        feature_flags=EvolutionFeatureFlags(env={"EVOLUTION_ENABLE_ADAPTIVE_RUNS": "1"}),
+        mutation_ledger=ledger,
+    )
+
+    decision = _decision("mutant_core")
+    result = None
+    for _ in range(2):
+        result = manager.observe_iteration(
+            decision=decision,
+            stage=PolicyLedgerStage.PAPER,
+            outcomes={"paper_pnl": -10.0},
+            regime_state=_regime_state(),
+        )
+
+    assert isinstance(result, EvolutionAdaptationResult)
+    records = ledger.parameter_mutations
+    assert len(records) == 1
+    payload = records[0].as_dict()
+    assert payload["base_tactic_id"] == "mutant_core"
+    assert payload["parameter"] == "threshold"
+    assert payload["original_value"] == pytest.approx(0.5)
+    assert payload["mutated_value"] != pytest.approx(0.5)
+    metadata = payload["metadata"]
+    assert metadata["suffix"] == "threshold"
+    assert metadata["rationale"] == "increase threshold"
 
 
 def test_evolution_manager_respects_feature_flag() -> None:

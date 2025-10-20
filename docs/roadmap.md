@@ -92,7 +92,7 @@
 
 ### C.4 Heads & calibration
 - [x] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
-- [ ] **C.4.2** Add **quantile head** (τ=0.25/0.5/0.75).  
+- [x] **C.4.2** Add **quantile head** (τ=0.25/0.5/0.75).  
 - [x] **C.4.3** Calibrate: temperature scaling or isotonic on held-out day; report **ECE** & **Brier**.
 
 **DoD (C):** p99 model latency â‰¤ **0.35 ms**, total â‰¤ **0.85 ms**; training converges at 16k; ECE/Brier non-worse vs baseline.
@@ -164,7 +164,7 @@
 
 **Goal:** fast stress testing without lying to ourselves.
 
-- [ ] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
+- [x] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
 - [x] **G.2** A/B validator: surrogate vs ground‑truth sim **α within 5%**, turnover within 10%; otherwise retrain.  
 - [x] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
 
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T07:33:29Z
+## Automation updates — 2025-10-20T10:11:34Z
 
 ### Last 4 commits
-- a1fc6a32 feat(artifacts): add 21 files (2025-10-20)
-- a504f467 refactor(trading): tune 3 files (2025-10-20)
-- 8e2ac3d6 refactor(data_foundation): tune 5 files (2025-10-20)
-- 94ba9da6 feat(thinking): add 3 files (2025-10-20)
+- 2f9f0575 refactor(reflection): tune 3 files (2025-10-20)
+- a20c3234 test(.telemetry): tune 2 files (2025-10-20)
+- 64622fd5 feat(simulation): add 3 files (2025-10-20)
+- 9565871f refactor(trading): tune 2 files (2025-10-20)

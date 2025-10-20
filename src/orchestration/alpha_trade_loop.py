@@ -19,6 +19,7 @@ from decimal import Decimal
 from enum import Enum, StrEnum
 from typing import Any, Mapping, MutableMapping, Sequence
 from src.governance.policy_ledger import LedgerReleaseManager, PolicyLedgerStage
+from src.operations.drift_sentry import DriftSentrySnapshot
 from src.operations.sensory_drift import DriftSeverity, SensoryDriftSnapshot
 from src.thinking.adaptation.policy_reflection import (
     PolicyReflectionArtifacts,
@@ -790,7 +791,7 @@ class AlphaTradeLoopOrchestrator:
         belief_state: BeliefState | Mapping[str, Any] | None = None,
         policy_id: str | None = None,
         outcomes: Mapping[str, Any] | None = None,
-        drift_snapshot: SensoryDriftSnapshot | None = None,
+        drift_snapshot: SensoryDriftSnapshot | DriftSentrySnapshot | None = None,
         trade: Mapping[str, Any] | None = None,
         notes: Sequence[str] | None = None,
         extra_metadata: Mapping[str, Any] | None = None,

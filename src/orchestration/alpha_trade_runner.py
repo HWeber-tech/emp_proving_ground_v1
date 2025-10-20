@@ -20,6 +20,7 @@ end-to-end AlphaTrade runs without manual glue code inside the test fixtures.
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -30,6 +31,7 @@ import math
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, MutableMapping, Sequence
 
+from src.operations.drift_sentry import DriftSentryConfig, DriftSentrySnapshot, evaluate_drift_sentry
 from src.operations.sensory_drift import DriftSeverity
 from src.orchestration.alpha_trade_loop import (
     AlphaTradeLoopOrchestrator,
@@ -104,6 +106,95 @@ TradeBuilder = Callable[
 ]
 
 
+class OutOfDistributionSentry:
+    """Track runtime metrics and surface drift snapshots relative to training."""
+
+    def __init__(
+        self,
+        *,
+        config: DriftSentryConfig | None = None,
+        training_window: int | None = None,
+        metadata: Mapping[str, object] | None = None,
+    ) -> None:
+        self._config = config or DriftSentryConfig()
+        baseline = max(0, int(self._config.baseline_window))
+        evaluation = max(0, int(self._config.evaluation_window))
+        self._window = max(1, baseline + evaluation)
+        minimum_training = max(self._config.min_observations, 1)
+        if training_window is None:
+            training_window = max(minimum_training, baseline)
+        self._training_cap = max(minimum_training, int(training_window))
+        self._history: dict[str, deque[float]] = {}
+        self._training_data: dict[str, list[float]] = {}
+        self._metadata = dict(metadata or {})
+        self._last_snapshot: DriftSentrySnapshot | None = None
+
+    @property
+    def config(self) -> DriftSentryConfig:
+        return self._config
+
+    @property
+    def last_snapshot(self) -> DriftSentrySnapshot | None:
+        return self._last_snapshot
+
+    def record(
+        self,
+        metrics: Mapping[str, float | None],
+        *,
+        generated_at: datetime | None = None,
+    ) -> DriftSentrySnapshot | None:
+        if not metrics:
+            return None
+
+        for name, raw_value in metrics.items():
+            if raw_value is None:
+                continue
+            try:
+                value = float(raw_value)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(value):
+                continue
+            history = self._history.setdefault(name, deque(maxlen=self._window))
+            history.append(value)
+            training = self._training_data.setdefault(name, [])
+            if len(training) < self._training_cap:
+                training.append(value)
+
+        ready_metrics: dict[str, list[float]] = {}
+        training_reference: dict[str, list[float]] = {}
+
+        for name, series in self._history.items():
+            if len(series) < self._window:
+                continue
+            training = self._training_data.get(name)
+            if not training or len(training) < self._config.min_observations:
+                continue
+            ready_metrics[name] = list(series)
+            training_reference[name] = list(training)
+
+        if not ready_metrics:
+            return None
+
+        metadata = dict(self._metadata)
+        if training_reference:
+            metadata.setdefault("training_ready_metrics", tuple(sorted(training_reference)))
+
+        try:
+            snapshot = evaluate_drift_sentry(
+                ready_metrics,
+                config=self._config,
+                generated_at=generated_at,
+                metadata=metadata,
+                training_reference=training_reference,
+            )
+        except ValueError:
+            return None
+
+        self._last_snapshot = snapshot
+        return snapshot
+
+
 class AlphaTradeLoopRunner:
     """Run a full AlphaTrade loop iteration and forward the trade intent."""
 
@@ -135,6 +226,9 @@ class AlphaTradeLoopRunner:
         clock: Callable[[], datetime] | None = None,
         memory_trust_support: int = 3,
         memory_min_multiplier: float = 0.5,
+        ood_sentry: OutOfDistributionSentry | None = None,
+        ood_sentry_config: DriftSentryConfig | None = None,
+        ood_training_window: int | None = None,
     ) -> None:
         self._belief_emitter = belief_emitter
         self._regime_fsm = regime_fsm
@@ -168,6 +262,13 @@ class AlphaTradeLoopRunner:
 
         self._memory_trust_support = int(memory_trust_support)
         self._memory_min_multiplier = float(memory_min_multiplier)
+
+        sentry_config = ood_sentry_config or DriftSentryConfig()
+        self._ood_sentry = ood_sentry or OutOfDistributionSentry(
+            config=sentry_config,
+            training_window=ood_training_window,
+            metadata={"source": "alpha_trade_runner.ood_sentry"},
+        )
 
     async def process(
         self,
@@ -228,6 +329,26 @@ class AlphaTradeLoopRunner:
         )
 
         recorded_at: datetime | None = None
+        ood_snapshot: DriftSentrySnapshot | None = None
+        if self._ood_sentry is not None:
+            ood_metrics = self._collect_out_of_distribution_metrics(
+                belief_state=belief_state,
+                regime_signal=regime_signal,
+                sensory_snapshot=sensory_snapshot if isinstance(sensory_snapshot, Mapping) else None,
+            )
+            if ood_metrics:
+                generated_at = None
+                if isinstance(sensory_snapshot, Mapping):
+                    generated_at = _coerce_datetime(sensory_snapshot.get("generated_at"))
+                if generated_at is None:
+                    generated_at = getattr(belief_state, "generated_at", None)
+                if isinstance(generated_at, datetime) and generated_at.tzinfo is None:
+                    generated_at = generated_at.replace(tzinfo=timezone.utc)
+                ood_snapshot = self._ood_sentry.record(
+                    ood_metrics,
+                    generated_at=generated_at,
+                )
+
         try:
             loop_result = self._orchestrator.run_iteration(
                 belief_snapshot,
@@ -236,6 +357,7 @@ class AlphaTradeLoopRunner:
                 trade=trade_plan.metadata,
                 notes=tuple(notes or ()),
                 extra_metadata=extra_metadata,
+                drift_snapshot=ood_snapshot,
             )
         except Exception:
             self._record_diary_result(success=False, recorded_at=None)
@@ -554,6 +676,37 @@ class AlphaTradeLoopRunner:
             trade_intent=dict(intent_payload) if intent_payload is not None else None,
             trade_outcome=trade_outcome,
         )
+
+    @staticmethod
+    def _collect_out_of_distribution_metrics(
+        *,
+        belief_state: BeliefState,
+        regime_signal: RegimeSignal,
+        sensory_snapshot: Mapping[str, Any] | None,
+    ) -> dict[str, float]:
+        metrics: dict[str, float] = {}
+
+        belief_metadata = getattr(belief_state, "metadata", None)
+        if isinstance(belief_metadata, Mapping):
+            confidence_value = _coerce_float(belief_metadata.get("confidence"))
+            if confidence_value is not None and math.isfinite(confidence_value):
+                metrics["belief_confidence"] = confidence_value
+
+        regime_confidence = _coerce_float(regime_signal.regime_state.confidence)
+        if regime_confidence is not None and math.isfinite(regime_confidence):
+            metrics["regime_confidence"] = regime_confidence
+
+        if isinstance(sensory_snapshot, Mapping):
+            integrated_block = sensory_snapshot.get("integrated_signal")
+            if isinstance(integrated_block, Mapping):
+                strength_value = _coerce_float(integrated_block.get("strength"))
+                if strength_value is not None and math.isfinite(strength_value):
+                    metrics["integrated_strength"] = strength_value
+                integrated_confidence = _coerce_float(integrated_block.get("confidence"))
+                if integrated_confidence is not None and math.isfinite(integrated_confidence):
+                    metrics["integrated_confidence"] = integrated_confidence
+
+        return metrics
 
     def describe_diary_coverage(self) -> Mapping[str, Any]:
         snapshot: dict[str, Any] = {

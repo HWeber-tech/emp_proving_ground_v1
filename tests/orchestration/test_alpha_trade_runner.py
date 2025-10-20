@@ -18,7 +18,7 @@ from src.orchestration.alpha_trade_loop import (
     ComplianceEventType,
     ComplianceSeverity,
 )
-from src.orchestration.alpha_trade_runner import AlphaTradeLoopRunner
+from src.orchestration.alpha_trade_runner import AlphaTradeLoopRunner, AlphaTradeRunResult
 from src.trading.gating import DriftSentryGate
 from src.trading.trading_manager import TradeIntentOutcome
 from src.understanding.belief import BeliefBuffer, BeliefEmitter, RegimeFSM
@@ -1081,6 +1081,89 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
 
     policy_router = runner._understanding_router.policy_router
     assert policy_router.exploration_freeze_active() is True
+
+
+@pytest.mark.asyncio()
+async def test_alpha_trade_runner_detects_training_divergence(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+    config = DriftSentryConfig(
+        baseline_window=4,
+        evaluation_window=2,
+        min_observations=2,
+        page_hinkley_delta=10.0,
+        page_hinkley_warn=1e6,
+        page_hinkley_alert=1e6,
+        cusum_warn=1e6,
+        cusum_alert=1e6,
+        variance_ratio_warn=float("inf"),
+        variance_ratio_alert=float("inf"),
+        training_mean_diff_warn=0.05,
+        training_mean_diff_alert=0.1,
+        training_variance_ratio_warn=float("inf"),
+        training_variance_ratio_alert=float("inf"),
+    )
+
+    runner, _ = _build_runner(
+        monkeypatch,
+        tmp_path,
+        trading_manager,
+        runner_kwargs={
+            "ood_sentry_config": config,
+            "ood_training_window": 4,
+        },
+    )
+
+    def _snapshot(confidence: float, index: int) -> Mapping[str, Any]:
+        return {
+            "symbol": "EURUSD",
+            "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC) + timedelta(seconds=index),
+            "lineage": {"source": "unit-test"},
+            "integrated_signal": {"strength": confidence, "confidence": confidence},
+            "dimensions": {},
+            "price": 1.2345,
+            "quantity": 25_000,
+        }
+
+    data_points: list[Mapping[str, Any]] = []
+    index = 0
+    for _ in range(4):
+        data_points.append(_snapshot(0.10, index))
+        index += 1
+    for _ in range(2):
+        data_points.append(_snapshot(0.10, index))
+        index += 1
+    for _ in range(2):
+        data_points.append(_snapshot(0.16, index))
+        index += 1
+
+    last_result: AlphaTradeRunResult | None = None
+    for snap in data_points:
+        last_result = await runner.process(
+            snap,
+            policy_id="alpha.live",
+            trade_overrides={"policy_id": "alpha.live"},
+        )
+
+    assert last_result is not None
+    trade_metadata = last_result.trade_metadata
+    assert isinstance(trade_metadata, Mapping)
+    mitigation = trade_metadata.get("drift_mitigation")
+    assert isinstance(mitigation, Mapping)
+    multiplier = mitigation.get("size_multiplier")
+    assert multiplier is not None
+    assert pytest.approx(float(multiplier), rel=1e-9) == pytest.approx(0.35)
+
+    final_quantity = trade_metadata.get("quantity")
+    assert final_quantity is not None
+    assert pytest.approx(float(final_quantity), rel=1e-9) == pytest.approx(25_000.0 * 0.35)
+
+    requirements = mitigation.get("requirements")
+    assert isinstance(requirements, Mapping)
+    training_block = requirements.get("training_divergence")
+    assert isinstance(training_block, Mapping)
+    assert training_block.get("status") == "warn"
+
+    assert trading_manager.intents, "expected executed trade intent"
 
 
 @pytest.mark.asyncio()

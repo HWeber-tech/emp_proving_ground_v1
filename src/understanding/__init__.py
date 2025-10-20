@@ -21,6 +21,12 @@ from .diagnostics import (
     UnderstandingNode,
     UnderstandingNodeKind,
 )
+from .counterfactual_simulator import (
+    CounterfactualAssessment,
+    CounterfactualScenario,
+    CounterfactualScenarioResult,
+    CounterfactualSimulator,
+)
 from .causal_graph_engine import (
     CausalGraphEngine,
     CausalInterventionResult,
@@ -66,6 +72,10 @@ __all__ = [
     "UnderstandingLoopSnapshot",
     "UnderstandingNode",
     "UnderstandingNodeKind",
+    "CounterfactualAssessment",
+    "CounterfactualScenario",
+    "CounterfactualScenarioResult",
+    "CounterfactualSimulator",
     "CausalGraphEngine",
     "CausalInterventionResult",
     "CausalNode",

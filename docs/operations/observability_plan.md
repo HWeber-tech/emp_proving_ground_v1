@@ -5,6 +5,26 @@ lightweight alternative that still surfaces failures quickly.  The plan below
 outlines the guardrails that are now in place and the follow-up automation we
 can layer on without introducing third-party dependencies.
 
+## Observability practices
+
+* **Unified runtime telemetry** – The observability dashboard ingests
+  compliance, readiness, and evolution KPI snapshots, renders status-driven
+  panels, and updates Prometheus gauges so operators inherit SLA posture inside
+  one surface instead of reconciling ad-hoc exports.【F:src/operations/observability_dashboard.py†L558-L680】【F:src/operations/evolution_kpis.py†L1-L188】
+* **Health endpoints and exporters** – The runtime ships an aiohttp
+  `RuntimeHealthServer` that grades FIX connectivity, ingest freshness, and
+  decision-loop latency while enforcing token-scoped access, and the builder
+  wires it into startup/shutdown hooks so deployments expose `/health` without
+  bespoke glue.【F:src/runtime/healthcheck.py†L1-L200】【F:src/runtime/runtime_builder.py†L5132-L5199】
+* **Snapshot collectors and freshness guards** – CLI utilities export the
+  professional runtime summary for Grafana/DataDog consumption and validate
+  dashboard staleness before drills block on outdated telemetry, keeping JSON
+  payloads and Markdown summaries aligned.【F:tools/telemetry/export_operational_snapshots.py†L1-L160】【F:tools/telemetry/dashboard_guard.py†L1-L160】
+* **Alert evidence and runbooks** – MTTA/MTTR tracking flows through the CI
+  metrics CLI and alert drill generator, while Redis and Kafka runbooks map the
+  emitted telemetry to incident steps so responders can pivot from JSON proofs
+  to established procedures during outages.【F:tools/telemetry/update_ci_metrics.py†L1-L200】【F:tools/telemetry/alert_drill.py†L1-L160】【F:docs/operations/runbooks/redis_cache_outage.md†L1-L52】【F:docs/operations/runbooks/kafka_ingest_offset_recovery.md†L1-L60】
+
 ## Current capabilities
 
 * **CI failure alerts** – `.github/workflows/ci-failure-alerts.yml` opens (or
@@ -208,6 +228,19 @@ can layer on without introducing third-party dependencies.
       telemetry exporters using `RuntimeHealthServer`; the builder starts the
       server automatically and stores the latest snapshot in the professional
       runtime summary for operators.【F:src/runtime/healthcheck.py†L1-L258】【F:src/runtime/runtime_builder.py†L1816-L1863】
+
+## Alerting roadmap
+
+| Horizon | Target | Scope | Owner | Evidence hooks |
+| --- | --- | --- | --- | --- |
+| Now | 2025-02 | Auto-ingest forced-failure timelines into the CI metrics feed so MTTA/MTTR entries update as soon as drills finish and alert issues close, eliminating manual JSON edits.| Reliability | Alert drill CLI and CI metrics updater【F:tools/telemetry/alert_drill.py†L1-L160】【F:tools/telemetry/update_ci_metrics.py†L1-L200】 |
+| Next | 2025-03 | Promote runtime health snapshots to production alerts by forwarding `RuntimeHealthServer` grades to Slack/Prometheus and enforcing auth role checks before opening incidents.| Platform | Runtime health server and builder hooks【F:src/runtime/healthcheck.py†L1-L200】【F:src/runtime/runtime_builder.py†L5132-L5199】 |
+| Later | 2025-04 | Gate dashboards on freshness by wiring `dashboard_guard` into nightly CI and Grafana uploads, and publish operational snapshot exports to artefact storage for alert rules.| Observability | Dashboard guard and operational snapshot exporter【F:tools/telemetry/dashboard_guard.py†L1-L160】【F:tools/telemetry/export_operational_snapshots.py†L1-L160】 |
+
+Success is graded on sub-1-hour median acknowledgement for CI alerts, runtime
+health degradations paging once per incident, and no dashboard snapshot older
+than 30 minutes when drills execute; the metrics CLI already records each of
+those touchpoints so the on-call retrospective can verify targets objectively.【F:tools/telemetry/update_ci_metrics.py†L1-L200】
 
 ## Slack/webhook rollout plan
 

@@ -1,297 +1,85 @@
-# ROADMAP.md - EMP / Alphatrade
+# EMP Gap Roadmap
 
-> **North star:** human-tweakable parameters are bandaids.  
-> We build an autonomous, instrument-agnostic trading system that reasons in **dimensionless units** (ticks, spreads, σ) and promotes models only through **hard, machine-readable gates**.
-
----
-
-## 0) Quick start (single-box bootstrap)
-
-- **Target deployment:** one Hetzner dedicated server (> 8 cores / 32-64 GB RAM / NVMe) for runtime + data services; your **RTX  3090 home PC** handles training.  
-- **One instrument** to start (EURUSD or XAUUSD).  
-- **Paper mode** first; upgrade to live only after gates are consistently green.
+This document captures the missing or incomplete features across the EMP (Evolving Market Predator) codebase. The goal is to operationalize the system vision by building out the scaffolding and logic necessary for robust, adaptive, live-trading autonomy. Each task includes a brief explanation of what's expected for clear implementation.
 
 ---
 
-## Phase A - Fix the foundation (wiring, config, runability)
+## Perception, Invariants, and State Fidelity
 
-**Goal:** engine boots deterministically; mock ? paper runs end-to-end; tests & metrics exist.
+- [ ] **Implement FIX W/X snapshot + update parsing**: Create a market data parser that supports full-depth order book construction from raw FIX messages.
+- [ ] **Future-mask depth features**: Ensure features from future timesteps are zeroed out or excluded to preserve causal training.
+- [ ] **Consistent feature scaling**: Normalize and scale features across assets and time to make models generalizable.
+- [ ] **Snapshot-to-stream backfill**: Construct synthetic time series from raw snapshots for backward testing and time-consistency checks.
+- [ ] **PSI gate and alerting**: Calculate Predictive Signal Index and alert when regime drift is detected.
+- [ ] **Nightly invariant drift report**: Automate the generation of drift diagnostics across all invariants.
+- [ ] **CI invariant enforcement**: Fail CI pipeline if invariant checks don't pass on new features or datasets.
 
-### A.1 Event bus & runtime correctness
-- [x] **A.1.1** Add `emit()` alias to EventBus that forwards to `publish_async()`; deprecate later.  
-- [x] **A.1.2** Make per-instrument queues **bounded**; publish `DEGRADED_MODE` when back-pressure triggers; auto-throttle decisions to size = 0.  
-- [x] **A.1.3** Guarantee **ordering per instrument** (monotone {ts,seqno}); drop or quarantine out-of-order with a reason code.
+## Model Architecture (Mamba-3, SSM, Memory)
 
-### A.2 Config single source of truth (SoT)
-- [x] **A.2.1** `SystemConfig` reads YAML first; env only overrides explicitly set fields.  
-- [x] **A.2.2** In `mock` mode **skip live-cred validation**; provide `examples/run_mock.sh`.  
-- [x] **A.2.3** Normalize `connection_protocol` once (`.lower().strip()`); remove `CONNECTION_PROTOCOL` drift.
+- [ ] **Integrate Mamba-3-style SSD block**: Use scalar \( A_t \), vector \( B_t, C_t \), and Swish activation to build a lightweight structured state-space model. Start with the SSD PyTorch reference implementation.
+- [ ] **Support blockwise streaming with chunked update**: Use intra-chunk SSD and inter-chunk decay to propagate memory efficiently.
+- [ ] **Expose head and state size as config params**: Defaults should be (head_dim=64, state_dim=64) with safe fallbacks.
+- [ ] **Add parallel projection logic**: Project A, B, C, and X in one shot using a shared linear layer for tensor parallel compatibility.
+- [ ] **Provide drop-in wrapper for existing model backbone**: The SSD block must match MLP input/output shape and device semantics.
+- [ ] **Add test comparing SSD vs LSTM baseline**: Sanity check on same synthetic price series.
+- [ ] **CI gate for SSD latency and output consistency**: SSD output must be deterministic and match recurrence output within tolerance.
 
-### A.3 Market access & sensory organs
-- [x] **A.3.1** Implement FIX **MarketDataRequest** subscribe/unsubscribe on start/stop.  
-- [x] **A.3.2** Parse W/X messages: build L1-L5 snapshots; emit "market_data_update" with `{bid,ask,bid_sz,ask_sz,depth[L],ts,seq}`.  
-- [x] **A.3.3** cTrader adapter: replace missing domain events with typed payloads or plain bus events; ensure async usage is correct.
+## Runtime & Observability
 
-### A.4 Minimal compose & health
-- [x] **A.4.1** `docker-compose.yml` services: **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
-- [x] **A.4.2** `/health` + `/metrics` (Prometheus): `event_lag_ms`, `queue_depth`, `p50/90/99_infer_ms`, `drops`, `risk_halted`.
+- [ ] **Migrate to `TaskGroup`**: Convert all background tasks to supervised, cancellable async task groups.
+- [ ] **Shutdown coverage**: Test clean exits across all runtime components under normal and failure scenarios.
+- [ ] **Governance summary export**: Add high-level runtime summary metadata for CLI dashboards.
+- [ ] **Live audit CLI**: Enable full export of current strategy, planner, and policy state as a JSON/YAML artifact.
+- [ ] **Health + latency metrics**: Export p99 latency, exception rates, and system health in Prometheus-compatible format.
 
-### A.5 Tests & validation
-- [x] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
-- [x] **A.5.2** Turn `system_validation_report` into **CI**; build fails if any check red.  
-- [x] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock-paper status).
+## Policy, Risk, and Execution
 
-**Definition of Done (A):** `docker compose up` runs mock end-to-end; FIX replay test passes; `/metrics` exposes latency & queue stats; CI green.
+- [ ] **Tiered risk limits**: Implement dynamic constraints on position sizing and leverage based on market volatility.
+- [ ] **RiskManager throttles**: Add runtime hooks to prevent overexposure or double-down behavior in drawdowns.
+- [ ] **Policy regret test**: Benchmark learned policy against an oracle with perfect hindsight to compute regret.
+- [ ] **PnL attribution logger**: Break down performance into cross, post, and hold edge vs realized profit.
 
----
+## Planning & Control
 
-## Phase B - Perception: translation adapter (dimensionless invariants)
+- [ ] **Disable tracking**: Log reason when planner chooses to disengage or fuse.
+- [ ] **Planner SLA test**: Benchmark planner response under synthetic load and fail if latency exceeds threshold.
+- [ ] **Imagined vs realized edge**: Correlate plannerâ€™s expected vs actual return distribution in CI.
+- [ ] **Adversarial foresight**: Inject crafted inputs (e.g., spoof ladders, reversion bait) to test planner adaptability.
 
-**Goal:** instrument-agnostic **MarketState** emitted on every event, no leakage.
+## Chaos and Fault Tolerance
 
-### B.1 Depth & TOB features
-- [x] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv → GLU → adaptive pool to **D=8-16** dims.  
-- [x] **B.1.2** Emit `has_depth` and **zero-mask** depth features when absent (spot FX).  
-- [x] **B.1.3** Derived features (leak-free):  
-  - `microprice`, `spread_ticks > 1`, `ofi_norm` (pre-event states + trade sign), `refresh_hz`, `stale_ms`, `slope/curve` (2-term poly each side).
+- [ ] **Chaos test harness**: Build simulation layer to inject fault types like duplication, timeouts, or malformed orders.
+- [ ] **Flattening latency validation**: Ensure pipeline can flatten (liquidate) in under 200ms under pressure.
+- [ ] **Chaos log auditing**: Log failure context and time-to-recovery after injected chaos.
+- [ ] **CI chaos pass/fail**: Fail PRs that regress flatten time, misfire recovery, or lose state.
 
-### B.2 Meta/context tokens (data-driven)
-- [x] **B.2.1** `asset_class`: {equity, fx_fut, fx_spot}; `venue`: {nasdaq, globex, spot_agg}.  
-- [x] **B.2.2** `liquidity_bucket`: daily quantiles by median L1 size/spread → {low, mid, high}.  
-- [x] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
+## Evolutionary Learning (EMP Core)
 
-### B.3 Targets & guards
-- [x] **B.3.1** Robust σ: EWMA(|returns|) or rolling MAD×1.4826 over past‑only window  
-- [x] **B.3.2** Dimensionless delta_hat = (mid[t+H]-mid[t])/(tick*max(spread, kσ).  
-- [x] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
-- [x] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  
-- [x] **B.3.5** Unit test: masking future data must not change features/labels.
+- [ ] **EvolutionEngine scaffold**: Build orchestration layer for model mutation, evaluation, and promotion.
+- [ ] **PolicyLedger tracking**: Maintain performance, regime, and promotion metadata for all trained models.
+- [ ] **Self-play loops**: Run pairwise model battles over logged market states for dominance estimation.
+- [ ] **Surrogate model testing**: Train proxy models to predict outcomes and validate them with A/B ground truth.
+- [ ] **Alpha fidelity gate**: Validate surrogate models dont deviate more than 5% from true alpha.
+- [ ] **Curriculum injection**: Schedule rare-event or edge-case slices into training for robustness.
+- [ ] **Exploitability analysis**: Compute model weaknesses and known exploit patterns.
+- [ ] **Replay + mutation viewer**: Interface to explore evolution history and lineage.
 
-**DoD (B):** Adapter emits **MarketState** with invariants; leakage tests pass; features align across instruments (smoke PSI < 0.25).
+## CI/CD, Gates, and Governance
 
----
+- [ ] **Auto-tag on gate pass**: Label approved policies as `APPROVED_DEFAULT` in CI.
+- [ ] **Gate regression reverts**: Automatically roll back deployments that fail regression gates.
+- [ ] **Artifact lineage**: Stamp models and binaries with promotion history and configuration.
+- [ ] **README-paper parity**: Verify that documentation reflects actual runtime boundaries.
+- [ ] **CI truth check**: Prevent merging if documentation falsely claims capabilities.
 
-## Phase C - Backbone & heads (Mamba-3, streaming, TBPTT)
+## Deployment & Infra
 
-**Goal:** long memory, sub-ms inference, stable training.
-
-### C.1 Backbone swap & toggles
-- [x] **C.1.1** `BackboneSSM(impl="mamba2"|"mamba3")` with identical `forward(x,state)`.  
-- [x] **C.1.2** Keep local-attention sandwich; add **RMSNorm + layer-scale 0.1**.  
-- [x] **C.1.3** YAML toggles: `model.ssm_impl: mamba3`, `fallback_impl: mamba2`; auto-fallback on latency fail.
-
-### C.2 True streaming state
-- [x] **C.2.1** **Per-instrument state table** (pinned); TTL & reset on session boundary/gaps/halts.  
-- [x] **C.2.2** Determinism: no dropout live; state versioned by model hash; hot-reload invalidates state.  
-- [x] **C.2.3** Clone-state API for planner (no mutation).
-
-### C.3 Chunked BPTT
-- [x] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
-- [x] **C.3.2** Curriculum seq_len: 4k → 8k → 16k.  
-- [x] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
-
-### C.4 Heads & calibration
-- [x] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
-- [x] **C.4.2** Add **quantile head** (τ=0.25/0.5/0.75).  
-- [x] **C.4.3** Calibrate: temperature scaling or isotonic on held-out day; report **ECE** & **Brier**.
-
-**DoD (C):** p99 model latency â‰¤ **0.35 ms**, total â‰¤ **0.85 ms**; training converges at 16k; ECE/Brier non-worse vs baseline.
+- [ ] **Live config overlays**: Use Kustomize to expose toggles between paper and live environments.
+- [ ] **Boot flag support**: Add CLI/runtime flags for `--paper-mode` and `--live-mode` with distinct config outputs.
+- [ ] **Docker reproducibility**: Publish images that boot with deterministic seeds and config snapshots.
+- [ ] **Helm deployment**: Add Helm charts for production use, including healthcheck and autoscaling logic.
+- [ ] **Market replay smoke test**: Build system test that simulates historical depth and verifies core loop integrity.
 
 ---
 
-## Phase D — Risk, execution, and slow context
-
-**Goal:** trade only when after?fee edge beats costs; size by uncertainty; be sane in macro.
-
-### D.1 Decision rule & costs
-- [x] **D.1.1** edge_ticks = delta_hat * max(spread, kσ); cost = ½·spread + slip + fees + AS_penalty.
-- [x] **D.1.2** Actions: {cross, post‑and‑chase(±1 tick, TTL X ms), hold}.
-
-### D.2 Queue & adverse selection
-- [x] **D.2.1** L1 queue fill prob ~ our_size / (queue_size+?) × trade_flow_factor.  
-- [x] **D.2.2** **Adverse selection**: microprice drift over last k events conditional on our action.
-
-### D.3 Sizing & inventory
-- [x] **D.3.1** Size ∝ edge / σ̂ (from quantile head).  
-- [x] **D.3.2** Inventory as a state with mean?reversion pressure; turnover caps per minute/hour.
-
-### D.4 Slow context (OpenBB)
-- [x] **D.4.1** Macro/vol/earnings → **size multiplier** ∈ {0, 0.3, 1}.  
-- [x] **D.4.2** Macro event ±120?s → 0; VIX>35 → 0.3; else 1.  
-- [x] **D.4.3** Emit reason codes for gate decisions.
-
-**DoD (D):** execution sim shows after?fee alpha ? thresholds; macro halts respected; inventory bounded under stress.
-
----
-
-## Phase E — Training strategy: LOBSTER pretrain ? FX finetune
-
-**Goal:** bilingual skill without forgetting; promotion by hard gates.
-
-### E.1 LOBSTER pretrain
-- [x] **E.1.1** Multi?task losses: Huber/quantile + direction + big?move; aux: next?event, masked?depth, queue?depletion.  
-- [x] **E.1.2** Eval by horizon (events+time); report ECE, Brier, alpha?after?fees.
-
-### E.2 FX adaptation
-- [x] **E.2.1** Freeze bottom 60–80%; enable **LoRA rank 8–16** on top 30–40%.  
-- [x] **E.2.2** **EWC or L2?SP** + **20–30% equity rehearsal**.  
-- [x] **E.2.3** Retention gates per horizon; reject if any exceed cap.
-
-**DoD (E):** Equity retention drop ≤ {1ev 3%, 5ev 4%, 20ev 5%}; FX gains ≥ 3% F1 with matched turnover.
-
----
-
-## Phase F — Planner & league (foresight + robustness)
-
-**Goal:** look ahead a few steps under a tight budget; harden against exploitation.
-
-### F.1 MuZero?lite planner
-- [x] **F.1.1** Learn compact state?transition: next `MarketState` essentials + reward proxy.  
-- [x] **F.1.2** Depth-2/3 MCTS over actions {cross, post, hold}; budget **0.3–0.5?ms**; auto?disable if SLA breached.  
-- [x] **F.1.3** Gate: correlation between imagined edge and realized edge ≥ 0.2 on hold?out day.
-
-### F.2 Mini?league self?play
-- [x] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
-- [x] **F.2.2** Replay buffers: main + **rare-regime** (NFP, halts); 80/20 sampling with temp schedule.  
-- [x] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
-- [x] **F.2.4** Exploitability metric (ΔSharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
-
-**DoD (F):** planner respects latency gates; exploitability gap narrows without turnover spike.
-
----
-
-## Phase G — Surrogate simulator & capacity
-
-**Goal:** fast stress testing without lying to ourselves.
-
-- [x] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
-- [x] **G.2** A/B validator: surrogate vs ground‑truth sim **α within 5%**, turnover within 10%; otherwise retrain.  
-- [x] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
-
-**DoD (G):** surrogate gated; capacity curves published per instrument.
-
----
-
-## Phase H — Observability, drift, chaos
-
-**Goal:** you can see why every action happened; system survives faults.
-
-- [x] **H.1** Action logs: `{reason_code, edge_ticks, cost_to_take, context_mult, inventory, latency_ms}`.  
-- [x] **H.2** Drift monitors: **PSI** for 8–12 core features; alert if PSI > 0.25.  
-- [x] **H.3** Dumb baseline comparator (e.g., 1×spread mean?revert); alert on sustained underperformance.  
-- [x] **H.4** Chaos suite: 5% event drop/dup, 300?ms stall, order rejects; engine must **flatten within 200?ms**; idempotent dedupe of `(clOrdID, execID)`.
-
-**DoD (H):** chaos drills pass; drift alerts behave; reasons are queryable.
-
----
-
-## Phase I - Acceptance gates & CI
-
-**Goal:** promotion by YAML, not vibes.
-
-```yaml
-gates:
-  retention_f1_drop_pct: {ev1: 3.0, ev5: 4.0, ev20: 5.0}
-  fx_gain_f1_min_pct: {ev1: 3.0, ev5: 3.0, ev20: 3.0}
-  ece_max: 0.08
-  brier_max: 0.19
-  alpha_after_fees_bps_min: {ev1: 0.2, ev5: 0.5, ev20: 0.7}
-  session_var_spread_pct_max: 35.0
-  latency_p99_ms: {adapter: 0.50, model: 0.35, total: 0.85}
-  psi_max: 0.25
-  turnover_match_pct: 10
-  planner_edge_realization_corr_min: 0.20
-  exploitability_gap_wow_delta_max: -0.0   # must shrink or be equal
-actions_on_fail: ["reject", "fallback_previous_model"]
-```
-
-- [x] **I.1** CI job runs ablations ({no-depth, no-OFI, LoRA vs per-domain head, k âˆˆ {0.3,0.5,0.7}}) and enforces **all gates**.  
-- [x] **I.2** Model tagging: `APPROVED_DEFAULT` on pass; **auto-revert** otherwise.
-
-**DoD (I):** one-button promotion with audited gates; rollback automatic.
-
----
-
-## Phase J - Deployment: Hetzner single-box
-
-**Goal:** full stack on one server post-training.
-
-- [x] **J.1** Provision Hetzner: **8+ cores / 32-64 GB / NVMe / Ubuntu  22.04**.  
-- [x] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
-- [x] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
-- [x] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
-- [x] **J.5** Live promotion only after **2+ weeks** green gates (paper).
-
-**DoD (J):** single server runs the full stack; paper loop stable with headroom.
-
----
-
-## Milestone timeline (suggested)
-
-- **Week 1-2:** Phase A + B (foundation, adapter)  
-- **Week 3-4:** Phase C (Mamba-3, streaming, TBPTT)  
-- **Week 5:** Phase D (execution/risk)  
-- **Week 6:** Phase E (LOBSTER ? FX)  
-- **Week 7:** Phase F (planner & league v1)  
-- **Week 8:** Phase G/H (surrogate, chaos, observability)  
-- **Week 9:** Phase I/J (gates, CI, Hetzner rollout)
-
----
-
-## API & data contracts (reference)
-
-### MarketState (dimensionless)
-```
-spread_ticks:int; microprice_off:float; ofi_norm:float; qimbalance:float;
-refresh_hz:float; stale_ms:float; slope_bid:float; slope_ask:float;
-curve_bid:float; curve_ask:float; depth_feat[8..16]:float; has_depth:bool;
-session_id:int; liquidity_id:int; venue_id:int; ts:int64; seq:int64
-```
-
-### Events (bus)
-- "market_data_update" ? `MarketState`  
-- "order_update" ? `{clOrdID, execID, status, filled, price, ts}`  
-- "risk_breach" ? `{reason, metric, value, limit, ts}`  
-- "degraded_mode" ? `{reason, queue_depth, lag_ms}`
-
----
-
-## Operational runbook (condensed)
-
-- **Warm-up:** burn-in B events per symbol; size=0 until warm.  
-- **Resets:** session flip, halt/resume, stale feed, long gap ? reset state; cool-down N events.  
-- **Planner:** budgeted; disabled automatically on SLA breach.  
-- **Kill-switch:** max_daily_loss or drawdown ? cancel all, flatten, publish `risk_breach`.  
-- **Post-mortem:** every action carries reason codes & inputs for audit.
-
----
-
-## Issue template (copy into `.github/ISSUE_TEMPLATE/task.yml`)
-
-```yaml
-name: Task
-body:
-- type: input
-  id: id
-  attributes: { label: Task ID (e.g., C.2.1) }
-- type: textarea
-  id: desc
-  attributes: { label: Description }
-- type: checkboxes
-  id: ac
-  attributes:
-    label: Acceptance criteria
-    options:
-      - label: Unit tests added
-      - label: E2E test passes
-      - label: Metrics validated
-      - label: Docs updated
-```
-
-## Automation updates — 2025-10-20T11:22:54Z
-
-### Last 4 commits
-- a068dac7 refactor(core): tune 3 files (2025-10-20)
-- 2a60443f feat(structlog): add 3 files (2025-10-20)
-- efc85e7b refactor(artifacts): tune 3 files (2025-10-20)
-- 789a2b77 refactor(core): tune 3 files (2025-10-20)
+This roadmap is a living execution plan. Each checkbox moves EMP closer to becoming an autonomous, self-adaptive, risk-aware market predator. All contributors should understand the *intent* behind each taskâ€”not just what to build, but *why* it matters to the overall predator architecture.

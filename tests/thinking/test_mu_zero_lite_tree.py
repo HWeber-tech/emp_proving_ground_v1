@@ -7,6 +7,9 @@ from src.thinking.evaluation.muzero_lite_tree import (
     MuZeroLiteTreeResult,
     simulate_short_horizon_futures,
 )
+from src.thinking.muzero_lite_tree import (
+    simulate_short_horizon_futures as simulate_structured_futures,
+)
 
 
 def test_simulate_short_horizon_futures_evaluates_paths() -> None:
@@ -109,3 +112,113 @@ def test_simulate_short_horizon_respects_max_branches() -> None:
     assert len(result.paths) == 2
     actions = {path.actions[0] for path in result.paths if path.actions}
     assert actions == {"a", "b"}
+
+
+def test_simulate_short_horizon_blocks_regulatory_paths() -> None:
+    policy = {
+        "root": {"cross": 0.7, "post": 0.3},
+        "terminal": {},
+    }
+    transitions = {
+        "root": {
+            "cross": {
+                "state": "terminal",
+                "edge": 5.0,
+                "metadata": {"regulations": ["MiFID II"]},
+            },
+            "post": {
+                "state": "terminal",
+                "edge": 1.5,
+            },
+        },
+        "terminal": {},
+    }
+
+    result = simulate_short_horizon_futures(
+        "root",
+        policy=policy,
+        transition_model=transitions,
+        value_model={"terminal": 0.0},
+        horizon=1,
+        regulatory_status={"MiFID II": "fail"},
+    )
+
+    assert all("cross" not in path.actions for path in result.paths)
+    assert {path.actions for path in result.paths} == {("post",)}
+
+
+def test_simulate_short_horizon_blocks_closed_venues() -> None:
+    policy = {
+        "root": {"cross": 0.6, "route": 0.4},
+        "terminal": {},
+    }
+    transitions = {
+        "root": {
+            "cross": {
+                "state": "terminal",
+                "edge": 3.0,
+                "metadata": {"venue": "XNYS"},
+            },
+            "route": {
+                "state": "terminal",
+                "edge": 2.0,
+                "metadata": {"venue": "XNAS"},
+            },
+        },
+        "terminal": {},
+    }
+
+    result = simulate_short_horizon_futures(
+        "root",
+        policy=policy,
+        transition_model=transitions,
+        value_model={"terminal": 0.0},
+        horizon=1,
+        venue_status={"xnys": "closed"},
+    )
+
+    assert {path.actions for path in result.paths} == {("route",)}
+
+
+def test_structured_simulation_obeys_constraints() -> None:
+    layers = [
+        [
+            {
+                "action": "cross",
+                "edge_bps": 10.0,
+                "regulations": ["MiFID II"],
+            },
+            {
+                "action": "route",
+                "edge_bps": 4.0,
+                "venue": "XNAS",
+            },
+        ]
+    ]
+
+    simulation = simulate_structured_futures(
+        root_edge_bps=1.0,
+        layers=layers,
+        regulatory_status={"mifid ii": "fail"},
+    )
+
+    assert {future.actions[0] for future in simulation.futures} == {"route"}
+
+
+def test_structured_simulation_raises_when_all_transitions_blocked() -> None:
+    layers = [
+        [
+            {
+                "action": "cross",
+                "edge_bps": 5.0,
+                "regulations": ["MiFID II"],
+            }
+        ]
+    ]
+
+    with pytest.raises(ValueError, match="constraints"):
+        simulate_structured_futures(
+            root_edge_bps=0.0,
+            layers=layers,
+            regulatory_status={"MiFID II": "fail"},
+        )

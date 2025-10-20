@@ -13,6 +13,8 @@ from typing import Iterable, Mapping, Sequence
 
 import math
 
+from src.operations.regulatory_telemetry import RegulatoryTelemetryStatus
+
 __all__ = [
     "CausalEdgeAdjustment",
     "CausalContribution",
@@ -21,6 +23,213 @@ __all__ = [
     "MuZeroLiteTreeSimulation",
     "simulate_short_horizon_futures",
 ]
+
+
+def _normalise_label(value: object | None) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip().lower()
+    return text
+
+
+def _append_label(labels: list[str], seen: set[str], candidate: object | None) -> None:
+    if candidate is None:
+        return
+    text = _normalise_label(candidate)
+    if not text:
+        return
+    if text not in seen:
+        seen.add(text)
+        labels.append(text)
+
+
+def _normalise_label_sequence(value: object | None) -> tuple[str, ...]:
+    labels: list[str] = []
+    seen: set[str] = set()
+
+    def _collect(payload: object | None) -> None:
+        if payload is None:
+            return
+        if isinstance(payload, str):
+            _append_label(labels, seen, payload)
+            return
+        if isinstance(payload, (list, tuple, set, frozenset)):
+            for item in payload:
+                _collect(item)
+            return
+        if isinstance(payload, Mapping):
+            for key in ("names", "name", "label", "id"):
+                if key in payload:
+                    _collect(payload[key])
+            for key in ("regulations", "regulation", "venues", "venue"):
+                if key in payload:
+                    _collect(payload[key])
+            for item in payload.values():
+                if isinstance(item, (Mapping, list, tuple, set, frozenset)):
+                    _collect(item)
+            return
+        _append_label(labels, seen, payload)
+
+    _collect(value)
+    return tuple(labels)
+
+
+def _merge_metadata(sources: Iterable[Mapping[str, object]]) -> Mapping[str, object] | None:
+    merged: dict[str, object] = {}
+    for source in sources:
+        for key, value in source.items():
+            if key not in merged:
+                merged[key] = value
+    return merged or None
+
+
+def _metadata_labels(metadata: object | None, keys: tuple[str, ...]) -> tuple[str, ...]:
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _collect(payload: object | None) -> None:
+        if payload is None:
+            return
+        if isinstance(payload, Mapping):
+            for key in keys:
+                if key in payload:
+                    for label in _normalise_label_sequence(payload[key]):
+                        if label not in seen:
+                            seen.add(label)
+                            collected.append(label)
+            for value in payload.values():
+                if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+                    _collect(value)
+            return
+        if isinstance(payload, (list, tuple, set, frozenset)):
+            for item in payload:
+                _collect(item)
+
+    _collect(metadata)
+    return tuple(collected)
+
+
+def _status_blocks(status: object | None) -> bool:
+    if status is None:
+        return False
+    if isinstance(status, RegulatoryTelemetryStatus):
+        return status is not RegulatoryTelemetryStatus.ok
+    if isinstance(status, bool):
+        return not status
+    if isinstance(status, Mapping):
+        for key in ("status", "state", "value", "label"):
+            if key in status:
+                return _status_blocks(status[key])
+        return True
+    if isinstance(status, (list, tuple, set, frozenset)):
+        return any(_status_blocks(item) for item in status)
+    label = _normalise_label(status)
+    if not label:
+        return True
+    if label in {"ok", "pass", "allowed", "green", "open", "available"}:
+        return False
+    return True
+
+
+def _normalise_regulatory_blocklist(statuses: object | None) -> frozenset[str]:
+    blocked: list[str] = []
+    seen: set[str] = set()
+
+    def _add(name: object | None) -> None:
+        label = _normalise_label(name)
+        if not label:
+            return
+        if label not in seen:
+            seen.add(label)
+            blocked.append(label)
+
+    if statuses is None:
+        return frozenset()
+    if isinstance(statuses, Mapping):
+        for name, status in statuses.items():
+            if _status_blocks(status):
+                _add(name)
+        return frozenset(blocked)
+    if isinstance(statuses, (list, tuple, set, frozenset)):
+        for name in statuses:
+            _add(name)
+        return frozenset(blocked)
+    _add(statuses)
+    return frozenset(blocked)
+
+
+def _venue_closed(status: object | None) -> bool:
+    if isinstance(status, RegulatoryTelemetryStatus):
+        return status is not RegulatoryTelemetryStatus.ok
+    if isinstance(status, bool):
+        return not status
+    if isinstance(status, Mapping):
+        for key in ("status", "state", "value", "label"):
+            if key in status:
+                return _venue_closed(status[key])
+        return True
+    if isinstance(status, (list, tuple, set, frozenset)):
+        return any(_venue_closed(item) for item in status)
+    label = _normalise_label(status)
+    if not label:
+        return True
+    if label in {"open", "available", "ok", "green", "trading", "live"}:
+        return False
+    return True
+
+
+def _normalise_venue_blocklist(statuses: object | None) -> frozenset[str]:
+    closed: list[str] = []
+    seen: set[str] = set()
+
+    def _add(name: object | None) -> None:
+        label = _normalise_label(name)
+        if not label:
+            return
+        if label not in seen:
+            seen.add(label)
+            closed.append(label)
+
+    if statuses is None:
+        return frozenset()
+    if isinstance(statuses, Mapping):
+        for name, status in statuses.items():
+            if _venue_closed(status):
+                _add(name)
+        return frozenset(closed)
+    if isinstance(statuses, (list, tuple, set, frozenset)):
+        for name in statuses:
+            _add(name)
+        return frozenset(closed)
+    _add(statuses)
+    return frozenset(closed)
+
+
+class _ConstraintEvaluator:
+    def __init__(self, regulatory_status: object | None, venue_status: object | None) -> None:
+        self._blocked_regulations = _normalise_regulatory_blocklist(regulatory_status)
+        self._closed_venues = _normalise_venue_blocklist(venue_status)
+
+    def allows(self, transition: "ShortHorizonTransition") -> bool:
+        if not self._blocked_regulations and not self._closed_venues:
+            return True
+
+        regulations = transition.regulations
+        if not regulations and transition.metadata is not None:
+            regulations = _metadata_labels(transition.metadata, ("regulations", "regulation"))
+        if regulations and any(reg in self._blocked_regulations for reg in regulations):
+            return False
+
+        venues = transition.venues
+        if not venues and transition.metadata is not None:
+            venues = _metadata_labels(transition.metadata, ("venues", "venue"))
+        if venues and any(venue in self._closed_venues for venue in venues):
+            return False
+        return True
+
+    @property
+    def has_constraints(self) -> bool:
+        return bool(self._blocked_regulations or self._closed_venues)
 
 
 def _coerce_float(value: float | int) -> float:
@@ -119,6 +328,9 @@ class ShortHorizonTransition:
     delta_bps: float | None = None
     edge_bps: float | None = None
     causal_tag: str | None = None
+    metadata: Mapping[str, object] | None = None
+    regulations: tuple[str, ...] = ()
+    venues: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.action or not self.action.strip():
@@ -165,12 +377,30 @@ class ShortHorizonTransition:
         )
         causal_tag = str(tag_value) if tag_value is not None else None
 
+        metadata_sources: list[Mapping[str, object]] = []
+        metadata_payload = payload.get("metadata")
+        if isinstance(metadata_payload, Mapping):
+            metadata_sources.append(metadata_payload)
+        constraints_payload = payload.get("constraints")
+        if isinstance(constraints_payload, Mapping):
+            metadata_sources.append(constraints_payload)
+        for key in ("regulations", "regulation", "venues", "venue"):
+            if key in payload:
+                metadata_sources.append({key: payload[key]})
+
+        metadata = _merge_metadata(metadata_sources)
+        regulations = _metadata_labels(metadata, ("regulations", "regulation")) if metadata else ()
+        venues = _metadata_labels(metadata, ("venues", "venue")) if metadata else ()
+
         return cls(
             action=str(action),
             probability=probability,
             delta_bps=delta,
             edge_bps=edge,
             causal_tag=causal_tag,
+            metadata=metadata,
+            regulations=regulations,
+            venues=venues,
         )
 
     def apply(self, parent_edge_bps: float, *, discount: float, depth: int) -> float:
@@ -328,8 +558,14 @@ def simulate_short_horizon_futures(
     | Mapping[str, float]
     | None = None,
     discount: float = 0.9,
+    regulatory_status: object | None = None,
+    venue_status: object | None = None,
 ) -> MuZeroLiteTreeSimulation:
-    """Simulate short-horizon futures using a MuZero-lite style tree."""
+    """Simulate short-horizon futures using a MuZero-lite style tree.
+
+    Rollouts honour regulatory and venue constraints when the respective
+    status mappings are supplied.
+    """
 
     root_edge = _coerce_float(root_edge_bps)
     if not layers:
@@ -338,6 +574,7 @@ def simulate_short_horizon_futures(
         raise ValueError("discount must be positive")
 
     adjustments = _coerce_adjustments(causal_edge_adjustments)
+    constraint_evaluator = _ConstraintEvaluator(regulatory_status, venue_status)
 
     parsed_layers: list[list[ShortHorizonTransition]] = []
     for index, layer in enumerate(layers):
@@ -353,6 +590,7 @@ def simulate_short_horizon_futures(
         parsed_layers.append(_normalise_transitions(candidates))
 
     futures: list[ShortHorizonFuture] = []
+    blocked_due_to_constraints = False
 
     def _explore(
         depth: int,
@@ -361,10 +599,15 @@ def simulate_short_horizon_futures(
         actions: tuple[str, ...],
         tags: tuple[str, ...],
     ) -> None:
+        nonlocal blocked_due_to_constraints
         if depth >= len(parsed_layers):
             return
 
         for transition in parsed_layers[depth]:
+            if not constraint_evaluator.allows(transition):
+                if constraint_evaluator.has_constraints:
+                    blocked_due_to_constraints = True
+                continue
             next_probability = probability * transition.probability
             if next_probability <= 0.0:
                 continue
@@ -390,6 +633,10 @@ def simulate_short_horizon_futures(
     _explore(0, root_edge, 1.0, tuple(), tuple())
 
     if not futures:
+        if constraint_evaluator.has_constraints and blocked_due_to_constraints:
+            raise ValueError(
+                "no futures generated; transitions blocked by regulatory or venue constraints"
+            )
         raise ValueError("no futures generated; check transition probabilities")
 
     base_totals: dict[int, float] = {}
@@ -425,4 +672,3 @@ def simulate_short_horizon_futures(
         base_by_horizon=base_by_horizon,
         adjusted_by_horizon=adjusted_by_horizon,
     )
-

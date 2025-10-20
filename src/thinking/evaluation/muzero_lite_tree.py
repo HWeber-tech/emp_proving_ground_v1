@@ -20,12 +20,239 @@ from collections.abc import Callable
 
 import math
 
+from src.operations.regulatory_telemetry import RegulatoryTelemetryStatus
+
 __all__ = [
     "MuZeroLiteStep",
     "MuZeroLitePath",
     "MuZeroLiteTreeResult",
     "simulate_short_horizon_futures",
 ]
+
+
+def _normalise_label(value: object | None) -> str:
+    if value is None:
+        return ""
+    return str(value).strip().lower()
+
+
+def _append_label(labels: list[str], seen: set[str], candidate: object | None) -> None:
+    if candidate is None:
+        return
+    label = _normalise_label(candidate)
+    if not label:
+        return
+    if label not in seen:
+        seen.add(label)
+        labels.append(label)
+
+
+def _normalise_label_sequence(value: object | None) -> tuple[str, ...]:
+    labels: list[str] = []
+    seen: set[str] = set()
+
+    def _collect(payload: object | None) -> None:
+        if payload is None:
+            return
+        if isinstance(payload, str):
+            _append_label(labels, seen, payload)
+            return
+        if isinstance(payload, (list, tuple, set, frozenset)):
+            for item in payload:
+                _collect(item)
+            return
+        if isinstance(payload, Mapping):
+            for key in ("names", "name", "label", "id"):
+                if key in payload:
+                    _collect(payload[key])
+            for key in ("regulations", "regulation", "venues", "venue"):
+                if key in payload:
+                    _collect(payload[key])
+            for value in payload.values():
+                if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+                    _collect(value)
+            return
+        _append_label(labels, seen, payload)
+
+    _collect(value)
+    return tuple(labels)
+
+
+def _metadata_labels(metadata: object | None, keys: tuple[str, ...]) -> tuple[str, ...]:
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _collect(payload: object | None) -> None:
+        if payload is None:
+            return
+        if isinstance(payload, Mapping):
+            for key in keys:
+                if key in payload:
+                    for label in _normalise_label_sequence(payload[key]):
+                        if label not in seen:
+                            seen.add(label)
+                            collected.append(label)
+            for value in payload.values():
+                if isinstance(value, (Mapping, list, tuple, set, frozenset)):
+                    _collect(value)
+            return
+        if isinstance(payload, (list, tuple, set, frozenset)):
+            for item in payload:
+                _collect(item)
+
+    _collect(metadata)
+    return tuple(collected)
+
+
+def _status_blocks(status: object | None) -> bool:
+    if status is None:
+        return False
+    if isinstance(status, RegulatoryTelemetryStatus):
+        return status is not RegulatoryTelemetryStatus.ok
+    if isinstance(status, bool):
+        return not status
+    if isinstance(status, Mapping):
+        for key in ("status", "state", "value", "label"):
+            if key in status:
+                return _status_blocks(status[key])
+        return True
+    if isinstance(status, (list, tuple, set, frozenset)):
+        return any(_status_blocks(item) for item in status)
+    label = _normalise_label(status)
+    if not label:
+        return True
+    if label in {"ok", "pass", "allowed", "green", "open", "available"}:
+        return False
+    return True
+
+
+def _normalise_regulatory_blocklist(statuses: object | None) -> frozenset[str]:
+    blocked: list[str] = []
+    seen: set[str] = set()
+
+    def _add(name: object | None) -> None:
+        label = _normalise_label(name)
+        if not label:
+            return
+        if label not in seen:
+            seen.add(label)
+            blocked.append(label)
+
+    if statuses is None:
+        return frozenset()
+    if isinstance(statuses, Mapping):
+        for name, status in statuses.items():
+            if _status_blocks(status):
+                _add(name)
+        return frozenset(blocked)
+    if isinstance(statuses, (list, tuple, set, frozenset)):
+        for name in statuses:
+            _add(name)
+        return frozenset(blocked)
+    _add(statuses)
+    return frozenset(blocked)
+
+
+def _venue_closed(status: object | None) -> bool:
+    if isinstance(status, RegulatoryTelemetryStatus):
+        return status is not RegulatoryTelemetryStatus.ok
+    if isinstance(status, bool):
+        return not status
+    if isinstance(status, Mapping):
+        for key in ("status", "state", "value", "label"):
+            if key in status:
+                return _venue_closed(status[key])
+        return True
+    if isinstance(status, (list, tuple, set, frozenset)):
+        return any(_venue_closed(item) for item in status)
+    label = _normalise_label(status)
+    if not label:
+        return True
+    if label in {"open", "available", "ok", "green", "trading", "live"}:
+        return False
+    return True
+
+
+def _normalise_venue_blocklist(statuses: object | None) -> frozenset[str]:
+    closed: list[str] = []
+    seen: set[str] = set()
+
+    def _add(name: object | None) -> None:
+        label = _normalise_label(name)
+        if not label:
+            return
+        if label not in seen:
+            seen.add(label)
+            closed.append(label)
+
+    if statuses is None:
+        return frozenset()
+    if isinstance(statuses, Mapping):
+        for name, status in statuses.items():
+            if _venue_closed(status):
+                _add(name)
+        return frozenset(closed)
+    if isinstance(statuses, (list, tuple, set, frozenset)):
+        for name in statuses:
+            _add(name)
+        return frozenset(closed)
+    _add(statuses)
+    return frozenset(closed)
+
+
+class _ConstraintEvaluator:
+    def __init__(self, regulatory_status: object | None, venue_status: object | None) -> None:
+        self._blocked_regulations = _normalise_regulatory_blocklist(regulatory_status)
+        self._closed_venues = _normalise_venue_blocklist(venue_status)
+
+    def allows(self, metadata: object | None) -> bool:
+        if not self._blocked_regulations and not self._closed_venues:
+            return True
+        regulations = _metadata_labels(metadata, ("regulations", "regulation"))
+        if regulations and any(reg in self._blocked_regulations for reg in regulations):
+            return False
+        venues = _metadata_labels(metadata, ("venues", "venue"))
+        if venues and any(venue in self._closed_venues for venue in venues):
+            return False
+        return True
+
+    @property
+    def has_constraints(self) -> bool:
+        return bool(self._blocked_regulations or self._closed_venues)
+
+
+def _prepare_transition_metadata(
+    metadata: object | None, action_entry: Mapping[str, object] | None
+) -> object | None:
+    base_metadata: Mapping[str, object] | None
+    if isinstance(metadata, Mapping):
+        base_metadata = dict(metadata)
+    elif isinstance(metadata, (list, tuple, set, frozenset)):
+        base_metadata = {"factors": list(metadata)}
+    elif metadata is None:
+        base_metadata = None
+    else:
+        base_metadata = {"factors": [metadata]}
+
+    extras: dict[str, object] = {}
+    if isinstance(action_entry, Mapping):
+        constraints = action_entry.get("constraints")
+        if isinstance(constraints, Mapping):
+            for key, value in constraints.items():
+                extras.setdefault(key, value)
+        for key in ("regulations", "regulation", "venues", "venue"):
+            if key in action_entry:
+                extras.setdefault(key, action_entry[key])
+
+    if extras:
+        if base_metadata is None:
+            base_metadata = dict(extras)
+        else:
+            for key, value in extras.items():
+                base_metadata.setdefault(key, value)
+        return base_metadata
+
+    return base_metadata if base_metadata is not None else metadata
 
 
 @dataclass(frozen=True)
@@ -122,6 +349,8 @@ def simulate_short_horizon_futures(
     discount: float = 0.97,
     causal_edge_adjustments: Mapping[str, float] | None = None,
     max_branches: int | None = None,
+    regulatory_status: object | None = None,
+    venue_status: object | None = None,
 ) -> MuZeroLiteTreeResult:
     """Roll out a short MuZero-style tree with optional causal adjustments.
 
@@ -147,6 +376,12 @@ def simulate_short_horizon_futures(
         action names are also applied.
     max_branches:
         Optional limit on how many actions to expand per node, ranked by prior.
+    regulatory_status:
+        Optional mapping or sequence describing regulatory statuses.  Actions
+        associated with blocked regulations are skipped.
+    venue_status:
+        Optional mapping or sequence describing venue availability.  Actions
+        targeting unavailable venues are skipped.
     """
 
     if horizon <= 0:
@@ -161,6 +396,8 @@ def simulate_short_horizon_futures(
     root_value = value_fn(root_state)
 
     paths: list[MuZeroLitePath] = []
+    constraint_evaluator = _ConstraintEvaluator(regulatory_status, venue_status)
+    blocked_due_to_constraints = False
 
     def _dfs(
         state: object,
@@ -169,6 +406,7 @@ def simulate_short_horizon_futures(
         probability: float,
         steps: tuple[MuZeroLiteStep, ...],
     ) -> None:
+        nonlocal blocked_due_to_constraints
         if depth >= horizon:
             leaf_val = value_fn(state)
             discounted_leaf = leaf_val * (discount ** depth)
@@ -202,6 +440,10 @@ def simulate_short_horizon_futures(
 
         for action, prior in branches:
             next_state, base_edge, metadata = transition_fn(state, action)
+            if not constraint_evaluator.allows(metadata):
+                if constraint_evaluator.has_constraints:
+                    blocked_due_to_constraints = True
+                continue
             adjusted_edge = _apply_causal_adjustments(
                 action,
                 base_edge,
@@ -230,6 +472,10 @@ def simulate_short_horizon_futures(
     _dfs(root_state, 0, 0.0, 1.0, tuple())
 
     if not paths:
+        if constraint_evaluator.has_constraints and blocked_due_to_constraints:
+            raise ValueError(
+                "no futures generated; transitions blocked by regulatory or venue constraints"
+            )
         # Should not occur, but keep defensive fall-back.
         leaf_val = value_fn(root_state)
         paths = [
@@ -312,19 +558,21 @@ def _build_transition_fn(model: TransitionLike) -> Callable[[Any, str], tuple[An
                     edge = action_entry["reward"]
                 else:
                     raise KeyError("transition mapping must include 'edge' or 'reward'")
-                metadata = (
-                    action_entry.get("metadata")
-                    or action_entry.get("causal")
-                    or action_entry.get("causal_keys")
-                    or action_entry.get("factors")
-                )
+                raw_metadata = action_entry.get("metadata")
+                if raw_metadata is None:
+                    for meta_key in ("causal", "causal_keys", "factors"):
+                        if meta_key in action_entry:
+                            raw_metadata = action_entry[meta_key]
+                            break
+                metadata = _prepare_transition_metadata(raw_metadata, action_entry)
                 return next_state, float(edge), metadata
             if isinstance(action_entry, Sequence):
                 if len(action_entry) < 2:
                     raise ValueError("transition sequence must provide at least (state, edge)")
                 next_state = action_entry[0]
                 edge = action_entry[1]
-                metadata = action_entry[2] if len(action_entry) >= 3 else None
+                raw_metadata = action_entry[2] if len(action_entry) >= 3 else None
+                metadata = _prepare_transition_metadata(raw_metadata, None)
                 return next_state, float(edge), metadata
             raise TypeError("transition entries must be mappings or sequences")
 
@@ -339,7 +587,8 @@ def _build_transition_fn(model: TransitionLike) -> Callable[[Any, str], tuple[An
                     else:
                         next_state = candidate[1]
                         edge = candidate[2]
-                        metadata = candidate[3] if len(candidate) >= 4 else None
+                        raw_metadata = candidate[3] if len(candidate) >= 4 else None
+                        metadata = _prepare_transition_metadata(raw_metadata, None)
                     return next_state, float(edge), metadata
             raise KeyError(f"no transition defined for action {action!r} in state {state!r}")
         raise TypeError("state transition entries must be mappings or sequences")

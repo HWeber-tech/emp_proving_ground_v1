@@ -22,9 +22,15 @@ def price_series_from_frame(frame: pd.DataFrame) -> Sequence[float]:
     if frame.empty:
         raise ValueError("market data frame is empty")
 
+    column_lookup: dict[str, str] = {}
+    for column in frame.columns:
+        if isinstance(column, str) and column.lower() not in column_lookup:
+            column_lookup[column.lower()] = column
+
     for column in ("close", "price", "adj_close"):
-        if column in frame.columns:
-            series = pd.to_numeric(frame[column], errors="coerce").dropna()
+        actual = column_lookup.get(column)
+        if actual is not None:
+            series = pd.to_numeric(frame[actual], errors="coerce").dropna()
             values = series.to_list()
             if len(values) >= 3:
                 return values

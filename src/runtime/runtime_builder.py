@@ -5139,6 +5139,30 @@ def build_professional_runtime_application(
         host = str(extras.get("RUNTIME_HEALTHCHECK_HOST", "0.0.0.0"))
         port = _coerce_int(extras.get("RUNTIME_HEALTHCHECK_PORT"), 8080)
         path = str(extras.get("RUNTIME_HEALTHCHECK_PATH", "/health"))
+
+        def _parse_roles(raw: str | None, default: tuple[str, ...]) -> tuple[str, ...]:
+            if raw is None:
+                return default
+            parts = [segment.strip() for segment in str(raw).split(",")]
+            roles = tuple(part for part in parts if part)
+            return roles if roles else default
+
+        auth_secret = str(extras.get("RUNTIME_HEALTHCHECK_AUTH_SECRET", "")).strip()
+        if not auth_secret:
+            raise ValueError(
+                "RUNTIME_HEALTHCHECK_AUTH_SECRET must be configured when healthchecks are enabled"
+            )
+
+        health_roles = _parse_roles(
+            extras.get("RUNTIME_HEALTHCHECK_HEALTH_ROLES"), ("runtime.health:read",)
+        )
+        metrics_roles = _parse_roles(
+            extras.get("RUNTIME_HEALTHCHECK_METRICS_ROLES"),
+            ("runtime.health:read", "runtime.metrics:read"),
+        )
+        token_audience = extras.get("RUNTIME_HEALTHCHECK_TOKEN_AUDIENCE")
+        if token_audience is not None:
+            token_audience = str(token_audience).strip() or None
         health_server = RuntimeHealthServer(
             app,
             host=host,
@@ -5156,6 +5180,10 @@ def build_professional_runtime_application(
             decision_fail_after=_coerce_float(
                 extras.get("RUNTIME_HEALTHCHECK_DECISION_FAIL_SECONDS"), 600.0
             ),
+            auth_secret=auth_secret,
+            health_roles=health_roles,
+            metrics_roles=metrics_roles,
+            token_audience=token_audience,
         )
 
         async def _start_health() -> None:

@@ -19,7 +19,10 @@ def _bootstrap_config() -> SystemConfig:
     return SystemConfig().with_updated(
         connection_protocol=ConnectionProtocol.bootstrap,
         data_backbone_mode=DataBackboneMode.bootstrap,
-        extras={"BOOTSTRAP_SYMBOLS": "EURUSD"},
+        extras={
+            "BOOTSTRAP_SYMBOLS": "EURUSD",
+            "RUNTIME_HEALTHCHECK_AUTH_SECRET": "cli-runtime-health-secret",
+        },
     )
 
 

@@ -82,6 +82,9 @@ from src.reflection.trm.config import ModelConfig, RIMRuntimeConfig, RuntimeConf
 from src.reflection.trm.runner import TRMRunResult
 
 
+HEALTHCHECK_SECRET = "unit-test-runtime-health-secret"
+
+
 def test_adjust_security_policy_for_mock_run_mode_disables_credential_checks() -> None:
     policy = SecurityPolicy.from_mapping({})
     adjusted = runtime_builder_module._adjust_security_policy_for_run_mode(policy, RunMode.mock)
@@ -622,6 +625,7 @@ async def test_builder_bootstrap_mode(monkeypatch, tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def __init__(self) -> None:
@@ -684,6 +688,7 @@ async def test_runtime_builder_configures_hang_timeouts(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     runtime_app = build_professional_runtime_application(
         app,
@@ -715,6 +720,7 @@ async def test_professional_app_summary_includes_runtime_application(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     runtime_app: RuntimeApplication | None = None
 
@@ -762,6 +768,7 @@ async def test_runtime_builder_labels_workload_components(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     runtime_app: RuntimeApplication | None = None
 
     try:
@@ -807,6 +814,7 @@ async def test_runtime_builder_allows_restart_policy_overrides(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     runtime_app: RuntimeApplication | None = None
     try:
@@ -851,6 +859,7 @@ async def test_runtime_builder_restart_policy_invalid_values_fall_back(
     caplog.set_level(logging.WARNING, logger="src.runtime.runtime_builder")
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     runtime_app: RuntimeApplication | None = None
     try:
@@ -901,6 +910,7 @@ async def test_runtime_builder_ingest_failure_keeps_trading_running(
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     attempts = {"count": 0}
     first_failure = asyncio.Event()
@@ -982,6 +992,7 @@ async def test_runtime_builder_service_registry_exposes_core_workloads(tmp_path)
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     runtime_app: RuntimeApplication | None = None
 
     try:
@@ -1026,6 +1037,7 @@ async def test_builder_requires_trading_manager(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     # Remove the trading manager to simulate a misconfigured runtime.
     app.sensory_organ = SimpleNamespace()
@@ -1059,6 +1071,7 @@ async def test_builder_rejects_invalid_trading_risk_config(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def get_risk_status(self) -> Mapping[str, object]:
@@ -1098,6 +1111,7 @@ async def test_builder_rejects_stop_loss_disabled_outside_research_mode(tmp_path
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def __init__(self) -> None:
@@ -1138,6 +1152,7 @@ async def test_builder_publishes_risk_configuration_event(monkeypatch, tmp_path)
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def __init__(self) -> None:
@@ -1221,6 +1236,7 @@ async def test_configuration_audit_runs_without_timescale(monkeypatch, tmp_path)
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     published: dict[str, object] = {}
 
@@ -1275,6 +1291,7 @@ async def test_builder_registers_runtime_health_server(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     try:
         runtime_app = build_professional_runtime_application(
             app,
@@ -1300,6 +1317,7 @@ async def test_builder_health_server_can_be_disabled(tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     try:
         runtime_app = build_professional_runtime_application(
             app,
@@ -1349,6 +1367,7 @@ async def test_builder_institutional_ingest_executes_timescale(monkeypatch, tmp_
     monkeypatch.setattr("src.runtime.runtime_builder._run_tier0_ingest", _fake_tier0)
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     try:
         runtime_app = build_professional_runtime_application(
             app,
@@ -1590,6 +1609,7 @@ async def test_builder_records_backup_snapshot(monkeypatch, tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def __init__(self) -> None:
@@ -1828,6 +1848,7 @@ async def test_builder_records_cross_region_snapshot(monkeypatch, tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def __init__(self) -> None:
@@ -1957,6 +1978,7 @@ async def test_builder_records_kafka_readiness_snapshot(monkeypatch, tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class StubTradingManager:
         def __init__(self) -> None:
@@ -2020,6 +2042,7 @@ async def test_builder_institutional_falls_back_when_plan_disabled(monkeypatch, 
     monkeypatch.setattr("src.runtime.runtime_builder._run_tier0_ingest", _fake_tier0)
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     try:
         runtime_app = build_professional_runtime_application(
             app,
@@ -2190,6 +2213,7 @@ async def test_builder_configures_governance_cadence(monkeypatch, tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     class _StubRunner:
         def __init__(self) -> None:
@@ -2276,6 +2300,7 @@ async def test_builder_configures_rim_runtime(monkeypatch, tmp_path):
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
 
     diaries_dir = tmp_path / "artifacts" / "diaries"
     diaries_dir.mkdir(parents=True, exist_ok=True)
@@ -2914,6 +2939,7 @@ async def test_bootstrap_runtime_uses_app_task_supervisor() -> None:
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", HEALTHCHECK_SECRET)
     try:
         await app.start()
         await asyncio.sleep(0)

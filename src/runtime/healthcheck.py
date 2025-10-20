@@ -14,6 +14,11 @@ from aiohttp import web
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode
 from src.operations.data_backbone import DataBackboneReadinessSnapshot
 from src.runtime.predator_app import ProfessionalPredatorApp
+from src.security.auth_tokens import (
+    AuthTokenError,
+    ExpiredTokenError,
+    decode_access_token,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -521,6 +526,10 @@ class RuntimeHealthServer:
         port: int = 8080,
         path: str = "/health",
         metrics_path: str = "/metrics",
+        auth_secret: str,
+        health_roles: Sequence[str] | None = None,
+        metrics_roles: Sequence[str] | None = None,
+        token_audience: str | None = None,
         ingest_warn_after: float = 900.0,
         ingest_fail_after: float = 1800.0,
         decision_warn_after: float = 180.0,
@@ -533,6 +542,15 @@ class RuntimeHealthServer:
         self._metrics_path = (
             metrics_path if metrics_path.startswith("/") else f"/{metrics_path}"
         )
+        if not auth_secret:
+            raise ValueError("auth_secret must be provided for RuntimeHealthServer")
+        self._auth_secret = auth_secret
+        self._token_audience = token_audience
+        self._auth_realm = "runtime-health"
+        self._health_roles = self._normalise_roles(health_roles, ("runtime.health:read",))
+        self._metrics_roles = self._normalise_roles(
+            metrics_roles, ("runtime.health:read", "runtime.metrics:read")
+        )
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
         self._resolved_port: int | None = None
@@ -541,11 +559,87 @@ class RuntimeHealthServer:
         self._decision_warn_after = float(decision_warn_after)
         self._decision_fail_after = float(decision_fail_after)
 
+    @staticmethod
+    def _normalise_roles(
+        roles: Sequence[str] | None, default: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        if roles is None:
+            return default
+        normalised: list[str] = []
+        for role in roles:
+            text = str(role).strip()
+            if not text:
+                continue
+            if text not in normalised:
+                normalised.append(text)
+        return tuple(normalised)
+
+    def _require_roles(
+        self, request: web.Request, required_roles: tuple[str, ...]
+    ) -> Mapping[str, object]:
+        if not required_roles:
+            return {}
+
+        header = request.headers.get("Authorization", "").strip()
+        if not header.lower().startswith("bearer "):
+            raise web.HTTPUnauthorized(
+                reason="missing bearer token",
+                headers={"WWW-Authenticate": f'Bearer realm="{self._auth_realm}"'},
+            )
+        token = header[7:].strip()
+        if not token:
+            raise web.HTTPUnauthorized(
+                reason="missing bearer token",
+                headers={"WWW-Authenticate": f'Bearer realm="{self._auth_realm}"'},
+            )
+
+        try:
+            payload = decode_access_token(
+                token,
+                secret=self._auth_secret,
+                expected_audience=self._token_audience,
+            )
+        except ExpiredTokenError as exc:
+            raise web.HTTPUnauthorized(
+                reason="token expired",
+                headers={
+                    "WWW-Authenticate": (
+                        f'Bearer realm="{self._auth_realm}", error="invalid_token", '
+                        "error_description=\"token expired\""
+                    )
+                },
+            ) from exc
+        except AuthTokenError as exc:
+            raise web.HTTPUnauthorized(
+                reason="invalid token",
+                headers={
+                    "WWW-Authenticate": (
+                        f'Bearer realm="{self._auth_realm}", error="invalid_token", '
+                        "error_description=\"signature mismatch\""
+                    )
+                },
+            ) from exc
+
+        roles_claim = payload.get("roles")
+        roles: set[str]
+        if isinstance(roles_claim, Sequence) and not isinstance(roles_claim, (str, bytes, bytearray)):
+            roles = {str(role) for role in roles_claim}
+        elif roles_claim is None:
+            roles = set()
+        else:
+            roles = {str(roles_claim)}
+
+        if not set(required_roles).issubset(roles):
+            raise web.HTTPForbidden(reason="insufficient role")
+
+        return payload
+
     async def start(self) -> None:
         if self._runner is not None:
             return
 
         async def _handle_health(_request: web.Request) -> web.Response:
+            self._require_roles(_request, self._health_roles)
             snapshot = evaluate_runtime_health(
                 self._app,
                 ingest_warn_after=self._ingest_warn_after,
@@ -556,6 +650,7 @@ class RuntimeHealthServer:
             return web.json_response(snapshot.as_dict())
 
         async def _handle_metrics(_request: web.Request) -> web.Response:
+            self._require_roles(_request, self._metrics_roles)
             metrics = _collect_runtime_metrics(
                 self._app,
                 ingest_warn_after=self._ingest_warn_after,

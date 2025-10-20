@@ -179,6 +179,7 @@ async def test_professional_app_wires_timescale_connectors(tmp_path) -> None:
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     assert isinstance(app.sensory_organ, BootstrapRuntime)
 
     fabric_connectors = app.sensory_organ.fabric.connectors
@@ -200,6 +201,7 @@ async def test_professional_app_tracks_event_bus_worker() -> None:
     cfg = SystemConfig()
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         await app.event_bus.start()
         await asyncio.sleep(0)
@@ -323,6 +325,7 @@ async def test_professional_app_registers_kafka_consumer_bridge(monkeypatch, tmp
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         assert any(task.get_name() == "kafka-ingest-bridge" for task in app.active_background_tasks)
         await asyncio.sleep(0)  # allow background task to start
@@ -368,6 +371,7 @@ async def test_professional_runtime_summary_includes_configuration_audit(tmp_pat
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         build_professional_runtime_application(
             app,
@@ -398,6 +402,7 @@ async def test_professional_app_summary_includes_strategy_performance(tmp_path) 
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         events = [
             {
@@ -482,6 +487,7 @@ async def test_professional_app_summary_includes_ingest_journal(tmp_path) -> Non
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         summary = app.summary()
     finally:
@@ -498,6 +504,7 @@ async def test_professional_app_summary_includes_scheduler_snapshot(tmp_path) ->
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         now = datetime(2024, 1, 1, 12, 0, tzinfo=UTC)
         snapshot = IngestSchedulerSnapshot(
@@ -534,6 +541,7 @@ async def test_professional_app_summary_includes_ingest_trends(tmp_path) -> None
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         dimension_trend = IngestDimensionTrend(
             dimension="daily_bars",
@@ -577,6 +585,7 @@ async def test_professional_app_summary_includes_kyc_monitor(tmp_path) -> None:
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         assert app.kyc_monitor is not None
         app.kyc_monitor.evaluate_case(  # type: ignore[union-attr]
@@ -622,6 +631,7 @@ async def test_professional_app_summary_includes_backup_section(tmp_path) -> Non
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         app.record_backup_snapshot(snapshot)
         summary = app.summary()
@@ -646,6 +656,7 @@ async def test_professional_app_summary_includes_security_section(tmp_path) -> N
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         control = SecurityControlEvaluation(
             control="mfa",
@@ -682,6 +693,7 @@ async def test_professional_app_summary_includes_incident_response(tmp_path) -> 
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         policy = IncidentResponsePolicy(
             required_runbooks=("redis_outage",),
@@ -734,6 +746,7 @@ async def test_professional_app_summary_includes_cache_section(tmp_path) -> None
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = evaluate_cache_health(
             configured=True,
@@ -766,6 +779,7 @@ async def test_professional_app_summary_includes_event_bus_section(tmp_path) -> 
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = evaluate_event_bus_health(app.event_bus, expected=False)
         app.record_event_bus_snapshot(snapshot)
@@ -789,6 +803,7 @@ async def test_professional_app_summary_includes_system_validation(tmp_path) -> 
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = evaluate_system_validation(
             {
@@ -819,6 +834,7 @@ async def test_professional_app_summary_includes_operational_readiness(tmp_path)
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         system_snapshot = SystemValidationSnapshot(
             status=SystemValidationStatus.warn,
@@ -887,6 +903,7 @@ async def test_professional_app_summary_includes_execution_section(tmp_path) -> 
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = evaluate_execution_readiness(
             ExecutionPolicy(),
@@ -925,6 +942,7 @@ async def test_professional_app_summary_includes_execution_journal(tmp_path) -> 
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = evaluate_execution_readiness(
             ExecutionPolicy(),
@@ -963,6 +981,7 @@ async def test_professional_app_summary_includes_data_backbone(tmp_path) -> None
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         validation_snapshot = DataBackboneValidationSnapshot(
             status=BackboneStatus.warn,
@@ -1021,6 +1040,7 @@ async def test_professional_app_summary_includes_data_retention(tmp_path) -> Non
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         retention_snapshot = DataRetentionSnapshot(
             status=RetentionStatus.ok,
@@ -1056,6 +1076,7 @@ async def test_professional_app_summary_includes_professional_readiness(tmp_path
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = ProfessionalReadinessSnapshot(
             status=ProfessionalReadinessStatus.warn,
@@ -1085,6 +1106,7 @@ async def test_professional_app_compliance_monitor_surfaces_snapshot() -> None:
     cfg = SystemConfig()
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         monitor = app.compliance_monitor
         assert monitor is not None
@@ -1113,6 +1135,7 @@ async def test_professional_app_records_compliance_workflow_snapshot() -> None:
     cfg = SystemConfig()
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         workflow_snapshot = evaluate_compliance_workflows(
             trade_summary={
@@ -1167,6 +1190,7 @@ async def test_professional_app_enables_compliance_journal(tmp_path) -> None:
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         monitor = app.compliance_monitor
         assert monitor is not None
@@ -1205,6 +1229,7 @@ async def test_professional_app_summary_includes_spark_exports(tmp_path) -> None
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = SparkExportSnapshot(
             generated_at=datetime(2024, 1, 5, tzinfo=UTC),
@@ -1233,6 +1258,7 @@ async def test_professional_app_summary_includes_spark_stress(tmp_path) -> None:
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = SparkStressSnapshot(
             label="drill",
@@ -1270,6 +1296,7 @@ async def test_professional_app_summary_includes_failover_drill(tmp_path) -> Non
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         plan = TimescaleBackbonePlan(daily=DailyBarIngestPlan(symbols=["EURUSD"]))
         ingest_result = TimescaleIngestResult(
@@ -1308,6 +1335,7 @@ async def test_professional_app_summary_includes_cross_region(tmp_path) -> None:
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         snapshot = CrossRegionFailoverSnapshot(
             status=CrossRegionStatus.warn,
@@ -1343,6 +1371,7 @@ async def test_professional_app_summary_includes_kafka_readiness(tmp_path) -> No
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         kafka_snapshot = KafkaReadinessSnapshot(
             status=KafkaReadinessStatus.warn,
@@ -1378,6 +1407,7 @@ async def test_professional_app_summary_includes_sensory_drift(tmp_path) -> None
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         dimension = SensoryDimensionDrift(
             name="why",
@@ -1419,6 +1449,7 @@ async def test_professional_app_summary_includes_sensory_summary_and_metrics(tmp
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         generated_at = datetime(2024, 1, 5, 12, 30, tzinfo=UTC)
         status_payload = {
@@ -1504,6 +1535,7 @@ async def test_professional_app_summary_includes_evolution_experiments(tmp_path)
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         metrics = ExperimentMetrics(
             total_events=4,
@@ -1549,6 +1581,7 @@ async def test_professional_app_summary_includes_evolution_tuning(tmp_path) -> N
     )
 
     app = await build_professional_predator_app(config=cfg)
+    app.config.extras.setdefault("RUNTIME_HEALTHCHECK_AUTH_SECRET", "timescale-runtime-health-secret")
     try:
         summary_block = EvolutionTuningSummary(
             total_recommendations=1,

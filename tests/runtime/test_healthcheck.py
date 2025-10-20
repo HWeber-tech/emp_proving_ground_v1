@@ -15,6 +15,20 @@ from src.operations.data_backbone import (
     DataBackboneReadinessSnapshot,
 )
 from src.runtime.healthcheck import RuntimeHealthServer, evaluate_runtime_health
+from src.security.auth_tokens import create_access_token
+
+
+AUTH_SECRET = "unit-test-runtime-health-secret"
+
+
+def _build_token(*roles: str) -> str:
+    return create_access_token(
+        "unit-test-client",
+        secret=AUTH_SECRET,
+        roles=roles,
+        expires_in=timedelta(minutes=5),
+    )
+
 
 
 class _DummyConfig:
@@ -195,11 +209,14 @@ async def test_runtime_health_server_serves_snapshot() -> None:
     snapshot = _fresh_snapshot(age_seconds=10)
     app = _DummyApp(config=cfg, snapshot=snapshot)
 
-    server = RuntimeHealthServer(app, host="127.0.0.1", port=0)
+    server = RuntimeHealthServer(app, host="127.0.0.1", port=0, auth_secret=AUTH_SECRET)
     await server.start()
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(server.url) as response:
+            token = _build_token("runtime.health:read")
+            async with session.get(
+                server.url, headers={"Authorization": f"Bearer {token}"}
+            ) as response:
                 payload = await response.json()
         assert payload["status"] in {"ok", "warn", "fail"}
         assert any(check["name"] == "market_data" for check in payload["checks"])
@@ -245,11 +262,14 @@ async def test_runtime_health_server_serves_metrics() -> None:
         trading_manager=_DummyTradingManager(tm_stats),
     )
 
-    server = RuntimeHealthServer(app, host="127.0.0.1", port=0)
+    server = RuntimeHealthServer(app, host="127.0.0.1", port=0, auth_secret=AUTH_SECRET)
     await server.start()
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(server.metrics_url) as response:
+            token = _build_token("runtime.health:read", "runtime.metrics:read")
+            async with session.get(
+                server.metrics_url, headers={"Authorization": f"Bearer {token}"}
+            ) as response:
                 body = await response.text()
         assert response.status == 200
         assert "event_lag_ms" in body
@@ -263,3 +283,37 @@ async def test_runtime_health_server_serves_metrics() -> None:
         assert 'runtime_health_check_status{check="market_data"} 0' in body
     finally:
         await server.stop()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_health_server_requires_roles() -> None:
+    cfg = _DummyConfig(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+    )
+    app = _DummyApp(config=cfg, snapshot=_fresh_snapshot(age_seconds=10))
+
+    server = RuntimeHealthServer(app, host="127.0.0.1", port=0, auth_secret=AUTH_SECRET)
+    await server.start()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(server.url) as unauthorized:
+                assert unauthorized.status == 401
+                await unauthorized.text()
+
+            token = _build_token("runtime.health:read")
+            async with session.get(
+                server.metrics_url, headers={"Authorization": f"Bearer {token}"}
+            ) as forbidden:
+                assert forbidden.status == 403
+                await forbidden.text()
+
+            metrics_token = _build_token("runtime.health:read", "runtime.metrics:read")
+            async with session.get(
+                server.metrics_url, headers={"Authorization": f"Bearer {metrics_token}"}
+            ) as ok_response:
+                assert ok_response.status == 200
+                await ok_response.text()
+    finally:
+        await server.stop()
+

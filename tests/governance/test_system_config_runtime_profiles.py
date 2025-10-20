@@ -35,6 +35,7 @@ def test_runtime_dev_profile_defaults() -> None:
     assert extras["KAFKA_BOOTSTRAP_SERVERS"] == "kafka:9092"
     assert extras["RUNTIME_HEALTHCHECK_PORT"] == "8000"
     assert extras["RUNTIME_HEALTHCHECK_ENABLED"] == "true"
+    assert extras["RUNTIME_HEALTHCHECK_AUTH_SECRET"] == '${RUNTIME_HEALTHCHECK_AUTH_SECRET:-change-me}'
     assert extras["RUNTIME_LOG_CONTEXT"] == '{"deployment":"dev-container"}'
 
 
@@ -53,5 +54,6 @@ def test_runtime_paper_profile_defaults() -> None:
     assert extras["KAFKA_BOOTSTRAP_SERVERS"] == "kafka:9092"
     assert extras["RUNTIME_HEALTHCHECK_PORT"] == "8000"
     assert extras["RUNTIME_HEALTHCHECK_ENABLED"] == "true"
+    assert extras["RUNTIME_HEALTHCHECK_AUTH_SECRET"] == '${RUNTIME_HEALTHCHECK_AUTH_SECRET:-change-me}'
     assert extras["RUNTIME_LOG_STRUCTURED"] == "true"
     assert extras["RUNTIME_LOG_CONTEXT"] == '{"deployment":"paper-container"}'

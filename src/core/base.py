@@ -19,10 +19,13 @@ from __future__ import annotations
 
 import logging
 import math
+from numbers import Real
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional, Protocol, TypeAlias, Union, cast, runtime_checkable
+
+from src.core.coercion import coerce_float
 
 
 logger = logging.getLogger(__name__)
@@ -129,10 +132,15 @@ class MarketData:
         def _to_float(x: Optional[Union[float, int, str]], default: float = 0.0) -> float:
             if x is None:
                 return default
-            try:
-                return float(x)
-            except (TypeError, ValueError):
+            if isinstance(x, Real):
+                try:
+                    return float(x)
+                except (TypeError, ValueError):
+                    return default
+            coerced = coerce_float(x, default=None)
+            if coerced is None:
                 return default
+            return coerced
 
         val_price = cast(Optional[Union[float, int, str]], kwargs.pop("price", None))
         val_bid = cast(Optional[Union[float, int, str]], kwargs.pop("bid", None))

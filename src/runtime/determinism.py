@@ -64,8 +64,12 @@ def resolve_seed(
     if not extras:
         return None, invalid
 
-    direct_keys: set[str] = {key for key in extras.keys() if isinstance(key, str)}
-    casefold_lookup: dict[str, str] = {key.casefold(): key for key in direct_keys}
+    direct_keys: set[str] = set()
+    casefold_lookup: dict[str, str] = {}
+    for key in extras.keys():
+        if isinstance(key, str):
+            direct_keys.add(key)
+            casefold_lookup.setdefault(key.casefold(), key)
 
     for key in keys:
         source_key: str | None = None

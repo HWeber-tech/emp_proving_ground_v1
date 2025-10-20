@@ -48,6 +48,13 @@ def test_resolve_seed_matches_case_insensitive_key() -> None:
     assert invalid == []
 
 
+def test_resolve_seed_prefers_first_casefold_match() -> None:
+    seed, invalid = resolve_seed({"rng_seed": "13", "RNG_seed": "17"}, keys=("RNG_SEED",))
+
+    assert seed == 13
+    assert invalid == []
+
+
 def test_resolve_seed_accepts_integral_float_strings() -> None:
     seed, invalid = resolve_seed({"RNG_SEED": "17.0"})
 

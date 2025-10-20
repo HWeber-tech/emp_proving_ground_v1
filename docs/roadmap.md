@@ -81,7 +81,7 @@
 - [x] **C.1.3** YAML toggles: `model.ssm_impl: mamba3`, `fallback_impl: mamba2`; auto-fallback on latency fail.
 
 ### C.2 True streaming state
-- [ ] **C.2.1** **Per-instrument state table** (pinned); TTL & reset on session boundary/gaps/halts.  
+- [x] **C.2.1** **Per-instrument state table** (pinned); TTL & reset on session boundary/gaps/halts.  
 - [ ] **C.2.2** Determinism: no dropout live; state versioned by model hash; hot-reload invalidates state.  
 - [ ] **C.2.3** Clone-state API for planner (no mutation).
 
@@ -91,7 +91,7 @@
 - [x] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
 
 ### C.4 Heads & calibration
-- [ ] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
+- [x] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
 - [ ] **C.4.2** Add **quantile head** (Ï„=0.25/0.5/0.75).  
 - [ ] **C.4.3** Calibrate: temperature scaling or isotonic on held-out day; report **ECE** & **Brier**.
 
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T03:47:15Z
+## Automation updates — 2025-10-20T04:07:00Z
 
 ### Last 4 commits
-- dd769853 refactor(config): tune 7 files (2025-10-20)
-- a63d70af refactor(operations): tune 2 files (2025-10-20)
-- 609bba38 refactor(thinking): tune 1 file (2025-10-20)
-- 5a8ea2da feat(artifacts): add 24 files (2025-10-20)
+- ad0bd13f feat(artifacts): add 6 files (2025-10-20)
+- ff9241f2 feat(reflection): add 3 files (2025-10-20)
+- 75a8d95b refactor(governance): tune 2 files (2025-10-20)
+- 8cdb186d feat(thinking): add 3 files (2025-10-20)

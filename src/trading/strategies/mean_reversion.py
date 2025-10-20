@@ -16,6 +16,10 @@ from src.risk.analytics.volatility_target import (
 from src.trading.strategies.signals.ict_microstructure import (
     ICTMicrostructureAnalyzer,
 )
+from src.trading.strategies.capacity import (
+    DEFAULT_L1_CAPACITY_RATIO,
+    resolve_l1_depth_cap,
+)
 
 from .models import StrategySignal
 
@@ -99,6 +103,10 @@ class MeanReversionStrategy(BaseStrategy):
 
         confidence = 0.0
         notional = 0.0
+        capacity_meta: dict[str, object] | None = None
+        cap_limit, cap_details = resolve_l1_depth_cap(
+            market_data, symbol, ratio=DEFAULT_L1_CAPACITY_RATIO
+        )
         realised_vol = calculate_realised_volatility(
             return_window,
             annualisation_factor=self._config.annualisation_factor,
@@ -112,10 +120,23 @@ class MeanReversionStrategy(BaseStrategy):
                 target_volatility=self._config.target_volatility,
                 realised_volatility=realised_vol,
                 max_leverage=self._config.max_leverage,
+                max_notional=cap_limit,
             )
             notional = allocation.target_notional
             if action == "SELL":
                 notional *= -1.0
+            if cap_details:
+                raw_target = (
+                    allocation.raw_target_notional
+                    if allocation.raw_target_notional is not None
+                    else allocation.target_notional
+                )
+                capacity_meta = {
+                    **cap_details,
+                    "raw_target_notional": raw_target,
+                    "notional_after_cap": allocation.target_notional,
+                    "cap_applied": bool(raw_target > allocation.target_notional + 1e-9),
+                }
 
         metadata = {
             "mean_price": mean_price,
@@ -142,6 +163,9 @@ class MeanReversionStrategy(BaseStrategy):
                     confidence = float(
                         max(0.0, min(1.0, confidence * adjustment))
                     )
+
+        if capacity_meta is not None:
+            metadata["liquidity_capacity"] = capacity_meta
 
         return StrategySignal(
             symbol=symbol,

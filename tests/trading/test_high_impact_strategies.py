@@ -15,6 +15,10 @@ from src.trading.strategies import (
     VolatilityBreakoutConfig,
     VolatilityBreakoutStrategy,
 )
+from src.trading.strategies.capacity import (
+    DEFAULT_L1_CAPACITY_RATIO,
+    resolve_l1_depth_cap,
+)
 
 
 def _market(close: list[float]) -> dict[str, dict[str, list[float]]]:
@@ -198,3 +202,52 @@ async def test_strategies_return_flat_when_data_missing() -> None:
     signal = await strategy.generate_signal({"EURUSD": {"close": [1.0]}}, "EURUSD")
     assert signal.action == "FLAT"
     assert signal.notional == pytest.approx(0.0)
+
+
+def test_resolve_l1_depth_cap_nested_percentiles() -> None:
+    market = {
+        "EURUSD": {
+            "liquidity": {
+                "l1": {
+                    "depth_percentiles": {
+                        "p50": 250_000.0,
+                    }
+                }
+            }
+        }
+    }
+
+    cap, metadata = resolve_l1_depth_cap(market, "EURUSD")
+    assert cap == pytest.approx(250_000.0 * DEFAULT_L1_CAPACITY_RATIO)
+    assert metadata["basis_path"].endswith("depth_percentiles.p50")
+    assert metadata["cap_ratio"] == DEFAULT_L1_CAPACITY_RATIO
+
+
+@pytest.mark.asyncio
+async def test_momentum_strategy_respects_l1_depth_capacity() -> None:
+    config = MomentumStrategyConfig(lookback=5, entry_threshold=0.4)
+    strategy = MomentumStrategy("mom", ["EURUSD"], capital=5_000_000, config=config)
+
+    closes = [1.0, 1.01, 1.02, 1.03, 1.05, 1.08, 1.12]
+    market = {
+        "EURUSD": {
+            "close": closes,
+            "liquidity": {
+                "l1": {
+                    "depth_percentiles": {
+                        "p50": 50_000.0,
+                    }
+                }
+            },
+        }
+    }
+
+    signal = await strategy.generate_signal(market, "EURUSD")
+
+    limit = 50_000.0 * DEFAULT_L1_CAPACITY_RATIO
+    assert signal.action == "BUY"
+    assert abs(signal.notional) <= limit + 1e-6
+    capacity = signal.metadata.get("liquidity_capacity")
+    assert capacity is not None
+    assert capacity["cap"] == pytest.approx(limit)
+    assert capacity["cap_applied"] is True

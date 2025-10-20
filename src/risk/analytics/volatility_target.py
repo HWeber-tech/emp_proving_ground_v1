@@ -33,6 +33,8 @@ class VolatilityTargetAllocation:
     realised_volatility: float
     volatility_regime: str | None = None
     risk_multiplier: float | None = None
+    capacity_limit: float | None = None
+    raw_target_notional: float | None = None
 
     def as_dict(self) -> dict[str, float | str | None]:
         """Return a JSON-serialisable representation of the allocation."""
@@ -113,13 +115,16 @@ def determine_target_allocation(
     target_volatility: float,
     realised_volatility: float,
     max_leverage: float = 3.0,
+    max_notional: float | None = None,
 ) -> VolatilityTargetAllocation:
     """Translate realised volatility into a volatility-target notional.
 
     The allocation scales exposure so that the expected realised volatility of
     the resulting position approaches ``target_volatility``. Exposure is capped
     by ``max_leverage`` to ensure the sizing decision remains bounded even when
-    the realised volatility is extremely low.
+    the realised volatility is extremely low. When ``max_notional`` is provided
+    the target notional is additionally clamped to the supplied absolute
+    capacity budget, reflecting depth-aware sizing policies.
     """
 
     capital = float(capital)
@@ -142,9 +147,27 @@ def determine_target_allocation(
         leverage = max(0.0, min(leverage, max_leverage))
 
     target_notional = capital * leverage
+    raw_target_notional = target_notional
+    capacity_limit: float | None = None
+
+    if max_notional is not None:
+        limit = max(0.0, float(max_notional))
+        if limit == 0.0:
+            target_notional = 0.0
+            leverage = 0.0
+            capacity_limit = 0.0
+        elif target_notional > limit:
+            target_notional = limit
+            leverage = target_notional / capital if capital > 0 else 0.0
+            capacity_limit = limit
+        else:
+            capacity_limit = limit
+
     return VolatilityTargetAllocation(
         target_notional=target_notional,
         leverage=leverage,
         target_volatility=target_volatility,
         realised_volatility=realised_volatility,
+        capacity_limit=capacity_limit,
+        raw_target_notional=raw_target_notional,
     )

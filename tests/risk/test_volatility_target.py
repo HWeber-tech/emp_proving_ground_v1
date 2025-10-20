@@ -32,6 +32,21 @@ def test_determine_target_allocation_caps_leverage() -> None:
     assert allocation.target_notional == pytest.approx(3_000_000)
 
 
+def test_determine_target_allocation_applies_capacity_limit() -> None:
+    allocation = determine_target_allocation(
+        capital=1_000_000,
+        target_volatility=0.25,
+        realised_volatility=0.05,
+        max_leverage=5.0,
+        max_notional=12_500.0,
+    )
+
+    assert allocation.raw_target_notional == pytest.approx(5_000_000.0)
+    assert allocation.target_notional == pytest.approx(12_500.0)
+    assert allocation.leverage == pytest.approx(0.0125)
+    assert allocation.capacity_limit == pytest.approx(12_500.0)
+
+
 def test_risk_manager_volatility_allocation_uses_overrides() -> None:
     manager = RiskManagerImpl(initial_balance=250_000.0, risk_config=RiskConfig())
     returns = [0.012, -0.006, 0.01, -0.008, 0.009, -0.005]

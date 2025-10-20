@@ -19,6 +19,10 @@ from src.risk.analytics.volatility_target import (
     calculate_realised_volatility,
     determine_target_allocation,
 )
+from src.trading.strategies.capacity import (
+    DEFAULT_L1_CAPACITY_RATIO,
+    resolve_l1_depth_cap,
+)
 
 from .models import StrategyAction, StrategySignal
 
@@ -233,6 +237,10 @@ class MultiTimeframeMomentumStrategy(BaseStrategy):
             action = "FLAT"
 
         realised_vol = self._compute_realised_volatility(payload)
+        cap_limit, cap_details = resolve_l1_depth_cap(
+            market_data, symbol, ratio=DEFAULT_L1_CAPACITY_RATIO
+        )
+        capacity_meta: dict[str, object] | None = None
 
         confidence = 0.0
         notional = 0.0
@@ -246,10 +254,23 @@ class MultiTimeframeMomentumStrategy(BaseStrategy):
                 target_volatility=self._config.target_volatility,
                 realised_volatility=max(realised_vol, 0.0),
                 max_leverage=self._config.max_leverage,
+                max_notional=cap_limit,
             )
             notional = allocation.target_notional
             if direction == "SELL":
                 notional *= -1.0
+            if cap_details:
+                raw_target = (
+                    allocation.raw_target_notional
+                    if allocation.raw_target_notional is not None
+                    else allocation.target_notional
+                )
+                capacity_meta = {
+                    **cap_details,
+                    "raw_target_notional": raw_target,
+                    "notional_after_cap": allocation.target_notional,
+                    "cap_applied": bool(raw_target > allocation.target_notional + 1e-9),
+                }
 
         metadata: MutableMapping[str, Any] = {
             "aggregate_score": aggregate_score,
@@ -265,6 +286,9 @@ class MultiTimeframeMomentumStrategy(BaseStrategy):
 
         if action == "FLAT" and direction != "FLAT":
             metadata["reason"] = "insufficient_confirmation"
+
+        if capacity_meta is not None:
+            metadata["liquidity_capacity"] = capacity_meta
 
         return StrategySignal(
             symbol=symbol,

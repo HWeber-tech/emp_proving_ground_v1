@@ -7,9 +7,13 @@ import os
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Mapping, MutableMapping
+from typing import Any, Mapping, MutableMapping, Sequence
 
-from src.governance.strategy_registry import StrategyRegistry, StrategyStatus
+from src.governance.strategy_registry import (
+    StrategyRegistry,
+    StrategyRegistryError,
+    StrategyStatus,
+)
 
 try:  # Lazy import so the module remains light for callers that do not need GA
     from src.evolution.experiments.ma_crossover_ga import MovingAverageGenome
@@ -266,11 +270,68 @@ def _build_provenance(
     return provenance
 
 
+def _load_gate_results(path: Path) -> Mapping[str, Any]:
+    try:
+        payload = json.loads(path.read_text())
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(f"Gate results not found at {path}") from exc
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive guard
+        raise ValueError(f"Gate results at {path} are not valid JSON") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError("Gate results payload must be a mapping")
+    return payload
+
+
+def _summarise_gate_failures(payload: Mapping[str, Any]) -> tuple[bool, tuple[str, ...]]:
+    gates = payload.get("gates")
+    if not isinstance(gates, Sequence):
+        raise ValueError("Gate results payload missing 'gates' sequence")
+
+    failing: list[str] = []
+    for entry in gates:
+        if not isinstance(entry, Mapping):
+            continue
+        passed = entry.get("passed")
+        if passed is True:
+            continue
+        gate_id = entry.get("gate_id") or entry.get("id") or "gate"
+        failing.append(str(gate_id))
+    return (len(failing) == 0, tuple(failing))
+
+
+def _rollback_on_gate_failure(registry: StrategyRegistry, genome_id: str) -> bool:
+    existing = registry.get_strategy(genome_id)
+    if existing is None:
+        return False
+
+    status_value = str(existing.get("status", "")).strip().lower()
+    try:
+        current_status = StrategyStatus(status_value)
+    except ValueError:
+        return False
+
+    rollback_target: StrategyStatus | None = None
+    if current_status is StrategyStatus.APPROVED_DEFAULT:
+        rollback_target = StrategyStatus.APPROVED_FALLBACK
+    elif current_status is StrategyStatus.APPROVED:
+        rollback_target = StrategyStatus.EVOLVED
+    elif current_status is StrategyStatus.ACTIVE:
+        rollback_target = StrategyStatus.APPROVED
+    else:
+        return False
+
+    try:
+        return registry.update_strategy_status(genome_id, rollback_target)
+    except StrategyRegistryError:
+        return False
+
+
 def promote_manifest_to_registry(
     manifest_path: str | Path,
     registry: StrategyRegistry,
     *,
     flags: PromotionFeatureFlags | None = None,
+    gate_results_path: str | Path | None = None,
 ) -> PromotionResult:
     """Promote a GA champion described by ``manifest_path`` into the registry."""
 
@@ -329,6 +390,35 @@ def promote_manifest_to_registry(
         )
 
     provenance = _build_provenance(manifest, decision_genome.id, genome_payload)
+
+    if gate_results_path is not None:
+        gate_path = Path(gate_results_path)
+        try:
+            gate_payload = _load_gate_results(gate_path)
+            gates_passed, failing_gates = _summarise_gate_failures(gate_payload)
+        except (FileNotFoundError, ValueError) as exc:
+            return PromotionResult(
+                genome_id=decision_genome.id,
+                registered=False,
+                status_updated=False,
+                skipped=True,
+                reason=f"gate_results_error:{exc}",
+                fitness=fitness,
+            )
+        if not gates_passed:
+            failure_suffix = ",".join(failing_gates)
+            gate_reason = "gate_regression"
+            if failure_suffix:
+                gate_reason = f"{gate_reason}:{failure_suffix}"
+            rollback_applied = _rollback_on_gate_failure(registry, decision_genome.id)
+            return PromotionResult(
+                genome_id=decision_genome.id,
+                registered=False,
+                status_updated=rollback_applied,
+                skipped=True,
+                reason=gate_reason,
+                fitness=fitness,
+            )
 
     registered = registry.register_champion(decision_genome, dict(report), provenance=provenance)
     status_updated = False

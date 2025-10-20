@@ -50,6 +50,15 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Override the minimum fitness threshold for promotion.",
     )
+    parser.add_argument(
+        "--gate-results",
+        type=Path,
+        default=None,
+        help=(
+            "Path to ablation gate results JSON; when provided, promotion will "
+            "skip or roll back if any gates fail."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -99,7 +108,12 @@ def main() -> int:
     args = _parse_args()
     flags = _resolve_flags(args)
     registry = _ensure_registry(args.registry_db)
-    result = promote_manifest_to_registry(args.manifest, registry, flags=flags)
+    result = promote_manifest_to_registry(
+        args.manifest,
+        registry,
+        flags=flags,
+        gate_results_path=args.gate_results,
+    )
     _print_result(result)
     return 0 if result.registered or result.skipped else 1
 

@@ -23,25 +23,30 @@ class SystemConfigLoadError(RuntimeError):
     """Raised when a SystemConfig YAML payload cannot be decoded."""
 
 
-class RunMode(StrEnum):
+class _ValueStrEnum(StrEnum):
+    def __str__(self) -> str:  # pragma: no cover - trivial delegation
+        return str(self.value)
+
+
+class RunMode(_ValueStrEnum):
     mock = "mock"
     paper = "paper"
     live = "live"
 
 
-class EmpTier(StrEnum):
+class EmpTier(_ValueStrEnum):
     tier_0 = "tier_0"
     tier_1 = "tier_1"
     tier_2 = "tier_2"
 
 
-class EmpEnvironment(StrEnum):
+class EmpEnvironment(_ValueStrEnum):
     demo = "demo"
     staging = "staging"
     production = "production"
 
 
-class ConnectionProtocol(StrEnum):
+class ConnectionProtocol(_ValueStrEnum):
     bootstrap = "bootstrap"
     paper = "paper"
     fix = "fix"
@@ -50,7 +55,7 @@ class ConnectionProtocol(StrEnum):
 E = TypeVar("E", bound=StrEnum)
 
 
-class DataBackboneMode(StrEnum):
+class DataBackboneMode(_ValueStrEnum):
     """Selectable data backbone implementations for ingest and caching."""
 
     bootstrap = "bootstrap"
@@ -155,6 +160,25 @@ def _normalise_extras(payload: Mapping[str, object]) -> dict[str, str]:
     extras: dict[str, str] = {}
     for key, value in payload.items():
         extras[str(key)] = str(value)
+    return extras
+
+
+def _normalise_model_section(section: Mapping[str, object]) -> dict[str, str]:
+    """Convert a nested ``model`` mapping into ``extras`` style keys."""
+
+    extras: dict[str, str] = {}
+    for raw_key, value in section.items():
+        if value is None:
+            continue
+        key_str = str(raw_key).strip()
+        if not key_str:
+            continue
+        extras[f"MODEL_{key_str.upper().replace('-', '_')}"] = str(value)
+
+    if "MODEL_SSM_IMPL" in extras:
+        extras.setdefault("MODEL_PRIMARY_IMPL", extras["MODEL_SSM_IMPL"])
+    if "MODEL_FALLBACK_IMPL" in extras:
+        extras.setdefault("MODEL_SECONDARY_IMPL", extras["MODEL_FALLBACK_IMPL"])
     return extras
 
 
@@ -514,6 +538,27 @@ class SystemConfig:
         nested = payload.get("system_config")
         if isinstance(nested, Mapping):
             _merge_config_overrides(overrides, nested)
+
+        model_extras: dict[str, str] = {}
+
+        def _accumulate_model(candidate: Mapping[str, object]) -> None:
+            section = candidate.get("model") if isinstance(candidate, Mapping) else None
+            if isinstance(section, Mapping):
+                model_extras.update(_normalise_model_section(section))
+
+        _accumulate_model(payload)
+        if isinstance(nested, Mapping):
+            _accumulate_model(nested)
+
+        if model_extras:
+            existing_extras = overrides.get("extras")
+            merged_extras: dict[str, str]
+            if isinstance(existing_extras, Mapping):
+                merged_extras = dict(existing_extras)
+            else:
+                merged_extras = {}
+            merged_extras.update(model_extras)
+            overrides["extras"] = merged_extras
 
         base = cls.from_env(env=env)
         if overrides:

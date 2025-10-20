@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T10:46:24Z
+## Automation updates — 2025-10-20T11:14:55Z
 
 ### Last 4 commits
-- f8da1465 refactor(artifacts): tune 11 files (2025-10-20)
-- 6ccb9354 refactor(orchestration): tune 3 files (2025-10-20)
-- 84cd5bcc refactor(operations): tune 1 file (2025-10-20)
-- b12ab9eb feat(artifacts): add 12 files (2025-10-20)
+- 0b53d5c0 feat(core): add 2 files (2025-10-20)
+- e33bd3a1 feat(core): add 3 files (2025-10-20)
+- eb2f440e feat(core): add 3 files (2025-10-20)
+- 7088bc1f refactor(governance): tune 3 files (2025-10-20)

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from numbers import Real
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -31,6 +32,9 @@ from src.core.coercion import coerce_float
 logger = logging.getLogger(__name__)
 
 
+_TZ_NO_COLON_PATTERN = re.compile(r"([+-])(\d{2})(\d{2})$")
+
+
 def _parse_iso_datetime(value: str) -> datetime | None:
     """Parse ISO-8601 timestamps, accepting a trailing ``Z`` for UTC."""
 
@@ -39,6 +43,12 @@ def _parse_iso_datetime(value: str) -> datetime | None:
         return None
     if text.endswith(("Z", "z")):
         text = f"{text[:-1]}+00:00"
+    else:
+        match = _TZ_NO_COLON_PATTERN.search(text)
+        if match is not None:
+            start = match.start()
+            sign, hours, minutes = match.groups()
+            text = f"{text[:start]}{sign}{hours}:{minutes}"
     try:
         return datetime.fromisoformat(text)
     except ValueError:

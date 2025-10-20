@@ -973,6 +973,7 @@ class TradingManager:
         base_confidence: float | None = None
         trade_outcome: TradeIntentOutcome | None = None
         throttle_decision: TradeThrottleDecision | None = None
+        validated_intent: Any | None = None
         try:
             logger.info(f"Received trade intent: {event_id}")
 
@@ -1302,6 +1303,13 @@ class TradingManager:
                             validated_intent,
                             event,
                         )
+                        attribution_metadata = self._extract_attribution_metadata(
+                            validated_intent
+                        )
+                        if attribution_metadata is None:
+                            attribution_metadata = self._extract_attribution_metadata(event)
+                        if attribution_metadata:
+                            block_metadata["attribution"] = attribution_metadata
                         decision = self._get_last_risk_decision()
                         if release_metadata:
                             await self._publish_release_route_event(
@@ -1395,6 +1403,13 @@ class TradingManager:
                                 validated_intent,
                                 event,
                             )
+                            attribution_metadata = self._extract_attribution_metadata(
+                                validated_intent
+                            )
+                            if attribution_metadata is None:
+                                attribution_metadata = self._extract_attribution_metadata(event)
+                            if attribution_metadata:
+                                failure_metadata["attribution"] = attribution_metadata
                             coverage_snapshot = self._extract_diary_coverage_snapshot(
                                 validated_intent
                             )
@@ -1520,12 +1535,6 @@ class TradingManager:
                                 throttle=self.get_trade_throttle_snapshot(),
                                 metadata=success_metadata,
                             )
-                            self._update_attribution_stats(
-                                raw_intent=event,
-                                validated_intent=validated_intent,
-                                outcome_metadata=success_metadata,
-                                executed=True,
-                            )
                             if gate_decision is not None and not drift_event_emitted:
                                 await self._publish_drift_gate_event(
                                     decision=gate_decision,
@@ -1572,6 +1581,13 @@ class TradingManager:
                                 validated_intent,
                                 event,
                             )
+                            attribution_metadata = self._extract_attribution_metadata(
+                                validated_intent
+                            )
+                            if attribution_metadata is None:
+                                attribution_metadata = self._extract_attribution_metadata(event)
+                            if attribution_metadata:
+                                fallback_metadata["attribution"] = attribution_metadata
                             if release_metadata:
                                 await self._publish_release_route_event(
                                     event_id=event_id,
@@ -1631,6 +1647,13 @@ class TradingManager:
                 if coverage_snapshot is not None:
                     rejection_metadata["diary_coverage"] = dict(coverage_snapshot)
                 self._maybe_attach_guardrails(rejection_metadata, event)
+                attribution_metadata = self._extract_attribution_metadata(
+                    validated_intent
+                )
+                if attribution_metadata is None:
+                    attribution_metadata = self._extract_attribution_metadata(event)
+                if attribution_metadata:
+                    rejection_metadata["attribution"] = attribution_metadata
                 self._record_experiment_event(
                     event_id=event_id,
                     status="rejected",
@@ -1684,11 +1707,19 @@ class TradingManager:
                 )
                 drift_event_emitted = True
             if trade_outcome is None:
+                error_metadata: dict[str, Any] = {"error": str(e)}
+                attribution_metadata = self._extract_attribution_metadata(
+                    validated_intent
+                )
+                if attribution_metadata is None:
+                    attribution_metadata = self._extract_attribution_metadata(event)
+                if attribution_metadata:
+                    error_metadata["attribution"] = attribution_metadata
                 trade_outcome = TradeIntentOutcome(
                     status="error",
                     executed=False,
                     throttle=self.get_trade_throttle_snapshot(),
-                    metadata={"error": str(e)},
+                    metadata=error_metadata,
                 )
         finally:
             finished_wall = datetime.now(tz=timezone.utc)
@@ -1792,6 +1823,17 @@ class TradingManager:
             await self._emit_policy_snapshot()
             await self._emit_risk_interface_snapshot()
             await self._emit_risk_snapshot()
+
+        if trade_outcome is not None:
+            outcome_metadata_snapshot: Mapping[str, Any] | None = None
+            if isinstance(trade_outcome.metadata, Mapping):
+                outcome_metadata_snapshot = trade_outcome.metadata
+            self._update_attribution_stats(
+                raw_intent=event,
+                validated_intent=validated_intent,
+                outcome_metadata=outcome_metadata_snapshot,
+                executed=bool(getattr(trade_outcome, "executed", False)),
+            )
 
         if trade_outcome is None:
             trade_outcome = TradeIntentOutcome(
@@ -4092,8 +4134,8 @@ class TradingManager:
         outcome_metadata: Mapping[str, Any] | None,
         executed: bool,
     ) -> None:
-        if not executed:
-            return
+        executed_flag = bool(executed)
+        self._execution_stats["last_attribution_executed"] = executed_flag
 
         def _current_coverage() -> float:
             if not self._order_attribution_samples:

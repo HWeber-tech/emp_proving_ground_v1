@@ -1108,6 +1108,128 @@ async def test_trading_manager_tracks_order_attribution(
     assert stats.get("order_attribution_samples") == 1
 
 
+@pytest.mark.asyncio()
+async def test_trading_manager_counts_failed_order_attribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=None,
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+    )
+    failing_engine = FailingExecutionEngine()
+    manager.execution_engine = failing_engine
+
+    attribution_payload = {
+        "diary_entry_id": "dd-failed",
+        "policy_id": "alpha.paper",
+        "belief": {
+            "belief_id": "belief-failed",
+            "symbol": "EURUSD",
+            "regime": "balanced",
+            "confidence": 0.61,
+        },
+        "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "explanation": "Execution failed after broker error",
+    }
+
+    trade_event: dict[str, Any] = {
+        "strategy_id": "alpha.paper",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "quantity": 1.0,
+        "price": 1.2345,
+        "confidence": 0.82,
+        "metadata": {
+            "attribution": attribution_payload,
+        },
+    }
+
+    manager.risk_gateway.validate_trade_intent = AsyncMock(return_value=trade_event)  # type: ignore[assignment]
+
+    outcome = await manager.on_trade_intent(trade_event)
+
+    assert outcome.status == "failed"
+    assert outcome.executed is False
+    assert outcome.metadata.get("attribution") == attribution_payload
+    assert failing_engine.calls == 1
+
+    stats = manager.get_execution_stats()
+    assert stats.get("order_attribution_samples") == 1
+    assert stats.get("orders_with_attribution") == 1
+    assert stats.get("attribution_coverage") == 1.0
+    assert stats.get("last_attribution_executed") is False
+
+
+@pytest.mark.asyncio()
+async def test_trading_manager_counts_rejected_order_attribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _silence_trading_manager_publishers(monkeypatch)
+
+    bus = DummyBus()
+    manager = TradingManager(
+        event_bus=bus,
+        strategy_registry=AlwaysActiveRegistry(),
+        execution_engine=RecordingExecutionEngine(),
+        initial_equity=25_000.0,
+        risk_config=RiskConfig(
+            min_position_size=1,
+            mandatory_stop_loss=False,
+            research_mode=True,
+        ),
+    )
+
+    attribution_payload = {
+        "diary_entry_id": "dd-rejected",
+        "policy_id": "alpha.paper",
+        "belief": {
+            "belief_id": "belief-rejected",
+            "symbol": "EURUSD",
+            "regime": "balanced",
+            "confidence": 0.7,
+        },
+        "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "explanation": "Risk gateway rejected order",
+    }
+
+    trade_event: dict[str, Any] = {
+        "strategy_id": "alpha.paper",
+        "symbol": "EURUSD",
+        "side": "sell",
+        "quantity": 2.0,
+        "price": 1.1180,
+        "confidence": 0.78,
+        "metadata": {
+            "attribution": attribution_payload,
+        },
+    }
+
+    manager.risk_gateway.validate_trade_intent = AsyncMock(return_value=None)  # type: ignore[assignment]
+    manager.risk_gateway.get_last_decision = lambda: {"reason": "risk_blocked"}  # type: ignore[assignment]
+
+    outcome = await manager.on_trade_intent(trade_event)
+
+    assert outcome.status == "rejected"
+    assert outcome.executed is False
+    assert outcome.metadata.get("attribution") == attribution_payload
+
+    stats = manager.get_execution_stats()
+    assert stats.get("order_attribution_samples") == 1
+    assert stats.get("orders_with_attribution") == 1
+    assert stats.get("attribution_coverage") == 1.0
+    assert stats.get("last_attribution_executed") is False
+
+
 def test_trading_manager_normalises_attribution_explanation() -> None:
     long_text = "Detailed attribution context " * 40
     payload = {

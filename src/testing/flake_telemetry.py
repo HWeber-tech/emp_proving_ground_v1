@@ -77,7 +77,8 @@ def resolve_output_path(
     """Resolve the telemetry output path to an absolute location and ensure parent exists."""
 
     candidate = explicit or env_value or ini_value or str(DEFAULT_RELATIVE_PATH)
-    path = Path(candidate).expanduser()
+    expanded = os.path.expandvars(candidate)
+    path = Path(expanded).expanduser()
     if not path.is_absolute():
         path = root / path
     path.parent.mkdir(parents=True, exist_ok=True)

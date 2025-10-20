@@ -56,7 +56,7 @@
   - `microprice`, `spread_ticks > 1`, `ofi_norm` (pre-event states + trade sign), `refresh_hz`, `stale_ms`, `slope/curve` (2-term poly each side).
 
 ### B.2 Meta/context tokens (data-driven)
-- [ ] **B.2.1** `asset_class`: {equity, fx_fut, fx_spot}; `venue`: {nasdaq, globex, spot_agg}.  
+- [x] **B.2.1** `asset_class`: {equity, fx_fut, fx_spot}; `venue`: {nasdaq, globex, spot_agg}.  
 - [ ] **B.2.2** `liquidity_bucket`: daily quantiles by median L1 size/spread → {low, mid, high}.  
 - [x] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
 
@@ -87,7 +87,7 @@
 
 ### C.3 Chunked BPTT
 - [x] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
-- [ ] **C.3.2** Curriculum seq_len: 4k → 8k → 16k.  
+- [x] **C.3.2** Curriculum seq_len: 4k → 8k → 16k.  
 - [x] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
 
 ### C.4 Heads & calibration
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T10:32:50Z
+## Automation updates — 2025-10-20T11:09:39Z
 
 ### Last 4 commits
-- c1b360da refactor(data_foundation): tune 4 files (2025-10-20)
-- f8b91197 refactor(thinking): tune 2 files (2025-10-20)
-- 5902b5f4 refactor(risk): tune 3 files (2025-10-20)
-- 816175e0 refactor(core): tune 2 files (2025-10-20)
+- d5ae0dc6 feat(thinking): add 3 files (2025-10-20)
+- 282c36eb refactor(thinking): tune 2 files (2025-10-20)
+- 46041509 refactor(config): tune 5 files (2025-10-20)
+- e007b8d9 feat(thinking): add 3 files (2025-10-20)

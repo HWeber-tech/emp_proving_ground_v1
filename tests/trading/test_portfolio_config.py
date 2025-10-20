@@ -67,3 +67,26 @@ def test_resolve_portfolio_monitor_config_overrides_take_precedence() -> None:
 
     assert config.max_positions == 20
     assert config.initial_balance == pytest.approx(15_000.0)
+
+
+def test_resolve_portfolio_monitor_config_prefers_prefixed_extras() -> None:
+    system_config = SystemConfig(
+        extras={"max_positions": "5", "portfolio.max_positions": "7"}
+    )
+
+    config = resolve_portfolio_monitor_config(system_config)
+
+    assert config.max_positions == 7
+
+
+def test_resolve_portfolio_monitor_config_prefers_field_key_over_prefixed_override() -> None:
+    system_config = SystemConfig(
+        extras={"portfolio.max_positions": "9"}
+    )
+
+    config = resolve_portfolio_monitor_config(
+        system_config,
+        overrides={"max_positions": 11, "portfolio.max_positions": 13},
+    )
+
+    assert config.max_positions == 11

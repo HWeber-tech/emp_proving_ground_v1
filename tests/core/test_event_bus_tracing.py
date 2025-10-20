@@ -54,6 +54,30 @@ class RecordingTracer:
 
 
 @pytest.mark.asyncio()
+async def test_async_event_bus_preserves_event_order() -> None:
+    bus = AsyncEventBus()
+    received: list[int] = []
+    processed = asyncio.Event()
+    total_events = 8
+
+    async def _handler(event: Event) -> None:
+        received.append(event.payload)
+        if len(received) == total_events:
+            processed.set()
+
+    bus.subscribe("sequence.test", _handler)
+    await bus.start()
+    try:
+        for value in range(total_events):
+            await bus.publish(Event(type="sequence.test", payload=value))
+        await asyncio.wait_for(processed.wait(), timeout=1)
+    finally:
+        await bus.stop()
+
+    assert received == list(range(total_events))
+
+
+@pytest.mark.asyncio()
 async def test_async_event_bus_tracing_records_publish_and_handler_metadata() -> None:
     tracer = RecordingTracer()
     bus = AsyncEventBus(tracer=tracer)

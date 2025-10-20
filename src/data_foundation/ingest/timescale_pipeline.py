@@ -10,6 +10,7 @@ import pandas as pd
 
 from .fred_calendar import fetch_fred_calendar
 from .yahoo_ingest import fetch_daily_bars, fetch_intraday_trades
+from ..macro_event_enrichment import enrich_macro_event_payload
 from ..persist.timescale import (
     TimescaleConnectionSettings,
     TimescaleIngestResult,
@@ -33,9 +34,10 @@ def _macro_events_to_frame(events: Sequence[MacroEvent | Mapping[str, object]]) 
     rows: list[dict[str, object]] = []
     for event in events:
         if isinstance(event, MacroEvent):
-            rows.append(event.dict())
+            payload = event.dict()
         else:
-            rows.append(dict(event))
+            payload = dict(event)
+        rows.append(enrich_macro_event_payload(payload))
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows)

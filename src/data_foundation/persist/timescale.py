@@ -37,6 +37,7 @@ from sqlalchemy.engine.url import make_url
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from src.core.coercion import coerce_float, coerce_int
+from ..macro_event_enrichment import enrich_macro_event_payload
 
 logger = logging.getLogger(__name__)
 
@@ -543,6 +544,9 @@ class TimescaleMigrator:
             forecast {float_type},
             previous {float_type},
             importance TEXT,
+            category TEXT,
+            related_symbols TEXT,
+            causal_links TEXT,
             source TEXT NOT NULL DEFAULT 'fred',
             ingested_at {ts_type} NOT NULL DEFAULT {now_fn},
             PRIMARY KEY (event_name, ts)
@@ -908,6 +912,8 @@ def _prepare_macro_event_records(
         else:
             raise ValueError("DataFrame must contain an 'event' or 'event_name' column")
 
+    frame = frame.apply(_apply_macro_event_enrichment, axis=1)
+
     if "calendar" not in frame.columns:
         frame["calendar"] = None
     if "currency" not in frame.columns:
@@ -919,6 +925,17 @@ def _prepare_macro_event_records(
             frame[column] = pd.NA
     if "importance" not in frame.columns:
         frame["importance"] = None
+
+    if "category" in frame.columns:
+        frame["category"] = frame["category"].apply(_normalise_category_value)
+    else:
+        frame["category"] = None
+
+    for column in ("related_symbols", "causal_links"):
+        if column in frame.columns:
+            frame[column] = frame[column].apply(_serialise_sequence_field)
+        else:
+            frame[column] = None
 
     frame["source"] = source
     frame["ingested_at"] = ingest_ts
@@ -932,6 +949,9 @@ def _prepare_macro_event_records(
         "forecast",
         "previous",
         "importance",
+        "category",
+        "related_symbols",
+        "causal_links",
         "source",
         "ingested_at",
     ]
@@ -947,6 +967,45 @@ def _prepare_macro_event_records(
         if isinstance(ingested_value, pd.Timestamp):
             record["ingested_at"] = ingested_value.to_pydatetime()
     return records
+
+
+def _serialise_sequence_field(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            json.loads(text)
+        except ValueError:
+            return json.dumps([text])
+        return text
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        tokens = [str(item).strip() for item in value if str(item).strip()]
+        if not tokens:
+            return None
+        return json.dumps(tokens)
+    text = str(value).strip()
+    if not text:
+        return None
+    return json.dumps([text])
+
+
+def _normalise_category_value(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    text = str(value).strip().lower()
+    return text or None
+
+
+def _apply_macro_event_enrichment(row: pd.Series) -> pd.Series:
+    enriched = enrich_macro_event_payload(row.to_dict())
+    for key, value in enriched.items():
+        row[key] = value
+    return row
 
 
 @dataclass(frozen=True)
@@ -2686,6 +2745,9 @@ class TimescaleIngestor:
                 "forecast",
                 "previous",
                 "importance",
+                "category",
+                "related_symbols",
+                "causal_links",
                 "source",
                 "ingested_at",
             ),

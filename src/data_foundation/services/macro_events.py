@@ -8,6 +8,7 @@ from numbers import Real
 from typing import Mapping, Sequence
 
 import math
+import json
 from functools import lru_cache
 
 import pandas as pd
@@ -60,6 +61,9 @@ class MacroEventRecord:
     forecast: float | None = None
     previous: float | None = None
     source: str | None = None
+    category: str | None = None
+    related_symbols: tuple[str, ...] = field(default_factory=tuple)
+    causal_links: tuple[str, ...] = field(default_factory=tuple)
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -72,6 +76,9 @@ class MacroEventRecord:
             "forecast": self.forecast,
             "previous": self.previous,
             "source": self.source,
+            "category": self.category,
+            "related_symbols": list(self.related_symbols),
+            "causal_links": list(self.causal_links),
         }
 
     @staticmethod
@@ -107,6 +114,10 @@ class MacroEventRecord:
         previous = _safe_float(row.get("previous"))
         source_raw = row.get("source")
         source = str(source_raw) if source_raw is not None else None
+        category_raw = row.get("category")
+        category = str(category_raw).strip().lower() if category_raw else None
+        related_symbols = _normalise_sequence(row.get("related_symbols"), upper=True)
+        causal_links = _normalise_sequence(row.get("causal_links"), upper=False)
         return cls(
             timestamp=timestamp,
             calendar=calendar,
@@ -117,6 +128,9 @@ class MacroEventRecord:
             forecast=forecast,
             previous=previous,
             source=source,
+            category=category,
+            related_symbols=related_symbols,
+            causal_links=causal_links,
         )
 
 
@@ -140,6 +154,48 @@ def _safe_float(value: object) -> float | None:
             return None
         return numeric
     return None
+
+
+def _normalise_sequence(value: object, *, upper: bool) -> tuple[str, ...]:
+    if value is None:
+        return tuple()
+
+    raw_items: list[object]
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return tuple()
+        try:
+            decoded = json.loads(text)
+        except ValueError:
+            raw_items = [text]
+        else:
+            if isinstance(decoded, list):
+                raw_items = list(decoded)
+            else:
+                raw_items = [decoded]
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        raw_items = list(value)
+    else:
+        raw_items = [value]
+
+    tokens: list[str] = []
+    for item in raw_items:
+        token = str(item).strip()
+        if not token:
+            continue
+        if upper:
+            token = token.upper()
+        tokens.append(token)
+
+    if not tokens:
+        return tuple()
+
+    seen: dict[str, None] = {}
+    for token in tokens:
+        if token not in seen:
+            seen[token] = None
+    return tuple(seen)
 
 
 @dataclass(frozen=True)

@@ -204,6 +204,9 @@ class TimescaleReader:
             "actual",
             "forecast",
             "previous",
+            "category",
+            "related_symbols",
+            "causal_links",
             "source",
             "ingested_at",
         ]

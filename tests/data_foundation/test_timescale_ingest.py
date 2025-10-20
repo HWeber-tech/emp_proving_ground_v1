@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Mapping
 
@@ -13,6 +14,7 @@ from src.data_foundation.ingest.timescale_pipeline import (
     MacroEventIngestPlan,
     TimescaleBackboneOrchestrator,
     TimescaleBackbonePlan,
+    _macro_events_to_frame,
     ingest_macro_events,
     ingest_yahoo_daily_bars,
     ingest_yahoo_intraday_trades,
@@ -107,6 +109,31 @@ def _sample_macro_events() -> list[MacroEvent]:
             source="fred",
         ),
     ]
+
+
+def test_macro_event_enrichment_assigns_fundamental_links() -> None:
+    events = [
+        {
+            "timestamp": datetime(2024, 3, 20, 21, 0, tzinfo=timezone.utc),
+            "event": "AAPL earnings call",
+            "symbol": "AAPL",
+        },
+        {
+            "timestamp": datetime(2024, 3, 21, 12, 0, tzinfo=timezone.utc),
+            "event": "SPY ETF rebalance",
+            "symbols": ["SPY", "IVV"],
+        },
+    ]
+
+    frame = _macro_events_to_frame(events)
+
+    assert frame.loc[0, "category"] == "fundamental"
+    assert frame.loc[0, "related_symbols"] == ["AAPL"]
+    assert frame.loc[0, "causal_links"] == ["corporate_earnings"]
+
+    assert frame.loc[1, "category"] == "fundamental"
+    assert sorted(frame.loc[1, "related_symbols"]) == ["IVV", "SPY"]
+    assert frame.loc[1, "causal_links"] == ["portfolio_flows"]
 
 
 def _multiindex_daily(symbol: str) -> pd.DataFrame:
@@ -293,6 +320,19 @@ def test_timescale_ingestor_macro_events(tmp_path) -> None:
         ).fetchall()
 
     assert rows == [("Press Conference", 1), ("Rate Decision", 1)]
+
+    with engine.connect() as conn:
+        detail = conn.execute(
+            text(
+                "SELECT category, related_symbols, causal_links FROM macro_data_events"
+                " WHERE event_name = :name"
+            ),
+            {"name": "Rate Decision"},
+        ).mappings().one()
+
+    assert detail["category"] == "macro"
+    assert detail["related_symbols"] is None
+    assert json.loads(detail["causal_links"]) == ["monetary_policy"]
 
 
 class _RecordingPublisher:

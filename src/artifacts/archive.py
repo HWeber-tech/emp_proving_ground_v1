@@ -88,6 +88,15 @@ def archive_artifact(
         dest_name = src_path.name
     destination = dest_dir / dest_name
     try:
+        if src_path.resolve() == destination.resolve():
+            logger.debug(
+                "archive_artifact skipped copy for identical path",
+                extra={"source": str(src_path), "destination": str(destination)},
+            )
+            return destination
+    except (OSError, RuntimeError):
+        pass
+    try:
         shutil.copy2(src_path, destination)
     except Exception:  # pragma: no cover - filesystem edge cases
         logger.exception("Failed to archive artifact %s -> %s", src_path, destination)

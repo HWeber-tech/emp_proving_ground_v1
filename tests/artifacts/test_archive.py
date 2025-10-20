@@ -77,3 +77,24 @@ def test_archive_artifact_sanitises_target_name(tmp_path: Path) -> None:
     assert destination.parent == root / "reports" / "2023" / "07" / "14" / "run-063000"
     assert destination.name == "override.log"
     assert destination.read_text(encoding="utf-8") == "ok"
+
+
+def test_archive_artifact_handles_identical_source_and_destination(tmp_path: Path) -> None:
+    timestamp = datetime(2026, 4, 5, 8, 30, tzinfo=UTC)
+    root = tmp_path / "artifacts-root"
+    destination = root / "reports" / "2026" / "04" / "05" / "run-083000"
+    destination.mkdir(parents=True)
+
+    source = destination / "report.txt"
+    source.write_text("content", encoding="utf-8")
+
+    archived = archive_artifact(
+        "reports",
+        source,
+        root=root,
+        timestamp=timestamp,
+        run_id="run-083000",
+    )
+
+    assert archived == source
+    assert archived.read_text(encoding="utf-8") == "content"

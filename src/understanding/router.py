@@ -259,8 +259,8 @@ class UnderstandingRouter:
             fast_weight_controller=controller,
             exploration_max_fraction=exploration_fraction,
             exploration_mutate_every=exploration_cadence,
-            allow_forced_exploration=allow_forced_exploration,
         )
+        policy_router.allow_forced_exploration = allow_forced_exploration
         return cls(policy_router=policy_router)
 
     @property

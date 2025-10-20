@@ -664,7 +664,7 @@ class PolicyRouter:
             self._tournament_min_regime_decisions = 0
         self._tournament_weights = dict(self._normalise_tournament_weights(tournament_weights))
         self._tournament_bonus = max(0.0, float(tournament_bonus))
-        self._allow_forced_exploration = bool(allow_forced_exploration)
+        self.allow_forced_exploration = allow_forced_exploration
         self._linear_attention_router: LinearAttentionRouter | None = linear_attention_router
 
     def exploration_freeze_active(self) -> bool:

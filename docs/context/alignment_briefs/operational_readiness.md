@@ -14,8 +14,8 @@
   operational metrics and missing alert channels; observability is brittle.【F:docs/ci_baseline_report.md†L8-L27】
 - Technical debt assessments cite unsupervised async tasks, missing documentation,
   and open alerts workflow items.【F:docs/technical_debt_assessment.md†L33-L112】
-- Legacy guides (OpenAPI/cTrader) persist in `docs/legacy`, signalling incomplete
-  cleanup and risk of policy drift.【F:docs/legacy/README.md†L1-L12】
+- Legacy guides (OpenAPI/cTrader) persist in `archive/legacy`, signalling incomplete
+  cleanup and risk of policy drift.【F:archive/legacy/README.md†L1-L12】
 
 ## Gap themes
 
@@ -144,7 +144,7 @@
   - Progress: Compliance panels now ingest the AlphaTrade loop’s enriched governance events, surfacing stage labels, stage-gate reasons, and breach counts directly on the dashboard so operators can reconcile forced-paper decisions without spelunking through logs.【F:src/operations/observability_dashboard.py†L825-L963】【F:tests/operations/test_observability_dashboard.py†L340-L368】
 - Progress: Observability dashboard now renders an operator leverage panel that summarises experiments-per-week, quality posture, and lagging operators while surfacing tournament metadata so readiness reviews track experimentation throughput alongside risk metrics under guardrail coverage.【F:src/operations/operator_leverage.py†L1-L543】【F:src/operations/observability_dashboard.py†L701-L748】【F:tests/operations/test_operator_leverage.py†L49-L139】【F:tests/operations/test_observability_dashboard.py†L560-L598】
 - Update incident response docs with current limitations and TODOs; remove or
-  archive obsolete OpenAPI references where possible.【F:docs/legacy/README.md†L1-L12】
+  archive obsolete OpenAPI references where possible.【F:archive/legacy/README.md†L1-L12】
 - Progress: Incident playbook validation now ships as a bundled CLI that runs the
   kill-switch, nightly replay, and trade throttle rollback drills, persists a
   JSON evidence pack, and links into the refreshed runbook so operators can drop

@@ -30,7 +30,7 @@ are printed in the workflow log.
 
 * Default configs (`config.yaml`, `.env` templates) must not reference
   prohibited providers outside clearly marked legacy sections.
-* Legacy guides that describe the cTrader OpenAPI live in `docs/legacy/` and must
+* Legacy guides that describe the cTrader OpenAPI live in `archive/legacy/` and must
   start with a **Status: Legacy** disclaimer that links back to this policy.
 * New documentation should emphasise FIX workflows and explicitly call out any
   reliance on blocked providers as historical context only.

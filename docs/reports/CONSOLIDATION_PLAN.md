@@ -21,7 +21,7 @@ Target single sources of truth (SoT):
 - Execution: keep `src/trading/execution/execution_model.py` (slippage/fees) and integrate it into pre‑trade checks. Review `fix_executor.py`; either align with `FIXBrokerInterface` or move to legacy.
 - FIX connectivity: keep `src/operational/fix_connection_manager.py` and `src/trading/integration/fix_broker_interface.py`. Legacy `icmarkets_robust_application.py` has already been removed.
 - Risk: consolidate under `src/core/risk/` with one `RiskManager` and one `RiskConfig`. Retire `src/risk/risk_manager_impl.py` if not the SoT.
-- Liquidity prober: refactor `src/trading/execution/liquidity_prober.py` to depend on `FIXBrokerInterface` (remove `mock_ctrader_interface` coupling) or move to `docs/legacy/` until refactored.
+- Liquidity prober: refactor `src/trading/execution/liquidity_prober.py` to depend on `FIXBrokerInterface` (remove `mock_ctrader_interface` coupling) or move to `archive/legacy/` until refactored.
 - Configs: prefer typed configs under `src/data_foundation/config/` and YAML under `config/`. Remove duplicate config modules under `src/config/`.
 
 Phased execution (1‑week sweep):
@@ -47,7 +47,7 @@ Phased execution (1‑week sweep):
 
 6) LiquidityProber refactor (Day 4‑5)
    - Replace `mock_ctrader_interface` dependency with a thin broker abstraction backed by `FIXBrokerInterface`.
-   - Or move to `docs/legacy/` if deferred.
+   - Or move to `archive/legacy/` if deferred.
 
 7) Config normalization (Day 5)
    - Remove duplicate config modules under `src/config/` after verifying no imports.

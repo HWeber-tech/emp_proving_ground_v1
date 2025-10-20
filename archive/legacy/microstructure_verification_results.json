@@ -1,0 +1,4 @@
+{
+  "status": "removed",
+  "reason": "OpenAPI verification artefacts were retired with the FIX-only migration."
+}

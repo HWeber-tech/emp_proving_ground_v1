@@ -3,12 +3,21 @@ from __future__ import annotations
 import pytest
 
 from src.thinking.adversarial.mini_league import (
+    ExploitabilityObservation,
     LeagueEntry,
     LeagueMatchup,
     LeagueResult,
     LeagueSlot,
     MiniLeague,
 )
+
+
+def _entry(agent_id: str, sharpe: float, turnover: float) -> LeagueEntry:
+    return LeagueEntry(
+        agent_id=agent_id,
+        score=sharpe,
+        metadata={"sharpe": sharpe, "turnover": turnover},
+    )
 
 
 def test_mini_league_promotes_current_to_best() -> None:
@@ -76,3 +85,45 @@ def test_remove_agent_from_slot() -> None:
     assert league.remove(LeagueSlot.EXPLOIT, "to-remove") is True
     assert not league.roster(LeagueSlot.EXPLOIT)
     assert league.remove(LeagueSlot.EXPLOIT, "ghost") is False
+
+
+def test_exploitability_observation_requires_matched_turnover() -> None:
+    league = MiniLeague()
+    league.register(LeagueSlot.CURRENT, _entry("current", 1.05, 1.0))
+    league.register(LeagueSlot.BEST, _entry("best", 1.30, 1.08))
+    league.register(LeagueSlot.EXPLOIT, _entry("exploit-a", 1.20, 1.25))
+    league.register(LeagueSlot.EXPLOIT, _entry("exploit-b", 1.22, 0.95))
+
+    observation = league.compute_exploitability_observation(turnover_tolerance_pct=10.0)
+    assert isinstance(observation, ExploitabilityObservation)
+    assert observation.current_agent_id == "current"
+    assert observation.current_metric == pytest.approx(1.05)
+    assert {comp.agent_id for comp in observation.comparisons} == {"best", "exploit-b"}
+    assert observation.selected_gap == pytest.approx(0.25)
+    assert observation.selected_slot is LeagueSlot.BEST
+    assert observation.selected_agent_id == "best"
+
+
+def test_promotion_requires_exploitability_gap_to_shrink() -> None:
+    league = MiniLeague()
+    league.register(LeagueSlot.CURRENT, _entry("current", 1.0, 1.0))
+    league.register(LeagueSlot.BEST, _entry("best", 1.05, 1.0))
+
+    first = league.record_exploitability_observation()
+    assert first.selected_gap == pytest.approx(0.05)
+    assert first.wow_delta is None
+
+    league.register(LeagueSlot.BEST, _entry("best", 1.20, 1.0))
+    widened = league.record_exploitability_observation()
+    assert widened.selected_gap == pytest.approx(0.20)
+    assert widened.wow_delta == pytest.approx(0.15)
+    assert league.promote_current_to_best() is None
+
+    league.register(LeagueSlot.BEST, _entry("best", 1.03, 1.0))
+    improved = league.record_exploitability_observation()
+    assert improved.selected_gap == pytest.approx(0.03)
+    assert improved.wow_delta == pytest.approx(-0.17)
+
+    promoted = league.promote_current_to_best()
+    assert promoted is not None
+    assert promoted.agent_id == "current"

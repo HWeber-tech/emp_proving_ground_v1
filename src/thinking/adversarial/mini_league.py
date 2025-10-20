@@ -23,6 +23,8 @@ __all__ = [
     "LeagueEntry",
     "LeagueMatchup",
     "LeagueResult",
+    "ExploitabilityComparison",
+    "ExploitabilityObservation",
     "MiniLeague",
 ]
 
@@ -126,6 +128,73 @@ class LeagueResult:
         )
 
 
+@dataclass(slots=True, frozen=True)
+class ExploitabilityComparison:
+    """Comparison between the current policy and a reference agent."""
+
+    slot: LeagueSlot
+    agent_id: str
+    metric: float
+    turnover: float | None
+    turnover_diff_pct: float | None
+    gap: float
+
+
+@dataclass(slots=True, frozen=True)
+class ExploitabilityObservation:
+    """Exploitability metric snapshot derived from mini-league rosters."""
+
+    metric: str
+    tolerance_pct: float
+    current_agent_id: str | None
+    current_metric: float | None
+    current_turnover: float | None
+    comparisons: tuple[ExploitabilityComparison, ...]
+    selected_gap: float | None
+    selected_slot: LeagueSlot | None
+    selected_agent_id: str | None
+    wow_delta: float | None = None
+
+
+def _coerce_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_metric(entry: LeagueEntry, metric: str) -> float | None:
+    if metric in entry.metadata:
+        candidate = _coerce_float(entry.metadata[metric])
+        if candidate is not None:
+            return candidate
+    if metric == "score" and entry.score is not None:
+        return float(entry.score)
+    if entry.score is not None and metric in {"sharpe", "performance"}:
+        return float(entry.score)
+    if "score" in entry.metadata:
+        candidate = _coerce_float(entry.metadata["score"])
+        if candidate is not None:
+            return candidate
+    return None
+
+
+def _extract_turnover(entry: LeagueEntry, turnover_key: str) -> float | None:
+    if turnover_key not in entry.metadata:
+        return None
+    return _coerce_float(entry.metadata[turnover_key])
+
+
+def _turnover_diff_pct(base: float, other: float) -> float | None:
+    if base is None or other is None:
+        return None
+    if base == 0.0:
+        return 0.0 if other == 0.0 else float("inf")
+    return abs(other - base) / abs(base) * 100.0
+
+
 class MiniLeague:
     """Coordinate match scheduling between league roles."""
 
@@ -154,6 +223,9 @@ class MiniLeague:
             LeagueSlot.CHAOS: max_chaos,
         }
         self._history: deque[LeagueResult] = deque(maxlen=history_limit)
+        self._exploitability_observations: deque[ExploitabilityObservation] = deque(
+            maxlen=history_limit
+        )
 
     def register(self, slot: LeagueSlot, entry: LeagueEntry) -> None:
         roster = self._slots[slot]
@@ -182,6 +254,24 @@ class MiniLeague:
     def promote_current_to_best(self, *, copy_metadata: bool = True) -> LeagueEntry | None:
         current_entry = self.current()
         if current_entry is None:
+            return None
+        latest_gap: float | None = None
+        previous_gap: float | None = None
+        gaps_found = 0
+        for observation in reversed(self._exploitability_observations):
+            if observation.selected_gap is None:
+                continue
+            if gaps_found == 0:
+                latest_gap = observation.selected_gap
+                gaps_found += 1
+                continue
+            previous_gap = observation.selected_gap
+            break
+        if (
+            latest_gap is not None
+            and previous_gap is not None
+            and latest_gap > previous_gap + 1e-9
+        ):
             return None
         promoted = replace(
             current_entry,
@@ -241,6 +331,110 @@ class MiniLeague:
             slot.value: [entry.as_dict() for entry in roster]
             for slot, roster in self._slots.items()
         }
+
+    def exploitability_observations(self) -> tuple[ExploitabilityObservation, ...]:
+        return tuple(self._exploitability_observations)
+
+    def compute_exploitability_observation(
+        self,
+        *,
+        metric: str = "sharpe",
+        turnover_key: str = "turnover",
+        turnover_tolerance_pct: float = 10.0,
+    ) -> ExploitabilityObservation:
+        if turnover_tolerance_pct < 0:
+            raise ValueError("turnover_tolerance_pct must be non-negative")
+
+        current_entry = self.current()
+        if current_entry is None:
+            return ExploitabilityObservation(
+                metric=metric,
+                tolerance_pct=turnover_tolerance_pct,
+                current_agent_id=None,
+                current_metric=None,
+                current_turnover=None,
+                comparisons=(),
+                selected_gap=None,
+                selected_slot=None,
+                selected_agent_id=None,
+            )
+
+        current_metric = _extract_metric(current_entry, metric)
+        current_turnover = _extract_turnover(current_entry, turnover_key)
+
+        comparisons: list[ExploitabilityComparison] = []
+        if current_metric is not None and current_turnover is not None:
+            for slot in (LeagueSlot.BEST, LeagueSlot.EXPLOIT):
+                for entry in self._slots[slot]:
+                    candidate_metric = _extract_metric(entry, metric)
+                    candidate_turnover = _extract_turnover(entry, turnover_key)
+                    if candidate_metric is None or candidate_turnover is None:
+                        continue
+                    turnover_diff = _turnover_diff_pct(current_turnover, candidate_turnover)
+                    if turnover_diff is None or turnover_diff > turnover_tolerance_pct:
+                        continue
+                    gap = max(0.0, candidate_metric - current_metric)
+                    comparisons.append(
+                        ExploitabilityComparison(
+                            slot=slot,
+                            agent_id=entry.agent_id,
+                            metric=candidate_metric,
+                            turnover=candidate_turnover,
+                            turnover_diff_pct=turnover_diff,
+                            gap=gap,
+                        )
+                    )
+
+        if comparisons:
+            selected = max(comparisons, key=lambda item: item.gap)
+            selected_gap = selected.gap
+            selected_slot = selected.slot
+            selected_agent_id = selected.agent_id
+        else:
+            selected_gap = None
+            selected_slot = None
+            selected_agent_id = None
+
+        return ExploitabilityObservation(
+            metric=metric,
+            tolerance_pct=turnover_tolerance_pct,
+            current_agent_id=current_entry.agent_id,
+            current_metric=current_metric,
+            current_turnover=current_turnover,
+            comparisons=tuple(comparisons),
+            selected_gap=selected_gap,
+            selected_slot=selected_slot,
+            selected_agent_id=selected_agent_id,
+        )
+
+    def record_exploitability_observation(
+        self,
+        *,
+        metric: str = "sharpe",
+        turnover_key: str = "turnover",
+        turnover_tolerance_pct: float = 10.0,
+    ) -> ExploitabilityObservation:
+        observation = self.compute_exploitability_observation(
+            metric=metric,
+            turnover_key=turnover_key,
+            turnover_tolerance_pct=turnover_tolerance_pct,
+        )
+        if observation.selected_gap is not None:
+            previous_gap = next(
+                (
+                    obs.selected_gap
+                    for obs in reversed(self._exploitability_observations)
+                    if obs.selected_gap is not None
+                ),
+                None,
+            )
+            if previous_gap is not None:
+                observation = replace(
+                    observation,
+                    wow_delta=observation.selected_gap - previous_gap,
+                )
+        self._exploitability_observations.append(observation)
+        return observation
 
     def _find(self, slot: LeagueSlot, agent_id: str) -> int | None:
         for idx, entry in enumerate(self._slots[slot]):

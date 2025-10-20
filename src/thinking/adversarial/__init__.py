@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from src.thinking.adversarial.mini_league import (  # noqa: F401
+    ExploitabilityComparison,
+    ExploitabilityObservation,
     LeagueEntry,
     LeagueMatchup,
     LeagueResult,
@@ -13,5 +15,7 @@ __all__ = [
     "LeagueEntry",
     "LeagueMatchup",
     "LeagueResult",
+    "ExploitabilityComparison",
+    "ExploitabilityObservation",
     "MiniLeague",
 ]

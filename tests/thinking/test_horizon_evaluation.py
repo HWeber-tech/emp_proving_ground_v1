@@ -167,6 +167,22 @@ def test_evaluate_predictions_by_horizon_validates_inputs() -> None:
             weight=0.0,
         )
 
+    with pytest.raises(ValueError):
+        HorizonObservation(
+            "ev3",
+            "event-time",
+            probability=0.5,
+            outcome=0,
+        )
+
+    with pytest.raises(ValueError):
+        HorizonObservation(
+            "750ms",
+            "wall-time",
+            probability=0.5,
+            outcome=0,
+        )
+
     observations = _sample_observations()
 
     with pytest.raises(ValueError):

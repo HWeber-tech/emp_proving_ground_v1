@@ -33,6 +33,8 @@ _TIME_ALIASES = {"time", "temporal", "wall", "wall-time", "walltime", "wall-cloc
 
 _CANONICAL_EVENT_HORIZONS: tuple[str, ...] = ("ev1", "ev5", "ev20")
 _CANONICAL_TIME_HORIZONS: tuple[str, ...] = ("100ms", "500ms", "2s")
+_ALLOWED_EVENT_HORIZONS = frozenset(_CANONICAL_EVENT_HORIZONS)
+_ALLOWED_TIME_HORIZONS = frozenset(_CANONICAL_TIME_HORIZONS)
 
 _EVENT_HORIZON_ALIAS_MAP: dict[str, str] = {
     "1": "ev1",
@@ -49,15 +51,114 @@ _TIME_HORIZON_ALIAS_MAP: dict[str, str] = {
     "0.10s": "100ms",
     "100": "100ms",
     "0.100s": "100ms",
+    "100.0": "100ms",
     "500ms": "500ms",
     "0.5s": "500ms",
     "0.50s": "500ms",
     "500": "500ms",
+    "500.0": "500ms",
     "2s": "2s",
+    "2": "2s",
     "2.0s": "2s",
     "2.00s": "2s",
+    "2.0": "2s",
+    "2000": "2s",
     "2000ms": "2s",
 }
+
+
+def _canonicalise_event_horizon_label(text: str, *, original: str) -> str:
+    key = text.lower()
+
+    canonical = _EVENT_HORIZON_ALIAS_MAP.get(key)
+    if canonical is not None:
+        return canonical
+
+    if key.startswith("ev") and key[2:].isdigit():
+        canonical = _EVENT_HORIZON_ALIAS_MAP.get(str(int(key[2:])))
+        if canonical is not None:
+            return canonical
+
+    if key.isdigit():
+        canonical = _EVENT_HORIZON_ALIAS_MAP.get(str(int(key)))
+        if canonical is not None:
+            return canonical
+
+    try:
+        numeric_value = float(text)
+    except ValueError:
+        pass
+    else:
+        if math.isfinite(numeric_value):
+            rounded = round(numeric_value)
+            if math.isclose(numeric_value, rounded, rel_tol=0.0, abs_tol=1e-12):
+                canonical = _EVENT_HORIZON_ALIAS_MAP.get(str(int(rounded)))
+                if canonical is not None:
+                    return canonical
+
+    allowed = ", ".join(_CANONICAL_EVENT_HORIZONS)
+    raise ValueError(f"unsupported event horizon '{original}'; expected one of: {allowed}")
+
+
+def _canonicalise_time_horizon_label(text: str, *, original: str) -> str:
+    key = text.lower()
+
+    canonical = _TIME_HORIZON_ALIAS_MAP.get(key)
+    if canonical is not None:
+        return canonical
+
+    if key.endswith("ms"):
+        numeric_text = key[:-2]
+        if numeric_text:
+            try:
+                milliseconds = float(numeric_text)
+            except ValueError:
+                milliseconds = None
+            else:
+                if math.isfinite(milliseconds):
+                    seconds = milliseconds / 1000.0
+                    canonical = _canonicalise_time_horizon_seconds(seconds)
+                    if canonical is not None:
+                        return canonical
+
+    if key.endswith("s"):
+        numeric_text = key[:-1]
+        if numeric_text:
+            try:
+                seconds = float(numeric_text)
+            except ValueError:
+                seconds = None
+            else:
+                if math.isfinite(seconds):
+                    canonical = _canonicalise_time_horizon_seconds(seconds)
+                    if canonical is not None:
+                        return canonical
+
+    try:
+        numeric_value = float(text)
+    except ValueError:
+        numeric_value = None
+    else:
+        if math.isfinite(numeric_value):
+            if numeric_value >= 10.0:
+                canonical = _canonicalise_time_horizon_seconds(numeric_value / 1000.0)
+            else:
+                canonical = _canonicalise_time_horizon_seconds(numeric_value)
+            if canonical is not None:
+                return canonical
+
+    allowed = ", ".join(_CANONICAL_TIME_HORIZONS)
+    raise ValueError(f"unsupported time horizon '{original}'; expected one of: {allowed}")
+
+
+def _canonicalise_time_horizon_seconds(seconds: float) -> str | None:
+    if math.isclose(seconds, 0.1, rel_tol=0.0, abs_tol=1e-9):
+        return "100ms"
+    if math.isclose(seconds, 0.5, rel_tol=0.0, abs_tol=1e-9):
+        return "500ms"
+    if math.isclose(seconds, 2.0, rel_tol=0.0, abs_tol=1e-9):
+        return "2s"
+    return None
 
 
 def _normalise_horizon_type(value: str) -> str:
@@ -72,45 +173,25 @@ def _normalise_horizon_type(value: str) -> str:
 def _canonicalise_horizon_label(horizon: str | int | float, *, horizon_type: str) -> str:
     text = str(horizon).strip()
     if not text:
-        return text
+        raise ValueError("horizon label cannot be blank")
 
-    key = text.lower()
     if horizon_type == "event":
-        canonical = _EVENT_HORIZON_ALIAS_MAP.get(key)
-        if canonical is not None:
-            return canonical
-        if key.isdigit():
-            return f"ev{key}"
-        try:
-            numeric_value = float(text)
-        except ValueError:
-            return text
-        if math.isfinite(numeric_value):
-            rounded = round(numeric_value)
-            if math.isclose(numeric_value, rounded, rel_tol=0.0, abs_tol=1e-12):
-                integer_text = str(int(rounded))
-                canonical = _EVENT_HORIZON_ALIAS_MAP.get(integer_text)
-                if canonical is not None:
-                    return canonical
-                return f"ev{integer_text}"
-        return text
+        canonical = _canonicalise_event_horizon_label(text, original=text)
+        if canonical not in _ALLOWED_EVENT_HORIZONS:
+            allowed = ", ".join(_CANONICAL_EVENT_HORIZONS)
+            raise ValueError(
+                f"unsupported event horizon '{text}'; expected one of: {allowed}"
+            )
+        return canonical
 
     if horizon_type == "time":
-        canonical = _TIME_HORIZON_ALIAS_MAP.get(key)
-        if canonical is not None:
-            return canonical
-        try:
-            numeric_value = float(text)
-        except ValueError:
-            return text
-        if math.isfinite(numeric_value):
-            if math.isclose(numeric_value, 0.1, rel_tol=0.0, abs_tol=1e-12):
-                return "100ms"
-            if math.isclose(numeric_value, 0.5, rel_tol=0.0, abs_tol=1e-12):
-                return "500ms"
-            if math.isclose(numeric_value, 2.0, rel_tol=0.0, abs_tol=1e-12):
-                return "2s"
-        return text
+        canonical = _canonicalise_time_horizon_label(text, original=text)
+        if canonical not in _ALLOWED_TIME_HORIZONS:
+            allowed = ", ".join(_CANONICAL_TIME_HORIZONS)
+            raise ValueError(
+                f"unsupported time horizon '{text}'; expected one of: {allowed}"
+            )
+        return canonical
 
     return text
 

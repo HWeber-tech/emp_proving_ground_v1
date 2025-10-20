@@ -13,6 +13,11 @@ __all__ = ["coerce_float", "coerce_int"]
 
 _NUMERIC_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[_',](?=\d)")
 _GROUP_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[\s\u00A0\u2007\u202F\u2009](?=\d)")
+_SIGN_NORMALIZATION = str.maketrans({"\u2212": "-", "\uFF0D": "-", "\uFE63": "-"})
+
+
+def _normalize_sign_characters(value: str) -> str:
+    return value.translate(_SIGN_NORMALIZATION)
 
 
 def _strip_group_separators(value: str) -> str:
@@ -87,10 +92,13 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
             return default
     if isinstance(value, str):
         candidate = value.strip()
+        candidate = _normalize_sign_characters(candidate)
         candidate = _strip_currency_symbols(candidate)
+        candidate = _normalize_sign_characters(candidate)
         if candidate.startswith("(") and candidate.endswith(")"):
             inner = candidate[1:-1].strip()
             inner = _strip_currency_symbols(inner)
+            inner = _normalize_sign_characters(inner)
             if inner:
                 if inner[0] in "+-":
                     inner = inner[1:].lstrip()
@@ -101,6 +109,7 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
         if not candidate:
             return default
         candidate = _strip_currency_symbols(candidate)
+        candidate = _normalize_sign_characters(candidate)
         if not candidate or candidate in "+-":
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
@@ -153,10 +162,13 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
             return default
     if isinstance(value, str):
         candidate = value.strip()
+        candidate = _normalize_sign_characters(candidate)
         candidate = _strip_currency_symbols(candidate)
+        candidate = _normalize_sign_characters(candidate)
         if candidate.startswith("(") and candidate.endswith(")"):
             inner = candidate[1:-1].strip()
             inner = _strip_currency_symbols(inner)
+            inner = _normalize_sign_characters(inner)
             if inner:
                 if inner[0] in "+-":
                     inner = inner[1:].lstrip()
@@ -167,6 +179,7 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
         if not candidate:
             return default
         candidate = _strip_currency_symbols(candidate)
+        candidate = _normalize_sign_characters(candidate)
         if not candidate or candidate in "+-":
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)

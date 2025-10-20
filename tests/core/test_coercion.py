@@ -55,3 +55,8 @@ def test_coerce_helpers_strip_currency_symbols() -> None:
     assert coerce_float("(\u20ac1,234.50)") == -1234.5
     assert coerce_int("-\u00a32,000") == -2000
     assert coerce_int("($3,000)") == -3000
+
+
+def test_coerce_helpers_accept_unicode_minus_signs() -> None:
+    assert coerce_float("\u2212123.5") == -123.5
+    assert coerce_int("\uff0d2,000") == -2000

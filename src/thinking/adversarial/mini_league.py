@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import math
 from collections import deque
+import uuid
 from dataclasses import dataclass, field, replace
 from enum import Enum
-from typing import Iterable, Mapping, MutableMapping
+from typing import Iterable, Mapping, MutableMapping, Sequence
 
 __all__ = [
     "LeagueSlot",
@@ -218,6 +219,64 @@ def _constraint_difference(candidate: float | None, target: float | None) -> flo
     return float(candidate - target)
 
 
+def _resolve_float_field(payload: Mapping[str, object], *candidates: str) -> float | None:
+    for key in candidates:
+        if key in payload:
+            value = _coerce_float(payload[key])
+            if value is not None:
+                return value
+    meta = payload.get("metadata")
+    if isinstance(meta, Mapping):
+        for key in candidates:
+            if key in meta:
+                value = _coerce_float(meta[key])
+                if value is not None:
+                    return value
+    return None
+
+
+def _resolve_str_field(payload: Mapping[str, object], *candidates: str) -> str | None:
+    for key in candidates:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    meta = payload.get("metadata")
+    if isinstance(meta, Mapping):
+        for key in candidates:
+            value = meta.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _normalise_observer_payloads(data: object) -> tuple[Mapping[str, object], ...]:
+    if data is None:
+        return ()
+
+    payloads: list[Mapping[str, object]] = []
+
+    def _extend_from_sequence(sequence: Sequence[object]) -> None:
+        for item in sequence:
+            if isinstance(item, Mapping):
+                payloads.append(item)
+
+    if isinstance(data, Mapping):
+        for key in ("observers", "observer_profiles", "pattern_observers", "watchers", "agents", "entries"):
+            candidate = data.get(key)
+            if isinstance(candidate, Sequence) and not isinstance(candidate, (str, bytes)):
+                _extend_from_sequence(candidate)
+        if not payloads:
+            values = list(data.values())
+            if values and all(isinstance(value, Mapping) for value in values):
+                payloads.extend(value for value in values if isinstance(value, Mapping))
+        if not payloads and isinstance(data, Mapping):
+            payloads.append(data)
+    elif isinstance(data, Sequence) and not isinstance(data, (str, bytes)):
+        _extend_from_sequence(data)
+
+    return tuple(payloads)
+
+
 class _LagrangianConstraintState:
     """Track dual variables enforcing turnover/inventory variance limits."""
 
@@ -315,6 +374,7 @@ class MiniLeague:
         self._sharpness_floor = float(sharpness_floor)
         self._calibration_brier_ceiling = float(calibration_brier_ceiling)
         self._exploitability_gap_ceiling = float(exploitability_gap_ceiling)
+        self._observer_watchlist: dict[str, dict[str, object]] = {}
 
     def register(self, slot: LeagueSlot, entry: LeagueEntry) -> None:
         roster = self._slots[slot]
@@ -389,7 +449,10 @@ class MiniLeague:
         idx = self._find(slot, agent_id)
         if idx is None:
             return False
+        removed_entry = roster[idx]
         del roster[idx]
+        if slot is LeagueSlot.EXPLOIT:
+            self._observer_watchlist.pop(removed_entry.agent_id, None)
         return True
 
     def schedule_round(self) -> tuple[LeagueMatchup, ...]:
@@ -431,10 +494,18 @@ class MiniLeague:
         return tuple(items)
 
     def snapshot(self) -> dict[str, object]:
-        return {
+        snapshot = {
             slot.value: [entry.as_dict() for entry in roster]
             for slot, roster in self._slots.items()
         }
+        if self._observer_watchlist:
+            snapshot["observer_watchlist"] = [dict(entry) for entry in self._observer_watchlist.values()]
+        return snapshot
+
+    def observer_watchlist(self) -> tuple[dict[str, object], ...]:
+        """Return a snapshot of observers the league is mimicking."""
+
+        return tuple(dict(entry) for entry in self._observer_watchlist.values())
 
     def exploitability_observations(self) -> tuple[ExploitabilityObservation, ...]:
         return tuple(self._exploitability_observations)
@@ -562,6 +633,141 @@ class MiniLeague:
             selected_agent_id=selected_agent_id,
             selected_penalty=selected_penalty,
         )
+
+    def train_observer_mimics(
+        self,
+        observers: Sequence[Mapping[str, object]] | Mapping[str, object] | None,
+        *,
+        confidence_floor: float = 0.15,
+    ) -> tuple[LeagueEntry, ...]:
+        """
+        Populate exploit slot with agents that mimic external observers.
+
+        The observers payload is intentionally flexible.  Accepts:
+        - Sequence[Mapping]: direct observer descriptors
+        - Mapping containing keys such as ``observers`` or ``pattern_observers``
+        - Single mapping describing one observer
+
+        Each observer contributes a mimic entry tagged as an exploit specialist.
+        Metadata records the source observer, observed pattern signature, and
+        countermeasures that randomise behaviour to remain unpredictable.
+        """
+
+        payloads = _normalise_observer_payloads(observers)
+        if not payloads:
+            return ()
+
+        created: list[LeagueEntry] = []
+        for payload in payloads:
+            confidence = _resolve_float_field(
+                payload,
+                "confidence",
+                "likelihood",
+                "strength",
+                "weight",
+                "observer_confidence",
+                "score",
+            )
+            if confidence is None:
+                confidence = 0.0
+            else:
+                confidence = max(0.0, confidence)
+
+            anticipation = _resolve_float_field(
+                payload,
+                "anticipation",
+                "anticipation_score",
+                "anticipation_risk",
+                "tracking_confidence",
+                "watcher_confidence",
+            )
+            if anticipation is None:
+                anticipation = 0.0
+            else:
+                anticipation = max(0.0, anticipation)
+
+            if confidence < confidence_floor and len(payloads) > 1:
+                continue
+
+            source_id = _resolve_str_field(
+                payload,
+                "observer_id",
+                "agent_id",
+                "id",
+                "name",
+            )
+            mimic_pattern = _resolve_str_field(
+                payload,
+                "pattern",
+                "pattern_signature",
+                "observed_pattern",
+                "signature",
+                "behavior_pattern",
+            )
+
+            mimic_agent_id = (
+                f"mimic::{source_id}"
+                if source_id
+                else f"mimic::{uuid.uuid4()}"
+            )
+
+            countermeasures = {
+                "entropy_rotation": True,
+                "decoy_signals": anticipation >= 0.5,
+                "shadow_execution": confidence >= 0.5,
+                "jitter_window": max(0.05, min(0.5, 0.5 - min(0.45, anticipation * 0.2))),
+            }
+
+            mimic_score = max(0.0, confidence - anticipation * 0.5)
+            entropy_baffle = max(0.1, min(0.9, 1.0 - min(confidence, 1.0)))
+
+            metadata = {
+                "league_slot": LeagueSlot.EXPLOIT.value,
+                "mimic_source": source_id or "anonymous-observer",
+                "mimicked_pattern": mimic_pattern,
+                "observation_confidence": confidence,
+                "anticipation_risk": anticipation,
+                "entropy_baffle": entropy_baffle,
+                "countermeasures": countermeasures,
+                "tags": ["observer-mimic"],
+            }
+
+            extra_metadata = payload.get("metadata")
+            if isinstance(extra_metadata, Mapping):
+                for key, value in extra_metadata.items():
+                    metadata.setdefault(f"observer_{key}", value)
+
+            entry = LeagueEntry(
+                agent_id=mimic_agent_id,
+                score=mimic_score,
+                tags=("observer-mimic", "exploit"),
+                metadata=metadata,
+            )
+
+            self.register(LeagueSlot.EXPLOIT, entry)
+            idx = self._find(LeagueSlot.EXPLOIT, mimic_agent_id)
+            if idx is None:
+                continue
+
+            stored_entry = self._slots[LeagueSlot.EXPLOIT][idx]
+            self._observer_watchlist[stored_entry.agent_id] = {
+                "mimic_id": stored_entry.agent_id,
+                "source_observer": metadata["mimic_source"],
+                "pattern": metadata.get("mimicked_pattern"),
+                "confidence": confidence,
+                "anticipation_risk": anticipation,
+                "entropy_baffle": entropy_baffle,
+                "countermeasures": countermeasures,
+            }
+
+            created.append(stored_entry)
+
+        limit = max(8, self._max_entries.get(LeagueSlot.EXPLOIT, 6) * 2)
+        while len(self._observer_watchlist) > limit:
+            oldest_key = next(iter(self._observer_watchlist))
+            self._observer_watchlist.pop(oldest_key, None)
+
+        return tuple(created)
 
     def record_exploitability_observation(
         self,

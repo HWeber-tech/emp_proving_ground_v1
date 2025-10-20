@@ -13,7 +13,7 @@ The Master Switch is the final integration component of Sprint 1: The Profession
 
 ### Master Switch Setting
 ```bash
-# In .env file or environment variable
+# In the locked-down environment file or exported variable
 CONNECTION_PROTOCOL=fix        # Professional FIX protocol (required)
 ```
 
@@ -22,15 +22,21 @@ CONNECTION_PROTOCOL=fix        # Professional FIX protocol (required)
 - **FIX Test**: `config/test_fix.env`
   (OpenAPI test file removed; FIX-only build)
 
+Store the resolved secrets outside of the repository with `chmod 600` (see
+`docs/operations/env_security_hardening.md`) before sourcing them into the
+runtime or CLI sessions.
+
 ## Usage
 
 ### Quick Start
 ```bash
-# 1. Run with FIX protocol (default)
-python main.py
+# 1. Prepare a secure environment file
+mkdir -p ~/emp-secrets
+cp config/test_fix.env ~/emp-secrets/runtime.env
+chmod 600 ~/emp-secrets/runtime.env
 
-# 2. Use configuration file
-cp config/test_fix.env .env
+# 2. Export the secrets before running the runtime
+export $(grep -v '^#' ~/emp-secrets/runtime.env | xargs)
 python main.py
 ```
 
@@ -99,8 +105,8 @@ docs/
 
 ### From Legacy to Professional
 1. **Backup**: Save current configuration
-2. **Update**: Set `CONNECTION_PROTOCOL=fix` in .env
-3. **Configure**: Add FIX credentials to .env
+2. **Update**: Set `CONNECTION_PROTOCOL=fix` in the secured environment file
+3. **Configure**: Add FIX credentials to the secured environment file
 4. **Test**: Run `python scripts/test_master_switch.py`
 5. **Deploy**: Use new main.py with master switch
 
@@ -138,7 +144,7 @@ LOG_LEVEL=DEBUG python main.py
 ## Next Steps
 
 After successful master switch integration:
-1. **Add FIX credentials** to .env file
+1. **Add FIX credentials** to the secured environment file
 2. **Test connections** with real credentials
 3. **Monitor performance** of both protocols
 4. FIX-only operations

@@ -24,7 +24,9 @@ reuse the Kafka bridge checkup so the JSON report returns `status`,
 ## Configuration options
 
 - `--config path/to/config.yaml` – load settings from a legacy YAML file.
-- `--env-file path/to/.env` – seed `SystemConfig` from a dotenv template without exporting values.
+- `--env-file /etc/emp/secrets/institutional.env` – seed `SystemConfig` from a
+  locked-down dotenv file (see `docs/operations/env_security_hardening.md`) without
+  exporting values.
 - `--extra KEY=VALUE` – inject or override `SystemConfig` extras without editing
   environment variables.
 - `--format json|markdown` – switch between machine-readable output (JSON) and a

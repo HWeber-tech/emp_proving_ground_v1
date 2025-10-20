@@ -3,7 +3,8 @@
 - Python 3.11
 - pip install -r requirements/base.txt  # runtime stack
 - pip install -r requirements/dev.txt   # tooling + tests
-- Configure .env with FIX credentials (OpenAPI disabled)
+- Configure `.env` secrets using the locked-down process in
+  `docs/operations/env_security_hardening.md` (OpenAPI disabled)
 
 The development manifest pins mypy, Ruff, Black, pytest, coverage, pre-commit, import-linter, and the
 core type stub packages so local runs mirror CI. Use `pip install -r requirements/dev.txt` after pulling
@@ -39,9 +40,11 @@ export the matching connection settings before running institutional workflows:
 # start the data services (TimescaleDB, Redis, Kafka)
 docker compose up -d redis postgres kafka
 
-# seed SystemConfig extras with local endpoints
-cp env_templates/dev_data_services.env .env.dev-data
-export $(grep -v '^#' .env.dev-data | xargs)
+# seed SystemConfig extras with local endpoints (stored outside the repo)
+mkdir -p ~/emp-secrets
+cp env_templates/dev_data_services.env ~/emp-secrets/dev_data.env
+chmod 600 ~/emp-secrets/dev_data.env
+export $(grep -v '^#' ~/emp-secrets/dev_data.env | xargs)
 
 # optional: verify the managed connector manifest using the preset config
 python -m tools.operations.managed_ingest_connectors --config config/system/dev_data_backbone.yaml --connectivity

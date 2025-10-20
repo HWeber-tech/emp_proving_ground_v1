@@ -20,14 +20,18 @@ polled through `kafka-topics.sh --list` in the compose health probe.
 
 ## 2. Configure SystemConfig extras
 
-Copy `env_templates/institutional_ingest.env` to a safe location, update
-credentials, and source it before running the runtime or the managed connectors
-CLI:
+Copy `env_templates/institutional_ingest.env` into the locked-down secrets
+directory (see `docs/operations/env_security_hardening.md`), update credentials,
+and source it before running the runtime or the managed connectors CLI.  The
+example below keeps the secret outside of the repository while preserving
+restrictive permissions for the runtime user:
 
 ```bash
-cp env_templates/institutional_ingest.env .env.institutional
+sudo install -d -m 750 -o emp -g emp /etc/emp/secrets
+sudo install -m 640 -o emp -g emp env_templates/institutional_ingest.env \
+  /etc/emp/secrets/institutional.env
 # edit the file, then
-export $(grep -v '^#' .env.institutional | xargs)
+export $(grep -v '^#' /etc/emp/secrets/institutional.env | xargs)
 ```
 
 The template seeds:
@@ -44,7 +48,7 @@ configuration and collect connectivity evidence:
 
 ```bash
 python -m tools.operations.managed_ingest_connectors \
-  --env-file .env.institutional \
+  --env-file /etc/emp/secrets/institutional.env \
   --connectivity \
   --format markdown
 ```
@@ -63,7 +67,7 @@ optional failover drill by using the readiness CLI:
 
 ```bash
 python -m tools.operations.institutional_ingest_readiness \
-  --env-file .env.institutional \
+  --env-file /etc/emp/secrets/institutional.env \
   --connectivity \
   --ingest-results /tmp/ingest_results.json \
   --format markdown
@@ -81,7 +85,7 @@ the same environment file:
 
 ```bash
 python -m tools.operations.run_failover_drill \
-  --env-file .env.institutional \
+  --env-file /etc/emp/secrets/institutional.env \
   --results /tmp/ingest_results.json \
   --format markdown
 ```

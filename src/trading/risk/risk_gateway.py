@@ -14,6 +14,7 @@ objects).
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -39,8 +40,10 @@ from src.data_foundation.config.execution_config import (
 from src.core.event_bus import EventBus, Event
 from src.trading.execution.execution_model import (
     ExecContext,
+    calculate_edge_ticks,
     estimate_commission_bps,
     estimate_slippage_bps,
+    estimate_total_cost_ticks,
 )
 from .policy_telemetry import (
     RiskPolicyEvaluationSnapshot,
@@ -1318,6 +1321,7 @@ class RiskGateway:
         portfolio_state: Mapping[str, Any],
     ) -> Mapping[str, Any]:
         metadata = _ensure_metadata(intent)
+        feature_source = self._extract_microstructure_features(metadata)
         context = self._build_execution_context(metadata, portfolio_state, quantity, price)
 
         execution_cfg = self._execution_config
@@ -1326,6 +1330,47 @@ class RiskGateway:
         slippage_bps = estimate_slippage_bps(context, execution_cfg)
         commission_bps = estimate_commission_bps(execution_cfg)
         total_cost_bps = slippage_bps + commission_bps
+
+        price_float = max(_as_float(price, default=0.0), 0.0)
+        tick_size = self._extract_tick_size(feature_source, metadata, portfolio_state)
+        spread_ticks = self._derive_spread_ticks(context, feature_source, tick_size)
+        edge_floor_ticks = self._resolve_edge_floor_ticks(feature_source, tick_size)
+        effective_spread_ticks = max(spread_ticks, edge_floor_ticks) if edge_floor_ticks > 0 else spread_ticks
+
+        delta_hat = self._try_get_float(feature_source, ("delta_hat", "deltaHat"))
+        if delta_hat is None and isinstance(feature_source, Mapping):
+            for key in ("edge", "signals"):
+                nested = feature_source.get(key)
+                if isinstance(nested, Mapping):
+                    delta_hat = self._try_get_float(nested, ("delta_hat", "deltaHat"))
+                    if delta_hat is not None:
+                        break
+        if delta_hat is None:
+            delta_hat = self._try_get_float(metadata, ("delta_hat",))
+        delta_value = delta_hat if delta_hat is not None else 0.0
+
+        edge_ticks = calculate_edge_ticks(
+            delta_value,
+            spread_ticks,
+            spread_floor=edge_floor_ticks if edge_floor_ticks > 0 else None,
+        )
+
+        slippage_ticks = self._price_to_ticks(price_float * slippage_bps / 10000.0, tick_size)
+        fees_ticks = self._price_to_ticks(price_float * commission_bps / 10000.0, tick_size)
+        as_penalty_ticks = self._extract_adverse_selection_penalty_ticks(
+            feature_source,
+            metadata,
+            portfolio_state,
+            tick_size=tick_size,
+            price=price_float,
+        )
+        total_cost_ticks = estimate_total_cost_ticks(
+            spread_ticks,
+            slippage=slippage_ticks,
+            fees=fees_ticks,
+            adverse_selection_penalty=as_penalty_ticks,
+        )
+        spread_cost_ticks = 0.5 * max(spread_ticks, 0.0)
 
         notional = abs(quantity) * max(price, 0.0)
         equity = self._resolve_equity_for_execution(portfolio_state)
@@ -1364,7 +1409,7 @@ class RiskGateway:
         _record("execution.total_cost_bps", total_cost_bps, limit_total)
         _record("execution.notional_pct_of_equity", notional_pct, limit_notional)
 
-        execution_metadata = {
+        execution_metadata: dict[str, Any] = {
             "slippage_bps": slippage_bps,
             "commission_bps": commission_bps,
             "total_cost_bps": total_cost_bps,
@@ -1376,6 +1421,21 @@ class RiskGateway:
             "top_imbalance": context.top_imbalance,
             "sigma_ann": context.sigma_ann,
         }
+
+        execution_metadata["spread_ticks"] = spread_ticks
+        execution_metadata["effective_spread_ticks"] = effective_spread_ticks
+        if edge_floor_ticks > 0:
+            execution_metadata["edge_spread_floor_ticks"] = edge_floor_ticks
+        if tick_size > 0:
+            execution_metadata["tick_size"] = tick_size
+        if delta_hat is not None:
+            execution_metadata["delta_hat"] = delta_hat
+        execution_metadata["edge_ticks"] = edge_ticks
+        execution_metadata["spread_cost_ticks"] = spread_cost_ticks
+        execution_metadata["slippage_ticks"] = slippage_ticks
+        execution_metadata["fees_ticks"] = fees_ticks
+        execution_metadata["adverse_selection_penalty_ticks"] = as_penalty_ticks
+        execution_metadata["total_cost_ticks"] = total_cost_ticks
 
         metadata.setdefault("execution_risk", {}).update(execution_metadata)
 
@@ -1824,14 +1884,9 @@ class RiskGateway:
         quantity: float,
         price: float,
     ) -> ExecContext:
-        feature_source: Mapping[str, Any] | None = None
-        for key in ("execution_context", "microstructure", "market_microstructure"):
-            candidate = metadata.get(key)
-            if isinstance(candidate, Mapping):
-                feature_source = candidate
-                break
-
-        feature_source = feature_source or {}
+        feature_source = self._extract_microstructure_features(metadata)
+        if not feature_source:
+            feature_source = {}
 
         spread = _as_float(feature_source.get("spread"), default=0.0)
         if spread <= 0 and price > 0:
@@ -1861,6 +1916,178 @@ class RiskGateway:
             sigma_ann=max(0.0, sigma_ann),
             size_ratio=max(0.0, size_ratio),
         )
+
+    @staticmethod
+    def _extract_microstructure_features(
+        metadata: Mapping[str, Any] | None,
+    ) -> Mapping[str, Any]:
+        if not isinstance(metadata, Mapping):
+            return {}
+
+        for key in ("execution_context", "microstructure", "market_microstructure"):
+            candidate = metadata.get(key)
+            if isinstance(candidate, Mapping):
+                return candidate
+
+        exec_context = metadata.get("execution_context")
+        if isinstance(exec_context, Mapping):
+            for key in ("microstructure", "market_microstructure"):
+                nested = exec_context.get(key)
+                if isinstance(nested, Mapping):
+                    return nested
+        return {}
+
+    @staticmethod
+    def _try_get_float(source: Mapping[str, Any] | None, keys: Sequence[str]) -> float | None:
+        if not isinstance(source, Mapping):
+            return None
+        for key in keys:
+            if key not in source:
+                continue
+            value = source.get(key)
+            if value is None:
+                continue
+            try:
+                candidate = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(candidate):
+                return candidate
+        return None
+
+    def _extract_tick_size(
+        self,
+        feature_source: Mapping[str, Any] | None,
+        metadata: Mapping[str, Any] | None,
+        portfolio_state: Mapping[str, Any] | None,
+    ) -> float:
+        containers: list[Mapping[str, Any]] = []
+        for candidate in (feature_source, metadata, portfolio_state):
+            if isinstance(candidate, Mapping):
+                containers.append(candidate)
+                instrument = candidate.get("instrument")
+                if isinstance(instrument, Mapping):
+                    containers.append(instrument)
+
+        for container in containers:
+            tick = self._try_get_float(
+                container,
+                ("tick_size", "tick", "price_tick", "minimum_price_increment"),
+            )
+            if tick is not None and tick > 0.0:
+                return float(tick)
+        return 0.0
+
+    def _derive_spread_ticks(
+        self,
+        context: ExecContext,
+        feature_source: Mapping[str, Any] | None,
+        tick_size: float,
+    ) -> float:
+        explicit_ticks = self._try_get_float(feature_source, ("spread_ticks",))
+        spread_ticks = self._price_to_ticks(context.spread, tick_size)
+        if explicit_ticks is not None:
+            spread_ticks = float(explicit_ticks)
+        if spread_ticks < 0.0:
+            spread_ticks = 0.0
+        return spread_ticks
+
+    def _resolve_edge_floor_ticks(
+        self,
+        feature_source: Mapping[str, Any] | None,
+        tick_size: float,
+    ) -> float:
+        explicit = self._try_get_float(
+            feature_source,
+            (
+                "edge_spread_floor_ticks",
+                "edge_floor_ticks",
+                "spread_floor_ticks",
+                "k_sigma_ticks",
+                "min_spread_ticks",
+            ),
+        )
+        if explicit is not None and explicit > 0.0:
+            return float(explicit)
+
+        price_floor = self._try_get_float(
+            feature_source,
+            ("edge_spread_floor", "edge_floor", "spread_floor", "k_sigma", "min_spread"),
+        )
+        if price_floor is not None and price_floor > 0.0:
+            return self._price_to_ticks(price_floor, tick_size)
+        return 0.0
+
+    @staticmethod
+    def _price_to_ticks(value: float, tick_size: float) -> float:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if not math.isfinite(numeric):
+            return 0.0
+        if tick_size > 0.0:
+            return numeric / tick_size
+        return numeric
+
+    def _extract_adverse_selection_penalty_ticks(
+        self,
+        feature_source: Mapping[str, Any] | None,
+        metadata: Mapping[str, Any] | None,
+        portfolio_state: Mapping[str, Any] | None,
+        *,
+        tick_size: float,
+        price: float,
+    ) -> float:
+        candidates: list[Mapping[str, Any]] = []
+
+        def _extend(source: Mapping[str, Any] | None) -> None:
+            if not isinstance(source, Mapping):
+                return
+            candidates.append(source)
+            nested = source.get("adverse_selection")
+            if isinstance(nested, Mapping):
+                candidates.append(nested)
+            penalties = source.get("penalties")
+            if isinstance(penalties, Mapping):
+                candidates.append(penalties)
+
+        for item in (feature_source, metadata, portfolio_state):
+            _extend(item)
+
+        penalty_ticks: float | None = None
+        for container in candidates:
+            ticks = self._try_get_float(
+                container,
+                ("adverse_selection_penalty_ticks", "as_penalty_ticks", "penalty_ticks"),
+            )
+            if ticks is not None:
+                penalty_ticks = float(ticks)
+                break
+
+        if penalty_ticks is None:
+            for container in candidates:
+                penalty_price = self._try_get_float(
+                    container,
+                    ("adverse_selection_penalty", "as_penalty", "penalty"),
+                )
+                if penalty_price is not None:
+                    penalty_ticks = self._price_to_ticks(penalty_price, tick_size)
+                    break
+
+        if penalty_ticks is None and price > 0.0:
+            for container in candidates:
+                penalty_bps = self._try_get_float(
+                    container,
+                    ("adverse_selection_penalty_bps", "as_penalty_bps", "penalty_bps"),
+                )
+                if penalty_bps is not None:
+                    penalty_ticks = self._price_to_ticks(price * penalty_bps / 10000.0, tick_size)
+                    break
+
+        if penalty_ticks is None:
+            return 0.0
+        return max(0.0, float(penalty_ticks))
 
     def _resolve_equity_for_execution(self, portfolio_state: Mapping[str, Any]) -> float:
         for key in ("equity", "cash", "account_equity", "total_equity"):

@@ -6,7 +6,8 @@ Main orchestrator for the sentient predator capabilities.
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from numbers import Number
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -77,6 +78,32 @@ class SentientPredator:
                 "outcome": learning_signal.outcome,
             },
         )
+
+        episode_info = self._identify_extreme_episode(learning_signal)
+        if episode_info is not None:
+            latent_summary = self._build_episode_latent_summary(vector, learning_signal, episode_info)
+            episode_metadata = {
+                "episode_type": episode_info["type"],
+                "severity": episode_info["severity"],
+                "reason": episode_info["reason"],
+                "evidence": self._normalise_mapping(episode_info.get("evidence", {})),
+                "trade_id": learning_signal.trade_id,
+                "signal_type": learning_signal.signal_type.value,
+                "context": self._normalise_mapping(learning_signal.context),
+                "features": self._normalise_mapping(learning_signal.features),
+                "outcome": self._normalise_mapping(learning_signal.outcome),
+                "metadata": self._normalise_mapping(learning_signal.metadata),
+                "captured_by": "sentient_predator",
+            }
+            self.memory.store_extreme_episode(latent_summary, episode_metadata)
+            logger.info(
+                "Stored extreme episode",
+                extra={
+                    "episode_type": episode_info["type"],
+                    "severity": episode_info["severity"],
+                    "trade_id": learning_signal.trade_id,
+                },
+            )
 
         # Step 4: Search for similar patterns
         similar_memories = self.memory.search_similar(vector, k=20)
@@ -198,3 +225,145 @@ class SentientPredator:
             "total_pnl": 0.0,
         }
         logger.info("Sentient Predator reset complete")
+
+    def _identify_extreme_episode(self, signal: LearningSignal) -> Optional[dict[str, Any]]:
+        """Determine if the learning signal corresponds to an extreme market episode."""
+
+        market_condition = str(
+            signal.metadata.get("market_condition")
+            or signal.context.get("market_condition")
+            or ""
+        ).lower()
+
+        volatility = float(self._safe_numeric(signal.context.get("volatility", 0.0)))
+        volume_ratio = float(self._safe_numeric(signal.features.get("volume_ratio", 1.0)))
+        price_momentum = float(self._safe_numeric(signal.features.get("price_momentum", 0.0)))
+        order_flow = float(self._safe_numeric(signal.features.get("order_flow_imbalance", 0.0)))
+
+        thresholds = {
+            "volatility": float(self.config.get("extreme_volatility_threshold", 0.08)),
+            "volume_ratio": float(self.config.get("extreme_volume_threshold", 4.0)),
+            "momentum": float(self.config.get("extreme_momentum_threshold", 0.03)),
+            "order_flow": float(self.config.get("extreme_order_flow_threshold", 0.015)),
+        }
+
+        evidence = {
+            "volatility": volatility,
+            "volume_ratio": volume_ratio,
+            "price_momentum": price_momentum,
+            "order_flow_imbalance": order_flow,
+        }
+
+        if "flash" in market_condition and "crash" in market_condition:
+            episode_type = "flash_crash"
+            reason = "market_condition flagged flash crash"
+        elif "news" in market_condition and "shock" in market_condition:
+            episode_type = "news_shock"
+            reason = "market_condition flagged news shock"
+        elif volatility >= thresholds["volatility"] and volume_ratio >= thresholds["volume_ratio"]:
+            episode_type = "volatility_spike"
+            reason = "volatility and volume ratio exceeded thresholds"
+        elif price_momentum >= thresholds["momentum"] and abs(order_flow) >= thresholds["order_flow"]:
+            episode_type = "order_flow_shock"
+            reason = "momentum and order flow imbalance exceeded thresholds"
+        else:
+            return None
+
+        severity = self._calculate_episode_severity(
+            volatility=volatility,
+            volume_ratio=volume_ratio,
+            price_momentum=price_momentum,
+            order_flow=order_flow,
+        )
+
+        return {
+            "type": episode_type,
+            "severity": severity,
+            "reason": reason,
+            "evidence": evidence,
+        }
+
+    def _calculate_episode_severity(
+        self,
+        volatility: float,
+        volume_ratio: float,
+        price_momentum: float,
+        order_flow: float,
+    ) -> float:
+        """Combine multiple signals into a severity score in [0, 1]."""
+
+        volatility_component = min(1.0, abs(volatility) / 0.12)
+        volume_component = min(1.0, max(0.0, volume_ratio - 1.0) / 5.0)
+        momentum_component = min(1.0, abs(price_momentum) / 0.05)
+        order_flow_component = min(1.0, abs(order_flow) / 0.025)
+
+        severity = (
+            0.4 * volatility_component
+            + 0.25 * volume_component
+            + 0.2 * momentum_component
+            + 0.15 * order_flow_component
+        )
+        return float(max(0.0, min(1.0, severity)))
+
+    def _build_episode_latent_summary(
+        self,
+        base_vector: np.ndarray,
+        signal: LearningSignal,
+        episode_info: dict[str, Any],
+    ) -> np.ndarray:
+        """Construct latent summary vector for an extreme episode."""
+
+        summary = np.asarray(base_vector, dtype=float).copy()
+        if summary.ndim != 1:
+            summary = summary.reshape(-1)
+
+        if summary.size > self.memory.dimension:
+            summary = summary[: self.memory.dimension]
+        elif summary.size < self.memory.dimension:
+            summary = np.pad(summary, (0, self.memory.dimension - summary.size))
+
+        summary[0] = float(episode_info["severity"])
+        if summary.size > 1:
+            summary[1] = float(self._safe_numeric(signal.context.get("volatility", 0.0)))
+        if summary.size > 2:
+            summary[2] = float(self._safe_numeric(signal.features.get("volume_ratio", 1.0)))
+        if summary.size > 3:
+            summary[3] = float(self._safe_numeric(signal.features.get("price_momentum", 0.0)))
+        if summary.size > 4:
+            summary[4] = float(self._safe_numeric(signal.features.get("order_flow_imbalance", 0.0)))
+        if summary.size > 5:
+            summary[5] = float(self._safe_numeric(signal.outcome.get("max_drawdown", 0.0)))
+
+        return summary.astype(np.float32)
+
+    @staticmethod
+    def _safe_numeric(value: Any) -> float:
+        """Convert numeric-like values to float, defaulting to 0.0."""
+
+        if isinstance(value, Number):
+            return float(value)
+        if isinstance(value, np.generic):  # pragma: no cover - defensive guard
+            return float(value)
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _normalise_mapping(source: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalise mapping values to JSON-serialisable primitives."""
+
+        normalised: Dict[str, Any] = {}
+        for key, value in source.items():
+            if isinstance(value, (str, bool)) or value is None:
+                normalised[key] = value
+            elif isinstance(value, Number):
+                normalised[key] = float(value)
+            elif isinstance(value, np.generic):  # pragma: no cover - defensive guard
+                normalised[key] = float(value)
+            else:
+                try:
+                    normalised[key] = float(value)
+                except (TypeError, ValueError):
+                    normalised[key] = str(value)
+        return normalised

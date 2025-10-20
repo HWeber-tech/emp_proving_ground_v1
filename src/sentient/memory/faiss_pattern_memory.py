@@ -63,6 +63,55 @@ class _BasePatternMemory:
             arr = arr / norm
         return arr
 
+    def store_extreme_episode(
+        self, latent_summary: np.ndarray, metadata: dict[str, Any]
+    ) -> str:
+        """Persist an extreme market episode in the memory index."""
+
+        if not isinstance(metadata, dict):
+            raise TypeError("metadata must be a dictionary")
+
+        if "episode_type" not in metadata:
+            raise ValueError("episode_type is required in metadata")
+
+        prepared = dict(metadata)
+        prepared.setdefault("captured_at", datetime.utcnow().isoformat())
+        prepared.setdefault("episode_summary_version", 1)
+        prepared["episode_type"] = str(prepared["episode_type"])
+        severity_raw = prepared.get("severity", 0.0)
+        try:
+            severity_value = float(severity_raw)
+        except (TypeError, ValueError):  # pragma: no cover - defensive guard
+            severity_value = 0.0
+        prepared["severity"] = max(0.0, min(1.0, severity_value))
+        prepared["is_extreme_episode"] = True
+
+        tags_obj = prepared.get("tags")
+        tag_items: list[str]
+        if isinstance(tags_obj, (list, tuple, set)):
+            tag_items = [str(tag) for tag in tags_obj]
+        elif isinstance(tags_obj, str):
+            tag_items = [tags_obj]
+        else:
+            tag_items = []
+        tag_items.extend(["extreme_episode", prepared["episode_type"]])
+        prepared["tags"] = sorted({tag for tag in tag_items if tag})
+
+        vector = np.asarray(latent_summary, dtype=np.float32)
+        if vector.ndim != 1:
+            raise ValueError("latent_summary must be a 1D vector")
+
+        logger.info(
+            "Recording extreme episode in memory index",
+            extra={
+                "episode_type": prepared["episode_type"],
+                "severity": prepared["severity"],
+                "tags": prepared["tags"],
+            },
+        )
+
+        return self.add_experience(vector, prepared)
+
 
 if faiss is not None:
 

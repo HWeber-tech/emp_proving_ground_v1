@@ -92,6 +92,9 @@ class BoundLogger:
         if not self._should_log(levelno):  # pragma: no cover - defensive guard
             return
 
+        kwargs = dict(kwargs)
+        exc_info = kwargs.pop("exc_info", None)
+
         event_dict: MutableMapping[str, object] = {"event": event}
         if self.context:
             event_dict.update(self.context)
@@ -106,7 +109,11 @@ class BoundLogger:
             message = processed
             extra = {"structlog_event_dict": {"event": event}}
 
-        self.logger._log(levelno, message, args=(), extra=extra)
+        log_kwargs: dict[str, object] = {"extra": extra}
+        if exc_info is not None:
+            log_kwargs["exc_info"] = exc_info
+
+        self.logger._log(levelno, message, args=(), **log_kwargs)
 
     # Convenience wrappers matching the upstream API -------------------
     def debug(self, event: str, **kwargs: object) -> None:

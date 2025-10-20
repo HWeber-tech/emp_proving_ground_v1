@@ -120,12 +120,23 @@ def clip_longrepr(
         return normalized
     if limit < 0:
         limit = 0
-    if len(normalized) <= limit:
-        return normalized
 
-    truncated = normalized[:limit]
-    omitted = len(normalized) - limit
-    return f"{truncated}… [truncated {omitted} chars]"
+    total_length = len(normalized)
+    if total_length <= limit:
+        return normalized
+    if limit <= 0:
+        return f"… [truncated {total_length} chars]"
+
+    head_limit = min(limit, total_length)
+    while head_limit > 0:
+        omitted = total_length - head_limit
+        suffix = f"… [truncated {omitted} chars]"
+        if head_limit + len(suffix) <= limit:
+            truncated = normalized[:head_limit]
+            return f"{truncated}{suffix}"
+        head_limit -= 1
+
+    return f"… [truncated {total_length} chars]"
 
 
 __all__ = [

@@ -43,3 +43,15 @@ def test_resolve_output_path_ignores_blank_candidates(tmp_path):
 def test_clip_longrepr_without_limit_returns_full_text() -> None:
     text = "x" * (MAX_LONGREPR_LENGTH + 5)
     assert clip_longrepr(text, limit=None) == text
+
+
+def test_clip_longrepr_respects_limit_with_suffix() -> None:
+    text = "x" * (MAX_LONGREPR_LENGTH + 50)
+    limit = 120
+
+    clipped = clip_longrepr(text, limit=limit)
+
+    assert len(clipped) <= limit
+    assert clipped.endswith("chars]")
+    assert clipped.startswith("x")
+    assert "… [truncated " in clipped

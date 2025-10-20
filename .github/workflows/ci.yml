@@ -181,6 +181,39 @@ jobs:
           echo "Intentionally failing CI to exercise the failure-alert workflow."
           exit 1
 
+  ablations:
+    runs-on: ubuntu-latest
+    needs: [tests]
+    steps:
+      - uses: ./.github/actions/python-setup
+      - name: Run ablation suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          python -m tools.run_ablation_suite \
+            --output artifacts/ablations/results.json \
+            --summary artifacts/ablations/results.md \
+            --enforce-gates
+      - name: Publish ablation summary
+        if: always()
+        run: |
+          {
+            echo "## Ablation suite";
+            if [ -f artifacts/ablations/results.md ]; then
+              cat artifacts/ablations/results.md;
+            else
+              echo "Ablation summary missing";
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload ablation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ablation-results-${{ github.run_id }}
+          path: artifacts/ablations
+          if-no-files-found: error
+
   tests-full:
     runs-on: ubuntu-latest
     needs: [types]

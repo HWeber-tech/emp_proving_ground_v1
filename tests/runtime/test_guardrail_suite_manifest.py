@@ -169,3 +169,47 @@ def test_ci_guardrail_job_runs_coverage_guardrails() -> None:
     assert "tools.telemetry.coverage_guardrails" in run_script
     assert "--report coverage.xml" in run_script
     assert "--min-percent" in run_script
+
+
+def test_ci_runs_ablation_suite_job() -> None:
+    """CI must execute the ablation suite and enforce gates."""
+
+    workflow = _load_ci_workflow()
+    ablation_job = workflow["jobs"].get("ablations")
+    assert ablation_job is not None, "Ablations job missing from CI workflow"
+
+    run_step = next(
+        (
+            step
+            for step in ablation_job["steps"]
+            if step.get("name") == "Run ablation suite"
+        ),
+        None,
+    )
+    assert run_step is not None, "Ablation execution step missing from CI workflow"
+    run_script = run_step.get("run", "")
+    assert "python -m tools.run_ablation_suite" in run_script
+    assert "--enforce-gates" in run_script
+    assert "artifacts/ablations/results.json" in run_script
+
+    summary_step = next(
+        (
+            step
+            for step in ablation_job["steps"]
+            if step.get("name") == "Publish ablation summary"
+        ),
+        None,
+    )
+    assert summary_step is not None, "Ablation summary step missing from CI workflow"
+    assert "$GITHUB_STEP_SUMMARY" in summary_step.get("run", "")
+
+    upload_step = next(
+        (
+            step
+            for step in ablation_job["steps"]
+            if step.get("name") == "Upload ablation artifacts"
+        ),
+        None,
+    )
+    assert upload_step is not None, "Ablation artifact upload step missing from CI workflow"
+    assert str(upload_step.get("uses", "")).startswith("actions/upload-artifact")

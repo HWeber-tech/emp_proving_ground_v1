@@ -3,10 +3,10 @@
   "meta": {
     "ci": false,
     "event_count": 0,
-    "exit_status": 0,
+    "exit_status": 5,
     "platform": "linux",
     "python": "3.10.12 (main, Aug 15 2025, 14:32:43) [GCC 11.4.0]",
-    "session_end": 1760985976.0717125,
-    "session_start": 1760985974.5136538
+    "session_end": 1760987790.6854007,
+    "session_start": 1760987787.7961593
   }
 }

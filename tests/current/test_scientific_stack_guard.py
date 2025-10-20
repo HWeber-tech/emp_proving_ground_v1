@@ -72,3 +72,20 @@ def test_check_scientific_stack_outdated(monkeypatch: pytest.MonkeyPatch) -> Non
     message = str(exc.value)
     assert "pandas" in message
     assert _format_version(requirements_check.MINIMUM_VERSIONS["pandas"]) in message
+
+
+def test_check_scientific_stack_allows_whitespace_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    modules = {
+        package: SimpleNamespace(__version__=f" {_format_version(minimum)} ")
+        for package, minimum in requirements_check.MINIMUM_VERSIONS.items()
+    }
+
+    def fake_import(name: str):
+        return modules[name]
+
+    monkeypatch.setattr(importlib, "import_module", fake_import)
+
+    versions = requirements_check.check_scientific_stack()
+    assert versions == {key: value.__version__ for key, value in modules.items()}

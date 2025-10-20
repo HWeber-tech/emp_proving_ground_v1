@@ -22,7 +22,7 @@ MINIMUM_VERSIONS: Dict[str, Tuple[int, int, int]] = {
 
 
 def _parse(ver: str) -> tuple[int, int, int]:
-    parts = (ver.split("+", 1)[0]).split(".")
+    parts = (ver.strip().split("+", 1)[0]).split(".")
 
     def _coerce(part: str) -> int:
         match = re.match(r"\d+", part)

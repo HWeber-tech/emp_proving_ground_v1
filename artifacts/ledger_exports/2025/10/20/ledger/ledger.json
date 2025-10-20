@@ -1,29 +1,27 @@
 {
   "records": {
-    "bootstrap-strategy": {
+    "alpha.live": {
       "approvals": [
-        "qa",
         "risk"
       ],
-      "created_at": "2025-10-20T02:03:53.317981+00:00",
+      "created_at": "2025-10-20T02:12:12.805837+00:00",
       "evidence_id": "dd-alpha-live",
       "history": [
         {
-          "applied_at": "2025-10-20T02:03:53.317981+00:00",
+          "applied_at": "2025-10-20T02:12:12.805837+00:00",
           "approvals": [
-            "qa",
             "risk"
           ],
-          "evidence_id": "replay-evidence",
-          "next_stage": "limited_live",
+          "evidence_id": "dd-alpha-live",
+          "next_stage": "paper",
           "prior_stage": null
         }
       ],
       "policy_id": "alpha.live",
       "stage": "paper",
       "tactic_id": "alpha.live",
-      "updated_at": "2025-10-20T02:03:53.317981+00:00"
+      "updated_at": "2025-10-20T02:12:12.805837+00:00"
     }
   },
-  "updated_at": "2025-10-20T02:03:53.318100+00:00"
+  "updated_at": "2025-10-20T02:12:12.805984+00:00"
 }

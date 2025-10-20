@@ -9,6 +9,7 @@ from .horizon_evaluation import (
     evaluate_predictions_by_horizon,
 )
 from .lora_freeze import LoRAFreezePlan, LoRALayerConfig, plan_lora_freeze
+from .l2sp_rehearsal import L2SPRegularizer, EquityRehearsalPlan, plan_equity_rehearsal
 from .trainer_chunker import SequenceChunk, TrainerChunker
 
 __all__ = [
@@ -22,6 +23,9 @@ __all__ = [
     "LoRAFreezePlan",
     "LoRALayerConfig",
     "plan_lora_freeze",
+    "L2SPRegularizer",
+    "EquityRehearsalPlan",
+    "plan_equity_rehearsal",
     "SequenceChunk",
     "TrainerChunker",
 ]

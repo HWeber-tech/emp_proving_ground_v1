@@ -56,6 +56,10 @@ __all__ = [
     "ProviderSnapshot",
     "ProviderSpec",
     "StalenessValidator",
+    "SentimentBehaviorFeed",
+    "SentimentBehaviorSnapshot",
+    "TagPulse",
+    "TaggedNlpItem",
     "ProductionIngestSlice",
     "fetch_fred_calendar",
 ]
@@ -112,6 +116,10 @@ _MODULE_MAP = {
     "ProviderSnapshot": "src.data_foundation.ingest.multi_source",
     "ProviderSpec": "src.data_foundation.ingest.multi_source",
     "StalenessValidator": "src.data_foundation.ingest.multi_source",
+    "SentimentBehaviorFeed": "src.data_foundation.ingest.sentiment_behavior_feed",
+    "SentimentBehaviorSnapshot": "src.data_foundation.ingest.sentiment_behavior_feed",
+    "TagPulse": "src.data_foundation.ingest.sentiment_behavior_feed",
+    "TaggedNlpItem": "src.data_foundation.ingest.sentiment_behavior_feed",
     "ProductionIngestSlice": "src.data_foundation.ingest.production_slice",
     "fetch_fred_calendar": "src.data_foundation.ingest.fred_calendar",
 }

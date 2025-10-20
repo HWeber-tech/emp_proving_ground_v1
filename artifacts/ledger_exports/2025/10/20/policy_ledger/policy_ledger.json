@@ -5,11 +5,11 @@
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-20T15:55:25.173267+00:00",
+      "created_at": "2025-10-20T17:26:56.378079+00:00",
       "evidence_id": "dd-ma_crossover_ga::2025::8-55-0.240-promotion",
       "history": [
         {
-          "applied_at": "2025-10-20T15:55:25.173267+00:00",
+          "applied_at": "2025-10-20T17:26:56.378079+00:00",
           "approvals": [
             "compliance",
             "risk"
@@ -27,11 +27,11 @@
         }
       },
       "policy_id": "ma_crossover_ga::2025::8-55-0.240",
-      "signature": "122044bb138b46602f5548e3248052fb929eed82875a56f2c5e6036e631aadea",
+      "signature": "f7498a783c591451a31ac2e41adb317a4204f702b750345b4ca31713a80e1788",
       "stage": "limited_live",
       "tactic_id": "ma_crossover_ga::2025::8-55-0.240",
-      "updated_at": "2025-10-20T15:55:25.173267+00:00"
+      "updated_at": "2025-10-20T17:26:56.378079+00:00"
     }
   },
-  "updated_at": "2025-10-20T15:55:25.173621+00:00"
+  "updated_at": "2025-10-20T17:26:56.378377+00:00"
 }

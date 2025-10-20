@@ -7,11 +7,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from statistics import mean
-from typing import Iterable, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from src.core.event_bus import Event, EventBus
 from src.data_foundation.persist.timescale import TimescaleIngestRunRecord
 from src.operations.event_bus_failover import publish_event_with_failover
+import src.operational.metrics as operational_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -202,6 +203,86 @@ def _compute_freshness_issue(
     return None, IngestTrendStatus.ok
 
 
+def _coerce_float(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    try:
+        text = str(value).strip()
+    except Exception:  # pragma: no cover - defensive guard
+        return None
+    if not text:
+        return None
+    try:
+        return float(text)
+    except (ValueError, TypeError):
+        return None
+
+
+def _extract_rejected_records(metadata: Mapping[str, Any] | None) -> float | None:
+    if not metadata:
+        return None
+
+    stack: list[Any] = [metadata]
+    preferred: float | None = None
+    fallback: float | None = None
+
+    while stack:
+        current = stack.pop()
+        if isinstance(current, Mapping):
+            for key, value in current.items():
+                key_lower = str(key).lower()
+                if "reject" in key_lower:
+                    numeric = _coerce_float(value)
+                    if numeric is not None:
+                        safe_numeric = max(numeric, 0.0)
+                        if "per_hour" in key_lower:
+                            return safe_numeric
+                        if any(token in key_lower for token in ("record", "records", "row", "rows", "count", "total")):
+                            fallback = safe_numeric if fallback is None else fallback
+                        elif preferred is None:
+                            preferred = safe_numeric
+
+                if isinstance(value, Mapping):
+                    stack.append(value)
+                elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+                    stack.extend(value)
+        elif isinstance(current, Sequence) and not isinstance(current, (str, bytes, bytearray)):
+            stack.extend(current)
+
+    if fallback is not None:
+        return fallback
+    return preferred
+
+
+def _record_dimension_metrics(
+    dimension: str, records: Sequence[TimescaleIngestRunRecord]
+) -> None:
+    if not records:
+        return
+
+    latest = records[0]
+    rejected = _extract_rejected_records(latest.metadata)
+    if rejected is None:
+        return
+
+    duration_hours: float | None = None
+    if latest.ingest_duration_seconds is not None and latest.ingest_duration_seconds > 0:
+        duration_hours = float(latest.ingest_duration_seconds) / 3600.0
+
+    if (duration_hours is None or duration_hours <= 0.0) and len(records) > 1:
+        delta_seconds = (latest.executed_at - records[1].executed_at).total_seconds()
+        if delta_seconds != 0:
+            duration_hours = abs(delta_seconds) / 3600.0
+
+    if duration_hours is None or duration_hours <= 0.0:
+        duration_hours = 1.0
+
+    rate = rejected / duration_hours if duration_hours > 0 else rejected
+    operational_metrics.set_ingest_rejected_records_per_hour(dimension, rate)
+
+
 def evaluate_ingest_trends(
     records: Iterable[TimescaleIngestRunRecord],
     *,
@@ -279,6 +360,8 @@ def evaluate_ingest_trends(
                 metadata=metadata_payload,
             )
         )
+
+        _record_dimension_metrics(dimension, window)
 
         snapshot_issues.extend(f"{dimension}: {issue}" for issue in issues if issue)
         overall_status = _escalate(overall_status, status)

@@ -182,6 +182,19 @@ _governance_promotions_total = LazyGaugeProxy(
     "Governance promotions recorded by compliance dashboard",
 )
 
+# Security telemetry gauges
+_security_failed_logins_last_hour = LazyGaugeProxy(
+    "security_failed_logins_last_hour",
+    "Failed login attempts recorded in the previous hour",
+)
+
+# Ingest telemetry gauges
+_ingest_rejected_records_per_hour = LazyGaugeProxy(
+    "ingest_rejected_records_per_hour",
+    "Rejected ingest records per hour by dimension",
+    ["dimension"],
+)
+
 # Evolution KPI gauges
 _evolution_time_to_candidate_hours = LazyGaugeProxy(
     "evolution_time_to_candidate_hours",
@@ -262,6 +275,33 @@ def set_governance_promotions_total(value: float) -> None:
     """Record the latest count of governance promotions captured."""
 
     _governance_promotions_total.set(float(value))
+
+
+def set_security_failed_logins(value: float | int | None) -> None:
+    """Record failed login attempts observed during the most recent hour."""
+
+    if value is None:
+        return
+
+    _security_failed_logins_last_hour.set(max(float(value), 0.0))
+
+
+def set_ingest_rejected_records_per_hour(
+    dimension: str, value: float | int | None
+) -> None:
+    """Record the rejected ingest records rate for a dimension."""
+
+    if value is None:
+        return
+
+    safe_dimension = _normalise_label(dimension)
+
+    def _action() -> None:
+        _ingest_rejected_records_per_hour.labels(dimension=safe_dimension).set(
+            max(float(value), 0.0)
+        )
+
+    _call_metric("ingest_rejected_records_per_hour.set", _action)
 
 
 def set_evolution_time_to_candidate_stat(stat: str, value: float | None) -> None:

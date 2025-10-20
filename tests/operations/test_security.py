@@ -331,3 +331,29 @@ def test_publish_security_posture_uses_global_bus_when_runtime_not_running(
     assert global_bus.events == [
         ("telemetry.operational.security", snapshot.as_dict(), "operations.security")
     ]
+
+
+def test_evaluate_security_posture_records_failed_login_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded: list[float] = []
+    monkeypatch.setattr(
+        "src.operations.security.operational_metrics.set_security_failed_logins",
+        lambda value: recorded.append(float(value)),
+    )
+
+    policy = SecurityPolicy()
+    state = SecurityState(
+        total_users=5,
+        mfa_enabled_users=5,
+        credential_age_days=5,
+        secrets_age_days=4,
+        incident_drill_age_days=2,
+        vulnerability_scan_age_days=3,
+        intrusion_detection_enabled=True,
+        failed_logins_last_hour=7,
+    )
+
+    evaluate_security_posture(policy, state, service="emp")
+
+    assert recorded == [pytest.approx(7.0)]

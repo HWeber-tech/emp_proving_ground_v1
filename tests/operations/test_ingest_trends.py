@@ -149,3 +149,31 @@ def test_publish_ingest_trends_raises_on_unexpected_runtime_error(caplog) -> Non
     )
     assert excinfo.value.stage == "runtime"
     assert excinfo.value.event_type == "telemetry.ingest.trends"
+
+
+def test_evaluate_ingest_trends_records_rejected_metric(monkeypatch) -> None:
+    captured: list[tuple[str, float]] = []
+    monkeypatch.setattr(
+        "src.operations.ingest_trends.operational_metrics.set_ingest_rejected_records_per_hour",
+        lambda dimension, rate: captured.append((dimension, float(rate))),
+    )
+
+    base = datetime(2024, 1, 1, tzinfo=UTC)
+    records = [
+        TimescaleIngestRunRecord(
+            run_id="r1",
+            dimension="daily_bars",
+            status="ok",
+            rows_written=120,
+            freshness_seconds=45.0,
+            ingest_duration_seconds=1800.0,
+            executed_at=base,
+            source="yahoo",
+            symbols=("EURUSD",),
+            metadata={"quality": {"rejected_records": 12}},
+        )
+    ]
+
+    evaluate_ingest_trends(records)
+
+    assert captured == [("daily_bars", pytest.approx(24.0))]

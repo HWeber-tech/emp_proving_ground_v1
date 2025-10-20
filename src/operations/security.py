@@ -10,6 +10,7 @@ from typing import Mapping, MutableMapping, Sequence
 
 from src.core.event_bus import Event, EventBus
 from src.operations.event_bus_failover import publish_event_with_failover
+import src.operational.metrics as operational_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -142,6 +143,7 @@ class SecurityState:
     incident_drill_age_days: float | None = None
     vulnerability_scan_age_days: float | None = None
     intrusion_detection_enabled: bool = False
+    failed_logins_last_hour: int | None = None
     open_critical_alerts: tuple[str, ...] = field(default_factory=tuple)
     tls_versions: tuple[str, ...] = field(default_factory=tuple)
     legacy_tls_in_use: bool = False
@@ -163,6 +165,12 @@ class SecurityState:
         tls_versions = _coerce_tuple(mapping.get("SECURITY_TLS_VERSIONS"))
         legacy_tls = _coerce_bool(mapping.get("SECURITY_LEGACY_TLS_IN_USE"), False)
         secrets_healthy = _coerce_bool(mapping.get("SECURITY_SECRETS_MANAGER_HEALTHY"), True)
+        failed_logins_raw = mapping.get("SECURITY_FAILED_LOGINS_LAST_HOUR")
+        failed_logins = (
+            max(_coerce_int(failed_logins_raw, 0), 0)
+            if failed_logins_raw is not None
+            else None
+        )
 
         return cls(
             total_users=max(total_users, 0),
@@ -172,6 +180,7 @@ class SecurityState:
             incident_drill_age_days=incident_age,
             vulnerability_scan_age_days=vuln_age,
             intrusion_detection_enabled=intrusion_detection,
+            failed_logins_last_hour=failed_logins,
             open_critical_alerts=alerts,
             tls_versions=tls_versions,
             legacy_tls_in_use=legacy_tls,
@@ -451,6 +460,12 @@ def _evaluate_tls(policy: SecurityPolicy, state: SecurityState) -> SecurityContr
     )
 
 
+def _record_security_metrics(state: SecurityState) -> None:
+    failed_logins = state.failed_logins_last_hour
+    if failed_logins is not None:
+        operational_metrics.set_security_failed_logins(failed_logins)
+
+
 def evaluate_security_posture(
     policy: SecurityPolicy,
     state: SecurityState,
@@ -524,6 +539,10 @@ def evaluate_security_posture(
             "mfa_coverage": state.mfa_coverage,
         }
     )
+    if state.failed_logins_last_hour is not None:
+        combined_metadata["failed_logins_last_hour"] = state.failed_logins_last_hour
+
+    _record_security_metrics(state)
 
     return SecurityPostureSnapshot(
         service=service,

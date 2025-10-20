@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+import pytest
 
 from src.sensory.how.order_book_analytics import (
     OrderBookAnalytics,
@@ -34,6 +35,31 @@ def test_order_book_analytics_reports_value_area() -> None:
     assert snapshot.as_dict()["participation_ratio"] > 0.5
     assert len(snapshot.depth_embedding) == config.depth_embedding_dim
     assert any(abs(value) > 0 for value in snapshot.depth_embedding)
+    assert snapshot.microprice != 0.0
+    assert snapshot.microprice_offset == snapshot.microprice - snapshot.mid_price
+    assert snapshot.queue_imbalance != 0.0
+    assert snapshot.spread_ticks >= 0.0
+    assert snapshot.slope_bid == snapshot.slope_bid  # NaN guard
+    assert snapshot.curve_ask == snapshot.curve_ask
+
+
+def test_order_book_analytics_tracks_refresh_and_ofi() -> None:
+    analytics = OrderBookAnalytics()
+    ts0 = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    ts1 = ts0 + timedelta(milliseconds=500)
+
+    base = _sample_order_book()
+    changed = base.copy()
+    changed["bid_size"] = [3.6, 2.8, 2.4, 2.0, 1.8]
+
+    first = analytics.describe(base, symbol="EURUSD", timestamp=ts0, trade_sign=1)
+    second = analytics.describe(changed, symbol="EURUSD", timestamp=ts1, trade_sign=1)
+
+    assert first is not None
+    assert second is not None
+    assert second.refresh_hz == pytest.approx(2.0, rel=1e-3)
+    assert second.stale_ms == pytest.approx(500.0, rel=1e-3)
+    assert second.ofi_norm > 0.0
 
 
 def test_how_sensor_incorporates_order_book_metrics() -> None:
@@ -64,6 +90,8 @@ def test_how_sensor_incorporates_order_book_metrics() -> None:
     assert isinstance(order_book_meta, dict)
     assert {"imbalance", "value_area_low", "value_area_high"} <= set(order_book_meta)
     assert order_book_meta.get("has_depth") is True
+    assert "microprice" in order_book_meta
+    assert order_book_meta.get("refresh_hz") == 0.0
     depth_keys = [key for key in sensor.order_book_metric_names if "depth_embedding_" in key]
     assert isinstance(order_book_meta.get("depth_embedding"), list)
     assert len(order_book_meta["depth_embedding"]) == len(depth_keys)

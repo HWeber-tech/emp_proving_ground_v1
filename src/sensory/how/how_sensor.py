@@ -121,7 +121,18 @@ class HowSensor:
 
         order_snapshot: OrderBookSnapshot | None = None
         if order_book is not None:
-            order_snapshot = self._order_book_analytics.describe(order_book)
+            symbol_value = payload.get("symbol")
+            symbol_str = str(symbol_value) if symbol_value is not None else None
+            trade_sign = None
+            if df is not None and not df.empty:
+                last_row = df.iloc[-1]
+                trade_sign = last_row.get("trade_sign")
+            order_snapshot = self._order_book_analytics.describe(
+                order_book,
+                symbol=symbol_str,
+                timestamp=timestamp,
+                trade_sign=trade_sign,
+            )
 
         order_metrics = {name: 0.0 for name in self._order_book_metric_names}
         has_depth = False

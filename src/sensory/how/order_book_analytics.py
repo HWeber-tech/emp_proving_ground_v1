@@ -11,6 +11,7 @@ dependency chain.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from math import isfinite
 from typing import Iterable, Sequence
 
@@ -60,6 +61,18 @@ class OrderBookSnapshot:
     total_bid_volume: float
     total_ask_volume: float
     participation_ratio: float
+    microprice: float
+    microprice_offset: float
+    spread_ticks: float
+    spread_wide: float
+    queue_imbalance: float
+    ofi_norm: float
+    refresh_hz: float
+    stale_ms: float
+    slope_bid: float
+    slope_ask: float
+    curve_bid: float
+    curve_ask: float
     depth_embedding: tuple[float, ...]
 
     def as_dict(self) -> dict[str, float]:
@@ -72,6 +85,18 @@ class OrderBookSnapshot:
             "total_bid_volume": float(self.total_bid_volume),
             "total_ask_volume": float(self.total_ask_volume),
             "participation_ratio": float(self.participation_ratio),
+            "microprice": float(self.microprice),
+            "microprice_offset": float(self.microprice_offset),
+            "spread_ticks": float(self.spread_ticks),
+            "spread_wide": float(self.spread_wide),
+            "queue_imbalance": float(self.queue_imbalance),
+            "ofi_norm": float(self.ofi_norm),
+            "refresh_hz": float(self.refresh_hz),
+            "stale_ms": float(self.stale_ms),
+            "slope_bid": float(self.slope_bid),
+            "slope_ask": float(self.slope_ask),
+            "curve_bid": float(self.curve_bid),
+            "curve_ask": float(self.curve_ask),
             "depth_embedding": [float(value) for value in self.depth_embedding],
         }
 
@@ -86,6 +111,18 @@ class OrderBookSnapshot:
             "total_bid_volume",
             "total_ask_volume",
             "participation_ratio",
+            "microprice",
+            "microprice_offset",
+            "spread_ticks",
+            "spread_wide",
+            "queue_imbalance",
+            "ofi_norm",
+            "refresh_hz",
+            "stale_ms",
+            "slope_bid",
+            "slope_ask",
+            "curve_bid",
+            "curve_ask",
         )
 
     def flatten(self, prefix: str = "order_book_") -> dict[str, float]:
@@ -273,6 +310,17 @@ class TickSpaceDepthEncoder:
         return 1.0 / (1.0 + np.exp(-clipped))
 
 
+@dataclass(slots=True)
+class _OrderBookState:
+    """Minimal information cached between observations."""
+
+    best_bid_price: float
+    best_bid_size: float
+    best_ask_price: float
+    best_ask_size: float
+    timestamp: datetime | None
+
+
 class OrderBookAnalytics:
     """Summarise level-two snapshots into microstructure metrics."""
 
@@ -288,8 +336,16 @@ class OrderBookAnalytics:
             embedding_dim=self._config.depth_embedding_dim,
         )
         self._metric_names: tuple[str, ...] | None = None
+        self._history: dict[str, _OrderBookState] = {}
 
-    def describe(self, order_book: pd.DataFrame | None) -> OrderBookSnapshot | None:
+    def describe(
+        self,
+        order_book: pd.DataFrame | None,
+        *,
+        symbol: str | None = None,
+        timestamp: datetime | None = None,
+        trade_sign: float | None = None,
+    ) -> OrderBookSnapshot | None:
         """Produce an :class:`OrderBookSnapshot` from raw depth data.
 
         The analytics gracefully handle partially populated snapshots and
@@ -300,6 +356,7 @@ class OrderBookAnalytics:
             return None
 
         frame = order_book.copy()
+        state_key = symbol or "__default__"
 
         price_columns = self._select_first_existing(frame.columns, _BID_COLUMN_ALIASES)
         ask_price_columns = self._select_first_existing(
@@ -329,20 +386,63 @@ class OrderBookAnalytics:
         spread = max(0.0, best_ask - best_bid)
         mid = best_bid + spread / 2 if spread >= 0 else (best_bid + best_ask) / 2
 
-        profile_prices = np.concatenate([bid_prices.to_numpy(), ask_prices.to_numpy()])
+        bid_array = bid_prices.to_numpy()
+        ask_array = ask_prices.to_numpy()
+        profile_prices = np.concatenate([bid_array, ask_array])
         profile_volumes = np.concatenate([bid_sizes.to_numpy(), ask_sizes.to_numpy()])
         value_area_low, value_area_high = self._value_area(profile_prices, profile_volumes)
 
         participation_ratio = float(total_bid / denom)
 
+        tick_size = self._estimate_tick_size(bid_array, ask_array)
+        best_bid_size = float(bid_sizes.iloc[0]) if not bid_sizes.empty else 0.0
+        best_ask_size = float(ask_sizes.iloc[0]) if not ask_sizes.empty else 0.0
+        queue_imbalance = self._queue_imbalance(best_bid_size, best_ask_size)
+        microprice = self._microprice(best_bid, best_ask, best_bid_size, best_ask_size, mid)
+        microprice_offset = microprice - mid
+        spread_ticks = self._spread_in_ticks(spread, tick_size)
+        spread_wide = 1.0 if spread_ticks > 1.0 + 1e-9 else 0.0
+
+        previous = self._history.get(state_key)
+        ofi_norm = self._ofi_norm(
+            previous,
+            best_bid,
+            best_bid_size,
+            best_ask,
+            best_ask_size,
+            trade_sign,
+        )
+        refresh_hz, stale_ms = self._refresh_metrics(previous, timestamp)
+
+        slope_bid, curve_bid = self._depth_shape_features(
+            bid_array,
+            bid_sizes.to_numpy(),
+            tick_size,
+            side="bid",
+        )
+        slope_ask, curve_ask = self._depth_shape_features(
+            ask_array,
+            ask_sizes.to_numpy(),
+            tick_size,
+            side="ask",
+        )
+
         depth_embedding = tuple(
             float(value)
             for value in self._depth_encoder.encode(
-                bid_prices.to_numpy(),
+                bid_array,
                 bid_sizes.to_numpy(),
-                ask_prices.to_numpy(),
+                ask_array,
                 ask_sizes.to_numpy(),
             )
+        )
+
+        self._history[state_key] = _OrderBookState(
+            best_bid_price=best_bid,
+            best_bid_size=best_bid_size,
+            best_ask_price=best_ask,
+            best_ask_size=best_ask_size,
+            timestamp=timestamp,
         )
 
         return OrderBookSnapshot(
@@ -354,6 +454,18 @@ class OrderBookAnalytics:
             total_bid_volume=total_bid,
             total_ask_volume=total_ask,
             participation_ratio=participation_ratio,
+            microprice=float(microprice),
+            microprice_offset=float(microprice_offset),
+            spread_ticks=float(spread_ticks),
+            spread_wide=float(spread_wide),
+            queue_imbalance=float(queue_imbalance),
+            ofi_norm=float(ofi_norm),
+            refresh_hz=float(refresh_hz),
+            stale_ms=float(stale_ms),
+            slope_bid=float(slope_bid),
+            slope_ask=float(slope_ask),
+            curve_bid=float(curve_bid),
+            curve_ask=float(curve_ask),
             depth_embedding=depth_embedding,
         )
 
@@ -367,6 +479,150 @@ class OrderBookAnalytics:
         if not prefix:
             return self._metric_names
         return tuple(f"{prefix}{name}" for name in self._metric_names)
+
+    def _estimate_tick_size(self, bids: np.ndarray, asks: np.ndarray) -> float:
+        tick = float(self._depth_encoder._estimate_tick_size(bids, asks))
+        if not isfinite(tick) or tick <= 0.0:
+            reference_prices = np.concatenate([bids[:1], asks[:1]])
+            reference = float(np.mean(reference_prices)) if reference_prices.size else 1.0
+            tick = max(abs(reference) * 1e-6, 1e-9)
+        return tick
+
+    @staticmethod
+    def _queue_imbalance(best_bid_size: float, best_ask_size: float) -> float:
+        denom = best_bid_size + best_ask_size
+        if denom <= 0.0:
+            return 0.0
+        return (best_bid_size - best_ask_size) / denom
+
+    @staticmethod
+    def _microprice(
+        best_bid: float,
+        best_ask: float,
+        bid_size: float,
+        ask_size: float,
+        mid: float,
+    ) -> float:
+        depth = bid_size + ask_size
+        if depth <= 0.0:
+            return mid
+        return (best_ask * bid_size + best_bid * ask_size) / depth
+
+    @staticmethod
+    def _spread_in_ticks(spread: float, tick_size: float) -> float:
+        if tick_size <= 0.0:
+            return 0.0
+        return spread / tick_size
+
+    def _ofi_norm(
+        self,
+        previous: _OrderBookState | None,
+        best_bid: float,
+        best_bid_size: float,
+        best_ask: float,
+        best_ask_size: float,
+        trade_sign: float | None,
+    ) -> float:
+        if previous is None:
+            return 0.0
+
+        prev_bid_px = previous.best_bid_price
+        prev_bid_sz = previous.best_bid_size
+        prev_ask_px = previous.best_ask_price
+        prev_ask_sz = previous.best_ask_size
+
+        bid_component = 0.0
+        if best_bid > prev_bid_px:
+            bid_component = best_bid_size
+        elif best_bid < prev_bid_px:
+            bid_component = -prev_bid_sz
+        else:
+            bid_component = best_bid_size - prev_bid_sz
+
+        ask_component = 0.0
+        if best_ask < prev_ask_px:
+            ask_component = -best_ask_size
+        elif best_ask > prev_ask_px:
+            ask_component = prev_ask_sz
+        else:
+            ask_component = prev_ask_sz - best_ask_size
+
+        ofi = bid_component + ask_component
+        sign = self._normalise_trade_sign(trade_sign)
+        ofi *= sign
+
+        scale = prev_bid_sz + prev_ask_sz
+        if scale <= 0.0:
+            scale = max(best_bid_size + best_ask_size, 1e-9)
+
+        return ofi / max(scale, 1e-9)
+
+    @staticmethod
+    def _normalise_trade_sign(value: float | None) -> float:
+        if value is None:
+            return 1.0
+        try:
+            sign = float(value)
+        except (TypeError, ValueError):
+            return 1.0
+        if sign > 0:
+            return 1.0
+        if sign < 0:
+            return -1.0
+        return 1.0
+
+    @staticmethod
+    def _refresh_metrics(
+        previous: _OrderBookState | None,
+        timestamp: datetime | None,
+    ) -> tuple[float, float]:
+        if previous is None or timestamp is None or previous.timestamp is None:
+            return (0.0, 0.0)
+        delta = (timestamp - previous.timestamp).total_seconds()
+        if delta <= 1e-9:
+            return (0.0, 0.0)
+        refresh_hz = 1.0 / delta
+        stale_ms = delta * 1000.0
+        return (refresh_hz, stale_ms)
+
+    def _depth_shape_features(
+        self,
+        prices: np.ndarray,
+        sizes: np.ndarray,
+        tick_size: float,
+        *,
+        side: str,
+    ) -> tuple[float, float]:
+        if prices.size == 0 or sizes.size == 0 or tick_size <= 0.0:
+            return (0.0, 0.0)
+
+        if side == "bid":
+            offsets = (prices[0] - prices) / tick_size
+        else:
+            offsets = (prices - prices[0]) / tick_size
+
+        offsets = np.clip(offsets, 0.0, None)
+        if np.allclose(offsets, offsets[0]):
+            return (0.0, 0.0)
+
+        best_size = float(max(sizes[0], 1e-9))
+        norm_sizes = np.clip(sizes / best_size, 0.0, None)
+
+        degree = 2 if offsets.size >= 3 else 1
+        try:
+            coeffs = np.polyfit(offsets, norm_sizes, deg=degree)
+        except np.linalg.LinAlgError:
+            return (0.0, 0.0)
+
+        if degree == 1:
+            slope = float(coeffs[0])
+            curvature = 0.0
+        else:
+            a2, a1, _ = coeffs
+            slope = float(a1)
+            curvature = float(2.0 * a2)
+
+        return (slope, curvature)
 
     def _value_area(
         self, prices: np.ndarray, volumes: np.ndarray

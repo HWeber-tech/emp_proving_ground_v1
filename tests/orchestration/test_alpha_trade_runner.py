@@ -321,6 +321,62 @@ def test_alpha_trade_runner_builds_brief_explanation() -> None:
     assert "  " not in trimmed
 
 
+def test_alpha_trade_runner_build_trade_intent_threads_metadata() -> None:
+    runner = AlphaTradeLoopRunner.__new__(AlphaTradeLoopRunner)
+
+    belief_state = SimpleNamespace(
+        symbol="EURUSD",
+        generated_at=datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+    )
+
+    regime_state = SimpleNamespace(regime="balanced", confidence=0.8)
+    regime_signal = SimpleNamespace(regime_state=regime_state)
+
+    trade_metadata: dict[str, Any] = {
+        "policy_id": "alpha.live",
+        "symbol": "EURUSD",
+        "side": "buy",
+        "quantity": 25_000,
+        "price": 1.2345,
+        "fast_weight": {"enabled": True},
+        "guardrails": {"requires_diary": True},
+        "attribution": {
+            "belief": {"belief_id": "belief-123"},
+            "probes": [{"probe_id": "guardrail.requires_diary", "status": "ok"}],
+            "explanation": "unit test attribution context",
+        },
+        "diary_coverage": {"belief": True},
+        "performance_health": {"healthy": True},
+    }
+
+    decision: dict[str, Any] = {
+        "tactic_id": "alpha.live",
+        "parameters": {
+            "symbol": "EURUSD",
+            "side": "buy",
+            "quantity": 25_000,
+            "price": 1.2345,
+        },
+    }
+
+    intent = runner._build_trade_intent_from_decision(
+        decision,
+        belief_state,
+        regime_signal,
+        trade_metadata,
+        overrides=None,
+    )
+
+    assert intent is not None
+    metadata = intent["metadata"]
+    assert metadata["fast_weight"] == trade_metadata["fast_weight"]
+    assert metadata["guardrails"] == trade_metadata["guardrails"]
+    assert metadata["attribution"] == trade_metadata["attribution"]
+    assert metadata["diary_coverage"] == trade_metadata["diary_coverage"]
+    assert metadata["performance_health"] == trade_metadata["performance_health"]
+    assert metadata["confidence"] == pytest.approx(0.8)
+
+
 def test_alpha_trade_runner_attribution_fallback_explanation() -> None:
     runner = AlphaTradeLoopRunner.__new__(AlphaTradeLoopRunner)
 

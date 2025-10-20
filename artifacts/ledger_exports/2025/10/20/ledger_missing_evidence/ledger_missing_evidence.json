@@ -1,0 +1,35 @@
+{
+  "records": {
+    "gamma": {
+      "approvals": [
+        "ops",
+        "risk"
+      ],
+      "created_at": "2025-10-20T00:04:01.872309+00:00",
+      "history": [
+        {
+          "applied_at": "2025-10-20T00:04:01.872309+00:00",
+          "approvals": [
+            "ops",
+            "risk"
+          ],
+          "evidence_id": null,
+          "next_stage": "limited_live",
+          "prior_stage": null
+        }
+      ],
+      "metadata": {
+        "promotion_checklist": {
+          "leakage_checks": true,
+          "oos_regime_grid": true,
+          "risk_audit": true
+        }
+      },
+      "policy_id": "gamma",
+      "stage": "limited_live",
+      "tactic_id": "gamma",
+      "updated_at": "2025-10-20T00:04:01.872309+00:00"
+    }
+  },
+  "updated_at": "2025-10-20T00:04:01.872474+00:00"
+}

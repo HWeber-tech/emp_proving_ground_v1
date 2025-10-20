@@ -1748,6 +1748,26 @@ class AlphaTradeLoopRunner:
         if intent_confidence is None:
             intent_confidence = 0.0
 
+        intent_metadata: MutableMapping[str, Any] = {
+            "regime": regime_signal.regime_state.regime,
+            "confidence": intent_confidence,
+        }
+
+        def _attach_metadata_block(key: str) -> None:
+            value = metadata.get(key)
+            if isinstance(value, Mapping):
+                intent_metadata[key] = dict(value)
+
+        for entry_key in (
+            "fast_weight",
+            "guardrails",
+            "attribution",
+            "feature_flags",
+            "performance_health",
+            "diary_coverage",
+        ):
+            _attach_metadata_block(entry_key)
+
         intent: MutableMapping[str, Any] = {
             "strategy_id": metadata.get("policy_id") or decision.get("tactic_id"),
             "symbol": metadata.get("symbol"),
@@ -1756,15 +1776,12 @@ class AlphaTradeLoopRunner:
             "price": price,
             "confidence": intent_confidence,
             "timestamp": timestamp_parsed or belief_state.generated_at or datetime.now(),
-            "metadata": {
-                "regime": regime_signal.regime_state.regime,
-                "confidence": intent_confidence,
-            },
+            "metadata": intent_metadata,
         }
 
         notional = _coerce_float(metadata.get("notional"))
         if notional is not None:
-            intent["metadata"]["notional"] = notional
+            intent_metadata["notional"] = notional
 
         ticket = metadata.get("ticket")
         if ticket:
@@ -1772,11 +1789,11 @@ class AlphaTradeLoopRunner:
 
         release_stage = metadata.get("release_stage")
         if release_stage:
-            intent["metadata"]["release_stage"] = release_stage
+            intent_metadata["release_stage"] = release_stage
 
-        coverage_payload = metadata.get("diary_coverage")
+        coverage_payload = intent_metadata.get("diary_coverage")
         if isinstance(coverage_payload, Mapping):
-            intent["metadata"]["diary_coverage"] = {
+            intent_metadata["diary_coverage"] = {
                 str(key): value for key, value in coverage_payload.items()
             }
 

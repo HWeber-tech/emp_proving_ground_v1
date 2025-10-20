@@ -1963,6 +1963,57 @@ class RiskGateway:
             ],
         }
 
+        expected_metric_key: str | None = None
+        for metric_name in metric_directions:
+            normalised = str(metric_name).strip().replace(" ", "_").lower()
+            if normalised == "expected_return":
+                expected_metric_key = metric_name
+                break
+
+        if expected_metric_key is None:
+            failure_payload = dict(base_payload)
+            failure_payload["violations"] = [
+                {
+                    "type": "missing_expected_return_metric",
+                }
+            ]
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="missing_expected_return",
+                payload=failure_payload,
+            )
+
+        expected_return_value = selected_candidate.metrics.get(expected_metric_key)
+        if expected_return_value is None:
+            failure_payload = dict(base_payload)
+            failure_payload["violations"] = [
+                {
+                    "type": "missing_expected_return_value",
+                }
+            ]
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="missing_expected_return",
+                payload=failure_payload,
+            )
+
+        if expected_return_value <= _EPSILON:
+            failure_payload = dict(base_payload)
+            failure_payload["violations"] = [
+                {
+                    "type": "non_positive_expected_return",
+                    "value": expected_return_value,
+                }
+            ]
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="non_positive_expected_return",
+                payload=failure_payload,
+            )
+
         alternatives = [candidate for candidate in candidates if candidate is not selected_candidate]
         base_payload["alternatives_checked"] = len(alternatives)
 

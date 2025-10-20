@@ -1,0 +1,841 @@
+features:
+- name: FIX + Multivenue Depth
+  slug: fix-multivenue-depth
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling FIX + Multivenue Depth does not change
+      the median effective spread across multi-venue depth replays during a 30-day
+      cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling FIX + Multivenue Depth
+      reduces the median effective spread by at least 2 basis points during a 30-day
+      cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[fix-multivenue-depth]
+- name: Hidden Flow Detection
+  slug: hidden-flow-detection
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Hidden Flow Detection does not change
+      the median effective spread across multi-venue depth replays during a 30-day
+      cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Hidden Flow Detection
+      reduces the median effective spread by at least 2 basis points during a 30-day
+      cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[hidden-flow-detection]
+- name: Cross-Market Correlation Sensor
+  slug: cross-market-correlation-sensor
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Cross-Market Correlation Sensor does
+      not change the median effective spread across multi-venue depth replays during
+      a 30-day cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Cross-Market Correlation
+      Sensor reduces the median effective spread by at least 2 basis points during
+      a 30-day cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[cross-market-correlation-sensor]
+- name: Macro + Fundamental Ingest
+  slug: macro-fundamental-ingest
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Macro + Fundamental Ingest does not
+      change the median effective spread across multi-venue depth replays during a
+      30-day cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Macro + Fundamental
+      Ingest reduces the median effective spread by at least 2 basis points during
+      a 30-day cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[macro-fundamental-ingest]
+- name: Options Surface Monitor
+  slug: options-surface-monitor
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Options Surface Monitor does not change
+      the median effective spread across multi-venue depth replays during a 30-day
+      cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Options Surface Monitor
+      reduces the median effective spread by at least 2 basis points during a 30-day
+      cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[options-surface-monitor]
+- name: Sentiment & Behavior Feed
+  slug: sentiment-behavior-feed
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Sentiment & Behavior Feed does not
+      change the median effective spread across multi-venue depth replays during a
+      30-day cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Sentiment & Behavior
+      Feed reduces the median effective spread by at least 2 basis points during a
+      30-day cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[sentiment-behavior-feed]
+- name: Volatility Topology Mapping
+  slug: volatility-topology-mapping
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Volatility Topology Mapping does not
+      change the median effective spread across multi-venue depth replays during a
+      30-day cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Volatility Topology
+      Mapping reduces the median effective spread by at least 2 basis points during
+      a 30-day cross-venue replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[volatility-topology-mapping]
+- name: Adaptive Sampling
+  slug: adaptive-sampling
+  section: I. Perception - Seeing All
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Adaptive Sampling does not change
+      the median effective spread across multi-venue depth replays during a 30-day
+      cross-venue replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Adaptive Sampling reduces
+      the median effective spread by at least 2 basis points during a 30-day cross-venue
+      replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: median effective spread across multi-venue
+      depth replays observed over a 30-day cross-venue replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[adaptive-sampling]
+- name: Causal Graph Engine
+  slug: causal-graph-engine
+  section: II. Cognition - Knowing What Is True
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Causal Graph Engine does not change
+      the expected risk-adjusted return per decision in the counterfactual harness
+      during 10k simulated market episodes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Causal Graph Engine
+      improves expected risk-adjusted return by at least 5% during 10k simulated market
+      episodes relative to the control baseline.'
+    validation_metric: 'Validation metric: expected risk-adjusted return per decision
+      in the counterfactual harness observed over 10k simulated market episodes using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[causal-graph-engine]
+- name: Counterfactual Simulator
+  slug: counterfactual-simulator
+  section: II. Cognition - Knowing What Is True
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Counterfactual Simulator does not
+      change the expected risk-adjusted return per decision in the counterfactual
+      harness during 10k simulated market episodes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Counterfactual Simulator
+      improves expected risk-adjusted return by at least 5% during 10k simulated market
+      episodes relative to the control baseline.'
+    validation_metric: 'Validation metric: expected risk-adjusted return per decision
+      in the counterfactual harness observed over 10k simulated market episodes using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[counterfactual-simulator]
+- name: Mechanism Verification Tests
+  slug: mechanism-verification-tests
+  section: II. Cognition - Knowing What Is True
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Mechanism Verification Tests does
+      not change the expected risk-adjusted return per decision in the counterfactual
+      harness during 10k simulated market episodes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Mechanism Verification
+      Tests improves expected risk-adjusted return by at least 5% during 10k simulated
+      market episodes relative to the control baseline.'
+    validation_metric: 'Validation metric: expected risk-adjusted return per decision
+      in the counterfactual harness observed over 10k simulated market episodes using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[mechanism-verification-tests]
+- name: Uncertainty-Aware Inference
+  slug: uncertainty-aware-inference
+  section: II. Cognition - Knowing What Is True
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Uncertainty-Aware Inference does not
+      change the expected risk-adjusted return per decision in the counterfactual
+      harness during 10k simulated market episodes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Uncertainty-Aware Inference
+      improves expected risk-adjusted return by at least 5% during 10k simulated market
+      episodes relative to the control baseline.'
+    validation_metric: 'Validation metric: expected risk-adjusted return per decision
+      in the counterfactual harness observed over 10k simulated market episodes using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[uncertainty-aware-inference]
+- name: Out-of-Distribution Sentry
+  slug: out-of-distribution-sentry
+  section: II. Cognition - Knowing What Is True
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Out-of-Distribution Sentry does not
+      change the expected risk-adjusted return per decision in the counterfactual
+      harness during 10k simulated market episodes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Out-of-Distribution
+      Sentry improves expected risk-adjusted return by at least 5% during 10k simulated
+      market episodes relative to the control baseline.'
+    validation_metric: 'Validation metric: expected risk-adjusted return per decision
+      in the counterfactual harness observed over 10k simulated market episodes using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[out-of-distribution-sentry]
+- name: Self-Impact Model
+  slug: self-impact-model
+  section: III. Reflexivity - Knowing Its Own Shadow
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Self-Impact Model does not change
+      the self-induced slippage observed during execution replays during a 14-day
+      live-shadow replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Self-Impact Model reduces
+      self-induced slippage by at least 1.5 basis points during a 14-day live-shadow
+      replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: self-induced slippage observed during execution
+      replays observed over a 14-day live-shadow replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[self-impact-model]
+- name: Adversary Simulation
+  slug: adversary-simulation
+  section: III. Reflexivity - Knowing Its Own Shadow
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Adversary Simulation does not change
+      the self-induced slippage observed during execution replays during a 14-day
+      live-shadow replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Adversary Simulation
+      reduces self-induced slippage by at least 1.5 basis points during a 14-day live-shadow
+      replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: self-induced slippage observed during execution
+      replays observed over a 14-day live-shadow replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[adversary-simulation]
+- name: Entropy Governor
+  slug: entropy-governor
+  section: III. Reflexivity - Knowing Its Own Shadow
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Entropy Governor does not change the
+      self-induced slippage observed during execution replays during a 14-day live-shadow
+      replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Entropy Governor reduces
+      self-induced slippage by at least 1.5 basis points during a 14-day live-shadow
+      replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: self-induced slippage observed during execution
+      replays observed over a 14-day live-shadow replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[entropy-governor]
+- name: Infrastructure Awareness
+  slug: infrastructure-awareness
+  section: III. Reflexivity - Knowing Its Own Shadow
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Infrastructure Awareness does not
+      change the self-induced slippage observed during execution replays during a
+      14-day live-shadow replay cohort compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Infrastructure Awareness
+      reduces self-induced slippage by at least 1.5 basis points during a 14-day live-shadow
+      replay cohort relative to the control baseline.'
+    validation_metric: 'Validation metric: self-induced slippage observed during execution
+      replays observed over a 14-day live-shadow replay cohort using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[infrastructure-awareness]
+- name: Belief Packets
+  slug: belief-packets
+  section: IV. Belief & Memory - Never Forgetting, Always Contextualizing
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Belief Packets does not change the
+      decision recall accuracy when replaying labelled market events during a labelled
+      library of 200 historical events compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Belief Packets improves
+      recall accuracy by at least 10 percentage points during a labelled library of
+      200 historical events relative to the control baseline.'
+    validation_metric: 'Validation metric: decision recall accuracy when replaying
+      labelled market events observed over a labelled library of 200 historical events
+      using the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[belief-packets]
+- name: Memory Index
+  slug: memory-index
+  section: IV. Belief & Memory - Never Forgetting, Always Contextualizing
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Memory Index does not change the decision
+      recall accuracy when replaying labelled market events during a labelled library
+      of 200 historical events compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Memory Index improves
+      recall accuracy by at least 10 percentage points during a labelled library of
+      200 historical events relative to the control baseline.'
+    validation_metric: 'Validation metric: decision recall accuracy when replaying
+      labelled market events observed over a labelled library of 200 historical events
+      using the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[memory-index]
+- name: Context Recall
+  slug: context-recall
+  section: IV. Belief & Memory - Never Forgetting, Always Contextualizing
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Context Recall does not change the
+      decision recall accuracy when replaying labelled market events during a labelled
+      library of 200 historical events compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Context Recall improves
+      recall accuracy by at least 10 percentage points during a labelled library of
+      200 historical events relative to the control baseline.'
+    validation_metric: 'Validation metric: decision recall accuracy when replaying
+      labelled market events observed over a labelled library of 200 historical events
+      using the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[context-recall]
+- name: Memory Gating
+  slug: memory-gating
+  section: IV. Belief & Memory - Never Forgetting, Always Contextualizing
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Memory Gating does not change the
+      decision recall accuracy when replaying labelled market events during a labelled
+      library of 200 historical events compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Memory Gating improves
+      recall accuracy by at least 10 percentage points during a labelled library of
+      200 historical events relative to the control baseline.'
+    validation_metric: 'Validation metric: decision recall accuracy when replaying
+      labelled market events observed over a labelled library of 200 historical events
+      using the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[memory-gating]
+- name: Decay Protocol
+  slug: decay-protocol
+  section: IV. Belief & Memory - Never Forgetting, Always Contextualizing
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Decay Protocol does not change the
+      decision recall accuracy when replaying labelled market events during a labelled
+      library of 200 historical events compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Decay Protocol improves
+      recall accuracy by at least 10 percentage points during a labelled library of
+      200 historical events relative to the control baseline.'
+    validation_metric: 'Validation metric: decision recall accuracy when replaying
+      labelled market events observed over a labelled library of 200 historical events
+      using the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[decay-protocol]
+- name: MuZero-Lite Tree
+  slug: muzero-lite-tree
+  section: V. Planner & Foresight - Acting Only When the Future Aligns
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling MuZero-Lite Tree does not change the
+      planner win rate versus baseline policies in Monte Carlo rollouts during 5k
+      Monte Carlo rollout comparisons compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling MuZero-Lite Tree increases
+      planner win rate by at least 5 percentage points during 5k Monte Carlo rollout
+      comparisons relative to the control baseline.'
+    validation_metric: 'Validation metric: planner win rate versus baseline policies
+      in Monte Carlo rollouts observed over 5k Monte Carlo rollout comparisons using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[muzero-lite-tree]
+- name: Veto Logic
+  slug: veto-logic
+  section: V. Planner & Foresight - Acting Only When the Future Aligns
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Veto Logic does not change the planner
+      win rate versus baseline policies in Monte Carlo rollouts during 5k Monte Carlo
+      rollout comparisons compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Veto Logic increases
+      planner win rate by at least 5 percentage points during 5k Monte Carlo rollout
+      comparisons relative to the control baseline.'
+    validation_metric: 'Validation metric: planner win rate versus baseline policies
+      in Monte Carlo rollouts observed over 5k Monte Carlo rollout comparisons using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[veto-logic]
+- name: Latency-Aware Planning
+  slug: latency-aware-planning
+  section: V. Planner & Foresight - Acting Only When the Future Aligns
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Latency-Aware Planning does not change
+      the planner win rate versus baseline policies in Monte Carlo rollouts during
+      5k Monte Carlo rollout comparisons compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Latency-Aware Planning
+      increases planner win rate by at least 5 percentage points during 5k Monte Carlo
+      rollout comparisons relative to the control baseline.'
+    validation_metric: 'Validation metric: planner win rate versus baseline policies
+      in Monte Carlo rollouts observed over 5k Monte Carlo rollout comparisons using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[latency-aware-planning]
+- name: Adversarial Simulation
+  slug: adversarial-simulation
+  section: V. Planner & Foresight - Acting Only When the Future Aligns
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Adversarial Simulation does not change
+      the planner win rate versus baseline policies in Monte Carlo rollouts during
+      5k Monte Carlo rollout comparisons compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Adversarial Simulation
+      increases planner win rate by at least 5 percentage points during 5k Monte Carlo
+      rollout comparisons relative to the control baseline.'
+    validation_metric: 'Validation metric: planner win rate versus baseline policies
+      in Monte Carlo rollouts observed over 5k Monte Carlo rollout comparisons using
+      the mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[adversarial-simulation]
+- name: League Evolution Engine
+  slug: league-evolution-engine
+  section: VI. Evolution - Learning Through Battle
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling League Evolution Engine does not change
+      the evolutionary fitness improvement over champion baseline during three full
+      league evolution cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling League Evolution Engine
+      improves fitness scores by at least 7% during three full league evolution cycles
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: evolutionary fitness improvement over champion
+      baseline observed over three full league evolution cycles using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[league-evolution-engine]
+- name: Mutation Ledger
+  slug: mutation-ledger
+  section: VI. Evolution - Learning Through Battle
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Mutation Ledger does not change the
+      evolutionary fitness improvement over champion baseline during three full league
+      evolution cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Mutation Ledger improves
+      fitness scores by at least 7% during three full league evolution cycles relative
+      to the control baseline.'
+    validation_metric: 'Validation metric: evolutionary fitness improvement over champion
+      baseline observed over three full league evolution cycles using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[mutation-ledger]
+- name: Surrogate Simulation
+  slug: surrogate-simulation
+  section: VI. Evolution - Learning Through Battle
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Surrogate Simulation does not change
+      the evolutionary fitness improvement over champion baseline during three full
+      league evolution cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Surrogate Simulation
+      improves fitness scores by at least 7% during three full league evolution cycles
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: evolutionary fitness improvement over champion
+      baseline observed over three full league evolution cycles using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[surrogate-simulation]
+- name: Curriculum Scheduler
+  slug: curriculum-scheduler
+  section: VI. Evolution - Learning Through Battle
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Curriculum Scheduler does not change
+      the evolutionary fitness improvement over champion baseline during three full
+      league evolution cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Curriculum Scheduler
+      improves fitness scores by at least 7% during three full league evolution cycles
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: evolutionary fitness improvement over champion
+      baseline observed over three full league evolution cycles using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[curriculum-scheduler]
+- name: Auto-Demotion
+  slug: auto-demotion
+  section: VI. Evolution - Learning Through Battle
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Auto-Demotion does not change the
+      evolutionary fitness improvement over champion baseline during three full league
+      evolution cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Auto-Demotion improves
+      fitness scores by at least 7% during three full league evolution cycles relative
+      to the control baseline.'
+    validation_metric: 'Validation metric: evolutionary fitness improvement over champion
+      baseline observed over three full league evolution cycles using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[auto-demotion]
+- name: Belief Competence Matrix
+  slug: belief-competence-matrix
+  section: VII. Metacognition - Awareness of Its Own Limits
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Belief Competence Matrix does not
+      change the calibration error across belief confidence buckets during a 21-day
+      live-shadow telemetry window compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Belief Competence Matrix
+      reduces calibration error by at least 5 percentage points during a 21-day live-shadow
+      telemetry window relative to the control baseline.'
+    validation_metric: 'Validation metric: calibration error across belief confidence
+      buckets observed over a 21-day live-shadow telemetry window using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[belief-competence-matrix]
+- name: Persistent Red-Team Agents
+  slug: persistent-red-team-agents
+  section: VII. Metacognition - Awareness of Its Own Limits
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Persistent Red-Team Agents does not
+      change the calibration error across belief confidence buckets during a 21-day
+      live-shadow telemetry window compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Persistent Red-Team
+      Agents reduces calibration error by at least 5 percentage points during a 21-day
+      live-shadow telemetry window relative to the control baseline.'
+    validation_metric: 'Validation metric: calibration error across belief confidence
+      buckets observed over a 21-day live-shadow telemetry window using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[persistent-red-team-agents]
+- name: Self-Audit Reports
+  slug: self-audit-reports
+  section: VII. Metacognition - Awareness of Its Own Limits
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Self-Audit Reports does not change
+      the calibration error across belief confidence buckets during a 21-day live-shadow
+      telemetry window compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Self-Audit Reports reduces
+      calibration error by at least 5 percentage points during a 21-day live-shadow
+      telemetry window relative to the control baseline.'
+    validation_metric: 'Validation metric: calibration error across belief confidence
+      buckets observed over a 21-day live-shadow telemetry window using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[self-audit-reports]
+- name: Auto-RFC Generator
+  slug: auto-rfc-generator
+  section: VII. Metacognition - Awareness of Its Own Limits
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Auto-RFC Generator does not change
+      the calibration error across belief confidence buckets during a 21-day live-shadow
+      telemetry window compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Auto-RFC Generator reduces
+      calibration error by at least 5 percentage points during a 21-day live-shadow
+      telemetry window relative to the control baseline.'
+    validation_metric: 'Validation metric: calibration error across belief confidence
+      buckets observed over a 21-day live-shadow telemetry window using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[auto-rfc-generator]
+- name: Dominance Gate
+  slug: dominance-gate
+  section: VIII. Risk Doctrine - No Avoidably Bad Trades
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Dominance Gate does not change the
+      99% expected shortfall relative to baseline risk posture during a 60-day replay
+      of stressed regimes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Dominance Gate reduces
+      expected shortfall by at least 2% during a 60-day replay of stressed regimes
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: 99% expected shortfall relative to baseline
+      risk posture observed over a 60-day replay of stressed regimes using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[dominance-gate]
+- name: Pre-Trade Loss Bound
+  slug: pre-trade-loss-bound
+  section: VIII. Risk Doctrine - No Avoidably Bad Trades
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Pre-Trade Loss Bound does not change
+      the 99% expected shortfall relative to baseline risk posture during a 60-day
+      replay of stressed regimes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Pre-Trade Loss Bound
+      reduces expected shortfall by at least 2% during a 60-day replay of stressed
+      regimes relative to the control baseline.'
+    validation_metric: 'Validation metric: 99% expected shortfall relative to baseline
+      risk posture observed over a 60-day replay of stressed regimes using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[pre-trade-loss-bound]
+- name: Structural Exits
+  slug: structural-exits
+  section: VIII. Risk Doctrine - No Avoidably Bad Trades
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Structural Exits does not change the
+      99% expected shortfall relative to baseline risk posture during a 60-day replay
+      of stressed regimes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Structural Exits reduces
+      expected shortfall by at least 2% during a 60-day replay of stressed regimes
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: 99% expected shortfall relative to baseline
+      risk posture observed over a 60-day replay of stressed regimes using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[structural-exits]
+- name: Portfolio-Level Antifragility
+  slug: portfolio-level-antifragility
+  section: VIII. Risk Doctrine - No Avoidably Bad Trades
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Portfolio-Level Antifragility does
+      not change the 99% expected shortfall relative to baseline risk posture during
+      a 60-day replay of stressed regimes compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Portfolio-Level Antifragility
+      reduces expected shortfall by at least 2% during a 60-day replay of stressed
+      regimes relative to the control baseline.'
+    validation_metric: 'Validation metric: 99% expected shortfall relative to baseline
+      risk posture observed over a 60-day replay of stressed regimes using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[portfolio-level-antifragility]
+- name: Time Integrity Daemon
+  slug: time-integrity-daemon
+  section: IX. Security, Provenance & Compliance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Time Integrity Daemon does not change
+      the compliance incident rate detected by regulatory telemetry during a 45-day
+      compliance replay battery compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Time Integrity Daemon
+      drives compliance incidents to zero across monitored scenarios during a 45-day
+      compliance replay battery relative to the control baseline.'
+    validation_metric: 'Validation metric: compliance incident rate detected by regulatory
+      telemetry observed over a 45-day compliance replay battery using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[time-integrity-daemon]
+- name: Data Lineage Hashing
+  slug: data-lineage-hashing
+  section: IX. Security, Provenance & Compliance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Data Lineage Hashing does not change
+      the compliance incident rate detected by regulatory telemetry during a 45-day
+      compliance replay battery compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Data Lineage Hashing
+      drives compliance incidents to zero across monitored scenarios during a 45-day
+      compliance replay battery relative to the control baseline.'
+    validation_metric: 'Validation metric: compliance incident rate detected by regulatory
+      telemetry observed over a 45-day compliance replay battery using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[data-lineage-hashing]
+- name: Adversarial Feed Quarantine
+  slug: adversarial-feed-quarantine
+  section: IX. Security, Provenance & Compliance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Adversarial Feed Quarantine does not
+      change the compliance incident rate detected by regulatory telemetry during
+      a 45-day compliance replay battery compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Adversarial Feed Quarantine
+      drives compliance incidents to zero across monitored scenarios during a 45-day
+      compliance replay battery relative to the control baseline.'
+    validation_metric: 'Validation metric: compliance incident rate detected by regulatory
+      telemetry observed over a 45-day compliance replay battery using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[adversarial-feed-quarantine]
+- name: Manipulation Sentinel
+  slug: manipulation-sentinel
+  section: IX. Security, Provenance & Compliance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Manipulation Sentinel does not change
+      the compliance incident rate detected by regulatory telemetry during a 45-day
+      compliance replay battery compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Manipulation Sentinel
+      drives compliance incidents to zero across monitored scenarios during a 45-day
+      compliance replay battery relative to the control baseline.'
+    validation_metric: 'Validation metric: compliance incident rate detected by regulatory
+      telemetry observed over a 45-day compliance replay battery using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[manipulation-sentinel]
+- name: Compliance-Constrained Planner
+  slug: compliance-constrained-planner
+  section: IX. Security, Provenance & Compliance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Compliance-Constrained Planner does
+      not change the compliance incident rate detected by regulatory telemetry during
+      a 45-day compliance replay battery compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Compliance-Constrained
+      Planner drives compliance incidents to zero across monitored scenarios during
+      a 45-day compliance replay battery relative to the control baseline.'
+    validation_metric: 'Validation metric: compliance incident rate detected by regulatory
+      telemetry observed over a 45-day compliance replay battery using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[compliance-constrained-planner]
+- name: Plain-Language Rationale Export
+  slug: plain-language-rationale-export
+  section: IX. Security, Provenance & Compliance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Plain-Language Rationale Export does
+      not change the compliance incident rate detected by regulatory telemetry during
+      a 45-day compliance replay battery compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Plain-Language Rationale
+      Export drives compliance incidents to zero across monitored scenarios during
+      a 45-day compliance replay battery relative to the control baseline.'
+    validation_metric: 'Validation metric: compliance incident rate detected by regulatory
+      telemetry observed over a 45-day compliance replay battery using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[plain-language-rationale-export]
+- name: Cognitive Scheduler
+  slug: cognitive-scheduler
+  section: X. Cognitive Resource Management
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Cognitive Scheduler does not change
+      the compute budget consumed per validated trade signal during a 14-day live
+      compute budget export compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Cognitive Scheduler
+      reduces compute budget by at least 5% without degrading ROI during a 14-day
+      live compute budget export relative to the control baseline.'
+    validation_metric: 'Validation metric: compute budget consumed per validated trade
+      signal observed over a 14-day live compute budget export using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[cognitive-scheduler]
+- name: Signal ROI Monitor
+  slug: signal-roi-monitor
+  section: X. Cognitive Resource Management
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Signal ROI Monitor does not change
+      the compute budget consumed per validated trade signal during a 14-day live
+      compute budget export compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Signal ROI Monitor reduces
+      compute budget by at least 5% without degrading ROI during a 14-day live compute
+      budget export relative to the control baseline.'
+    validation_metric: 'Validation metric: compute budget consumed per validated trade
+      signal observed over a 14-day live compute budget export using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[signal-roi-monitor]
+- name: Graceful Degradation
+  slug: graceful-degradation
+  section: X. Cognitive Resource Management
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Graceful Degradation does not change
+      the compute budget consumed per validated trade signal during a 14-day live
+      compute budget export compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Graceful Degradation
+      reduces compute budget by at least 5% without degrading ROI during a 14-day
+      live compute budget export relative to the control baseline.'
+    validation_metric: 'Validation metric: compute budget consumed per validated trade
+      signal observed over a 14-day live compute budget export using the mechanism
+      verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[graceful-degradation]
+- name: Automated Promotion/Reversion
+  slug: automated-promotion-reversion
+  section: XI. CI/CD & Governance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Automated Promotion/Reversion does
+      not change the regression escape rate measured in promotion pipelines during
+      three full promotion cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Automated Promotion/Reversion
+      reduces regression escapes by at least 50% during three full promotion cycles
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: regression escape rate measured in promotion
+      pipelines observed over three full promotion cycles using the mechanism verification
+      harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[automated-promotion-reversion]
+- name: Gate Dashboard
+  slug: gate-dashboard
+  section: XI. CI/CD & Governance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Gate Dashboard does not change the
+      regression escape rate measured in promotion pipelines during three full promotion
+      cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Gate Dashboard reduces
+      regression escapes by at least 50% during three full promotion cycles relative
+      to the control baseline.'
+    validation_metric: 'Validation metric: regression escape rate measured in promotion
+      pipelines observed over three full promotion cycles using the mechanism verification
+      harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[gate-dashboard]
+- name: Immutable Audit Trail
+  slug: immutable-audit-trail
+  section: XI. CI/CD & Governance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Immutable Audit Trail does not change
+      the regression escape rate measured in promotion pipelines during three full
+      promotion cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Immutable Audit Trail
+      reduces regression escapes by at least 50% during three full promotion cycles
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: regression escape rate measured in promotion
+      pipelines observed over three full promotion cycles using the mechanism verification
+      harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[immutable-audit-trail]
+- name: Performance Covenant
+  slug: performance-covenant
+  section: XI. CI/CD & Governance
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Performance Covenant does not change
+      the regression escape rate measured in promotion pipelines during three full
+      promotion cycles compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Performance Covenant
+      reduces regression escapes by at least 50% during three full promotion cycles
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: regression escape rate measured in promotion
+      pipelines observed over three full promotion cycles using the mechanism verification
+      harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[performance-covenant]
+- name: Helm Failover with Replay Smoke Test
+  slug: helm-failover-with-replay-smoke-test
+  section: XII. Deployment & Operations
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Helm Failover with Replay Smoke Test
+      does not change the recovery time objective during supervised failover drills
+      during two complete failover rehearsal suites compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Helm Failover with Replay
+      Smoke Test reduces recovery time by at least 30% during two complete failover
+      rehearsal suites relative to the control baseline.'
+    validation_metric: 'Validation metric: recovery time objective during supervised
+      failover drills observed over two complete failover rehearsal suites using the
+      mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[helm-failover-with-replay-smoke-test]
+- name: Docker Reproducibility
+  slug: docker-reproducibility
+  section: XII. Deployment & Operations
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Docker Reproducibility does not change
+      the recovery time objective during supervised failover drills during two complete
+      failover rehearsal suites compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Docker Reproducibility
+      reduces recovery time by at least 30% during two complete failover rehearsal
+      suites relative to the control baseline.'
+    validation_metric: 'Validation metric: recovery time objective during supervised
+      failover drills observed over two complete failover rehearsal suites using the
+      mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[docker-reproducibility]
+- name: Terraform Infra Resilience
+  slug: terraform-infra-resilience
+  section: XII. Deployment & Operations
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Terraform Infra Resilience does not
+      change the recovery time objective during supervised failover drills during
+      two complete failover rehearsal suites compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Terraform Infra Resilience
+      reduces recovery time by at least 30% during two complete failover rehearsal
+      suites relative to the control baseline.'
+    validation_metric: 'Validation metric: recovery time objective during supervised
+      failover drills observed over two complete failover rehearsal suites using the
+      mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[terraform-infra-resilience]
+- name: Live Config Diff
+  slug: live-config-diff
+  section: XII. Deployment & Operations
+  economic_hypothesis:
+    null_hypothesis: 'Null hypothesis: Enabling Live Config Diff does not change the
+      recovery time objective during supervised failover drills during two complete
+      failover rehearsal suites compared to the control baseline.'
+    alternative_hypothesis: 'Alternative hypothesis: Enabling Live Config Diff reduces
+      recovery time by at least 30% during two complete failover rehearsal suites
+      relative to the control baseline.'
+    validation_metric: 'Validation metric: recovery time objective during supervised
+      failover drills observed over two complete failover rehearsal suites using the
+      mechanism verification harness.'
+  ci_tests:
+  - tests/tools/test_mechanism_verification.py::test_feature_hypothesis[live-config-diff]

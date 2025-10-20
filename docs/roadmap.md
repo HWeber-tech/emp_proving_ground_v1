@@ -19,7 +19,7 @@
 - [x] Enforce TLS on all API/web services  
 - [x] Support HTTPS for development (e.g. self-signed certificates)  
 - [ ] Add warnings if production runs without TLS  
-- [ ] Store DuckDB files on encrypted volume or encrypt sensitive fields  
+- [x] Store DuckDB files on encrypted volume or encrypt sensitive fields  
 - [x] Ensure logs/configs do not store plaintext secrets  
 - [ ] Document encryption setup and deployment practices  
 
@@ -49,7 +49,7 @@
 ## 5. Secrets Rotation & Credential Expiry
 
 - [ ] Build a script to check age of API keys and secrets  
-- [ ] Log or alert if secrets exceed defined age thresholds  
+- [x] Log or alert if secrets exceed defined age thresholds  
 - [ ] (Optional) Integrate with a secrets manager (e.g. AWS Secrets Manager, Vault)  
 - [x] Set expiration time on user tokens (e.g. JWT expiry)  
 - [ ] Document secret rotation practices and automation goals  
@@ -61,7 +61,7 @@
 - [x] Log all auth events, RBAC rejections, and validation failures  
 - [x] Track key metrics (e.g. failed logins, rejected records per hour)  
 - [x] Expose metrics endpoint or write logs compatible with monitoring stack  
-- [ ] Add config options for log level, output format (e.g. JSON), and destination  
+- [x] Add config options for log level, output format (e.g. JSON), and destination  
 - [x] Ensure sensitive data is excluded or masked in logs  
 - [x] Document observability practices and alerting roadmap  
 

@@ -52,14 +52,20 @@ def test_analyse_feed_flags_false_tick_reversion() -> None:
     start = datetime(2024, 1, 1, tzinfo=UTC)
     ticks = _ticks(start, 5)
     # Insert false spike that reverts on the next tick.
-    ticks.insert(3, Tick(timestamp=start + timedelta(minutes=3, seconds=30), price=200.0, volume=0.0))
+    ticks.insert(4, Tick(timestamp=start + timedelta(minutes=3, seconds=30), price=200.0, volume=0.0))
     config = FeedAnomalyConfig(price_jump_pct=20.0, min_samples_for_ok=3)
 
     report = analyse_feed("EURUSD", ticks, config=config, now=start + timedelta(minutes=5))
 
     assert report.false_ticks
     assert report.status is FeedHealthStatus.warn
-    assert any("suspect ticks" in issue for issue in report.issues)
+    assert any("Quarantined" in issue for issue in report.issues)
+    assert report.sample_count == 5
+    assert report.metadata["raw_sample_count"] == 6
+    assert report.metadata["retained_tick_count"] == 5
+    assert report.metadata["quarantined_tick_count"] == 1
+    assert report.metadata["quarantined_tick_indices"] == [4]
+    assert report.false_ticks[0].sample_index == 4
 
 
 def test_analyse_feed_marks_stale_as_failure() -> None:
@@ -84,7 +90,7 @@ def test_analyse_feed_drops_out_of_order_ticks() -> None:
         Tick(timestamp=start + timedelta(seconds=60), price=101.5, seqno=0),
     ]
 
-    report = analyse_feed("EURUSD", ticks, now=start + timedelta(minutes=5))
+    report = analyse_feed("EURUSD", ticks, now=start + timedelta(minutes=2))
 
     assert report.sample_count == 3
     assert len(report.dropped_ticks) == 2

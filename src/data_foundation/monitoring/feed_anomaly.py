@@ -62,13 +62,14 @@ class FeedGap:
 
 @dataclass(frozen=True, slots=True)
 class FalseTick:
-    """Represents a potential erroneous tick."""
+    """Represents a potential erroneous tick quarantined for review."""
 
     timestamp: datetime
     price: float
     previous_price: float
     deviation_pct: float
     volume: float | None
+    sample_index: int
 
     def as_dict(self) -> Mapping[str, object]:
         return {
@@ -77,6 +78,7 @@ class FalseTick:
             "previous_price": self.previous_price,
             "deviation_pct": self.deviation_pct,
             "volume": self.volume,
+            "sample_index": self.sample_index,
         }
 
 
@@ -204,7 +206,7 @@ class FeedAnomalyReport:
                     )
                 )
         if self.false_ticks:
-            lines.append("\n**Suspect ticks:**")
+            lines.append("\n**Quarantined ticks:**")
             for tick in self.false_ticks:
                 lines.append(
                     "- {timestamp} price {price:.4f} dev {dev:.2f}% (prev {prev:.4f})".format(
@@ -242,9 +244,7 @@ def _normalise_ticks(
     last_ts: datetime | None = None
     last_seqno: int | None = None
 
-    for tick in sorted(
-        selected, key=lambda item: (item.timestamp, item.seqno if item.seqno is not None else -1)
-    ):
+    for tick in selected:
         if last_ts is not None and tick.timestamp < last_ts:
             dropped.append(
                 DroppedTick(
@@ -276,7 +276,12 @@ def _normalise_ticks(
         last_ts = tick.timestamp
         last_seqno = tick.seqno if tick.seqno is not None else last_seqno
 
-    return ordered, dropped
+    ordered_sorted = sorted(
+        ordered,
+        key=lambda item: (item.timestamp, item.seqno if item.seqno is not None else -1),
+    )
+
+    return ordered_sorted, dropped
 
 
 def _estimate_median_interval(ticks: Sequence[Tick]) -> float | None:
@@ -352,9 +357,32 @@ def _detect_false_ticks(
                     previous_price=previous.price,
                     deviation_pct=round(deviation_pct, 4),
                     volume=current.volume,
+                    sample_index=index,
                 )
             )
     return suspects
+
+
+def _quarantine_false_ticks(
+    ticks: Sequence[Tick],
+    suspects: Sequence[FalseTick],
+) -> tuple[list[Tick], list[Tick]]:
+    if not suspects:
+        return list(ticks), []
+
+    suspect_indices = {
+        tick.sample_index
+        for tick in suspects
+        if 0 <= tick.sample_index < len(ticks)
+    }
+    retained: list[Tick] = []
+    quarantined: list[Tick] = []
+    for index, tick in enumerate(ticks):
+        if index in suspect_indices:
+            quarantined.append(tick)
+            continue
+        retained.append(tick)
+    return retained, quarantined
 
 
 def analyse_feed(
@@ -387,18 +415,25 @@ def analyse_feed(
             issues=tuple(issues),
         )
 
-    median_interval = _estimate_median_interval(sample_ticks)
-    lookback_seconds = (
-        sample_ticks[-1].timestamp - sample_ticks[0].timestamp
-    ).total_seconds() if len(sample_ticks) > 1 else None
-
-    gaps, largest_gap = _detect_gaps(
-        sample_ticks,
-        config=resolved_config,
-        median_interval=median_interval,
-    )
-
+    raw_sample_count = len(sample_ticks)
     false_ticks = _detect_false_ticks(sample_ticks, config=resolved_config)
+    retained_ticks, _ = _quarantine_false_ticks(sample_ticks, false_ticks)
+
+    analysis_ticks = retained_ticks
+    median_interval = _estimate_median_interval(analysis_ticks) if analysis_ticks else None
+    lookback_seconds = (
+        analysis_ticks[-1].timestamp - analysis_ticks[0].timestamp
+    ).total_seconds() if len(analysis_ticks) > 1 else None
+
+    if analysis_ticks:
+        gaps, largest_gap = _detect_gaps(
+            analysis_ticks,
+            config=resolved_config,
+            median_interval=median_interval,
+        )
+    else:
+        gaps = []
+        largest_gap = None
 
     def _escalate(candidate: FeedHealthStatus) -> None:
         nonlocal status
@@ -409,9 +444,9 @@ def analyse_feed(
         elif status is FeedHealthStatus.ok and candidate is FeedHealthStatus.warn:
             status = FeedHealthStatus.warn
 
-    if len(sample_ticks) < resolved_config.min_samples_for_ok:
+    if len(analysis_ticks) < resolved_config.min_samples_for_ok:
         issues.append(
-            f"Only {len(sample_ticks)} ticks available (< {resolved_config.min_samples_for_ok})"
+            f"Only {len(analysis_ticks)} ticks available (< {resolved_config.min_samples_for_ok})"
         )
         _escalate(FeedHealthStatus.warn)
 
@@ -426,7 +461,7 @@ def analyse_feed(
             _escalate(FeedHealthStatus.warn)
 
     if false_ticks:
-        issues.append(f"Detected {len(false_ticks)} suspect ticks")
+        issues.append(f"Quarantined {len(false_ticks)} suspect ticks")
         if len(false_ticks) > resolved_config.false_tick_limit:
             _escalate(FeedHealthStatus.fail)
         else:
@@ -436,9 +471,12 @@ def analyse_feed(
         issues.append(f"Dropped {len(dropped_ticks)} out-of-order ticks")
         _escalate(FeedHealthStatus.warn)
 
-    last_tick = sample_ticks[-1]
+    last_tick = analysis_ticks[-1] if analysis_ticks else sample_ticks[-1]
     stale_delta = (generated_at - last_tick.timestamp).total_seconds()
-    stale = stale_delta > resolved_config.stale_grace_seconds
+    stale = (not analysis_ticks) or stale_delta > resolved_config.stale_grace_seconds
+    if not analysis_ticks:
+        issues.append("All recent ticks quarantined pending verification")
+        _escalate(FeedHealthStatus.fail)
     if stale:
         issues.append(
             f"Feed stale by {stale_delta:.1f}s (grace {resolved_config.stale_grace_seconds:.1f}s)"
@@ -449,6 +487,11 @@ def analyse_feed(
     if median_interval is not None:
         metadata["median_interval_seconds"] = median_interval
     metadata["stale_delta_seconds"] = stale_delta
+    metadata["raw_sample_count"] = raw_sample_count
+    metadata["retained_tick_count"] = len(analysis_ticks)
+    if false_ticks:
+        metadata["quarantined_tick_count"] = len(false_ticks)
+        metadata["quarantined_tick_indices"] = [tick.sample_index for tick in false_ticks]
     if dropped_ticks:
         metadata["dropped_tick_count"] = len(dropped_ticks)
         metadata["dropped_reason_codes"] = [tick.reason_code for tick in dropped_ticks]
@@ -457,7 +500,7 @@ def analyse_feed(
         symbol=symbol,
         generated_at=generated_at,
         status=status,
-        sample_count=len(sample_ticks),
+        sample_count=len(analysis_ticks),
         lookback_seconds=lookback_seconds,
         median_interval_seconds=median_interval,
         max_gap_seconds=largest_gap,

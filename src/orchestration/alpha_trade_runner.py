@@ -300,6 +300,8 @@ class AlphaTradeLoopRunner:
 
         if policy_identifier:
             trade_metadata["policy_id"] = policy_identifier
+        else:
+            trade_metadata.pop("policy_id", None)
 
         if diary_entry_identifier:
             trade_metadata["diary_entry_id"] = diary_entry_identifier
@@ -324,6 +326,8 @@ class AlphaTradeLoopRunner:
 
             if policy_identifier:
                 metadata_payload["policy_id"] = policy_identifier
+            else:
+                metadata_payload.pop("policy_id", None)
 
             if diary_entry_identifier:
                 metadata_payload["diary_entry_id"] = diary_entry_identifier
@@ -447,6 +451,14 @@ class AlphaTradeLoopRunner:
         if has_diary_entry and diary_annotations:
             merged_loop_metadata = dict(loop_result.metadata)
             merged_loop_metadata.update(loop_metadata_updates)
+            if not brief_explanation_text:
+                merged_loop_metadata.pop("brief_explanation", None)
+            if not policy_identifier:
+                merged_loop_metadata.pop("policy_id", None)
+            if not diary_entry_identifier:
+                merged_loop_metadata.pop("diary_entry_id", None)
+            if attribution_payload is None:
+                merged_loop_metadata.pop("attribution", None)
             updated_entry = self._orchestrator.annotate_diary_entry(
                 loop_result.diary_entry.entry_id,
                 diary_annotations,
@@ -459,6 +471,14 @@ class AlphaTradeLoopRunner:
         elif loop_metadata_updates:
             merged_loop_metadata = dict(loop_result.metadata)
             merged_loop_metadata.update(loop_metadata_updates)
+            if not brief_explanation_text:
+                merged_loop_metadata.pop("brief_explanation", None)
+            if not policy_identifier:
+                merged_loop_metadata.pop("policy_id", None)
+            if not diary_entry_identifier:
+                merged_loop_metadata.pop("diary_entry_id", None)
+            if attribution_payload is None:
+                merged_loop_metadata.pop("attribution", None)
             loop_result = replace(
                 loop_result,
                 metadata=MappingProxyType(merged_loop_metadata),
@@ -1040,6 +1060,8 @@ class AlphaTradeLoopRunner:
             if metadata.get("policy_id") != policy_identifier:
                 metadata["policy_id"] = policy_identifier
                 changed = True
+        elif metadata.pop("policy_id", None) is not None:
+            changed = True
 
         if diary_entry_identifier:
             if metadata.get("diary_entry_id") != diary_entry_identifier:

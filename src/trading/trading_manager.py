@@ -3954,12 +3954,16 @@ class TradingManager:
                 normalised["explanation"] = explanation_text
 
         diary_entry_id = payload.get("diary_entry_id")
-        if diary_entry_id:
-            normalised["diary_entry_id"] = str(diary_entry_id)
+        if diary_entry_id is not None:
+            diary_entry_text = str(diary_entry_id).strip()
+            if diary_entry_text:
+                normalised["diary_entry_id"] = diary_entry_text
 
         policy_id = payload.get("policy_id")
-        if policy_id:
-            normalised["policy_id"] = str(policy_id)
+        if policy_id is not None:
+            policy_text = str(policy_id).strip()
+            if policy_text:
+                normalised["policy_id"] = policy_text
 
         belief_payload = payload.get("belief")
         if isinstance(belief_payload, Mapping):

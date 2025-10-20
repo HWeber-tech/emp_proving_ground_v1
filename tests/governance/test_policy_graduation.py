@@ -15,6 +15,7 @@ from src.governance.policy_ledger import (
 from src.thinking.adaptation.policy_router import RegimeState
 from src.understanding.decision_diary import DecisionDiaryStore
 from tools.governance import alpha_trade_graduation as graduation_cli
+from tests.util import promotion_checklist_metadata
 
 
 _UTC = timezone.utc
@@ -340,3 +341,136 @@ def test_cli_apply_promotes_stage(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert log_entries
     assert log_entries[0]["policy_id"] == "alpha"
     assert log_entries[0]["stage"] == PolicyLedgerStage.PILOT.value
+
+
+def test_limited_live_blocked_without_paper_green_duration(tmp_path: Path) -> None:
+    diary = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    policy_id = "alpha"
+
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.EXPERIMENT,
+        evidence_id="dd-alpha-exp",
+    )
+
+    base = datetime(2024, 4, 1, 9, 0, tzinfo=_UTC)
+    for index in range(20):
+        _record_entry(
+            diary,
+            policy_id=policy_id,
+            stage=PolicyLedgerStage.EXPERIMENT,
+            recorded_at=base + timedelta(minutes=index * 5),
+        )
+
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="dd-alpha-paper",
+        metadata=promotion_checklist_metadata(),
+    )
+
+    paper_start = base + timedelta(hours=4)
+    for index in range(40):
+        _record_entry(
+            diary,
+            policy_id=policy_id,
+            stage=PolicyLedgerStage.PAPER,
+            recorded_at=paper_start + timedelta(hours=6 * index),
+        )
+
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk", "compliance"),
+        evidence_id="dd-alpha-pilot",
+        metadata=promotion_checklist_metadata(),
+    )
+
+    pilot_start = paper_start + timedelta(hours=6 * 39 + 1)
+    for index in range(60):
+        _record_entry(
+            diary,
+            policy_id=policy_id,
+            stage=PolicyLedgerStage.PILOT,
+            recorded_at=pilot_start + timedelta(minutes=30 * index),
+        )
+
+    release_manager = LedgerReleaseManager(store)
+    evaluator = PolicyGraduationEvaluator(release_manager, diary)
+    assessment = evaluator.assess(policy_id)
+
+    assert assessment.recommended_stage is PolicyLedgerStage.PILOT
+    blockers = assessment.stage_blockers[PolicyLedgerStage.LIMITED_LIVE]
+    assert any(blocker.startswith("paper_green_gate_duration_below") for blocker in blockers)
+
+
+def test_limited_live_recommended_after_paper_green_duration(tmp_path: Path) -> None:
+    diary = DecisionDiaryStore(tmp_path / "diary.json", publish_on_record=False)
+    ledger_path = tmp_path / "ledger.json"
+    store = PolicyLedgerStore(ledger_path)
+    policy_id = "alpha"
+
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.EXPERIMENT,
+        evidence_id="dd-alpha-exp",
+    )
+
+    base = datetime(2024, 5, 1, 9, 0, tzinfo=_UTC)
+    for index in range(20):
+        _record_entry(
+            diary,
+            policy_id=policy_id,
+            stage=PolicyLedgerStage.EXPERIMENT,
+            recorded_at=base + timedelta(minutes=4 * index),
+        )
+
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.PAPER,
+        approvals=("risk",),
+        evidence_id="dd-alpha-paper",
+        metadata=promotion_checklist_metadata(),
+    )
+
+    paper_start = base + timedelta(hours=3)
+    for index in range(40):
+        _record_entry(
+            diary,
+            policy_id=policy_id,
+            stage=PolicyLedgerStage.PAPER,
+            recorded_at=paper_start + timedelta(hours=12 * index),
+        )
+
+    store.upsert(
+        policy_id=policy_id,
+        tactic_id=policy_id,
+        stage=PolicyLedgerStage.PILOT,
+        approvals=("risk", "compliance"),
+        evidence_id="dd-alpha-pilot",
+        metadata=promotion_checklist_metadata(),
+    )
+
+    pilot_start = paper_start + timedelta(hours=12 * 39 + 2)
+    for index in range(60):
+        _record_entry(
+            diary,
+            policy_id=policy_id,
+            stage=PolicyLedgerStage.PILOT,
+            recorded_at=pilot_start + timedelta(minutes=20 * index),
+        )
+
+    release_manager = LedgerReleaseManager(store)
+    evaluator = PolicyGraduationEvaluator(release_manager, diary)
+    assessment = evaluator.assess(policy_id)
+
+    assert assessment.recommended_stage is PolicyLedgerStage.LIMITED_LIVE
+    assert assessment.stage_blockers[PolicyLedgerStage.LIMITED_LIVE] == ()

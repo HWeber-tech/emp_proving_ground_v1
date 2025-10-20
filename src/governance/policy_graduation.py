@@ -182,6 +182,7 @@ class PolicyGraduationEvaluator:
     _MIN_NORMAL_RATIO_LIVE = 0.80
     _MIN_NORMAL_STREAK_PILOT = 8
     _MIN_NORMAL_STREAK_LIVE = 15
+    _MIN_PAPER_GREEN_DAYS = 14.0
 
     def __init__(
         self,
@@ -218,10 +219,13 @@ class PolicyGraduationEvaluator:
         evidence_id = summary.get("evidence_id")
         audit_gaps = tuple(str(gap) for gap in summary.get("audit_gaps", ()) if gap)
 
+        paper_green_span_days = self._longest_paper_green_span_days(entries)
+
         recommended_stage, stage_blockers = self._recommend_stage(
             metrics,
             approvals=approvals,
             audit_gaps=audit_gaps,
+            paper_green_span_days=paper_green_span_days,
         )
 
         return PolicyGraduationAssessment(
@@ -347,6 +351,7 @@ class PolicyGraduationEvaluator:
         *,
         approvals: Iterable[str],
         audit_gaps: Iterable[str],
+        paper_green_span_days: float,
     ) -> tuple[PolicyLedgerStage, Mapping[PolicyLedgerStage, list[str]]]:
         approvals_tuple = tuple(approvals)
         audit_gaps_tuple = tuple(str(gap) for gap in audit_gaps)
@@ -454,10 +459,44 @@ class PolicyGraduationEvaluator:
                     "audit_gaps_present:" + ",".join(audit_gaps_tuple)
                 )
 
+        paper_green_span = paper_green_span_days
+        if paper_green_span < self._MIN_PAPER_GREEN_DAYS:
+            blockers[PolicyLedgerStage.LIMITED_LIVE].append(
+                "paper_green_gate_duration_below:" +
+                f"{paper_green_span:.2f}<{self._MIN_PAPER_GREEN_DAYS:.2f}"
+            )
+
         if not blockers[PolicyLedgerStage.LIMITED_LIVE]:
             recommended = PolicyLedgerStage.LIMITED_LIVE
 
         return recommended, blockers
+
+    def _longest_paper_green_span_days(
+        self,
+        entries: Sequence[DecisionDiaryEntry],
+    ) -> float:
+        longest_span_days = 0.0
+        current_start: datetime | None = None
+
+        for entry in entries:
+            if _extract_stage(entry) is not PolicyLedgerStage.PAPER:
+                continue
+
+            if self._is_paper_gate_green(entry):
+                timestamp = entry.recorded_at.astimezone(_UTC)
+                if current_start is None:
+                    current_start = timestamp
+                span_days = (timestamp - current_start).total_seconds() / 86400.0
+                if span_days > longest_span_days:
+                    longest_span_days = span_days
+            else:
+                current_start = None
+
+        return longest_span_days
+
+    @staticmethod
+    def _is_paper_gate_green(entry: DecisionDiaryEntry) -> bool:
+        return _extract_severity(entry) == "normal" and not _is_forced(entry)
 
 
 def _extract_stage(entry: DecisionDiaryEntry) -> PolicyLedgerStage | None:

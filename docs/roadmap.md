@@ -83,7 +83,7 @@
 ### C.2 True streaming state
 - [x] **C.2.1** **Per-instrument state table** (pinned); TTL & reset on session boundary/gaps/halts.  
 - [x] **C.2.2** Determinism: no dropout live; state versioned by model hash; hot-reload invalidates state.  
-- [ ] **C.2.3** Clone-state API for planner (no mutation).
+- [x] **C.2.3** Clone-state API for planner (no mutation).
 
 ### C.3 Chunked BPTT
 - [x] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
@@ -108,7 +108,7 @@
 - [x] **D.1.2** Actions: {cross, post‑and‑chase(±1 tick, TTL X ms), hold}.
 
 ### D.2 Queue & adverse selection
-- [ ] **D.2.1** L1 queue fill prob ~ our_size / (queue_size+?) × trade_flow_factor.  
+- [x] **D.2.1** L1 queue fill prob ~ our_size / (queue_size+?) × trade_flow_factor.  
 - [x] **D.2.2** **Adverse selection**: microprice drift over last k events conditional on our action.
 
 ### D.3 Sizing & inventory
@@ -178,7 +178,7 @@
 
 - [x] **H.1** Action logs: `{reason_code, edge_ticks, cost_to_take, context_mult, inventory, latency_ms}`.  
 - [x] **H.2** Drift monitors: **PSI** for 8–12 core features; alert if PSI > 0.25.  
-- [ ] **H.3** Dumb baseline comparator (e.g., 1×spread mean?revert); alert on sustained underperformance.  
+- [x] **H.3** Dumb baseline comparator (e.g., 1×spread mean?revert); alert on sustained underperformance.  
 - [ ] **H.4** Chaos suite: 5% event drop/dup, 300?ms stall, order rejects; engine must **flatten within 200?ms**; idempotent dedupe of `(clOrdID, execID)`.
 
 **DoD (H):** chaos drills pass; drift alerts behave; reasons are queryable.

@@ -18,9 +18,9 @@
 **Goal:** engine boots deterministically; mock ? paper runs end-to-end; tests & metrics exist.
 
 ### A.1 Event bus & runtime correctness
-- [ ] **A.1.1** Add `emit()` alias to EventBus that forwards to `publish_async()`; deprecate later.  
+- [x] **A.1.1** Add `emit()` alias to EventBus that forwards to `publish_async()`; deprecate later.  
 - [ ] **A.1.2** Make per-instrument queues **bounded**; publish `DEGRADED_MODE` when back-pressure triggers; auto-throttle decisions to size = 0.  
-- [ ] **A.1.3** Guarantee **ordering per instrument** (monotone {ts,seqno}); drop or quarantine out-of-order with a reason code.
+- [x] **A.1.3** Guarantee **ordering per instrument** (monotone {ts,seqno}); drop or quarantine out-of-order with a reason code.
 
 ### A.2 Config single source of truth (SoT)
 - [x] **A.2.1** `SystemConfig` reads YAML first; env only overrides explicitly set fields.  
@@ -153,7 +153,7 @@
 ### F.2 Mini?league self?play
 - [x] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
 - [x] **F.2.2** Replay buffers: main + **rare-regime** (NFP, halts); 80/20 sampling with temp schedule.  
-- [ ] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
+- [x] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
 - [x] **F.2.4** Exploitability metric (ΔSharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
 
 **DoD (F):** planner respects latency gates; exploitability gap narrows without turnover spike.
@@ -291,7 +291,7 @@ body:
 ## Automation updates — 2025-10-20T10:32:50Z
 
 ### Last 4 commits
-- 9643de95 test(mlops): add 3 files (2025-10-20)
-- 9c9eea7b feat(artifacts): add 21 files (2025-10-20)
-- 54254b09 feat(risk): add 5 files (2025-10-20)
-- d0a6d803 feat(risk): add 4 files (2025-10-20)
+- c1b360da refactor(data_foundation): tune 4 files (2025-10-20)
+- f8b91197 refactor(thinking): tune 2 files (2025-10-20)
+- 5902b5f4 refactor(risk): tune 3 files (2025-10-20)
+- 816175e0 refactor(core): tune 2 files (2025-10-20)

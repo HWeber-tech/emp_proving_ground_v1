@@ -5,11 +5,11 @@
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-20T10:13:21.885775+00:00",
+      "created_at": "2025-10-20T10:27:33.092979+00:00",
       "evidence_id": "dd-alpha-live-pilot",
       "history": [
         {
-          "applied_at": "2025-10-20T10:13:21.885775+00:00",
+          "applied_at": "2025-10-20T10:27:33.092979+00:00",
           "approvals": [
             "compliance",
             "risk"
@@ -29,8 +29,8 @@
       "policy_id": "alpha-live",
       "stage": "limited_live",
       "tactic_id": "alpha-live",
-      "updated_at": "2025-10-20T10:13:21.885775+00:00"
+      "updated_at": "2025-10-20T10:27:33.092979+00:00"
     }
   },
-  "updated_at": "2025-10-20T10:13:21.885913+00:00"
+  "updated_at": "2025-10-20T10:27:33.093084+00:00"
 }

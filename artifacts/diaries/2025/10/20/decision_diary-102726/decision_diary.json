@@ -1,0 +1,111 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "model-revert",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102726Z-42cb07cc",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "model-revert",
+      "probes": [],
+      "recorded_at": "2024-01-01T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-01-01T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "model-revert",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102726Z-3b67fd63",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "model-revert",
+      "probes": [],
+      "recorded_at": "2024-01-01T00:10:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-01-01T00:10:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "promotion-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "model-revert",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102726Z-c1b5f953",
+      "metadata": {
+        "release_execution": {
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "model-revert",
+      "probes": [],
+      "recorded_at": "2024-01-01T00:20:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-01-01T00:20:00+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-20T10:27:26.923001+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T10:27:26.919969+00:00",
+    "probes": {}
+  }
+}

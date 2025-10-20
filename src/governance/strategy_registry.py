@@ -291,6 +291,49 @@ class StrategyRegistry:
 
         return PromotionGuard(**guard_kwargs)
 
+    def _downgrade_other_defaults(
+        self, conn: sqlite3.Connection, *, exclude: str
+    ) -> None:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE strategies
+            SET status = ?
+            WHERE status = ?
+              AND genome_id <> ?
+        """,
+            (
+                StrategyStatus.APPROVED_FALLBACK.value,
+                StrategyStatus.APPROVED_DEFAULT.value,
+                exclude,
+            ),
+        )
+
+    def _promote_best_fallback(
+        self, conn: sqlite3.Connection, *, exclude: str
+    ) -> str | None:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT genome_id
+            FROM strategies
+            WHERE status = ?
+              AND genome_id <> ?
+            ORDER BY (fitness_score IS NULL), fitness_score DESC, created_at DESC
+            LIMIT 1
+        """,
+            (StrategyStatus.APPROVED_FALLBACK.value, exclude),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        fallback_id = str(row["genome_id"])
+        cursor.execute(
+            "UPDATE strategies SET status = ? WHERE genome_id = ?",
+            (StrategyStatus.APPROVED_DEFAULT.value, fallback_id),
+        )
+        return fallback_id
+
     def _json_loads(self, payload: str | None, context: str) -> Any | None:
         if not payload:
             return None
@@ -465,6 +508,9 @@ class StrategyRegistry:
                 ),
             )
 
+            if status_value == StrategyStatus.APPROVED_DEFAULT.value:
+                self._downgrade_other_defaults(conn, exclude=genome_id)
+
         self._logger.info("Registered champion genome: %s", genome_id)
         return True
 
@@ -492,18 +538,52 @@ class StrategyRegistry:
                 self._promotion_guard.validate(strategy_id, status_enum or status_value)
             except PromotionIntegrityError as exc:
                 raise StrategyRegistryError(str(exc)) from exc
+        previous_status: str | None = None
+        fallback_promoted: str | None = None
         with self._managed_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute(
+                "SELECT status FROM strategies WHERE genome_id = ?",
+                (strategy_id,),
+            )
+            row = cursor.fetchone()
+            if row is not None:
+                previous_status = str(row["status"])
+            if (
+                previous_status is not None
+                and status_value == StrategyStatus.APPROVED_DEFAULT.value
+            ):
+                self._downgrade_other_defaults(conn, exclude=strategy_id)
             cursor.execute(
                 "UPDATE strategies SET status = ? WHERE genome_id = ?",
                 (status_value, strategy_id),
             )
             updated = cursor.rowcount > 0
+            if (
+                updated
+                and previous_status == StrategyStatus.APPROVED_DEFAULT.value
+                and status_value != StrategyStatus.APPROVED_DEFAULT.value
+            ):
+                fallback_promoted = self._promote_best_fallback(conn, exclude=strategy_id)
 
         if updated:
             self._logger.info(
                 "Updated strategy %s status to %s", strategy_id, status_value
             )
+            if previous_status == StrategyStatus.APPROVED_DEFAULT.value and (
+                status_value != StrategyStatus.APPROVED_DEFAULT.value
+            ):
+                if fallback_promoted is not None:
+                    self._logger.info(
+                        "Auto-reverted default to %s after demoting %s",
+                        fallback_promoted,
+                        strategy_id,
+                    )
+                else:
+                    self._logger.warning(
+                        "Strategy %s demoted from default but no fallback available",
+                        strategy_id,
+                    )
         else:
             self._logger.warning("Strategy %s not found", strategy_id)
         return updated

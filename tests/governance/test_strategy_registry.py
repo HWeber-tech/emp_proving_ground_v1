@@ -140,6 +140,101 @@ def test_strategy_registry_supports_model_tag_statuses(tmp_path) -> None:
     assert stored_rejected["status"] == StrategyStatus.REJECTED.value
 
 
+def test_strategy_registry_auto_downgrades_previous_default(tmp_path) -> None:
+    policy_id = "model-main"
+    guard = _promotion_guard(tmp_path, policy_id)
+    registry = StrategyRegistry(
+        db_path=str(tmp_path / "registry-default.db"),
+        promotion_guard=guard,
+    )
+
+    genome_a = SimpleNamespace(id=f"{policy_id}::a", decision_tree={}, name="base", generation=1)
+    genome_b = SimpleNamespace(id=f"{policy_id}::b", decision_tree={}, name="candidate", generation=2)
+    report = {
+        "fitness_score": 1.0,
+        "max_drawdown": 0.1,
+        "sharpe_ratio": 1.1,
+        "total_return": 0.12,
+        "volatility": 0.03,
+    }
+
+    assert registry.register_champion(
+        genome_a,
+        dict(report),
+        status=StrategyStatus.APPROVED_DEFAULT,
+    )
+
+    assert registry.register_champion(
+        genome_b,
+        dict(report),
+        status=StrategyStatus.APPROVED_DEFAULT,
+    )
+
+    stored_a = registry.get_strategy(genome_a.id)
+    stored_b = registry.get_strategy(genome_b.id)
+
+    assert stored_a is not None
+    assert stored_a["status"] == StrategyStatus.APPROVED_FALLBACK.value
+    assert stored_b is not None
+    assert stored_b["status"] == StrategyStatus.APPROVED_DEFAULT.value
+
+
+def test_strategy_registry_promotes_best_fallback_on_default_demote(tmp_path) -> None:
+    policy_id = "model-revert"
+    guard = _promotion_guard(tmp_path, policy_id)
+    registry = StrategyRegistry(
+        db_path=str(tmp_path / "registry-revert.db"),
+        promotion_guard=guard,
+    )
+
+    genome_default = SimpleNamespace(
+        id=f"{policy_id}::default",
+        decision_tree={},
+        name="default",
+        generation=1,
+    )
+    genome_fallback = SimpleNamespace(
+        id=f"{policy_id}::fallback",
+        decision_tree={},
+        name="fallback",
+        generation=1,
+    )
+    base_report = {
+        "fitness_score": 0.9,
+        "max_drawdown": 0.08,
+        "sharpe_ratio": 1.05,
+        "total_return": 0.1,
+        "volatility": 0.02,
+    }
+
+    assert registry.register_champion(
+        genome_default,
+        dict(base_report),
+        status=StrategyStatus.APPROVED_DEFAULT,
+    )
+
+    fallback_report = dict(base_report)
+    fallback_report["fitness_score"] = 0.95
+
+    assert registry.register_champion(
+        genome_fallback,
+        fallback_report,
+        status=StrategyStatus.APPROVED_FALLBACK,
+    )
+
+    assert registry.update_strategy_status(
+        genome_default.id, StrategyStatus.REJECTED
+    )
+
+    demoted = registry.get_strategy(genome_default.id)
+    promoted = registry.get_strategy(genome_fallback.id)
+
+    assert demoted is not None
+    assert demoted["status"] == StrategyStatus.REJECTED.value
+    assert promoted is not None
+    assert promoted["status"] == StrategyStatus.APPROVED_DEFAULT.value
+
+
 @pytest.mark.parametrize("status", ["evolved", "approved"])
 def test_strategy_registry_records_catalogue_provenance(tmp_path, status: str) -> None:
     guard = _promotion_guard(tmp_path, "catalogue/trend-alpha::0")

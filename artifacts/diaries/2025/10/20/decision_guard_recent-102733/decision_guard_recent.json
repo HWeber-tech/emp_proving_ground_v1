@@ -1,0 +1,633 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-511207f1",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-01T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-01T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-eff374c5",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-02T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-02T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-c4f583e0",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-03T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-03T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-06afef4f",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-04T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-04T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-41928336",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-05T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-05T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-e528ab0d",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-06T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-06T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-087f7d9f",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-07T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-07T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-85b51b00",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-08T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-08T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-79dccfdb",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-09T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-09T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-6f8f84df",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-10T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-10T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-90abeba3",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-11T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-11T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-0e820e0b",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-12T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-12T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-56fe605b",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-13T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-13T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-314b2a87",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-14T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bullish",
+        "timestamp": "2024-03-14T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-dc9fbd48",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-15T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "bearish",
+        "timestamp": "2024-03-15T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "span-check",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha-live",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T102733Z-62d0f9aa",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "warn"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha-live",
+      "probes": [],
+      "recorded_at": "2024-03-16T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.81,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-03-16T00:00:00+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-20T10:27:33.165976+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T10:27:33.141524+00:00",
+    "probes": {}
+  }
+}

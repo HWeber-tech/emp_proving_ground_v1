@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+import logging
 from typing import Any
 
 from collections.abc import Mapping
@@ -20,6 +21,8 @@ from pydantic import ValidationError
 
 from src.config.risk.risk_config import RiskConfig
 
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_RUNBOOK = "docs/operations/runbooks/risk_api_contract.md"
 
@@ -90,6 +93,13 @@ def resolve_trading_risk_config(trading_manager: Any) -> RiskConfig:
             try:
                 return RiskConfig.parse_obj(config_payload)
             except ValidationError as exc:
+                logger.warning(
+                    "Risk API rejected invalid trading manager risk configuration",
+                    extra={
+                        "risk.manager": type(trading_manager).__name__,
+                        "risk.invalid_fields": sorted(config_payload.keys()),
+                    },
+                )
                 raise RiskApiError(
                     "Trading manager risk configuration is invalid",
                     details={"manager": type(trading_manager).__name__},

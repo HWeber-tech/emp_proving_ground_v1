@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import hmac
 import json
 import secrets
@@ -155,13 +156,32 @@ class TokenManager:
 
         self._issued_tokens[token] = issued
         self._revoked_tokens.discard(token)
+        logger.info(
+            "Issued auth token",
+            extra={
+                "auth.user_id": issued.user_id,
+                "auth.jti": issued.claims.get("jti"),
+                "auth.expires_at": issued.expires_at.isoformat(),
+                "auth.claim_keys": sorted(key for key in issued.claims.keys() if key not in {"sub", "iat", "exp", "jti"}),
+            },
+        )
         return issued
 
     def revoke_token(self, token: str) -> None:
         """Explicitly revoke a token so future validations fail."""
 
+        metadata = self._issued_tokens.get(token)
+        fingerprint = _token_fingerprint(token)
         self._revoked_tokens.add(token)
         self._issued_tokens.pop(token, None)
+        logger.info(
+            "Revoked auth token",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.user_id": metadata.user_id if metadata else None,
+                "auth.jti": metadata.claims.get("jti") if metadata else None,
+            },
+        )
 
     def is_revoked(self, token: str) -> bool:
         """Return ``True`` when *token* has been revoked."""
@@ -185,26 +205,66 @@ class TokenManager:
         period for clock skew during validation.
         """
 
+        fingerprint = _token_fingerprint(token)
         if self.is_revoked(token):
+            logger.warning(
+                "Auth token rejected",
+                extra={
+                    "auth.token_hash": fingerprint,
+                    "auth.reason": "revoked",
+                },
+            )
             raise TokenRevoked("Token has been revoked")
 
-        payload = self._decode(token)
+        try:
+            payload = self._decode(token)
+        except TokenValidationError as exc:
+            logger.warning(
+                "Auth token rejected",
+                extra={
+                    "auth.token_hash": fingerprint,
+                    "auth.reason": exc.__class__.__name__,
+                },
+            )
+            raise
 
         expires_at = _coerce_epoch_seconds(payload.get("exp"), claim="exp", required=True)
         if expires_at is None:  # pragma: no cover - defensive fallback
-            raise TokenValidationError("Token missing 'exp' claim")
+            message = "Token missing 'exp' claim"
+            logger.warning(
+                "Auth token rejected",
+                extra={
+                    "auth.token_hash": fingerprint,
+                    "auth.reason": "missing_exp",
+                },
+            )
+            raise TokenValidationError(message)
 
         leeway_duration = _normalise_non_negative_duration(leeway, field="leeway")
 
         if verify_expiration:
             now = datetime.now(tz=UTC)
             if expires_at is not None and now - leeway_duration >= expires_at:
+                logger.warning(
+                    "Auth token rejected",
+                    extra={
+                        "auth.token_hash": fingerprint,
+                        "auth.reason": "expired",
+                    },
+                )
                 raise TokenExpired("Token has expired")
 
         issued_at = _coerce_epoch_seconds(payload.get("iat"), claim="iat", required=False) or expires_at
 
         user_id_raw = payload.get("sub")
         if user_id_raw is None:
+            logger.warning(
+                "Auth token rejected",
+                extra={
+                    "auth.token_hash": fingerprint,
+                    "auth.reason": "missing_sub",
+                },
+            )
             raise TokenValidationError("Token missing 'sub' claim")
 
         issued = IssuedToken(
@@ -215,6 +275,15 @@ class TokenManager:
             claims=dict(payload),
         )
         self._issued_tokens.setdefault(token, issued)
+        logger.info(
+            "Validated auth token",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.user_id": issued.user_id,
+                "auth.jti": issued.claims.get("jti"),
+                "auth.expires_at": issued.expires_at.isoformat() if issued.expires_at else None,
+            },
+        )
         return issued
 
     def is_token_valid(self, token: str, *, leeway: timedelta | int | float = 0) -> bool:
@@ -276,3 +345,11 @@ class TokenManager:
             raise TokenValidationError("Token payload is not valid JSON") from exc
 
         return payload
+logger = logging.getLogger(__name__)
+
+
+def _token_fingerprint(token: str) -> str:
+    """Return a stable truncated fingerprint for logging without leaking tokens."""
+
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return digest[:16]

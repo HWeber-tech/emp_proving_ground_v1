@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import logging
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, MutableMapping, Sequence, TYPE_CHECKING
 
@@ -16,6 +17,9 @@ from src.understanding.decision_diary import DecisionDiaryEntry, DecisionDiarySt
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from src.governance.strategy_registry import StrategyStatus
+
+
+logger = logging.getLogger(__name__)
 
 
 _UTC = timezone.utc
@@ -79,6 +83,36 @@ class PromotionGuard:
             )
 
     @staticmethod
+    def _log_context(
+        policy_id: str,
+        *,
+        reason: str,
+        extra: Mapping[str, object] | None = None,
+    ) -> dict[str, object]:
+        payload = {
+            "governance.policy_id": policy_id,
+            "governance.rbac_reason": reason,
+        }
+        if extra:
+            payload.update(extra)
+        return payload
+
+    def _guard_failure(
+        self,
+        policy_id: str,
+        message: str,
+        *,
+        reason: str,
+        extra: Mapping[str, object] | None = None,
+    ) -> None:
+        logger.warning(
+            "Promotion guard rejection: %s",
+            message,
+            extra=self._log_context(policy_id, reason=reason, extra=extra),
+        )
+        raise PromotionIntegrityError(message)
+
+    @staticmethod
     def _normalise_stage_requirements(
         stage_requirements: Mapping[str, PolicyLedgerStage | str] | None,
     ) -> Mapping[str, PolicyLedgerStage]:
@@ -121,21 +155,36 @@ class PromotionGuard:
         policy_id = self._policy_id_resolver(strategy_id)
         record = self._load_ledger_record(policy_id)
         if record is None:
-            raise PromotionIntegrityError(
-                f"Policy ledger record for policy '{policy_id}' not found at {self._ledger_path}"
+            self._guard_failure(
+                policy_id,
+                f"Policy ledger record for policy '{policy_id}' not found at {self._ledger_path}",
+                reason="missing_ledger_record",
+                extra={"governance.required_stage": required_stage.value},
             )
 
         declared = record.stage
         if _STAGE_ORDER.get(declared, -1) < _STAGE_ORDER.get(required_stage, 0):
-            raise PromotionIntegrityError(
-                f"Policy '{policy_id}' stage '{declared.value}' below required '{required_stage.value}'"
+            self._guard_failure(
+                policy_id,
+                f"Policy '{policy_id}' stage '{declared.value}' below required '{required_stage.value}'",
+                reason="stage_regression",
+                extra={
+                    "governance.declared_stage": declared.value,
+                    "governance.required_stage": required_stage.value,
+                },
             )
 
         gaps = record.audit_gaps(expected_stage=required_stage)
         if gaps:
             gap_text = ", ".join(gaps)
-            raise PromotionIntegrityError(
-                f"Policy '{policy_id}' audit gaps present for stage '{required_stage.value}': {gap_text}"
+            self._guard_failure(
+                policy_id,
+                f"Policy '{policy_id}' audit gaps present for stage '{required_stage.value}': {gap_text}",
+                reason="audit_gaps",
+                extra={
+                    "governance.required_stage": required_stage.value,
+                    "governance.audit_gaps": gap_text,
+                },
             )
 
         require_regime_gate = bool(self._required_regimes and status_key in self._regime_gate_statuses)
@@ -150,16 +199,22 @@ class PromotionGuard:
             missing = coverage.missing(self._required_regimes, self._min_decisions_per_regime)
             if missing:
                 missing_text = ", ".join(missing)
-                raise PromotionIntegrityError(
-                    f"Decision diary coverage for policy '{policy_id}' missing regimes: {missing_text}"
+                self._guard_failure(
+                    policy_id,
+                    f"Decision diary coverage for policy '{policy_id}' missing regimes: {missing_text}",
+                    reason="missing_regime_coverage",
+                    extra={"governance.missing_regimes": missing_text},
                 )
 
         if require_paper_span:
             paper_green_span = self._paper_green_span_days(policy_id, diary_entries)
             if paper_green_span < self._MIN_PAPER_GREEN_DAYS:
-                raise PromotionIntegrityError(
-                    "paper_green_gate_duration_below:" +
-                    f"{paper_green_span:.2f}<{self._MIN_PAPER_GREEN_DAYS:.2f}"
+                self._guard_failure(
+                    policy_id,
+                    "paper_green_gate_duration_below:"
+                    + f"{paper_green_span:.2f}<{self._MIN_PAPER_GREEN_DAYS:.2f}",
+                    reason="insufficient_paper_green_span",
+                    extra={"governance.paper_green_days": paper_green_span},
                 )
 
     def _load_ledger_record(self, policy_id: str) -> PolicyLedgerRecord | None:
@@ -176,8 +231,11 @@ class PromotionGuard:
         if entries is None:
             entries = self._policy_entries(policy_id)
         if not entries:
-            raise PromotionIntegrityError(
-                f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}"
+            self._guard_failure(
+                policy_id,
+                f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}",
+                reason="diary_entries_missing",
+                extra={"governance.diary_path": str(self._diary_path)},
             )
         counts: MutableMapping[str, int] = {}
         for entry in entries:
@@ -188,14 +246,20 @@ class PromotionGuard:
 
     def _policy_entries(self, policy_id: str) -> tuple[DecisionDiaryEntry, ...]:
         if not self._diary_path.exists():
-            raise PromotionIntegrityError(
-                f"Decision diary artifact not found at {self._diary_path}"
+            self._guard_failure(
+                policy_id,
+                f"Decision diary artifact not found at {self._diary_path}",
+                reason="diary_missing",
+                extra={"governance.diary_path": str(self._diary_path)},
             )
         diary = DecisionDiaryStore(self._diary_path, publish_on_record=False)
         selected = tuple(entry for entry in diary.entries() if entry.policy_id == policy_id)
         if not selected:
-            raise PromotionIntegrityError(
-                f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}"
+            self._guard_failure(
+                policy_id,
+                f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}",
+                reason="diary_entries_missing",
+                extra={"governance.diary_path": str(self._diary_path)},
             )
         return selected
 
@@ -207,8 +271,11 @@ class PromotionGuard:
         if entries is None:
             entries = self._policy_entries(policy_id)
         if not entries:
-            raise PromotionIntegrityError(
-                f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}"
+            self._guard_failure(
+                policy_id,
+                f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}",
+                reason="diary_entries_missing",
+                extra={"governance.diary_path": str(self._diary_path)},
             )
 
         current_span = 0.0
@@ -231,8 +298,11 @@ class PromotionGuard:
                 current_span = 0.0
 
         if not saw_paper_entry:
-            raise PromotionIntegrityError(
-                f"Decision diary paper stage entries for policy '{policy_id}' not found in {self._diary_path}"
+            self._guard_failure(
+                policy_id,
+                f"Decision diary paper stage entries for policy '{policy_id}' not found in {self._diary_path}",
+                reason="paper_stage_missing",
+                extra={"governance.diary_path": str(self._diary_path)},
             )
 
         return current_span

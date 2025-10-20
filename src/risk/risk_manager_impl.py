@@ -239,9 +239,14 @@ class RiskManagerImpl(RiskManagerProtocol):
         if not isinstance(risk_config, RiskConfig):
             if not isinstance(risk_config, Mapping):
                 raise TypeError("risk_config must be a RiskConfig or mapping payload")
+            payload = dict(risk_config)
             try:
-                risk_config = RiskConfig.parse_obj(dict(risk_config))
+                risk_config = RiskConfig.parse_obj(payload)
             except ValidationError as exc:
+                logger.warning(
+                    "RiskManagerImpl rejected invalid risk_config payload",
+                    extra={"risk.invalid_fields": sorted(payload.keys())},
+                )
                 raise ValueError("Invalid risk_config payload for RiskManagerImpl") from exc
 
         self._risk_config = risk_config

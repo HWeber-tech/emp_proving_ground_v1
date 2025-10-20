@@ -659,9 +659,14 @@ def _coerce_risk_config(
     if isinstance(config, TradingRiskConfig):
         return config
     if isinstance(config, MappingABC):
+        payload = dict(config)
         try:
-            return TradingRiskConfig.parse_obj(dict(config))
+            return TradingRiskConfig.parse_obj(payload)
         except ValidationError as exc:
+            logger.warning(
+                "TradingManager rejected invalid risk_config payload",
+                extra={"risk.invalid_fields": sorted(payload.keys())},
+            )
             raise ValueError("Invalid risk_config payload for TradingManager") from exc
     raise TypeError("risk_config must be a TradingRiskConfig or mapping payload")
 

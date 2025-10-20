@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from decimal import Decimal
+import logging
 from typing import Any
 
 from pydantic import ValidationError
@@ -17,6 +18,8 @@ from pydantic import ValidationError
 from src.config.risk.risk_config import RiskConfig
 
 from .risk_manager_impl import RiskManagerImpl
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["RiskManager", "create_risk_manager"]
 
@@ -27,9 +30,14 @@ def _coerce_risk_config(config: RiskConfig | Mapping[str, object] | None) -> Ris
         return config
     if not isinstance(config, Mapping):
         raise TypeError("RiskConfig payload must be a mapping or RiskConfig instance")
+    payload = dict(config)
     try:
-        return RiskConfig.parse_obj(dict(config))
+        return RiskConfig.parse_obj(payload)
     except ValidationError as exc:
+        logger.warning(
+            "RiskManager rejected invalid risk_config payload",
+            extra={"risk.invalid_fields": sorted(payload.keys())},
+        )
         raise ValueError("Invalid RiskConfig payload for RiskManager") from exc
 
 

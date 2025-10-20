@@ -5,10 +5,14 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import logging
 import hmac
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Mapping, Sequence
+
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "AuthTokenError",
@@ -107,8 +111,18 @@ def create_access_token(
     signing_input = f"{encoded_header}.{encoded_payload}".encode("ascii")
     secret_bytes = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
     signature = _b64url_encode(_sign(signing_input, secret_bytes))
+    token = f"{encoded_header}.{encoded_payload}.{signature}"
 
-    return f"{encoded_header}.{encoded_payload}.{signature}"
+    logger.info(
+        "Created access token",
+        extra={
+            "auth.subject": payload["sub"],
+            "auth.roles_count": len(normalised_roles),
+            "auth.audience": payload.get("aud"),
+            "auth.expires_at": expiry.isoformat() if expires_in is not None else None,
+        },
+    )
+    return token
 
 
 def decode_access_token(
@@ -120,53 +134,111 @@ def decode_access_token(
 ) -> Mapping[str, Any]:
     """Decode and validate a token previously produced by ``create_access_token``."""
 
-    parts = token.split(".")
-    if len(parts) != 3:
-        raise InvalidTokenError("token must have three segments")
-
-    header_part, payload_part, signature_part = parts
-    signing_input = f"{header_part}.{payload_part}".encode("ascii")
-    secret_bytes = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
-    expected_signature = _sign(signing_input, secret_bytes)
+    fingerprint = _token_fingerprint(token)
     try:
-        provided_signature = _b64url_decode(signature_part)
-    except (ValueError, binascii.Error) as exc:
-        raise InvalidTokenError("token signature is not valid base64") from exc
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise InvalidTokenError("token must have three segments")
 
-    if not hmac.compare_digest(expected_signature, provided_signature):
-        raise InvalidTokenError("token signature mismatch")
-
-    try:
-        payload_bytes = _b64url_decode(payload_part)
-        payload = json.loads(payload_bytes)
-    except Exception as exc:  # pragma: no cover - defensive guard
-        raise InvalidTokenError("token payload could not be decoded") from exc
-
-    if expected_audience is not None:
-        audience = payload.get("aud")
-        if audience != expected_audience:
-            raise InvalidTokenError("unexpected token audience")
-
-    if verify_expiry and "exp" in payload:
-        now = int(_utc_now().timestamp())
+        header_part, payload_part, signature_part = parts
+        signing_input = f"{header_part}.{payload_part}".encode("ascii")
+        secret_bytes = secret.encode("utf-8") if isinstance(secret, str) else bytes(secret)
+        expected_signature = _sign(signing_input, secret_bytes)
         try:
-            expiry = int(payload["exp"])
-        except (TypeError, ValueError) as exc:
-            raise InvalidTokenError("invalid exp claim") from exc
-        if now >= expiry:
-            raise ExpiredTokenError("token has expired")
+            provided_signature = _b64url_decode(signature_part)
+        except (ValueError, binascii.Error) as exc:
+            raise InvalidTokenError("token signature is not valid base64") from exc
 
-    roles_claim = payload.get("roles")
-    if roles_claim is None:
-        payload["roles"] = []
-    elif isinstance(roles_claim, Sequence) and not isinstance(roles_claim, (str, bytes)):
-        payload["roles"] = [str(role) for role in roles_claim]
+        if not hmac.compare_digest(expected_signature, provided_signature):
+            raise InvalidTokenError("token signature mismatch")
+
+        try:
+            payload_bytes = _b64url_decode(payload_part)
+            payload = json.loads(payload_bytes)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            raise InvalidTokenError("token payload could not be decoded") from exc
+
+        if expected_audience is not None:
+            audience = payload.get("aud")
+            if audience != expected_audience:
+                raise InvalidTokenError("unexpected token audience")
+
+        if verify_expiry and "exp" in payload:
+            now = int(_utc_now().timestamp())
+            try:
+                expiry = int(payload["exp"])
+            except (TypeError, ValueError) as exc:
+                raise InvalidTokenError("invalid exp claim") from exc
+            if now >= expiry:
+                raise ExpiredTokenError("token has expired")
+
+        roles_claim = payload.get("roles")
+        if roles_claim is None:
+            payload["roles"] = []
+        elif isinstance(roles_claim, Sequence) and not isinstance(roles_claim, (str, bytes)):
+            payload["roles"] = [str(role) for role in roles_claim]
+        else:
+            payload["roles"] = [str(roles_claim)]
+
+    except ExpiredTokenError:
+        logger.warning(
+            "Access token rejected",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.reason": "expired",
+                "auth.expected_audience": expected_audience,
+            },
+        )
+        raise
+    except InvalidTokenError as exc:
+        logger.warning(
+            "Access token rejected",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.reason": exc.__class__.__name__,
+                "auth.expected_audience": expected_audience,
+            },
+        )
+        raise
+    except AuthTokenError:
+        logger.warning(
+            "Access token rejected",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.reason": "auth_token_error",
+                "auth.expected_audience": expected_audience,
+            },
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Access token validation errored",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.expected_audience": expected_audience,
+            },
+        )
+        raise
     else:
-        payload["roles"] = [str(roles_claim)]
-
-    return payload
+        logger.info(
+            "Validated access token",
+            extra={
+                "auth.token_hash": fingerprint,
+                "auth.subject": payload.get("sub"),
+                "auth.roles_count": len(payload.get("roles", [])),
+                "auth.audience": payload.get("aud"),
+            },
+        )
+        return payload
 
 
 # Backwards compatible aliases
 create_auth_token = create_access_token
 decode_auth_token = decode_access_token
+
+
+def _token_fingerprint(token: str) -> str:
+    """Return a truncated token fingerprint suitable for logging."""
+
+    digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    return digest[:16]

@@ -23,6 +23,15 @@ except ImportError:  # pragma: no cover - fallback to typing_extensions
 
 from src.core.types import JSONArray, JSONObject, JSONValue
 
+
+def _normalize_context(context: JSONObject | None) -> JSONObject:
+    """Filter out null-like values from the context payload."""
+
+    if not context:
+        return {}
+
+    return {key: value for key, value in context.items() if value is not None}
+
 # Type variables for decorators/utilities
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -72,7 +81,7 @@ class EMPException(Exception):
         super().__init__(message)
         self.message: str = message
         self.error_code: str = error_code or self.__class__.__name__
-        self.context: JSONObject = context or {}
+        self.context: JSONObject = _normalize_context(context)
         self.timestamp: datetime = datetime.utcnow()
         # Log the exception immediately
         logger = logging.getLogger(__name__)

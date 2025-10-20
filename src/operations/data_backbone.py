@@ -292,7 +292,7 @@ def evaluate_data_backbone_validation(
     overall = _combine_status(overall, status)
 
     timescale_metadata = {
-        "url": ingest_config.timescale_settings.url,
+        "url": ingest_config.timescale_settings.redacted_url(),
         "configured": ingest_config.timescale_settings.configured,
     }
     if ingest_config.timescale_settings.configured:

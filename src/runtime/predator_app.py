@@ -2594,7 +2594,7 @@ def _configure_institutional_connectors(
     except Exception:
         logger.exception(
             "Failed to create Timescale engine for institutional connectors (url=%s)",
-            settings.url,
+            settings.redacted_url(),
         )
         return {}, []
 

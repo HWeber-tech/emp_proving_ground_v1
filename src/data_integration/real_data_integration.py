@@ -756,11 +756,7 @@ class RealDataManager(MarketDataGateway):
             logger.debug("Timescale cache invalidation failed", exc_info=True)
 
     def _masked_timescale_url(self) -> str:
-        try:
-            url_obj = make_url(self._timescale_settings.url)
-            return url_obj.render_as_string(hide_password=True)
-        except Exception:
-            return self._timescale_settings.url
+        return self._timescale_settings.redacted_url()
 
     def _check_timescale(self) -> ConnectivityProbeSnapshot:
         start = time.perf_counter()

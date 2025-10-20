@@ -124,6 +124,22 @@ def _normalise_mapping(env: Mapping[str, str] | None) -> Mapping[str, str]:
     return env
 
 
+def _redact_url(url: str) -> str:
+    """Return a Timescale connection URL with credentials masked."""
+
+    try:
+        return make_url(url).render_as_string(hide_password=True)
+    except Exception:  # pragma: no cover - fallback for non-SQLAlchemy URLs
+        if "@" not in url:
+            return url
+        credential, _, host = url.partition("@")
+        if ":" in credential:
+            prefix, _, _ = credential.rpartition(":")
+            prefix = prefix or "***"
+            return f"{prefix}:***@{host}"
+        return f"***@{host}"
+
+
 @dataclass(frozen=True)
 class TimescaleConnectionSettings:
     """Settings required to connect to TimescaleDB via SQLAlchemy."""
@@ -309,6 +325,11 @@ class TimescaleConnectionSettings:
             backend = self.url.split(":", 1)[0]
         return backend.lower().startswith("postgres")
 
+    def redacted_url(self) -> str:
+        """Expose the connection URL with secrets removed for logs/metadata."""
+
+        return _redact_url(self.url)
+
     def create_engine(self) -> Engine:
         """Instantiate a SQLAlchemy engine with sensible defaults."""
 
@@ -336,7 +357,7 @@ class TimescaleConnectionSettings:
             kwargs["connect_args"] = connect_args
 
         engine = create_engine(self.url, **kwargs)
-        logger.debug("Created Timescale engine for %s", self.url)
+        logger.debug("Created Timescale engine for %s", self.redacted_url())
         return engine
 
 

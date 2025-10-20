@@ -29,6 +29,12 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
         return default
     if isinstance(value, bool):
         return float(int(value))
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        try:
+            decoded = bytes(value).decode("utf-8")
+        except UnicodeDecodeError:
+            return default
+        value = decoded
     if isinstance(value, Real):
         try:
             return float(value)
@@ -71,6 +77,12 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
         return int(value)
     if isinstance(value, int):
         return value
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        try:
+            decoded = bytes(value).decode("utf-8")
+        except UnicodeDecodeError:
+            return default
+        value = decoded
     if isinstance(value, Real):
         try:
             return int(float(value))

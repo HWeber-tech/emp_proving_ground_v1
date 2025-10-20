@@ -10,7 +10,7 @@ Defines a minimal, domain-agnostic interface for anomaly/manipulation detection.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
 
@@ -21,7 +21,7 @@ class AnomalyEvent:
     timestamp: object
     kind: str
     score: float
-    metadata: dict[str, object]
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @runtime_checkable

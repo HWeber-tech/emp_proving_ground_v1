@@ -57,9 +57,10 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
         try:
-            return float(normalized)
+            result = float(normalized)
         except ValueError:
             return default
+        return result if math.isfinite(result) else default
     try:
         result = float(cast(Any, value))
     except (TypeError, ValueError):

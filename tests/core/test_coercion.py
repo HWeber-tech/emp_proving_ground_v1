@@ -14,3 +14,8 @@ def test_coerce_int_accepts_bytearray() -> None:
 def test_coerce_helpers_accept_numeric_separators() -> None:
     assert coerce_float(" 1_234.5 ") == 1234.5
     assert coerce_int(" -2_000 ") == -2000
+
+
+def test_coerce_float_rejects_non_finite_strings() -> None:
+    assert coerce_float("nan") is None
+    assert coerce_float("inf", default=7.0) == 7.0

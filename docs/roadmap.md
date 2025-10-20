@@ -31,14 +31,14 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **Self-Impact Model**: Quantify how EMP's trades alter the local order book and volatility.
 - [ ] **Adversary Simulation**: Train exploit agents to mimic others observing EMP's pattern; guard against being anticipated.
-- [ ] **Entropy Governor**: Rotate tactics and randomize microtiming to stay unpredictable.
+- [x] **Entropy Governor**: Rotate tactics and randomize microtiming to stay unpredictable.
 - [ ] **Infrastructure Awareness**: Integrate latency, queue position, and execution certainty into planner logic.
 
 ---
 
 ## IV. Belief & Memory - Never Forgetting, Always Contextualizing
 
-- [ ] **Belief Packets**: Each decision records context (features, regime, reasoning, confidence).
+- [x] **Belief Packets**: Each decision records context (features, regime, reasoning, confidence).
 - [ ] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
 - [ ] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
 - [ ] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
@@ -87,7 +87,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **Time Integrity Daemon**: Halt if system clock drift > threshold.
 - [ ] **Data Lineage Hashing**: Every decision references immutable feature hashes.
-- [ ] **Adversarial Feed Quarantine**: Suspicious ticks isolated until verified.
+- [x] **Adversarial Feed Quarantine**: Suspicious ticks isolated until verified.
 - [ ] **Manipulation Sentinel**: Detect and block spoof-like order patterns.
 - [ ] **Compliance-Constrained Planner**: Rollouts obey regulatory and venue constraints.
 - [ ] **Plain-Language Rationale Export**: Each trade emits an explainable reason tied to observable factors.
@@ -97,7 +97,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## X. Cognitive Resource Management
 
 - [ ] **Cognitive Scheduler**: Allocate compute by information gain potential.
-- [ ] **Signal ROI Monitor**: Track marginal predictive value of each data stream.
+- [x] **Signal ROI Monitor**: Track marginal predictive value of each data stream.
 - [ ] **Graceful Degradation**: If sensors fail, revert to baseline policy with explicit uncertainty inflation.
 
 ---
@@ -106,7 +106,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **Automated Promotion/Reversion**: CI promotes only fully passing models; auto-rollbacks on gate regression.
 - [ ] **Gate Dashboard**: Real-time visual of each metric vs threshold.
-- [ ] **Immutable Audit Trail**: Sign and store every policy, belief, and runtime decision.
+- [x] **Immutable Audit Trail**: Sign and store every policy, belief, and runtime decision.
 - [ ] **Performance Covenant**: Gate advancement on sharpness, calibration, and exploitability metrics.
 
 ---

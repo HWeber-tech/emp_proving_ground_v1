@@ -11,6 +11,7 @@ from .auth_tokens import (
     decode_access_token,
     decode_auth_token,
 )
+from .roles import INITIAL_ROLES, SystemRole
 from .user_roles import InMemoryUserRoleStore, SQLiteUserRoleStore
 
 __all__ = [
@@ -21,6 +22,8 @@ __all__ = [
     "create_auth_token",
     "decode_access_token",
     "decode_auth_token",
+    "INITIAL_ROLES",
+    "SystemRole",
     "InMemoryUserRoleStore",
     "SQLiteUserRoleStore",
 ]

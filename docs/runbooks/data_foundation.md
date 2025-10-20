@@ -82,6 +82,58 @@ The returned `AggregationResult` includes the consolidated dataframe, per-provid
 snapshots, and validator findings so CI pipelines and dashboards can publish the
 same diagnostics captured in the roadmap checklist.
 
+### Validation diagnostics & failure handling
+
+Quality findings expose a `severity` of `ok`, `warning`, or `error` via
+`DataQualitySeverity`. The highest severity is surfaced through
+`AggregationResult.status` so orchestrators can gate downstream steps.
+
+- `CoverageValidator` computes per-symbol coverage versus the requested window
+  (`warn_ratio=0.9`, `error_ratio=0.75`). A warning means at least one symbol
+  dropped below 90% coverage—investigate vendor throttling or missing trading
+  days before promoting the dataset. An error (<75%) must block distribution;
+  rerun the fetch, widen the window, or fall back to cached data.
+- `StalenessValidator` compares each symbol’s latest candle with
+  `max_staleness`. A warning signals drift toward the threshold; schedule a
+  refill or verify the market was closed. An error is emitted when no data is
+  available or the latest candle exceeds the limit—treat the window as stale
+  and escalate to operations or switch to another provider.
+- `CrossSourceDriftValidator` measures relative close-price drift between
+  overlapping provider candles. When drift exceeds `warn_tolerance` (defaults to
+  the hard `tolerance`), examine the affected timestamps for vendor-specific
+  adjustments. Any error indicates the drift crossed the hard limit and the
+  dataset should be quarantined until providers reconcile.
+
+For CI or scheduled jobs, fail fast by checking `result.status` and aborting on
+`DataQualitySeverity.error`. When running `scripts/data_bootstrap.py`, supply
+`--fail-on-quality` to exit with status 2 if the pricing pipeline surfaces error
+level issues so stale datasets never land in cache.
+
+### Pricing pipeline guardrails
+
+`PricingPipeline._validate_frame` issues structured `PricingQualityIssue`
+records. Only `no_data` is flagged as `error`; other checks (`duplicate_rows`,
+`missing_rows`, `flat_prices`, `stale_series`) are `warning`s that include
+symbol-level context. Warnings should trigger manual review but still allow the
+run to proceed. When `--fail-on-quality` is set, the CLI aborts if any
+error-severity issues are present. Without the flag, the JSON summary emitted by
+the CLI still lists all findings so dashboards and notebooks can surface them.
+
+### Timescale ingest scoring
+
+`evaluate_ingest_quality` grades Timescale backbone runs by combining coverage
+and freshness into a per-dimension score. Scores below the default warn (0.85)
+or error (0.6) thresholds escalate the aggregate `IngestQualityStatus`. Freshness
+breaches append explanatory messages, and any anomalies detected by
+`detect_feed_anomalies` are attached to the relevant dimension metadata.
+
+- `status == ok`: publish telemetry as normal.
+- `status == warn`: proceed, but raise a backlog ticket and monitor subsequent
+  runs—look for declining coverage ratios or increasing freshness drift.
+- `status == error`: fail the deployment gate or halt the ingest job, repair the
+  upstream source, and rerun the plan with fresh expectations before resuming
+  downstream processing.
+
 ## Streaming Latency Benchmarking
 
 * Module: `src/data_foundation/streaming/latency_benchmark.py`

@@ -69,7 +69,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **Belief Competence Matrix**: Maintain per-regime confidence in each belief family.
 - [x] **Persistent Red-Team Agents**: Dedicated adversaries specialize in EMP's known weak spots.
-- [ ] **Self-Audit Reports**: Daily introspection logs outlining what it knows, what it doubts, and what changed.
+- [x] **Self-Audit Reports**: Daily introspection logs outlining what it knows, what it doubts, and what changed.
 - [ ] **Auto-RFC Generator**: When gates fail, open automatic patch proposals suggesting remediation.
 
 ---
@@ -77,9 +77,9 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## VIII. Risk Doctrine - No Avoidably Bad Trades
 
 - [ ] **Dominance Gate**: Execute only if chosen action dominates all alternatives across belief ensemble.
-- [ ] **Pre-Trade Loss Bound**: Compute worst-case fill outcome; veto if lower bound â‰¤ 0.
+- [x] **Pre-Trade Loss Bound**: Compute worst-case fill outcome; veto if lower bound â‰¤ 0.
 - [x] **Structural Exits**: Use liquidity-weighted unwind paths, not fixed stops.
-- [ ] **Portfolio-Level Antifragility**: Diversify by regime correlation, not instrument name.
+- [x] **Portfolio-Level Antifragility**: Diversify by regime correlation, not instrument name.
 
 ---
 

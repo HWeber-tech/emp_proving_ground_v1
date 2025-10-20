@@ -38,3 +38,16 @@ def test_clear_metrics_sink_resets_to_default(monkeypatch):
 
     assert telemetry.has_metrics_sink() is False
     assert telemetry.get_metrics_sink() is default_sink
+
+
+def test_temporary_metrics_sink_restores_previous(monkeypatch):
+    monkeypatch.setattr(telemetry, "_SINK", None)
+    default_sink = telemetry.get_metrics_sink()
+    temporary_sink = _StubSink()
+
+    with telemetry.temporary_metrics_sink(temporary_sink):
+        assert telemetry.has_metrics_sink() is True
+        assert telemetry.get_metrics_sink() is temporary_sink
+
+    assert telemetry.has_metrics_sink() is False
+    assert telemetry.get_metrics_sink() is default_sink

@@ -11,7 +11,8 @@ and can register themselves via set_metrics_sink().
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from contextlib import contextmanager
+from typing import Iterator, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -90,3 +91,16 @@ def get_metrics_sink() -> MetricsSink:
 def has_metrics_sink() -> bool:
     """True if a non-default sink is registered."""
     return _SINK is not None
+
+
+@contextmanager
+def temporary_metrics_sink(sink: MetricsSink) -> Iterator[MetricsSink]:
+    """Temporarily override the metrics sink within the managed context."""
+
+    global _SINK
+    previous_sink = _SINK
+    set_metrics_sink(sink)
+    try:
+        yield sink
+    finally:
+        _SINK = previous_sink

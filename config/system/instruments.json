@@ -5,7 +5,9 @@
     "long_swap_rate": "-0.0001",
     "short_swap_rate": "0.0001",
     "margin_currency": "USD",
-    "swap_time": "22:00"
+    "swap_time": "22:00",
+    "asset_class": "fx_spot",
+    "venue": "spot_agg"
   },
   "GBPUSD": {
     "pip_decimal_places": 4,
@@ -13,7 +15,9 @@
     "long_swap_rate": "-0.0002",
     "short_swap_rate": "0.0002",
     "margin_currency": "USD",
-    "swap_time": "22:00"
+    "swap_time": "22:00",
+    "asset_class": "fx_spot",
+    "venue": "spot_agg"
   },
   "USDJPY": {
     "pip_decimal_places": 2,
@@ -21,6 +25,22 @@
     "long_swap_rate": "-0.0001",
     "short_swap_rate": "0.0001",
     "margin_currency": "USD",
-    "swap_time": "22:00"
+    "swap_time": "22:00",
+    "asset_class": "fx_spot",
+    "venue": "spot_agg"
+  },
+  "6E_DEC24": {
+    "pip_decimal_places": 4,
+    "contract_size": "125000",
+    "margin_currency": "USD",
+    "asset_class": "fx_fut",
+    "venue": "globex"
+  },
+  "AAPL": {
+    "pip_decimal_places": 2,
+    "contract_size": "1",
+    "margin_currency": "USD",
+    "asset_class": "equity",
+    "venue": "nasdaq"
   }
 }

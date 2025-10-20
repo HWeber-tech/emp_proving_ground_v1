@@ -18,6 +18,21 @@ def test_default_reference_loader_reads_repo_configs() -> None:
     assert float(eurusd.contract_size) == pytest.approx(100000)
     assert eurusd.pip_decimal_places == 4
     assert eurusd.swap_time == time(hour=22)
+    assert eurusd.asset_class == "fx_spot"
+    assert eurusd.venue == "spot_agg"
+
+    assert {"6E_DEC24", "AAPL"}.issubset(instruments.keys())
+    futures = instruments["6E_DEC24"]
+    assert futures.asset_class == "fx_fut"
+    assert futures.venue == "globex"
+    equity = instruments["AAPL"]
+    assert equity.asset_class == "equity"
+    assert equity.venue == "nasdaq"
+
+    asset_classes = {inst.asset_class for inst in instruments.values() if inst.asset_class}
+    assert asset_classes == {"equity", "fx_fut", "fx_spot"}
+    venues = {inst.venue for inst in instruments.values() if inst.venue}
+    assert venues == {"nasdaq", "globex", "spot_agg"}
 
     sessions = loader.load_sessions()
     assert set(sessions.keys()) >= {"london_fx", "tokyo_fx", "new_york_fx"}

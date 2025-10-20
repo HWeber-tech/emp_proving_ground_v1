@@ -9,6 +9,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict, Iterable, Mapping, Sequence
 
+_ASSET_CLASS_VALUES: frozenset[str] = frozenset({"equity", "fx_fut", "fx_spot"})
+_VENUE_VALUES: frozenset[str] = frozenset({"nasdaq", "globex", "spot_agg"})
+
+
 __all__ = [
     "InstrumentDefinition",
     "TradingSession",
@@ -30,6 +34,8 @@ class InstrumentDefinition:
     contract_size: Decimal
     pip_decimal_places: int
     margin_currency: str
+    asset_class: str | None = None
+    venue: str | None = None
     long_swap_rate: Decimal | None = None
     short_swap_rate: Decimal | None = None
     swap_time: time | None = None
@@ -240,6 +246,24 @@ class ReferenceDataLoader:
                 continue
         raise ValueError(f"Invalid time format: {text}")
 
+    @staticmethod
+    def _normalise_enum(
+        value: object | None,
+        allowed: frozenset[str],
+        *,
+        field: str,
+        symbol: str,
+    ) -> str | None:
+        if value is None:
+            return None
+        candidate = str(value).strip().lower()
+        if not candidate:
+            return None
+        if candidate not in allowed:
+            options = ", ".join(sorted(allowed))
+            raise ValueError(f"Invalid {field} {value!r} for {symbol}; expected one of {options}")
+        return candidate
+
     def _parse_instrument(self, symbol: str, payload: Mapping[str, object]) -> InstrumentDefinition:
         contract_size = self._parse_decimal(payload.get("contract_size")) or Decimal("0")
         pip_places = int(payload.get("pip_decimal_places", 0))
@@ -247,12 +271,26 @@ class ReferenceDataLoader:
         long_swap = self._parse_decimal(payload.get("long_swap_rate"))
         short_swap = self._parse_decimal(payload.get("short_swap_rate"))
         swap_time = self._parse_time(payload.get("swap_time"))
+        asset_class = self._normalise_enum(
+            payload.get("asset_class"),
+            _ASSET_CLASS_VALUES,
+            field="asset_class",
+            symbol=str(symbol),
+        )
+        venue = self._normalise_enum(
+            payload.get("venue"),
+            _VENUE_VALUES,
+            field="venue",
+            symbol=str(symbol),
+        )
 
         return InstrumentDefinition(
             symbol=str(symbol).upper(),
             contract_size=contract_size,
             pip_decimal_places=pip_places,
             margin_currency=margin_currency,
+            asset_class=asset_class,
+            venue=venue,
             long_swap_rate=long_swap,
             short_swap_rate=short_swap,
             swap_time=swap_time,
@@ -311,4 +349,3 @@ class ReferenceDataLoader:
             venues=venues,
             description=str(description) if description is not None else None,
         )
-

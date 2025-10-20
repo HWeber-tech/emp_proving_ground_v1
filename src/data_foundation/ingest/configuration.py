@@ -175,6 +175,11 @@ def _resolve_symbol_inventory() -> tuple[dict[str, object], ...]:
             "margin_currency": instrument.margin_currency,
         }
 
+        if instrument.asset_class is not None:
+            payload["asset_class"] = instrument.asset_class
+        if instrument.venue is not None:
+            payload["venue"] = instrument.venue
+
         if instrument.long_swap_rate is not None:
             payload["long_swap_rate"] = str(instrument.long_swap_rate)
         if instrument.short_swap_rate is not None:

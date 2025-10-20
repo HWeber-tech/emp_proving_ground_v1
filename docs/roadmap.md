@@ -67,7 +67,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## VII. Metacognition - Awareness of Its Own Limits
 
-- [ ] **Belief Competence Matrix**: Maintain per-regime confidence in each belief family.
+- [x] **Belief Competence Matrix**: Maintain per-regime confidence in each belief family.
 - [x] **Persistent Red-Team Agents**: Dedicated adversaries specialize in EMP's known weak spots.
 - [x] **Self-Audit Reports**: Daily introspection logs outlining what it knows, what it doubts, and what changed.
 - [ ] **Auto-RFC Generator**: When gates fail, open automatic patch proposals suggesting remediation.
@@ -86,11 +86,11 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## IX. Security, Provenance & Compliance
 
 - [x] **Time Integrity Daemon**: Halt if system clock drift > threshold.
-- [ ] **Data Lineage Hashing**: Every decision references immutable feature hashes.
+- [x] **Data Lineage Hashing**: Every decision references immutable feature hashes.
 - [x] **Adversarial Feed Quarantine**: Suspicious ticks isolated until verified.
 - [x] **Manipulation Sentinel**: Detect and block spoof-like order patterns.
 - [x] **Compliance-Constrained Planner**: Rollouts obey regulatory and venue constraints.
-- [ ] **Plain-Language Rationale Export**: Each trade emits an explainable reason tied to observable factors.
+- [x] **Plain-Language Rationale Export**: Each trade emits an explainable reason tied to observable factors.
 
 ---
 

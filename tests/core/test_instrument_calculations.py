@@ -54,3 +54,10 @@ def test_get_instrument_ignores_symbol_whitespace() -> None:
 
     assert instrument is not None
     assert instrument.symbol == "EURUSD"
+
+
+def test_get_instrument_accepts_common_separators() -> None:
+    instrument = get_instrument("eur/usd")
+
+    assert instrument is not None
+    assert instrument.symbol == "EURUSD"

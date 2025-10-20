@@ -187,7 +187,7 @@ def get_instrument(symbol: str | None) -> Instrument | None:
     """Get instrument by symbol."""
     if symbol is None:
         return None
-    normalised = symbol.strip().upper()
+    normalised = "".join(ch for ch in symbol.strip().upper() if ch.isalnum())
     if not normalised:
         return None
     return FOREX_INSTRUMENTS.get(normalised)

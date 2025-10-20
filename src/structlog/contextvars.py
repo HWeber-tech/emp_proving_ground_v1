@@ -32,6 +32,12 @@ def unbind_contextvars(*keys: str) -> None:
     _CONTEXT.set(current)
 
 
+def get_contextvars() -> MutableMapping[str, object]:
+    """Return a shallow copy of the current logging context."""
+
+    return dict(_CONTEXT.get())
+
+
 def merge_contextvars(
     _logger: object,
     _method_name: str,
@@ -50,5 +56,6 @@ def merge_contextvars(
 __all__ = [
     "bind_contextvars",
     "unbind_contextvars",
+    "get_contextvars",
     "merge_contextvars",
 ]

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Mapping
+import time
 
 import aiohttp
 import pytest
 
+from src.core._event_bus_impl import EventBusStatistics
 from src.governance.system_config import ConnectionProtocol, DataBackboneMode
 from src.operations.data_backbone import (
     BackboneComponentSnapshot,
@@ -24,11 +27,32 @@ class _DummyConfig:
 
 
 class _DummyEventBus:
-    def __init__(self, running: bool) -> None:
+    def __init__(self, running: bool, stats: EventBusStatistics | None = None) -> None:
         self._running = running
+        if stats is None:
+            now = time.time()
+            stats = EventBusStatistics(
+                running=running,
+                loop_running=running,
+                queue_size=0,
+                queue_capacity=None,
+                subscriber_count=0,
+                topic_subscribers={},
+                published_events=0,
+                dropped_events=0,
+                handler_errors=0,
+                last_event_timestamp=now,
+                last_error_timestamp=None,
+                started_at=now,
+                uptime_seconds=0.0,
+            )
+        self._stats = stats
 
     def is_running(self) -> bool:
         return self._running
+
+    def get_statistics(self) -> EventBusStatistics:
+        return self._stats
 
 
 class _DummyFixManager:
@@ -40,8 +64,20 @@ class _DummyFixManager:
 
 
 class _DummyBroker:
-    def __init__(self, running: bool) -> None:
+    def __init__(self, running: bool, metrics: Mapping[str, object] | None = None) -> None:
         self.running = running
+        self._metrics = dict(metrics or {})
+
+    def describe_metrics(self) -> Mapping[str, object]:
+        return dict(self._metrics)
+
+
+class _DummyTradingManager:
+    def __init__(self, stats: Mapping[str, object]) -> None:
+        self._stats = dict(stats)
+
+    def get_execution_stats(self) -> Mapping[str, object]:
+        return dict(self._stats)
 
 
 class _DummySensory:
@@ -66,6 +102,7 @@ class _DummyApp:
         sensory=None,
         snapshot: DataBackboneReadinessSnapshot | None = None,
         event_bus: _DummyEventBus | None = None,
+        trading_manager=None,
     ) -> None:
         self.config = config
         self.fix_connection_manager = fix_manager
@@ -73,6 +110,7 @@ class _DummyApp:
         self.sensory_organ = sensory
         self._snapshot = snapshot
         self.event_bus = event_bus or _DummyEventBus(True)
+        self.trading_manager = trading_manager
 
     def get_last_data_backbone_snapshot(self) -> DataBackboneReadinessSnapshot | None:
         return self._snapshot
@@ -165,5 +203,57 @@ async def test_runtime_health_server_serves_snapshot() -> None:
                 payload = await response.json()
         assert payload["status"] in {"ok", "warn", "fail"}
         assert any(check["name"] == "market_data" for check in payload["checks"])
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio()
+async def test_runtime_health_server_serves_metrics() -> None:
+    cfg = _DummyConfig(
+        connection_protocol=ConnectionProtocol.bootstrap,
+        data_backbone_mode=DataBackboneMode.institutional,
+    )
+    now = time.time()
+    bus_stats = EventBusStatistics(
+        running=True,
+        loop_running=True,
+        queue_size=3,
+        queue_capacity=10,
+        subscriber_count=5,
+        topic_subscribers={},
+        published_events=12,
+        dropped_events=4,
+        handler_errors=0,
+        last_event_timestamp=now - 1.5,
+        last_error_timestamp=None,
+        started_at=now - 60,
+        uptime_seconds=60.0,
+    )
+    broker_metrics = {
+        "p50_latency_s": 0.12,
+        "p90_latency_s": 0.25,
+        "p99_latency_s": 0.75,
+    }
+    tm_stats = {
+        "guardrail_force": {"force_paper": True, "expires_at": datetime.now(tz=UTC).isoformat()},
+    }
+    app = _DummyApp(
+        config=cfg,
+        snapshot=_fresh_snapshot(age_seconds=5),
+        broker=_DummyBroker(running=True, metrics=broker_metrics),
+        event_bus=_DummyEventBus(True, stats=bus_stats),
+        trading_manager=_DummyTradingManager(tm_stats),
+    )
+
+    server = RuntimeHealthServer(app, host="127.0.0.1", port=0)
+    await server.start()
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(server.metrics_url) as response:
+                body = await response.text()
+        assert response.status == 200
+        assert "event_lag_ms" in body
+        assert "p50_infer_ms" in body
+        assert "risk_halted 1" in body
     finally:
         await server.stop()

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from collections.abc import Iterable
-from typing import Awaitable, Callable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Awaitable, Callable
 
 from aiohttp import web
 
@@ -282,6 +283,134 @@ def evaluate_runtime_health(
     )
 
 
+def _format_prometheus_metrics(metrics: Mapping[str, float]) -> str:
+    lines: list[str] = []
+    for name, value in metrics.items():
+        lines.append(f"# TYPE {name} gauge")
+        lines.append(f"{name} {format(value, 'g')}")
+    return "\n".join(lines) + "\n"
+
+
+def _collect_runtime_metrics(app: ProfessionalPredatorApp) -> dict[str, float]:
+    metrics: dict[str, float] = {
+        "event_lag_ms": 0.0,
+        "queue_depth": 0.0,
+        "p50_infer_ms": 0.0,
+        "p90_infer_ms": 0.0,
+        "p99_infer_ms": 0.0,
+        "drops": 0.0,
+        "risk_halted": 0.0,
+    }
+
+    event_bus = getattr(app, "event_bus", None)
+    if event_bus is not None and hasattr(event_bus, "get_statistics"):
+        try:
+            stats = event_bus.get_statistics()
+        except Exception:  # pragma: no cover - defensive metrics guard
+            logger.debug("Failed to collect event bus statistics", exc_info=True)
+        else:
+            queue_size = getattr(stats, "queue_size", None)
+            if isinstance(queue_size, int):
+                metrics["queue_depth"] = float(queue_size)
+            dropped = getattr(stats, "dropped_events", None)
+            if isinstance(dropped, (int, float)):
+                metrics["drops"] = float(dropped)
+            last_event = getattr(stats, "last_event_timestamp", None)
+            if isinstance(last_event, (int, float)):
+                lag_ms = max(0.0, (time.time() - float(last_event)) * 1000.0)
+                metrics["event_lag_ms"] = lag_ms
+
+    latency_snapshot: Mapping[str, object] | None = None
+    broker = getattr(app, "broker_interface", None)
+    if broker is not None:
+        describe_metrics = getattr(broker, "describe_metrics", None)
+        if callable(describe_metrics):
+            try:
+                candidate = describe_metrics()
+            except Exception:  # pragma: no cover - defensive metrics guard
+                logger.debug("Failed to describe broker metrics", exc_info=True)
+            else:
+                if isinstance(candidate, Mapping):
+                    latency_snapshot = candidate
+
+    if latency_snapshot is None:
+        trading_manager = getattr(app, "trading_manager", None)
+        if trading_manager is not None:
+            describe_exec = getattr(trading_manager, "get_execution_stats", None)
+            if callable(describe_exec):
+                try:
+                    candidate = describe_exec()
+                except Exception:  # pragma: no cover - defensive metrics guard
+                    logger.debug("Failed to collect execution stats for metrics", exc_info=True)
+                else:
+                    if isinstance(candidate, Mapping):
+                        latency_snapshot = candidate
+
+    if latency_snapshot is not None:
+        for source_key, metric_name in (
+            ("p50_latency_s", "p50_infer_ms"),
+            ("p90_latency_s", "p90_infer_ms"),
+            ("p99_latency_s", "p99_infer_ms"),
+            ("p50_latency_ms", "p50_infer_ms"),
+            ("p90_latency_ms", "p90_infer_ms"),
+            ("p99_latency_ms", "p99_infer_ms"),
+        ):
+            if metric_name not in metrics:
+                continue
+            value = latency_snapshot.get(source_key)
+            if value is None:
+                continue
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                continue
+            if source_key.endswith("_s"):
+                numeric *= 1000.0
+            metrics[metric_name] = max(numeric, 0.0)
+
+    trading_manager = getattr(app, "trading_manager", None)
+    if trading_manager is not None:
+        describe_exec = getattr(trading_manager, "get_execution_stats", None)
+        if callable(describe_exec):
+            try:
+                exec_snapshot = describe_exec()
+            except Exception:  # pragma: no cover - defensive metrics guard
+                logger.debug("Failed to evaluate risk posture from execution stats", exc_info=True)
+            else:
+                if isinstance(exec_snapshot, Mapping):
+                    guardrail = exec_snapshot.get("guardrail_force")
+                    if isinstance(guardrail, Mapping) and guardrail.get("force_paper"):
+                        metrics["risk_halted"] = 1.0
+                    else:
+                        expires_raw = exec_snapshot.get("guardrail_force_paper_until")
+                        expires_at = _parse_iso_datetime(expires_raw)
+                        if expires_at is not None and expires_at > datetime.now(tz=UTC):
+                            metrics["risk_halted"] = 1.0
+
+    return metrics
+
+
+def _parse_iso_datetime(value: object) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
 StartupCallback = Callable[[], Awaitable[None] | None]
 
 
@@ -295,6 +424,7 @@ class RuntimeHealthServer:
         host: str = "0.0.0.0",
         port: int = 8080,
         path: str = "/health",
+        metrics_path: str = "/metrics",
         ingest_warn_after: float = 900.0,
         ingest_fail_after: float = 1800.0,
         decision_warn_after: float = 180.0,
@@ -304,6 +434,9 @@ class RuntimeHealthServer:
         self._host = host
         self._port = int(port)
         self._path = path if path.startswith("/") else f"/{path}"
+        self._metrics_path = (
+            metrics_path if metrics_path.startswith("/") else f"/{metrics_path}"
+        )
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
         self._resolved_port: int | None = None
@@ -326,8 +459,21 @@ class RuntimeHealthServer:
             )
             return web.json_response(snapshot.as_dict())
 
+        async def _handle_metrics(_request: web.Request) -> web.Response:
+            metrics = _collect_runtime_metrics(self._app)
+            body = _format_prometheus_metrics(metrics)
+            return web.Response(
+                text=body,
+                content_type="text/plain; version=0.0.4",
+            )
+
         web_app = web.Application()
-        web_app.add_routes([web.get(self._path, _handle_health)])
+        web_app.add_routes(
+            [
+                web.get(self._path, _handle_health),
+                web.get(self._metrics_path, _handle_metrics),
+            ]
+        )
 
         self._runner = web.AppRunner(web_app)
         await self._runner.setup()
@@ -341,7 +487,11 @@ class RuntimeHealthServer:
         else:
             self._resolved_port = self._port
 
-        logger.info("🩺 Runtime health endpoint available at %s", self.url)
+        logger.info(
+            "🩺 Runtime health endpoint available at %s (metrics at %s)",
+            self.url,
+            self.metrics_url,
+        )
 
     async def stop(self) -> None:
         if self._site is not None:
@@ -360,12 +510,18 @@ class RuntimeHealthServer:
     def url(self) -> str:
         return f"http://{self._host}:{self.port}{self._path}"
 
+    @property
+    def metrics_url(self) -> str:
+        return f"http://{self._host}:{self.port}{self._metrics_path}"
+
     def summary(self) -> Mapping[str, object]:
         return {
             "host": self._host,
             "port": self.port,
             "path": self._path,
             "url": self.url,
+            "metrics_path": self._metrics_path,
+            "metrics_url": self.metrics_url,
         }
 
 

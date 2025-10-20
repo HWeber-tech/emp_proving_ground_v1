@@ -8,6 +8,7 @@ from .horizon_evaluation import (
     HorizonObservation,
     evaluate_predictions_by_horizon,
 )
+from .lora_freeze import LoRAFreezePlan, LoRALayerConfig, plan_lora_freeze
 
 __all__ = [
     "MetaCognitionEngine",
@@ -17,4 +18,7 @@ __all__ = [
     "HorizonMetrics",
     "HorizonObservation",
     "evaluate_predictions_by_horizon",
+    "LoRAFreezePlan",
+    "LoRALayerConfig",
+    "plan_lora_freeze",
 ]

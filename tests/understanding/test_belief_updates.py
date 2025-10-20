@@ -400,6 +400,18 @@ def test_regime_fsm_publishes_signal() -> None:
     assert set(state_means) >= {"bullish", "balanced", "bearish"}
     state_variances = metadata["hmm_state_variances"]
     assert set(state_variances) == set(state_means)
+    competence_slice = metadata["belief_competence"]
+    assert "INTEGRATED" in competence_slice
+    integrated_stats = competence_slice["INTEGRATED"]
+    assert int(integrated_stats["samples"]) >= 1
+    assert 0.0 <= float(integrated_stats["mean"]) <= 1.0
+    family_confidence = metadata["belief_family_confidence"]
+    assert "WHY" in family_confidence
+    assert 0.0 <= float(family_confidence["WHY"]) <= 1.0
+    matrix = metadata["belief_competence_matrix"]
+    active_regime = signal.regime_state.regime
+    assert active_regime in matrix
+    assert "INTEGRATED" in matrix[active_regime]
 
 
 def test_regime_fsm_records_transitions() -> None:
@@ -470,6 +482,41 @@ def test_regime_fsm_records_transitions() -> None:
     assert health["transition_count"] == 2
     assert health["last_regime"] == "bullish"
     assert health["last_transition_reason"] == "regime_and_volatility"
+    competence_matrix = health["belief_competence_matrix"]
+    assert competence_matrix
+
+
+def test_regime_fsm_tracks_belief_competence_matrix() -> None:
+    bus = _StubEventBus()
+    buffer = BeliefBuffer(belief_id="competence-belief")
+    emitter = BeliefEmitter(buffer=buffer, event_bus=bus)
+    state = emitter.emit(
+        _build_snapshot(
+            strength=0.1,
+            confidence=0.8,
+            timestamp=datetime(2025, 1, 4, 12, 0, tzinfo=UTC),
+            lineage_counter=1,
+        )
+    )
+
+    fsm = RegimeFSM(event_bus=bus, signal_id="competence-regime")
+    first_signal = fsm.publish(state)
+    matrix_after_first = fsm.healthcheck()["belief_competence_matrix"]
+    regime = first_signal.regime_state.regime
+    integrated_first = matrix_after_first[regime]["INTEGRATED"]
+    samples_first = int(integrated_first["samples"])
+
+    second_signal = fsm.publish(state)
+    matrix_after_second = fsm.healthcheck()["belief_competence_matrix"]
+    regime_second = second_signal.regime_state.regime
+    integrated_second = matrix_after_second[regime_second]["INTEGRATED"]
+    samples_second = int(integrated_second["samples"])
+
+    if regime_second == regime:
+        assert samples_second == samples_first + 1
+    else:
+        assert samples_second >= 1
+    assert 0.0 <= float(integrated_second["mean"]) <= 1.0
 
 
 def test_regime_fsm_hmm_updates_transition_priors() -> None:

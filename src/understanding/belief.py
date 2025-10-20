@@ -34,6 +34,7 @@ __all__ = [
     "BeliefDistribution",
     "BeliefState",
     "BeliefBuffer",
+    "BeliefCompetenceMatrix",
     "BeliefEmitter",
     "BeliefSnapshotPersister",
     "RegimeSignal",
@@ -709,6 +710,69 @@ class BeliefBuffer:
         expanded_covariance = np.eye(target_size, dtype=float) * self._min_variance
         expanded_covariance[:current_size, :current_size] = covariance
         return expanded_mean, expanded_covariance
+
+
+@dataclass(slots=True)
+class _BeliefCompetenceStats:
+    """Running aggregate for a single belief family's competence."""
+
+    samples: int = 0
+    mean: float = 0.0
+    last: float = 0.0
+
+    def update(self, value: float) -> None:
+        numeric = float(max(0.0, min(1.0, value)))
+        self.samples += 1
+        if self.samples == 1:
+            self.mean = numeric
+        else:
+            self.mean = self.mean + (numeric - self.mean) / self.samples
+        self.last = numeric
+
+    def as_dict(self) -> Mapping[str, float | int]:
+        return {
+            "samples": int(self.samples),
+            "mean": float(self.mean),
+            "last": float(self.last),
+        }
+
+
+class BeliefCompetenceMatrix:
+    """Track belief family confidence across regimes."""
+
+    def __init__(self) -> None:
+        self._matrix: MutableMapping[str, MutableMapping[str, _BeliefCompetenceStats]] = {}
+
+    def update(self, regime: str, families: Mapping[str, float]) -> None:
+        if not regime:
+            regime = "unknown"
+        regime_key = str(regime)
+        bucket = self._matrix.setdefault(regime_key, {})
+        for family, value in families.items():
+            stats = bucket.get(family)
+            if stats is None:
+                stats = _BeliefCompetenceStats()
+                bucket[family] = stats
+            stats.update(value)
+
+    def as_dict(self) -> Mapping[str, Mapping[str, Mapping[str, float | int]]]:
+        snapshot: dict[str, dict[str, Mapping[str, float | int]]] = {}
+        for regime, families in self._matrix.items():
+            snapshot[regime] = {
+                family: stats.as_dict() for family, stats in sorted(families.items())
+            }
+        return snapshot
+
+    def for_regime(self, regime: str) -> Mapping[str, Mapping[str, float | int]]:
+        families = self._matrix.get(regime)
+        if not families:
+            return {}
+        return {
+            family: stats.as_dict() for family, stats in sorted(families.items())
+        }
+
+    def reset(self) -> None:
+        self._matrix.clear()
 
 
 @dataclass(slots=True, frozen=True)
@@ -1453,6 +1517,7 @@ class RegimeFSM:
         for state, regime in zip(state_names, regime_labels):
             self._hint_state_map[state.lower()] = state
             self._hint_state_map[regime.lower()] = state
+        self._competence_matrix = BeliefCompetenceMatrix()
 
     @property
     def calm_threshold(self) -> float:
@@ -1501,6 +1566,7 @@ class RegimeFSM:
         reset_history: bool = False,
         reset_dynamic_thresholds: bool = True,
         reset_hmm: bool = False,
+        reset_competence: bool = False,
     ) -> None:
         """Update volatility thresholds and history to match new calibration."""
 
@@ -1542,6 +1608,8 @@ class RegimeFSM:
             self._dynamic_storm_threshold = None
         if reset_hmm:
             self._hmm.reset()
+        if reset_history or reset_competence:
+            self._competence_matrix.reset()
 
     def classify(self, belief_state: BeliefState) -> RegimeSignal:
         posterior = belief_state.posterior
@@ -1600,6 +1668,11 @@ class RegimeFSM:
             outputs={"regime": regime_state.regime, "confidence": regime_state.confidence},
         )
 
+        family_confidence = self._extract_belief_family_confidence(belief_state)
+        self._competence_matrix.update(regime_state.regime, family_confidence)
+        competence_snapshot = self._competence_matrix.as_dict()
+        active_competence = self._competence_matrix.for_regime(regime_state.regime)
+
         metadata = {
             "bullish_threshold": self._bullish_threshold,
             "bearish_threshold": self._bearish_threshold,
@@ -1611,6 +1684,9 @@ class RegimeFSM:
             "posterior_strength": float(strength),
             "posterior_confidence": float(confidence),
             "regime_probabilities": dict(regime_probabilities),
+            "belief_family_confidence": dict(family_confidence),
+            "belief_competence": dict(active_competence),
+            "belief_competence_matrix": dict(competence_snapshot),
             "hmm_state_means": {
                 regime_label: float(mean)
                 for regime_label, mean in zip(
@@ -1702,6 +1778,7 @@ class RegimeFSM:
                 [float(value) for value in row]
                 for row in self._hmm.transition_matrix.tolist()
             ],
+            "belief_competence_matrix": self._competence_matrix.as_dict(),
         }
 
     def apply_threshold_scale(self, scale: float) -> None:
@@ -1721,6 +1798,57 @@ class RegimeFSM:
             and self._dynamic_storm_threshold <= self._dynamic_calm_threshold
         ):
             self._dynamic_storm_threshold = self._dynamic_calm_threshold + 1e-6
+
+    @staticmethod
+    def _family_from_key(key: object) -> str | None:
+        if not isinstance(key, str):
+            return None
+        suffix = "_confidence"
+        if not key.endswith(suffix):
+            return None
+        base = key[: -len(suffix)].strip()
+        if not base:
+            return None
+        return base.upper()
+
+    @staticmethod
+    def _coerce_confidence_value(value: object) -> float | None:
+        try:
+            numeric = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(numeric):
+            return None
+        return float(np.clip(numeric, 0.0, 1.0))
+
+    def _extract_belief_family_confidence(self, belief_state: BeliefState) -> Mapping[str, float]:
+        families: dict[str, float] = {}
+        metadata = belief_state.metadata
+        observation = metadata.get("observation") if isinstance(metadata, Mapping) else None
+        if isinstance(observation, Mapping):
+            for key, raw in observation.items():
+                family = self._family_from_key(key)
+                if family is None:
+                    continue
+                value = self._coerce_confidence_value(raw)
+                if value is None:
+                    continue
+                families.setdefault(family, value)
+
+        for name, raw in zip(belief_state.features, belief_state.posterior.mean):
+            family = self._family_from_key(name)
+            if family is None or family in families:
+                continue
+            value = self._coerce_confidence_value(raw)
+            if value is None:
+                continue
+            families[family] = value
+
+        overall = self._coerce_confidence_value(belief_state.posterior.confidence)
+        if overall is not None:
+            families.setdefault("POSTERIOR", overall)
+
+        return dict(sorted(families.items()))
 
     def _record_transition(self, signal: RegimeSignal) -> None:
         previous_signal = self._last_signal

@@ -5,7 +5,7 @@ import logging
 import math
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Dict, List, Mapping, Optional, cast
+from typing import Any, Dict, List, Mapping, Optional, cast
 
 import pandas as pd
 
@@ -24,6 +24,212 @@ from .performance_metrics import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_float(value: object) -> float | None:
+    """Best-effort conversion to float for numeric telemetry."""
+
+    if isinstance(value, bool):
+        return None
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(result) or math.isinf(result):
+        return None
+    return result
+
+
+def _strip_trailing_zeros(text: str) -> str:
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
+
+
+def _format_quantity(value: float) -> str:
+    precision = 4 if abs(value) < 1 else 2
+    return _strip_trailing_zeros(f"{value:.{precision}f}")
+
+
+def _format_price(value: float) -> str:
+    if abs(value) >= 1:
+        return f"{value:.2f}"
+    return _strip_trailing_zeros(f"{value:.4f}")
+
+
+def _format_currency(value: float) -> str:
+    return f"{value:+.2f}"
+
+
+def _format_percent(value: float) -> str:
+    return _strip_trailing_zeros(f"{value * 100:.2f}") + "%"
+
+
+def _lookup_value(
+    trade: Mapping[str, object],
+    metadata: Mapping[str, object] | None,
+    *keys: str,
+) -> object | None:
+    for key in keys:
+        candidate = trade.get(key)
+        if candidate is None and metadata is not None:
+            candidate = metadata.get(key)
+        if candidate is None:
+            continue
+        if isinstance(candidate, str) and not candidate.strip():
+            continue
+        return candidate
+    return None
+
+
+def _collect_observable_factors(trade: Mapping[str, object]) -> list[str]:
+    metadata = None
+    raw_metadata = trade.get("metadata")
+    if isinstance(raw_metadata, Mapping):
+        metadata = raw_metadata
+
+    factors: list[str] = []
+
+    regime = _lookup_value(trade, metadata, "regime", "market_regime")
+    if regime is not None:
+        factors.append(f"regime {regime}")
+
+    spread = _coerce_float(_lookup_value(trade, metadata, "spread"))
+    if spread is not None and spread != 0:
+        factors.append(f"spread {_format_price(spread)}")
+
+    spread_bps = _coerce_float(_lookup_value(trade, metadata, "spread_bps"))
+    if spread_bps is not None and spread_bps != 0:
+        formatted_bps = _strip_trailing_zeros(f"{spread_bps:.0f}")
+        factors.append(f"spread {formatted_bps} bps")
+
+    signal_strength = _coerce_float(
+        _lookup_value(
+            trade,
+            metadata,
+            "signal_strength",
+            "signal",
+            "signal_score",
+            "alpha_signal",
+        )
+    )
+    if signal_strength is not None:
+        factors.append(f"signal strength {_format_price(signal_strength)}")
+
+    confidence = _coerce_float(
+        _lookup_value(trade, metadata, "confidence", "signal_confidence")
+    )
+    if confidence is not None:
+        factors.append(f"confidence {_format_percent(confidence)}")
+
+    volatility = _coerce_float(_lookup_value(trade, metadata, "volatility"))
+    if volatility is not None:
+        factors.append(f"volatility {_format_price(volatility)}")
+
+    liquidity = _coerce_float(_lookup_value(trade, metadata, "liquidity"))
+    if liquidity is not None:
+        factors.append(f"liquidity {_format_quantity(liquidity)}")
+
+    baseline_return = _coerce_float(
+        _lookup_value(
+            trade,
+            metadata,
+            "baseline_return_estimate",
+            "baseline_return",
+            "expected_return",
+        )
+    )
+    if baseline_return is not None:
+        factors.append(f"baseline return {_format_percent(baseline_return)}")
+
+    baseline_pnl = _coerce_float(_lookup_value(trade, metadata, "baseline_pnl"))
+    if baseline_pnl is not None:
+        factors.append(f"baseline P&L {_format_currency(baseline_pnl)}")
+
+    fast_weights_enabled = _lookup_value(trade, metadata, "fast_weights_enabled")
+    if isinstance(fast_weights_enabled, bool):
+        factors.append(
+            "fast weights enabled" if fast_weights_enabled else "fast weights disabled"
+        )
+
+    reason = _lookup_value(trade, metadata, "reason")
+    if isinstance(reason, str) and reason.strip():
+        factors.insert(0, reason.strip())
+
+    return factors[:6]
+
+
+def _build_trade_rationale(trade: Mapping[str, object]) -> str:
+    existing = trade.get("rationale")
+    if isinstance(existing, str) and existing.strip():
+        base = existing.strip()
+    else:
+        strategy = str(trade.get("strategy") or "unknown").strip() or "unknown"
+        side_raw = trade.get("side") or trade.get("direction")
+        side = str(side_raw).upper().strip() if side_raw is not None else ""
+        if side not in {"BUY", "SELL"}:
+            side = ""
+        symbol_raw = trade.get("symbol") or trade.get("instrument") or trade.get("asset")
+        symbol = str(symbol_raw).strip() if symbol_raw is not None else ""
+        size = _coerce_float(
+            trade.get("size") or trade.get("quantity") or trade.get("volume")
+        )
+        entry_price = _coerce_float(trade.get("entry_price") or trade.get("entry"))
+        exit_price = _coerce_float(trade.get("exit_price") or trade.get("exit"))
+        pnl_value = _coerce_float(trade.get("pnl"))
+        return_pct = _coerce_float(trade.get("return"))
+        if return_pct is None:
+            return_pct = _coerce_float(trade.get("return_pct"))
+        notional = _coerce_float(trade.get("notional"))
+
+        segments: list[str] = [f"Strategy {strategy}"]
+
+        action: list[str] = []
+        if side:
+            action.append(side.lower())
+        action.append("trade")
+        if symbol:
+            action.append(f"on {symbol}")
+        segments.append(" ".join(action))
+
+        if size is not None:
+            segments.append(f"size { _format_quantity(size) }")
+
+        if entry_price is not None and exit_price is not None:
+            delta = exit_price - entry_price
+            segments.append(
+                f"from { _format_price(entry_price) } to { _format_price(exit_price) }"
+                f" ({_format_currency(delta)})"
+            )
+        elif entry_price is not None:
+            segments.append(f"at { _format_price(entry_price) }")
+        elif exit_price is not None:
+            segments.append(f"at { _format_price(exit_price) }")
+
+        base = " ".join(segment for segment in segments if segment).strip()
+
+        metrics: list[str] = []
+        if pnl_value is not None:
+            metrics.append(f"P&L {_format_currency(pnl_value)}")
+        if return_pct is not None:
+            metrics.append(f"return {_format_percent(return_pct)}")
+        if notional is not None:
+            formatted_notional = _strip_trailing_zeros(f"{notional:.2f}")
+            metrics.append(f"notional {formatted_notional}")
+        if metrics:
+            base += " delivering " + " and ".join(metrics)
+
+    if not base.endswith("."):
+        base += "."
+
+    factors = _collect_observable_factors(trade)
+    if factors:
+        suffix = " Observations: " + ", ".join(factors)
+        if not suffix.endswith("."):
+            suffix += "."
+        base += suffix
+
+    return base
 
 
 class PerformanceTracker:
@@ -89,6 +295,8 @@ class PerformanceTracker:
         baseline_pnl = self._estimate_baseline_pnl(trade_data)
         if baseline_pnl is not None:
             trade_data["baseline_pnl"] = baseline_pnl
+
+        trade_data["rationale"] = _build_trade_rationale(trade_data)
 
         self.trades_history.append(trade_data)
 

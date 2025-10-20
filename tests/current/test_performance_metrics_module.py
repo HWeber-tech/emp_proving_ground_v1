@@ -130,6 +130,11 @@ def test_performance_tracker_integration_uses_shared_helpers() -> None:
             "strategy": "alpha",
         }
     )
+    first_trade = tracker.trades_history[0]
+    assert "rationale" in first_trade
+    assert first_trade["rationale"].startswith("Strategy alpha trade")
+    assert "from 100.00 to 110.00 (+10.00)" in first_trade["rationale"]
+
     tracker.update_regime_performance("bull", 0.02)
 
     metrics = tracker.calculate_metrics(force_recalculate=True)
@@ -141,6 +146,33 @@ def test_performance_tracker_integration_uses_shared_helpers() -> None:
 
     cached = tracker.calculate_metrics()
     assert cached is metrics
+
+
+def test_trade_rationale_includes_observable_factors() -> None:
+    tracker = PerformanceTracker(initial_balance=50_000.0)
+
+    tracker.record_trade(
+        {
+            "entry_price": 50.0,
+            "exit_price": 51.25,
+            "size": 2.5,
+            "strategy": "beta",
+            "side": "BUY",
+            "symbol": "XYZ",
+            "regime": "bull",
+            "spread": 0.01,
+            "signal_strength": 0.8,
+            "confidence": 0.6,
+        }
+    )
+
+    rationale = tracker.trades_history[-1]["rationale"]
+    assert "Strategy beta buy trade on XYZ" in rationale
+    assert "Observations" in rationale
+    assert "regime bull" in rationale
+    assert "spread 0.01" in rationale
+    assert "signal strength 0.8" in rationale
+    assert "confidence 60%" in rationale
 
 
 def _seed_equity_curve(tracker: PerformanceTracker, start: datetime) -> None:

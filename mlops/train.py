@@ -25,6 +25,8 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+
+from mlops.validation_utils import rolling_origin_splits
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -236,47 +238,27 @@ class ModelTrainer:
         """Implement rolling-origin cross-validation (walk-forward validation)."""
         logger.info("Setting up rolling-origin cross-validation...")
 
-        results = []
-        start_idx = 0
+        splits = rolling_origin_splits(
+            X,
+            y,
+            n_splits=n_splits,
+            train_size=train_size,
+            test_size=test_size,
+        )
 
-        for fold in range(n_splits):
-            # Define train/test indices
-            train_end = start_idx + train_size
-            test_end = train_end + test_size
-
-            if test_end > len(X):
+        for split in splits:
+            if split.get("adjusted"):
                 logger.warning("Not enough data for full validation, adjusting...")
-                test_end = len(X)
-                train_end = max(train_size, test_end - test_size)
-
-            train_idx = slice(start_idx, train_end)
-            test_idx = slice(train_end, test_end)
-
             logger.info(
-                f"Fold {fold + 1}: Train {train_idx.start}-{train_idx.stop}, Test {test_idx.start}-{test_idx.stop}"
+                "Fold %s: Train %s-%s, Test %s-%s",
+                split["fold"],
+                split["train_start"],
+                split["train_end"],
+                split["test_start"],
+                split["test_end"],
             )
 
-            # Split data
-            X_train, X_test = X[train_idx], X[test_idx]
-            y_train, y_test = y[train_idx], y[test_idx]
-
-            results.append(
-                {
-                    "fold": fold + 1,
-                    "X_train": X_train,
-                    "X_test": X_test,
-                    "y_train": y_train,
-                    "y_test": y_test,
-                    "train_start": train_idx.start,
-                    "train_end": train_idx.stop,
-                    "test_start": test_idx.start,
-                    "test_end": test_idx.stop,
-                }
-            )
-
-            start_idx += test_size
-
-        return results
+        return splits
 
     def train_model(
         self,

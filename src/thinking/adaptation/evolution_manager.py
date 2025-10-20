@@ -20,6 +20,7 @@ from collections import deque
 from dataclasses import dataclass, field, replace
 from numbers import Real
 from typing import Any, Callable, Deque, Iterable, Mapping, MutableMapping, Sequence
+from src.evolution.mutation_ledger import get_mutation_ledger
 
 from src.evolution.feature_flags import EvolutionFeatureFlags
 from src.governance.policy_ledger import PolicyLedgerStage
@@ -46,6 +47,7 @@ class StrategyVariant:
     rationale: str | None = None
     trial_weight_multiplier: float = 1.0
     exploration: bool = True
+    metadata: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True)
@@ -493,7 +495,54 @@ class EvolutionManager:
         payload["parameters"] = dict(tactic.parameters)
         if metadata:
             payload["metadata"] = {str(key): value for key, value in metadata.items()}
+        if variant.metadata:
+            payload["variant_metadata"] = {str(key): value for key, value in variant.metadata.items()}
+
+        self._record_mutation_event(
+            variant=variant,
+            tactic=tactic,
+            metadata=metadata,
+        )
         return payload
+
+    def _record_mutation_event(
+        self,
+        *,
+        variant: StrategyVariant,
+        tactic: PolicyTactic,
+        metadata: Mapping[str, object] | None,
+    ) -> None:
+        variant_metadata = variant.metadata
+        if not isinstance(variant_metadata, Mapping):
+            return
+        mutation_meta = variant_metadata.get("parameter_mutation")
+        if not isinstance(mutation_meta, Mapping):
+            return
+
+        parameter = str(mutation_meta.get("parameter", "")).strip()
+        original_value = mutation_meta.get("original_value")
+        mutated_value = mutation_meta.get("mutated_value")
+
+        ledger_metadata: dict[str, object] = {
+            key: value
+            for key, value in mutation_meta.items()
+            if key not in {"parameter", "original_value", "mutated_value"}
+        }
+        if metadata:
+            ledger_metadata["trigger_metadata"] = {str(key): value for key, value in metadata.items()}
+        try:
+            get_mutation_ledger().record_parameter_mutation(
+                base_tactic_id=variant.base_tactic_id,
+                variant_id=tactic.tactic_id,
+                parameter=parameter or mutation_meta.get("parameter"),
+                original_value=original_value,
+                mutated_value=mutated_value,
+                metadata=ledger_metadata or None,
+            )
+        except Exception:  # pragma: no cover - ledger persistence is best-effort
+            logger.debug(
+                "Mutation ledger recording failed for variant %s", tactic.tactic_id, exc_info=True
+            )
 
     @staticmethod
     def _ensure_exploration_tactic(tactic: PolicyTactic) -> PolicyTactic:
@@ -685,12 +734,30 @@ class EvolutionManager:
             rationale = mutation.rationale or (
                 f"Auto-mutated {parameter} from {original} to {mutated_value:.4f}"
             )
+            mutation_details: dict[str, object] = {
+                "parameter": parameter,
+                "original_value": float(original) if original is not None else None,
+                "mutated_value": mutated_value,
+                "mutation_index": state.mutation_index,
+                "suffix": suffix,
+            }
+            if mutation.scale is not None:
+                mutation_details["scale"] = float(mutation.scale)
+            if mutation.offset is not None:
+                mutation_details["offset"] = float(mutation.offset)
+            if mutation.min_value is not None:
+                mutation_details["min_value"] = float(mutation.min_value)
+            if mutation.max_value is not None:
+                mutation_details["max_value"] = float(mutation.max_value)
+            if mutation.weight_multiplier != 1.0:
+                mutation_details["weight_multiplier"] = float(mutation.weight_multiplier)
             variant = StrategyVariant(
                 variant_id=variant_id,
                 tactic=mutated_tactic,
                 base_tactic_id=tactic_id,
                 rationale=rationale,
                 trial_weight_multiplier=1.0,
+                metadata={"parameter_mutation": mutation_details},
             )
             state.introduced_variants[variant_id] = variant
             return variant

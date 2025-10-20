@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import time
+import logging
 from datetime import datetime
 from dataclasses import asdict, dataclass, field, is_dataclass
 from typing import (
@@ -31,6 +32,7 @@ from src.evolution.lineage_telemetry import (
     EvolutionLineageSnapshot,
     build_lineage_snapshot,
 )
+from src.evolution.mutation_ledger import get_mutation_ledger
 
 if TYPE_CHECKING:  # pragma: no cover - import for typing only
     from src.governance.strategy_registry import StrategyRegistry
@@ -44,6 +46,8 @@ __all__ = [
     "EvolutionCycleOrchestrator",
     "SupportsChampionRegistry",
 ]
+
+logger = logging.getLogger(__name__)
 
 FitnessCallback = Callable[[DecisionGenome], Awaitable[Any] | Any]
 
@@ -357,8 +361,51 @@ class EvolutionCycleOrchestrator:
                 if isinstance(step, str) and step
             ),
         )
+        previous_best = self._best_champion
         self._best_champion = champion
+        self._record_fitness_improvement(
+            genome=genome,
+            champion=champion,
+            previous_best=previous_best,
+        )
         return champion
+
+    def _record_fitness_improvement(
+        self,
+        *,
+        genome: DecisionGenome,
+        champion: ChampionRecord,
+        previous_best: ChampionRecord | None,
+    ) -> None:
+        previous = previous_best.fitness if previous_best is not None else None
+        if previous is not None and champion.fitness <= previous + 1e-12:
+            return
+        metadata: dict[str, Any] = {
+            "generation": getattr(genome, "generation", 0),
+            "registered": champion.registered,
+        }
+        if champion.mutation_history:
+            metadata["mutation_history"] = list(champion.mutation_history)
+        if champion.parent_ids:
+            metadata["parent_ids"] = list(champion.parent_ids)
+        if champion.species:
+            metadata["species"] = champion.species
+        report_metadata = champion.report.metadata
+        if report_metadata:
+            metadata["fitness_metadata"] = dict(report_metadata)
+        try:
+            get_mutation_ledger().record_fitness_improvement(
+                genome_id=champion.genome_id,
+                previous_fitness=previous,
+                new_fitness=champion.fitness,
+                metadata=metadata,
+            )
+        except Exception:  # pragma: no cover - ledger persistence is best-effort
+            logger.debug(
+                "Mutation ledger recording failed for champion %s",
+                champion.genome_id,
+                exc_info=True,
+            )
 
     def _build_catalogue_provenance(self, genome: DecisionGenome) -> Mapping[str, Any] | None:
         try:

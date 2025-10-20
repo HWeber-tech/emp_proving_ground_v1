@@ -14,11 +14,16 @@ register agents, generate matchups, and record match results.
 from __future__ import annotations
 
 import math
-from collections import deque
+import logging
 import uuid
+from collections import deque
 from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Iterable, Mapping, MutableMapping, Sequence
+
+from src.evolution.mutation_ledger import get_mutation_ledger
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "LeagueSlot",
@@ -800,7 +805,25 @@ class MiniLeague:
                     wow_delta=observation.selected_gap - previous_gap,
                 )
         self._exploitability_observations.append(observation)
+        self._record_exploitability_to_ledger(observation)
         return observation
+
+    def _record_exploitability_to_ledger(self, observation: ExploitabilityObservation) -> None:
+        try:
+            metadata = {
+                "roster_counts": {
+                    slot.value: len(roster)
+                    for slot, roster in self._slots.items()
+                },
+                "turnover_lambda": self._lagrangian_state.turnover_lambda,
+                "inventory_lambda": self._lagrangian_state.inventory_lambda,
+            }
+            get_mutation_ledger().record_exploitability_result(
+                observation,
+                metadata=metadata,
+            )
+        except Exception:  # pragma: no cover - ledger persistence is best-effort
+            logger.debug("Failed to persist exploitability observation", exc_info=True)
 
     def _find(self, slot: LeagueSlot, agent_id: str) -> int | None:
         for idx, entry in enumerate(self._slots[slot]):

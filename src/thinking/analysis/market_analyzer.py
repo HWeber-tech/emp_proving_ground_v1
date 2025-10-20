@@ -625,6 +625,189 @@ class MarketAnalyzer(ThinkingPattern):
             return "post"
         return "hold"
 
+    def _run_action_planner(
+        self,
+        opportunity_score: float,
+        sentiment: float,
+        depth_limit: int,
+        start_ns: int,
+    ) -> str | None:
+        root = _PlannerNode((self._clamp(opportunity_score), self._clamp(sentiment)), depth=0)
+        iterations = 0
+
+        while iterations < self._planner_max_iterations:
+            if time.perf_counter_ns() - start_ns >= self._planner_budget_ns:
+                break
+            leaf, path = self._traverse_tree(root, depth_limit)
+            rollout_value = self._evaluate_leaf(leaf, depth_limit)
+            self._backpropagate(path, rollout_value)
+            iterations += 1
+
+        if not root.children:
+            return None
+
+        best_value = float("-inf")
+        best_action: str | None = None
+        for action, child in root.children.items():
+            if child.visits == 0:
+                continue
+            score = child.value / child.visits
+            if score > best_value:
+                best_value = score
+                best_action = action
+
+        if best_action is None:
+            best_child = max(
+                root.children.values(),
+                key=lambda node: node.prior_reward if node.prior_reward is not None else float("-inf"),
+            )
+            best_action = best_child.action
+
+        return best_action
+
+    def _traverse_tree(
+        self, root: _PlannerNode, depth_limit: int
+    ) -> tuple[_PlannerNode, list[_PlannerNode]]:
+        node = root
+        path = [root]
+
+        while node.depth < depth_limit:
+            if len(node.children) < len(self._planner_actions):
+                action = self._planner_actions[len(node.children)]
+                next_state, reward = self._apply_action(node.state, action, node.depth)
+                child = _PlannerNode(next_state, depth=node.depth + 1, action=action, prior_reward=reward)
+                node.children[action] = child
+                path.append(child)
+                return child, path
+
+            node = self._select_child(node)
+            path.append(node)
+
+        return node, path
+
+    def _select_child(self, node: _PlannerNode) -> _PlannerNode:
+        parent_visits = max(1, node.visits)
+        best_score = float("-inf")
+        best_child = None
+
+        for child in node.children.values():
+            if child.visits == 0:
+                return child
+            exploitation = child.value / child.visits
+            exploration = self._planner_exploration * (parent_visits**0.5) / (1.0 + child.visits)
+            score = exploitation + exploration
+            if score > best_score:
+                best_score = score
+                best_child = child
+
+        return best_child if best_child is not None else next(iter(node.children.values()))
+
+    def _evaluate_leaf(self, node: _PlannerNode, depth_limit: int) -> float:
+        if node.depth >= depth_limit:
+            return self._estimate_terminal_value(node.state)
+        return self._rollout(node.state, node.depth, depth_limit)
+
+    def _rollout(self, state: tuple[float, float], depth: int, depth_limit: int) -> float:
+        opportunity, sentiment = state
+        total = 0.0
+        discount = 1.0
+        current_depth = depth
+
+        while current_depth < depth_limit:
+            action = self._rollout_policy(opportunity, sentiment)
+            (opportunity, sentiment), reward = self._apply_action(
+                (opportunity, sentiment), action, current_depth
+            )
+            total += reward * discount
+            discount *= self._planner_discount
+            current_depth += 1
+
+        return total
+
+    def _apply_action(
+        self, state: tuple[float, float], action: str, depth: int
+    ) -> tuple[tuple[float, float], float]:
+        opportunity, sentiment = state
+        reward = self._estimate_reward(opportunity, sentiment, action)
+        next_state = self._advance_state(opportunity, sentiment, action, depth)
+        return next_state, reward
+
+    def _advance_state(
+        self, opportunity: float, sentiment: float, action: str, depth: int
+    ) -> tuple[float, float]:
+        alignment = min(opportunity, sentiment)
+        urgency = max(opportunity, sentiment)
+        seed = (
+            int(opportunity * 1000.0) * 17
+            + int(sentiment * 1000.0) * 29
+            + depth * 13
+            + self._planner_action_hash[action]
+        )
+        noise = ((seed * 1103515245 + 12345) & 0x7FFFFFFF) / 0x7FFFFFFF - 0.5
+        noise *= 0.05
+
+        if action == "cross":
+            next_opportunity = self._clamp(opportunity * 0.55 + sentiment * 0.35 + 0.08 + noise)
+            next_sentiment = self._clamp(sentiment * 0.82 + alignment * 0.18 + 0.1 + noise * 0.6)
+        elif action == "post":
+            next_opportunity = self._clamp(opportunity * 0.68 + sentiment * 0.22 + 0.05 + noise * 0.8)
+            next_sentiment = self._clamp(sentiment * 0.9 + (urgency - alignment) * 0.12 + 0.04 + noise * 0.5)
+        else:  # hold
+            next_opportunity = self._clamp(opportunity * 0.74 + (sentiment - 0.5) * 0.08 + 0.03 + noise)
+            next_sentiment = self._clamp(sentiment * 0.88 + (0.5 - opportunity) * 0.12 + 0.02 + noise * 0.6)
+
+        return next_opportunity, next_sentiment
+
+    def _estimate_reward(self, opportunity: float, sentiment: float, action: str) -> float:
+        alignment = min(opportunity, sentiment)
+        urgency = max(opportunity, sentiment)
+        imbalance = abs(opportunity - sentiment)
+
+        if action == "cross":
+            execution_cost = 0.12 + 0.35 * imbalance
+            reward = alignment * 1.6 + urgency * 0.4 - execution_cost
+        elif action == "post":
+            queue_risk = 0.05 + 0.18 * imbalance
+            reward = alignment * 1.2 + (urgency - alignment) * 0.6 - queue_risk
+        else:
+            patience_bonus = (0.7 - urgency) * 0.45
+            reward = alignment * 0.7 + patience_bonus - 0.02
+
+        return reward
+
+    def _estimate_terminal_value(self, state: tuple[float, float]) -> float:
+        opportunity, sentiment = state
+        alignment = min(opportunity, sentiment)
+        return alignment * 0.9 + (sentiment - 0.5) * 0.2
+
+    def _backpropagate(self, path: list[_PlannerNode], rollout_reward: float) -> None:
+        accumulated = rollout_reward
+        for node in reversed(path):
+            if node.prior_reward is not None:
+                accumulated = node.prior_reward + self._planner_discount * accumulated
+            node.visits += 1
+            node.value += accumulated
+
+    def _rollout_policy(self, opportunity: float, sentiment: float) -> str:
+        alignment = min(opportunity, sentiment)
+        urgency = max(opportunity, sentiment)
+
+        if alignment > 0.65:
+            return "cross"
+        if urgency - alignment > 0.12:
+            return "post"
+        if urgency < 0.45:
+            return "hold"
+        return "post"
+
+    @staticmethod
+    def _clamp(value: float) -> float:
+        if value < 0.0:
+            return 0.0
+        if value > 1.0:
+            return 1.0
+        return value
+
     def _generate_risk_warnings(self, risk_metrics: dict[str, object]) -> list[str]:
         """Generate risk warnings based on metrics."""
         warnings = []

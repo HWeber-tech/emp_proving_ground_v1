@@ -35,6 +35,7 @@ from src.operations.evolution_kpis import (
     RollbackLatencyKpi,
     TimeToCandidateKpi,
 )
+from src.operations.gate_dashboard import build_gate_dashboard
 from src.operations.operator_leverage import (
     OperatorExperimentStats,
     OperatorLeverageSnapshot,
@@ -1210,3 +1211,39 @@ def test_diary_panel_warns_on_missing_telemetry() -> None:
         "recorded",
         "target",
     )
+
+
+def test_gate_dashboard_panel_is_included() -> None:
+    gate_dashboard = build_gate_dashboard(
+        [
+            {
+                "name": "success_rate",
+                "value": 0.92,
+                "warn": 0.95,
+                "fail": 0.9,
+                "direction": "at_least",
+                "unit": "%",
+                "multiplier": 100.0,
+            },
+            {
+                "name": "mtta",
+                "value": 72.0,
+                "warn": 60.0,
+                "fail": 90.0,
+                "direction": "at_most",
+                "unit": "m",
+            },
+        ]
+    )
+
+    dashboard = build_observability_dashboard(gate_dashboard=gate_dashboard)
+
+    gate_panels = [panel for panel in dashboard.panels if panel.name == "Gate Dashboard"]
+    assert len(gate_panels) == 1
+    panel = gate_panels[0]
+    assert panel.status is DashboardStatus.warn
+    assert panel.details
+    assert "success_rate" in panel.details[0]
+    metadata = panel.metadata.get("gate_dashboard")
+    assert isinstance(metadata, dict)
+    assert metadata["status"] == gate_dashboard.status().value

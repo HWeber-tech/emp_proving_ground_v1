@@ -3,7 +3,7 @@ from __future__ import annotations
 """Textual observability dashboard aligned with the high-impact roadmap."""
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, MutableMapping, Sequence
@@ -19,6 +19,12 @@ from src.operations.event_bus_health import (
     EventBusHealthStatus,
 )
 from src.operations.evolution_kpis import EvolutionKpiSnapshot, EvolutionKpiStatus
+from src.operations.gate_dashboard import (
+    GateDashboard,
+    GateDashboardStatus,
+    build_gate_dashboard,
+    build_gate_dashboard_from_mapping,
+)
 from src.operations.operator_leverage import (
     OperatorLeverageSnapshot,
     OperatorLeverageStatus,
@@ -75,6 +81,12 @@ _LEDGER_STAGE_ORDER: Mapping[PolicyLedgerStage, int] = {
     PolicyLedgerStage.PAPER: 1,
     PolicyLedgerStage.PILOT: 2,
     PolicyLedgerStage.LIMITED_LIVE: 3,
+}
+
+_GATE_STATUS_TO_DASHBOARD: Mapping[GateDashboardStatus, DashboardStatus] = {
+    GateDashboardStatus.OK: DashboardStatus.ok,
+    GateDashboardStatus.WARN: DashboardStatus.warn,
+    GateDashboardStatus.FAIL: DashboardStatus.fail,
 }
 
 
@@ -1504,6 +1516,7 @@ def build_observability_dashboard(
     policy_reflection: "PolicyReflectionArtifacts" | None = None,
     understanding_snapshot: UnderstandingLoopSnapshot | None = None,
     additional_panels: Sequence[DashboardPanel] | None = None,
+    gate_dashboard: GateDashboard | Sequence[Any] | Mapping[str, Any] | None = None,
     generated_at: datetime | None = None,
     metadata: Mapping[str, Any] | None = None,
 ) -> ObservabilityDashboard:
@@ -1524,6 +1537,27 @@ def build_observability_dashboard(
         monitoring_payload = monitoring_snapshot.as_dict()
     elif isinstance(monitoring_snapshot, Mapping):
         monitoring_payload = dict(monitoring_snapshot)
+
+    gate_dashboard_obj: GateDashboard | None = None
+    if gate_dashboard is not None:
+        if isinstance(gate_dashboard, GateDashboard):
+            gate_dashboard_obj = gate_dashboard
+        elif isinstance(gate_dashboard, Mapping):
+            gate_dashboard_obj = build_gate_dashboard_from_mapping(gate_dashboard)
+        elif isinstance(gate_dashboard, Sequence) and not isinstance(
+            gate_dashboard, (str, bytes)
+        ):
+            gate_dashboard_obj = build_gate_dashboard(gate_dashboard)
+        else:  # pragma: no cover - defensive typing guard
+            raise TypeError(
+                "gate_dashboard must be a GateDashboard, mapping, or sequence of metrics"
+            )
+
+        if gate_dashboard_obj is not None and gate_dashboard_obj.generated_at.tzinfo is None:
+            gate_dashboard_obj = replace(
+                gate_dashboard_obj,
+                generated_at=gate_dashboard_obj.generated_at.replace(tzinfo=UTC),
+            )
 
     if roi_snapshot is not None:
         roi_status = _map_roi_status(roi_snapshot.status)
@@ -1628,6 +1662,17 @@ def build_observability_dashboard(
                 headline=headline,
                 details=tuple(lines),
                 metadata=serialised,
+            )
+        )
+
+    if gate_dashboard_obj is not None:
+        panels.append(
+            DashboardPanel(
+                name="Gate Dashboard",
+                status=_GATE_STATUS_TO_DASHBOARD[gate_dashboard_obj.status()],
+                headline=gate_dashboard_obj.headline(),
+                details=gate_dashboard_obj.panel_details(),
+                metadata={"gate_dashboard": gate_dashboard_obj.as_dict()},
             )
         )
 

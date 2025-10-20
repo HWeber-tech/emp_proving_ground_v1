@@ -21,6 +21,7 @@ the real dependency without touching call sites.
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping as MutableMappingABC
 from dataclasses import dataclass
 import logging
 from typing import Callable, Iterable, MutableMapping
@@ -96,6 +97,8 @@ def _run_processors(
     processed: MutableMapping[str, object] | str = event_dict
     for processor in _config.processors:
         processed = processor(logger, method_name, processed)  # type: ignore[arg-type]
+        if not isinstance(processed, MutableMappingABC):
+            break
     return processed
 
 

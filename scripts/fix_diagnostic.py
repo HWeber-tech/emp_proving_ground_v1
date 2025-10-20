@@ -4,12 +4,17 @@ FIX Diagnostic Tool - Comprehensive troubleshooting
 """
 
 import logging
+import os
 import socket
 import sys
 import time
 from datetime import datetime
 
 import simplefix
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from scripts.env_loader import resolve_env_file
 
 # Configure logging
 logging.basicConfig(
@@ -26,9 +31,10 @@ class FIXDiagnostic:
         self.load_credentials()
 
     def load_credentials(self):
-        """Load credentials from .env file"""
+        """Load credentials from the configured secrets env file"""
+        env_path = resolve_env_file()
         try:
-            with open(".env", "r") as f:
+            with env_path.open("r") as f:
                 lines = f.readlines()
 
             self.credentials = {}
@@ -38,10 +44,10 @@ class FIXDiagnostic:
                     key, value = line.split("=", 1)
                     self.credentials[key.strip()] = value.strip()
 
-            log.info("Loaded credentials from .env file")
+            log.info("Loaded credentials from %s", env_path)
 
         except FileNotFoundError:
-            log.error(".env file not found")
+            log.error("Secrets env file not found at %s", env_path)
             self.credentials = {}
 
     def test_tcp_connectivity(self, host, port):

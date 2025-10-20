@@ -32,6 +32,7 @@ sudo install -m 640 -o emp -g emp env_templates/institutional_ingest.env \
   /etc/emp/secrets/institutional.env
 # edit the file, then
 export $(grep -v '^#' /etc/emp/secrets/institutional.env | xargs)
+export EMP_SECRETS_ENV_FILE=/etc/emp/secrets/institutional.env
 ```
 
 The template seeds:

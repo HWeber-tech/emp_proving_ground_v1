@@ -8,16 +8,17 @@ import os
 import sys
 
 import simplefix
-from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from scripts.env_loader import load_dotenv_if_available, resolve_env_file
 
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 
 
 async def main() -> int:
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+    _env_path, loaded = load_dotenv_if_available()
     cfg = SystemConfig()
     mgr = FIXConnectionManager(cfg)
     if not mgr.start_sessions():
@@ -29,6 +30,13 @@ async def main() -> int:
         msg = simplefix.FixMessage()
         msg.append_pair(8, "FIX.4.4")
         msg.append_pair(35, "x")  # SecurityListRequest
+        if not cfg.account_number:
+            account_error = "Missing ICMARKETS_ACCOUNT for security list request"
+            if not loaded:
+                account_error += f" in {resolve_env_file()}"
+            print(account_error)
+            return 1
+
         msg.append_pair(49, f"demo.icmarkets.{cfg.account_number}")
         msg.append_pair(56, "cServer")
         msg.append_pair(57, "QUOTE")

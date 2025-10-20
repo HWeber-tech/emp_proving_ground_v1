@@ -41,6 +41,10 @@ as the Hetzner profile defined in the deployment roadmap.
    - Systemd unit: add `EnvironmentFile=/etc/emp/secrets/runtime.env`
    - Docker Compose override: `env_file: /etc/emp/secrets/runtime.env`
 
+   The helper scripts now look for `EMP_SECRETS_ENV_FILE`; export it once per
+   shell (for example, `export EMP_SECRETS_ENV_FILE=/etc/emp/secrets/runtime.env`)
+   so ad-hoc diagnostics pick up the locked-down dotenv automatically.
+
 5. Rotate credentials by replacing the file in place and reloading the
    relevant services. Keep an encrypted offline backup (for example, using
    `age` or `sops`) instead of storing plaintext copies in version control.

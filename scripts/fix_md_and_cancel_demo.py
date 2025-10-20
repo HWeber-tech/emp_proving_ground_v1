@@ -7,19 +7,25 @@ import asyncio
 import os
 import sys
 
-from dotenv import load_dotenv
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from scripts.env_loader import load_dotenv_if_available, resolve_env_file
 
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
 
 
 async def main(symbol: str = "EURUSD", side: str = "BUY", qty: float = 1000.0) -> int:
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+    _env_path, loaded = load_dotenv_if_available()
     cfg = SystemConfig()
     if str(cfg.run_mode).lower() != "paper":
         print("Aborting: RUN_MODE must be 'paper' for demo execution.")
+        return 1
+    if not (cfg.account_number and cfg.password):
+        message = "Missing ICMARKETS_ACCOUNT or ICMARKETS_PASSWORD"
+        if not loaded:
+            message += f" in {resolve_env_file()}"
+        print(message)
         return 1
 
     mgr = FIXConnectionManager(cfg)

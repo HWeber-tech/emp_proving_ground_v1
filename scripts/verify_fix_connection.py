@@ -10,10 +10,10 @@ import os
 import sys
 from datetime import datetime
 
-from dotenv import load_dotenv
-
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from scripts.env_loader import load_dotenv_if_available, resolve_env_file
 
 from src.governance.system_config import SystemConfig
 from src.operational.fix_connection_manager import FIXConnectionManager
@@ -39,17 +39,18 @@ async def main():
     print()
 
     try:
-        # Load .env first
-        load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
+        # Load secrets env first
+        _env_path, loaded = load_dotenv_if_available()
 
         # Load configuration
         config = SystemConfig()
 
         # Check required credentials
         if not (config.account_number and config.password):
-            print(
-                "FIX credentials not configured! Set ICMARKETS_ACCOUNT and ICMARKETS_PASSWORD in .env"
-            )
+            message = "FIX credentials not configured! Set ICMARKETS_ACCOUNT and ICMARKETS_PASSWORD"
+            if not loaded:
+                message += f" in {resolve_env_file()}"
+            print(message)
             return False
 
         print("Credentials present for account:", "****" + str(config.account_number)[-4:])

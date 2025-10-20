@@ -64,7 +64,7 @@
 - [ ] **B.3.1** Robust σ: EWMA(|returns|) or rolling MAD×1.4826 over past‑only window  
 - [ ] **B.3.2** Dimensionless delta_hat = (mid[t+H]-mid[t])/(tick*max(spread, kσ).  
 - [ ] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
-- [ ] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  
+- [x] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  
 - [ ] **B.3.5** Unit test: masking future data must not change features/labels.
 
 **DoD (B):** Adapter emits **MarketState** with invariants; leakage tests pass; features align across instruments (smoke PSI < 0.25).
@@ -104,7 +104,7 @@
 **Goal:** trade only when after?fee edge beats costs; size by uncertainty; be sane in macro.
 
 ### D.1 Decision rule & costs
-- [ ] **D.1.1** edge_ticks = delta_hat * max(spread, kσ); cost = ½·spread + slip + fees + AS_penalty.
+- [x] **D.1.1** edge_ticks = delta_hat * max(spread, kσ); cost = ½·spread + slip + fees + AS_penalty.
 - [x] **D.1.2** Actions: {cross, post‑and‑chase(±1 tick, TTL X ms), hold}.
 
 ### D.2 Queue & adverse selection
@@ -130,7 +130,7 @@
 
 ### E.1 LOBSTER pretrain
 - [x] **E.1.1** Multi?task losses: Huber/quantile + direction + big?move; aux: next?event, masked?depth, queue?depletion.  
-- [ ] **E.1.2** Eval by horizon (events+time); report ECE, Brier, alpha?after?fees.
+- [x] **E.1.2** Eval by horizon (events+time); report ECE, Brier, alpha?after?fees.
 
 ### E.2 FX adaptation
 - [ ] **E.2.1** Freeze bottom 60–80%; enable **LoRA rank 8–16** on top 30–40%.  
@@ -154,7 +154,7 @@
 - [x] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
 - [x] **F.2.2** Replay buffers: main + **rare-regime** (NFP, halts); 80/20 sampling with temp schedule.  
 - [ ] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
-- [ ] **F.2.4** Exploitability metric (ΔSharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
+- [x] **F.2.4** Exploitability metric (ΔSharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
 
 **DoD (F):** planner respects latency gates; exploitability gap narrows without turnover spike.
 
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T04:57:36Z
+## Automation updates — 2025-10-20T05:59:54Z
 
 ### Last 4 commits
-- 1481ccc8 feat(thinking): add 2 files (2025-10-20)
-- f66cd0a5 refactor(trading): tune 3 files (2025-10-20)
-- 0cb559f9 docs(.gitignore): add 9 files (2025-10-20)
-- 343400df feat(risk): add 8 files (2025-10-20)
+- 5021fc00 feat(artifacts): add 22 files (2025-10-20)
+- d572badc feat(data_foundation): add 4 files (2025-10-20)
+- c78a3df2 refactor(trading): tune 2 files (2025-10-20)
+- 079e4604 refactor(thinking): tune 3 files (2025-10-20)

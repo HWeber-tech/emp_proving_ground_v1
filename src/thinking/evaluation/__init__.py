@@ -14,6 +14,10 @@ from .retention_gates import (
     RetentionGateDecision,
     evaluate_retention_gates,
 )
+from .planner_edge_gate import (
+    PlannerEdgeGateDecision,
+    evaluate_planner_edge_gate,
+)
 
 __all__ = [
     "AblationGateOutcome",
@@ -26,4 +30,6 @@ __all__ = [
     "HorizonRetentionGate",
     "RetentionGateDecision",
     "evaluate_retention_gates",
+    "PlannerEdgeGateDecision",
+    "evaluate_planner_edge_gate",
 ]

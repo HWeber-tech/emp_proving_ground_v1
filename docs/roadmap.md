@@ -24,7 +24,7 @@
 
 ### A.2 Config single source of truth (SoT)
 - [ ] **A.2.1** `SystemConfig` reads YAML first; env only overrides explicitly set fields.  
-- [ ] **A.2.2** In `mock` mode **skip live-cred validation**; provide `examples/run_mock.sh`.  
+- [x] **A.2.2** In `mock` mode **skip live-cred validation**; provide `examples/run_mock.sh`.  
 - [ ] **A.2.3** Normalize `connection_protocol` once (`.lower().strip()`); remove `CONNECTION_PROTOCOL` drift.
 
 ### A.3 Market access & sensory organs
@@ -52,7 +52,7 @@
 ### B.1 Depth & TOB features
 - [x] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv ? GLU ? adaptive pool to **D=8-16** dims.  
 - [x] **B.1.2** Emit `has_depth` and **zero-mask** depth features when absent (spot FX).  
-- [ ] **B.1.3** Derived features (leak-free):  
+- [x] **B.1.3** Derived features (leak-free):  
   - `microprice`, `spread_ticks > 1`, `ofi_norm` (pre-event states + trade sign), `refresh_hz`, `stale_ms`, `slope/curve` (2-term poly each side).
 
 ### B.2 Meta/context tokens (data-driven)
@@ -82,7 +82,7 @@
 
 ### C.2 True streaming state
 - [x] **C.2.1** **Per-instrument state table** (pinned); TTL & reset on session boundary/gaps/halts.  
-- [ ] **C.2.2** Determinism: no dropout live; state versioned by model hash; hot-reload invalidates state.  
+- [x] **C.2.2** Determinism: no dropout live; state versioned by model hash; hot-reload invalidates state.  
 - [ ] **C.2.3** Clone-state API for planner (no mutation).
 
 ### C.3 Chunked BPTT
@@ -112,7 +112,7 @@
 - [ ] **D.2.2** **Adverse selection**: microprice drift over last k events conditional on our action.
 
 ### D.3 Sizing & inventory
-- [ ] **D.3.1** Size ? edge / **??** (from quantile head).  
+- [x] **D.3.1** Size ? edge / **??** (from quantile head).  
 - [ ] **D.3.2** Inventory as a state with mean?reversion pressure; turnover caps per minute/hour.
 
 ### D.4 Slow context (OpenBB)
@@ -291,7 +291,7 @@ body:
 ## Automation updates — 2025-10-20T04:57:36Z
 
 ### Last 4 commits
-- 28f15cb7 refactor(thinking): tune 1 file (2025-10-20)
-- 587331a0 refactor(sensory): tune 7 files (2025-10-20)
-- bf1a1236 refactor(sensory): tune 4 files (2025-10-20)
-- 60207d7b refactor(sensory): tune 5 files (2025-10-20)
+- 33ffa7f7 refactor(sensory): tune 4 files (2025-10-20)
+- 187658bc refactor(risk): tune 5 files (2025-10-20)
+- c55c7bf0 feat(examples): add 3 files (2025-10-20)
+- 48d14e58 refactor(thinking): tune 2 files (2025-10-20)

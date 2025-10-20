@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+from numbers import Real
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List
 
@@ -109,26 +110,85 @@ class ValidationFramework:
         """Validate data integrity across all data sources."""
         try:
             # Test data validation
-            test_data = {
-                "symbol": "EURUSD",
-                "price": 1.2345,
-                "volume": 1000,
-                "timestamp": datetime.now(),
+            snapshot = self.get_reference_payload()
+
+            schema = {
+                "symbol": {"required": True, "type": str, "allow_empty": False},
+                "price": {
+                    "required": True,
+                    "type": Real,
+                    "min": 0.0,
+                    "max": 1_000_000.0,
+                },
+                "volume": {
+                    "required": True,
+                    "type": Real,
+                    "min": 0.0,
+                    "max": 100_000_000.0,
+                    "coerce_int": True,
+                },
+                "timestamp": {"required": True, "type": datetime},
             }
 
-            # Validate required fields
-            required_fields = ["symbol", "price", "volume", "timestamp"]
-            missing_fields = [f for f in required_fields if f not in test_data]
+            invalid_fields: Dict[str, str] = {}
+            validated_fields = 0
 
-            integrity_score = 1.0 - (len(missing_fields) / len(required_fields))
+            for field, rules in schema.items():
+                if rules.get("required") and field not in snapshot:
+                    invalid_fields[field] = "missing required field"
+                    continue
+
+                value = snapshot.get(field)
+                expected_type = rules.get("type")
+                if expected_type is not None:
+                    if expected_type is Real:
+                        if not isinstance(value, Real) or isinstance(value, bool):
+                            invalid_fields[field] = "expected numeric value"
+                            continue
+                    elif not isinstance(value, expected_type):
+                        invalid_fields[field] = f"expected {expected_type.__name__}"
+                        continue
+
+                if isinstance(value, str) and not rules.get("allow_empty", True) and value.strip() == "":
+                    invalid_fields[field] = "value cannot be empty"
+                    continue
+
+                if rules.get("coerce_int"):
+                    if not float(value).is_integer():
+                        invalid_fields[field] = "value must be an integer"
+                        continue
+
+                min_value = rules.get("min")
+                if min_value is not None and value < min_value:
+                    invalid_fields[field] = f"value below minimum {min_value}"
+                    continue
+
+                max_value = rules.get("max")
+                if max_value is not None and value > max_value:
+                    invalid_fields[field] = f"value above maximum {max_value}"
+                    continue
+
+                validated_fields += 1
+
+            total_fields = len(schema)
+            integrity_score = validated_fields / total_fields if total_fields else 1.0
+
+            details = "All required fields satisfied"
+            if invalid_fields:
+                formatted = ", ".join(f"{field}: {reason}" for field, reason in invalid_fields.items())
+                details = f"Data integrity violations -> {formatted}"
 
             return ValidationResult(
                 test_name="data_integrity",
-                passed=len(missing_fields) == 0,
+                passed=not invalid_fields,
                 value=integrity_score,
                 threshold=1.0,
                 unit="integrity_score",
-                details=f"Data integrity check: {len(missing_fields)} missing fields",
+                details=details,
+                metadata={
+                    "validated_fields": sorted(schema.keys()),
+                    "invalid_fields": invalid_fields,
+                },
             )
 
         except Exception as e:
@@ -140,6 +200,15 @@ class ValidationFramework:
                 unit="integrity_score",
                 details=f"Data integrity validation failed: {str(e)}",
             )
+
+    def get_reference_payload(self) -> Dict[str, Any]:
+        """Return canonical payload used for data integrity checks."""
+        return {
+            "symbol": "EURUSD",
+            "price": 1.2345,
+            "volume": 1000,
+            "timestamp": datetime.now(),
+        }
 
     async def validate_performance_metrics(self) -> ValidationResult:
         """Validate performance metrics calculation."""

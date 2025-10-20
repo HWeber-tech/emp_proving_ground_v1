@@ -13,14 +13,13 @@ import math
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from threading import RLock
-from typing import Dict, Iterable, Mapping, NotRequired, Sequence, TypedDict
+from typing import Dict, Iterable, Mapping, NotRequired, Required, Sequence, TypedDict
 
 from pydantic import ValidationError
 
 from src.core.types import JSONObject
 from src.core.interfaces import RiskManager as RiskManagerProtocol
 from src.config.risk.risk_config import RiskConfig
-from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.core.coercion import coerce_float
 from src.risk.analytics import (
     VolatilityTargetAllocation,
@@ -33,6 +32,8 @@ from src.risk.analytics import (
     compute_parametric_var,
     determine_target_allocation,
 )
+from src.risk.position_sizing import normalise_quantile_triplet, quantile_edge_ratio
+from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.data_foundation.config.sizing_config import SizingConfig, load_sizing_config
 from src.trading.risk.market_regime_detector import (
     MarketRegimeDetector,
@@ -91,10 +92,14 @@ class PositionInput(TypedDict):
     stop_loss_pct: NotRequired[float | Decimal]
 
 
-class SignalInput(TypedDict):
-    symbol: str
-    confidence: float
-    stop_loss_pct: float | Decimal
+class SignalInput(TypedDict, total=False):
+    symbol: Required[str]
+    confidence: Required[float]
+    stop_loss_pct: Required[float | Decimal]
+    quantiles: NotRequired[Mapping[str, object] | Sequence[object]]
+    quantile_head: NotRequired[Mapping[str, object] | Sequence[object]]
+    edge_ratio: NotRequired[float | Decimal]
+    metadata: NotRequired[Mapping[str, object]]
 
 
 class RiskManagerImpl(RiskManagerProtocol):
@@ -510,16 +515,44 @@ class RiskManagerImpl(RiskManagerProtocol):
         """
         try:
             symbol = signal.get("symbol", "")
+            has_confidence_override = "confidence" in signal
             confidence = float(signal.get("confidence", 0.5))
             stop_loss_pct = max(_to_float(signal.get("stop_loss_pct", 0.05)), 1e-9)
 
-            win_rate = max(0.1, min(0.9, confidence))
+            declared_confidence = max(0.0, min(1.0, confidence))
 
-            avg_win = 0.02  # 2% average win
-            avg_loss = 0.01  # 1% average loss
+            triplet = self._extract_quantile_triplet(signal)
+            size_multiplier: float | None = None
+            if triplet is not None:
+                _, median, _ = triplet
+                if median <= 0.0:
+                    logger.info(
+                        "Skipping position sizing due to non-positive median edge (symbol=%s)",
+                        symbol,
+                    )
+                    return 0.0
+                ratio = quantile_edge_ratio(triplet)
+                if math.isfinite(ratio) and ratio > 0.0:
+                    size_multiplier = min(1.0, ratio)
+            if size_multiplier is None:
+                edge_ratio = _to_float(signal.get("edge_ratio"))
+                if edge_ratio > 0.0:
+                    size_multiplier = min(1.0, edge_ratio)
 
-            b = avg_win / max(avg_loss, 1e-9)
-            kelly_fraction = max(0.0, min(1.0, win_rate - (1.0 - win_rate) / b))
+            if size_multiplier is not None:
+                weighted_multiplier = size_multiplier
+                if has_confidence_override:
+                    weighted_multiplier *= declared_confidence
+                kelly_fraction = max(0.0, min(1.0, weighted_multiplier))
+            else:
+                base_confidence = declared_confidence if has_confidence_override else 0.5
+                win_rate = max(0.1, min(0.9, base_confidence))
+
+                avg_win = 0.02  # 2% average win
+                avg_loss = 0.01  # 1% average loss
+
+                b = avg_win / max(avg_loss, 1e-9)
+                kelly_fraction = max(0.0, min(1.0, win_rate - (1.0 - win_rate) / b))
 
             risk_budget = self._compute_risk_budget()
             if risk_budget <= 0:
@@ -562,6 +595,30 @@ class RiskManagerImpl(RiskManagerProtocol):
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
             return 0.0  # Fail closed when sizing is unreliable
+
+    def _extract_quantile_triplet(
+        self, signal: Mapping[str, object]
+    ) -> tuple[float, float, float] | None:
+        """Locate quantile predictions within a signal payload if present."""
+
+        candidates: list[object] = []
+        for key in ("quantiles", "quantile_head", "edge_quantiles", "distribution"):
+            value = signal.get(key)
+            if value is not None:
+                candidates.append(value)
+
+        metadata = signal.get("metadata")
+        if isinstance(metadata, Mapping):
+            for key in ("quantiles", "quantile_head", "edge_quantiles", "distribution"):
+                value = metadata.get(key)
+                if value is not None:
+                    candidates.append(value)
+
+        for candidate in candidates:
+            triplet = normalise_quantile_triplet(candidate)
+            if triplet is not None:
+                return triplet
+        return None
 
     def target_allocation_from_volatility(
         self,

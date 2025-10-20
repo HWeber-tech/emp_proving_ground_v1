@@ -14,7 +14,12 @@ from .analytics import (
     classify_volatility_regime,
     determine_target_allocation,
 )
-from .position_sizing import kelly_fraction, position_size
+from .position_sizing import (
+    kelly_fraction,
+    normalise_quantile_triplet,
+    position_size,
+    quantile_edge_ratio,
+)
 from .reporting import (
     BudgetUtilisation,
     ExposureBreakdown,
@@ -71,6 +76,8 @@ __all__ = [
     "classify_volatility_regime",
     "kelly_fraction",
     "position_size",
+    "normalise_quantile_triplet",
+    "quantile_edge_ratio",
 ]
 
 

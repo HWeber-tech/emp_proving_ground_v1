@@ -28,3 +28,12 @@ def test_risk_module_dynamic_exports_are_cached() -> None:
 
     with pytest.raises(AttributeError):
         risk.__getattr__("does_not_exist")
+
+
+def test_quantile_helpers_extract_and_scale() -> None:
+    triplet = risk.normalise_quantile_triplet({"q25": -0.01, "q50": 0.02, "q75": 0.05})
+    assert triplet == pytest.approx((-0.01, 0.02, 0.05))
+
+    ratio = risk.quantile_edge_ratio({"0.25": -0.01, "0.50": 0.02, "0.75": 0.05})
+
+    assert ratio == pytest.approx(0.02 / 0.06)

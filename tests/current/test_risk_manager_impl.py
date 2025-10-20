@@ -200,6 +200,23 @@ async def test_calculate_position_size_respects_maximums() -> None:
     assert size == pytest.approx(5_000.0)
 
 
+@pytest.mark.asyncio
+async def test_calculate_position_size_scales_with_quantile_edge() -> None:
+    manager = RiskManagerImpl(initial_balance=100_000, risk_config=RiskConfig())
+    signal = {
+        "symbol": "EURUSD",
+        "confidence": 0.8,
+        "stop_loss_pct": 0.02,
+        "quantiles": {"q25": -0.005, "q50": 0.01, "q75": 0.02},
+    }
+
+    size = await manager.calculate_position_size(signal)
+
+    # Base size is 100k with default risk budget. Quantile ratio is 0.4 and
+    # confidence scales it to 0.32 of the base size for 32k exposure.
+    assert size == pytest.approx(32_000.0)
+
+
 def test_evaluate_portfolio_risk_converts_values(monkeypatch: pytest.MonkeyPatch) -> None:
     manager = RiskManagerImpl(initial_balance=10_000, risk_config=RiskConfig())
     captured: Dict[str, Dict[str, float]] = {}

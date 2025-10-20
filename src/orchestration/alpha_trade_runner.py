@@ -263,7 +263,7 @@ class AlphaTradeLoopRunner:
             decision_bundle=loop_result.decision_bundle,
             diary_entry=diary_entry,
         )
-        if has_diary_entry and attribution_payload:
+        if attribution_payload:
             trade_metadata["attribution"] = attribution_payload
         else:
             trade_metadata.pop("attribution", None)
@@ -274,7 +274,7 @@ class AlphaTradeLoopRunner:
             metadata_payload = dict(raw_intent.get("metadata", {}))
             if "fast_weight" not in metadata_payload:
                 metadata_payload["fast_weight"] = dict(fast_weight_metadata)
-            if has_diary_entry and attribution_payload:
+            if attribution_payload:
                 metadata_payload["attribution"] = attribution_payload
             else:
                 metadata_payload.pop("attribution", None)
@@ -327,6 +327,7 @@ class AlphaTradeLoopRunner:
             diary_annotations["diary_coverage"] = dict(coverage_snapshot)
         if has_diary_entry and attribution_payload:
             diary_annotations["attribution"] = attribution_payload
+        if attribution_payload:
             loop_metadata_updates["attribution"] = attribution_payload
         if mitigation_payload:
             mitigation_copy = dict(mitigation_payload)
@@ -339,7 +340,7 @@ class AlphaTradeLoopRunner:
                 trade_outcome = self._attach_trade_outcome_metadata(
                     trade_outcome=outcome,
                     coverage_snapshot=coverage_snapshot,
-                    attribution_payload=attribution_payload if has_diary_entry else None,
+                    attribution_payload=attribution_payload,
                     guardrails=resolved_guardrails,
                 )
             else:
@@ -785,9 +786,6 @@ class AlphaTradeLoopRunner:
         decision_bundle: UnderstandingDecision,
         diary_entry: "DecisionDiaryEntry | None",
     ) -> Mapping[str, Any] | None:
-        if diary_entry is None:
-            return None
-
         regime_state = decision_bundle.belief_snapshot.regime_state
 
         belief_metadata = getattr(belief_state, "metadata", None)
@@ -903,14 +901,29 @@ class AlphaTradeLoopRunner:
         if not brief_explanation:
             brief_explanation = "Routed under governing regime"
 
+        diary_entry_id = None
+        if diary_entry is not None:
+            entry_identifier = getattr(diary_entry, "entry_id", None)
+            if entry_identifier:
+                diary_entry_id = str(entry_identifier).strip()
+
+        policy_identifier = getattr(diary_entry, "policy_id", None) if diary_entry else None
+        if not policy_identifier:
+            policy_identifier = getattr(decision_bundle.decision, "tactic_id", None)
+        policy_id = str(policy_identifier).strip() if policy_identifier else ""
+
         attribution: dict[str, Any] = {
-            "diary_entry_id": diary_entry.entry_id,
-            "policy_id": diary_entry.policy_id,
             "belief": belief_summary,
             "probes": probes_payload,
             "brief_explanation": brief_explanation,
             "explanation": brief_explanation,
         }
+
+        if diary_entry_id:
+            attribution["diary_entry_id"] = diary_entry_id
+        if policy_id:
+            attribution["policy_id"] = policy_id
+
         return attribution
 
     def _attach_trade_outcome_metadata(

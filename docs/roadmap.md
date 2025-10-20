@@ -93,7 +93,7 @@
 ### C.4 Heads & calibration
 - [x] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
 - [ ] **C.4.2** Add **quantile head** (τ=0.25/0.5/0.75).  
-- [ ] **C.4.3** Calibrate: temperature scaling or isotonic on held-out day; report **ECE** & **Brier**.
+- [x] **C.4.3** Calibrate: temperature scaling or isotonic on held-out day; report **ECE** & **Brier**.
 
 **DoD (C):** p99 model latency â‰¤ **0.35 ms**, total â‰¤ **0.85 ms**; training converges at 16k; ECE/Brier non-worse vs baseline.
 
@@ -133,7 +133,7 @@
 - [x] **E.1.2** Eval by horizon (events+time); report ECE, Brier, alpha?after?fees.
 
 ### E.2 FX adaptation
-- [ ] **E.2.1** Freeze bottom 60–80%; enable **LoRA rank 8–16** on top 30–40%.  
+- [x] **E.2.1** Freeze bottom 60–80%; enable **LoRA rank 8–16** on top 30–40%.  
 - [ ] **E.2.2** **EWC or L2?SP** + **20–30% equity rehearsal**.  
 - [ ] **E.2.3** Retention gates per horizon; reject if any exceed cap.
 
@@ -176,7 +176,7 @@
 
 **Goal:** you can see why every action happened; system survives faults.
 
-- [ ] **H.1** Action logs: `{reason_code, edge_ticks, cost_to_take, context_mult, inventory, latency_ms}`.  
+- [x] **H.1** Action logs: `{reason_code, edge_ticks, cost_to_take, context_mult, inventory, latency_ms}`.  
 - [x] **H.2** Drift monitors: **PSI** for 8–12 core features; alert if PSI > 0.25.  
 - [ ] **H.3** Dumb baseline comparator (e.g., 1×spread mean?revert); alert on sustained underperformance.  
 - [ ] **H.4** Chaos suite: 5% event drop/dup, 300?ms stall, order rejects; engine must **flatten within 200?ms**; idempotent dedupe of `(clOrdID, execID)`.
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T05:59:54Z
+## Automation updates — 2025-10-20T06:31:40Z
 
 ### Last 4 commits
-- 5021fc00 feat(artifacts): add 22 files (2025-10-20)
-- d572badc feat(data_foundation): add 4 files (2025-10-20)
-- c78a3df2 refactor(trading): tune 2 files (2025-10-20)
-- 079e4604 refactor(thinking): tune 3 files (2025-10-20)
+- 8bb98786 chore(mlops): tune 1 file (2025-10-20)
+- 0de885b7 feat(thinking): add 3 files (2025-10-20)
+- 3842536d refactor(thinking): tune 2 files (2025-10-20)
+- b479a996 refactor(operations): tune 2 files (2025-10-20)

@@ -22,14 +22,14 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Causal Graph Engine**: Formal DAG linking macro → liquidity → microprice → fills. Enables intervention testing.
 - [x] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
 - [ ] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
-- [ ] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
+- [x] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
 - [ ] **Out-of-Distribution Sentry**: Detect when live data diverges from training; reduce aggressiveness accordingly.
 
 ---
 
 ## III. Reflexivity - Knowing Its Own Shadow
 
-- [ ] **Self-Impact Model**: Quantify how EMP's trades alter the local order book and volatility.
+- [x] **Self-Impact Model**: Quantify how EMP's trades alter the local order book and volatility.
 - [x] **Adversary Simulation**: Train exploit agents to mimic others observing EMP's pattern; guard against being anticipated.
 - [x] **Entropy Governor**: Rotate tactics and randomize microtiming to stay unpredictable.
 - [ ] **Infrastructure Awareness**: Integrate latency, queue position, and execution certainty into planner logic.
@@ -115,7 +115,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [x] **Helm Failover with Replay Smoke Test**: Validate pod readiness by running historical replay.
 - [x] **Docker Reproducibility**: Images tagged with policy hash and config fingerprint.
-- [ ] **Terraform Infra Resilience**: Single-command rebuild of degraded nodes.
+- [x] **Terraform Infra Resilience**: Single-command rebuild of degraded nodes.
 - [x] **Live Config Diff**: All toggles and flags logged with color-coded diff at startup.
 
 ---

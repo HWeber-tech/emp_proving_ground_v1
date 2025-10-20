@@ -18,6 +18,7 @@ Provided:
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -169,17 +170,39 @@ class MarketData:
 
     @property
     def mid_price(self) -> float:
-        if self.bid or self.ask:
+        had_quotes = False
+        candidates: list[float] = []
+        for name, raw in (("bid", self.bid), ("ask", self.ask)):
+            if raw is None:
+                continue
+            had_quotes = had_quotes or bool(raw)
             try:
-                return (float(self.bid) + float(self.ask)) / 2.0
+                value = float(raw)
             except (TypeError, ValueError) as exc:
-                logger.debug("Failed to derive mid price from bid/ask", exc_info=exc)
+                logger.debug("Failed to coerce %s for mid price", name, exc_info=exc)
+                continue
+            if math.isfinite(value):
+                candidates.append(value)
+            else:
+                logger.debug("Ignoring non-finite %s value for mid price", name)
+
+        if len(candidates) == 2:
+            return (candidates[0] + candidates[1]) / 2.0
+        if candidates:
+            return candidates[0]
+
+        if had_quotes:
+            logger.debug("No finite bid/ask values available for mid price")
 
         try:
-            return float(self.close)
+            close_value = float(self.close)
         except (TypeError, ValueError) as exc:
             logger.debug("Failed to derive mid price fallback from close", exc_info=exc)
             return 0.0
+        if math.isfinite(close_value):
+            return close_value
+        logger.debug("Close value is non-finite; returning 0.0 for mid price")
+        return 0.0
 
     @property
     def spread(self) -> float:

@@ -74,6 +74,7 @@ class StrategyInference:
     flag_probability: float
     experiment_probability: float
     confidence: float
+    quantiles: Mapping[str, float]
 
 
 @dataclass(slots=True)

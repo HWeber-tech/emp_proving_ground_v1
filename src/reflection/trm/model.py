@@ -61,6 +61,14 @@ def _sigmoid(value: float) -> float:
     return expo / (1.0 + expo)
 
 
+_QUANTILE_LEVELS: tuple[float, ...] = (0.25, 0.5, 0.75)
+_DEFAULT_QUANTILE_BIAS: Mapping[float, float] = {
+    0.25: -0.05,
+    0.5: 0.0,
+    0.75: 0.05,
+}
+
+
 _DEFAULT_MODEL_SPEC = {
     "feature_names": _FEATURE_NAMES,
     "heads": {
@@ -110,6 +118,22 @@ _DEFAULT_MODEL_SPEC = {
             },
             "bias": 0.1,
         },
+        "quantile": {
+            "quantiles": {
+                "q25": {
+                    "shared": "weight_adjust",
+                    "affine": {"scale": 1.0, "bias": _DEFAULT_QUANTILE_BIAS[0.25]},
+                },
+                "q50": {
+                    "shared": "weight_adjust",
+                    "affine": {"scale": 1.0, "bias": _DEFAULT_QUANTILE_BIAS[0.5]},
+                },
+                "q75": {
+                    "shared": "weight_adjust",
+                    "affine": {"scale": 1.0, "bias": _DEFAULT_QUANTILE_BIAS[0.75]},
+                },
+            }
+        },
     },
 }
 
@@ -124,6 +148,16 @@ _HEAD_NAMES: tuple[str, ...] = (
 
 def _clone_head(head: _LinearHead) -> _LinearHead:
     return _LinearHead(weights=dict(head.weights), bias=head.bias, clip=head.clip)
+
+
+def _clone_head_config(config: _HeadConfig) -> _HeadConfig:
+    return _HeadConfig(
+        head=_clone_head(config.head),
+        clip=config.clip,
+        affine_scale=config.affine_scale,
+        affine_bias=config.affine_bias,
+        temperature=config.temperature,
+    )
 
 
 def _build_linear_head(spec: Mapping[str, Any]) -> _LinearHead:
@@ -191,6 +225,15 @@ class TRMModel:
             shared_head = _build_linear_head(shared_spec)
             available_heads[str(name)] = shared_head
 
+        self._default_quantile_configs = self._build_quantile_configs(
+            heads_spec.get("quantile"),
+            available_heads,
+            defaults=None,
+        )
+        for level, config in self._default_quantile_configs.items():
+            for alias in _quantile_aliases(level):
+                available_heads[alias] = _clone_head(config.head)
+
         self._strategy_domains: dict[str, str] = {
             str(strategy): str(domain)
             for strategy, domain in (spec.get("strategy_domains") or {}).items()
@@ -203,6 +246,7 @@ class TRMModel:
             or {}
         )
         self._domain_head_configs: dict[str, dict[str, _HeadConfig]] = {}
+        self._domain_quantile_configs: dict[str, dict[float, _HeadConfig]] = {}
 
         for domain_name, domain_spec in domain_definitions.items():
             if not isinstance(domain_spec, Mapping):
@@ -236,6 +280,19 @@ class TRMModel:
                 domain_head_configs[head_name] = config
             self._domain_head_configs[domain_key] = domain_head_configs
 
+            quantile_block = domain_spec.get("quantile")
+            if quantile_block is None and isinstance(heads_block, Mapping):
+                candidate = heads_block.get("quantile")
+                if isinstance(candidate, Mapping):
+                    quantile_block = candidate
+            if isinstance(quantile_block, Mapping):
+                quantile_configs = self._build_quantile_configs(
+                    quantile_block,
+                    available_heads,
+                    defaults=self._default_quantile_configs,
+                )
+                self._domain_quantile_configs[domain_key] = quantile_configs
+
         self._temperature = max(0.1, float(temperature))
         encoded = json.dumps(spec, sort_keys=True)
         self._model_hash = sha256(encoded.encode("utf-8")).hexdigest()
@@ -260,6 +317,7 @@ class TRMModel:
         flag_config = self._resolve_head_config("flag", domain)
         experiment_config = self._resolve_head_config("experiment", domain)
         confidence_config = self._resolve_head_config("confidence", domain)
+        quantile_configs = self._resolve_quantile_configs(domain)
 
         weight_delta = float(weight_config.evaluate(features))
         flag_score = float(flag_config.evaluate(features))
@@ -283,12 +341,30 @@ class TRMModel:
         confidence = max(confidence, flag_probability, experiment_probability)
         confidence = min(max(confidence, 0.0), 0.999)
 
+        quantiles: dict[str, float] = {}
+        q25_config = quantile_configs[0.25]
+        q50_config = quantile_configs[0.5]
+        q75_config = quantile_configs[0.75]
+        q25 = float(q25_config.evaluate(features))
+        q50 = float(q50_config.evaluate(features))
+        q75 = float(q75_config.evaluate(features))
+        if q50 < q25:
+            q50 = q25
+        if q50 > q75:
+            q50 = q75
+        if q25 > q75:
+            q25, q75 = q75, q25
+        quantiles["q25"] = q25
+        quantiles["q50"] = q50
+        quantiles["q75"] = q75
+
         return StrategyInference(
             strategy_id=encoding.strategy_id,
             weight_delta=weight_delta,
             flag_probability=flag_probability,
             experiment_probability=experiment_probability,
             confidence=confidence,
+            quantiles=quantiles,
         )
 
     def _resolve_head_config(self, head_name: str, domain: str | None) -> _HeadConfig:
@@ -298,11 +374,20 @@ class TRMModel:
                 return domain_config[head_name]
         return self._default_head_configs[head_name]
 
+    def _resolve_quantile_configs(self, domain: str | None) -> Mapping[float, _HeadConfig]:
+        if domain:
+            domain_config = self._domain_quantile_configs.get(domain)
+            if domain_config:
+                return domain_config
+        return self._default_quantile_configs
+
     def _build_head_config(
         self,
         head_name: str,
         head_spec: Mapping[str, Any],
         available_heads: Mapping[str, _LinearHead],
+        *,
+        default_head: _LinearHead | None = None,
     ) -> _HeadConfig:
         base_head: _LinearHead
 
@@ -316,7 +401,10 @@ class TRMModel:
                     raise ValueError(f"unknown shared head '{shared_ref}' for {head_name}")
                 base_head = _clone_head(shared_head)
             else:
-                base_head = _clone_head(self._default_head_configs[head_name].head)
+                reference = default_head
+                if reference is None:
+                    reference = self._default_head_configs[head_name].head
+                base_head = _clone_head(reference)
 
             if "bias" in head_spec:
                 try:
@@ -350,5 +438,101 @@ class TRMModel:
             temperature=temperature,
         )
 
+    def _build_quantile_configs(
+        self,
+        quantile_spec: Mapping[str, Any] | None,
+        available_heads: Mapping[str, _LinearHead],
+        *,
+        defaults: Mapping[float, _HeadConfig] | None,
+    ) -> dict[float, _HeadConfig]:
+        fallback = available_heads.get("weight_adjust")
+        if fallback is None:
+            raise ValueError("quantile head requires 'weight_adjust' base head")
+
+        configs: dict[float, _HeadConfig] = {}
+        entries: dict[float, Mapping[str, Any]] = {}
+        if isinstance(quantile_spec, Mapping):
+            candidate = quantile_spec.get("quantiles") if isinstance(quantile_spec.get("quantiles"), Mapping) else None
+            source = candidate if isinstance(candidate, Mapping) else quantile_spec
+            for key, value in source.items():
+                tau = _parse_quantile_key(key)
+                if tau is None or not isinstance(value, Mapping):
+                    continue
+                entries[tau] = value
+
+        for level in _QUANTILE_LEVELS:
+            if level in entries:
+                head_spec = entries[level]
+                config = self._build_head_config(
+                    f"quantile@{level}",
+                    head_spec,
+                    available_heads,
+                    default_head=fallback,
+                )
+            elif defaults and level in defaults:
+                config = _clone_head_config(defaults[level])
+            else:
+                head_spec = {
+                    "shared": "weight_adjust",
+                    "affine": {
+                        "scale": 1.0,
+                        "bias": _DEFAULT_QUANTILE_BIAS.get(level, 0.0),
+                    },
+                }
+                config = self._build_head_config(
+                    f"quantile@{level}",
+                    head_spec,
+                    available_heads,
+                    default_head=fallback,
+                )
+            configs[level] = config
+        return configs
+
 
 __all__ = ["TRMModel"]
+
+
+def _parse_quantile_key(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        candidate = float(value)
+        if math.isnan(candidate) or math.isinf(candidate):
+            return None
+    elif isinstance(value, str):
+        token = value.strip().lower()
+        if not token:
+            return None
+        if token.startswith("quantile"):
+            token = token[len("quantile") :]
+        if token.startswith("@"):
+            token = token[1:]
+        if token.startswith("q"):
+            token = token[1:]
+        token = token.replace("%", "")
+        token = token.strip()
+        if not token:
+            return None
+        try:
+            candidate = float(token)
+        except ValueError:
+            return None
+        if candidate > 1.0:
+            candidate /= 100.0
+    else:
+        return None
+    candidate = round(candidate, 2)
+    if candidate in _QUANTILE_LEVELS:
+        return candidate
+    return None
+
+
+def _quantile_aliases(level: float) -> tuple[str, ...]:
+    percent = int(round(level * 100))
+    canonical = f"{level:.2f}"
+    trimmed = canonical.rstrip("0").rstrip(".")
+    aliases = {
+        f"quantile@{canonical}",
+        f"quantile@{trimmed}",
+        f"quantile@{percent}",
+        f"quantile@q{percent}",
+    }
+    return tuple(sorted(aliases))

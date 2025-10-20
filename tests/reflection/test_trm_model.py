@@ -87,6 +87,20 @@ def test_per_domain_affine_and_temperature() -> None:
                     "shared": "confidence",
                     "temperature": 0.5,
                 },
+                "quantile": {
+                    "q25": {
+                        "weights": {"a": 0.1},
+                        "bias": -0.1,
+                    },
+                    "0.50": {
+                        "weights": {"a": 0.2},
+                        "bias": 0.0,
+                    },
+                    "75%": {
+                        "weights": {"a": 0.3},
+                        "bias": 0.1,
+                    },
+                },
             }
         }
     }
@@ -98,6 +112,9 @@ def test_per_domain_affine_and_temperature() -> None:
     assert inference.flag_probability == pytest.approx(_sigmoid(3.0), rel=1e-6)
     assert inference.experiment_probability == pytest.approx(_sigmoid(1.0), rel=1e-6)
     assert inference.confidence == pytest.approx(0.99, rel=1e-6)
+    assert inference.quantiles["q25"] == pytest.approx(0.0, rel=1e-6)
+    assert inference.quantiles["q50"] == pytest.approx(0.2, rel=1e-6)
+    assert inference.quantiles["q75"] == pytest.approx(0.4, rel=1e-6)
 
 
 def test_domain_strategies_map_and_default_fallback() -> None:
@@ -117,3 +134,16 @@ def test_domain_strategies_map_and_default_fallback() -> None:
 
     assert fx_inference.flag_probability == pytest.approx(_sigmoid(2.0), rel=1e-6)
     assert baseline.flag_probability == pytest.approx(_sigmoid(1.0), rel=1e-6)
+    assert set(baseline.quantiles) == {"q25", "q50", "q75"}
+    assert baseline.quantiles["q25"] <= baseline.quantiles["q50"] <= baseline.quantiles["q75"]
+    assert fx_inference.quantiles["q25"] <= fx_inference.quantiles["q50"] <= fx_inference.quantiles["q75"]
+
+
+def test_default_quantile_head_uses_weight_adjust_features() -> None:
+    model = TRMModel(copy.deepcopy(_BASE_SPEC))
+    encoding = _make_encoding("s1", 0.5)
+    inference = model.infer(encoding)
+
+    expected_score = 0.5  # weight_adjust head (w=1.0, bias=0.0)
+    assert inference.quantiles["q50"] == pytest.approx(expected_score, rel=1e-6)
+    assert inference.quantiles["q25"] <= inference.quantiles["q50"] <= inference.quantiles["q75"]

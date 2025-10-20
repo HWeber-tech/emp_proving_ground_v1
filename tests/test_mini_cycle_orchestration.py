@@ -508,6 +508,8 @@ def test_run_day1_day2_with_kernel_and_quant_fallbacks(monkeypatch, tmp_path):
     assert fake_emp.default_optimizer_name == "Lion"
     assert fake_emp.kernel_state["flashattention2"] is False
     assert fake_emp.default_inference_precision == 8
+    assert fake_emp.tagged_runs["day1_lion_candidate"] == "APPROVED_DEFAULT"
+    assert fake_emp.tagged_runs["day1_adamw_baseline"] == "APPROVED_FALLBACK"
     assert fake_emp.tagged_runs["day2_flashattn_lion"] == "REJECTED"
     assert fake_emp.tagged_runs["day2_infer_int8"] == "APPROVED_DEFAULT"
     assert fake_emp.tagged_runs["day2_infer_int4"] == "REJECTED"
@@ -518,6 +520,63 @@ def test_run_day1_day2_with_kernel_and_quant_fallbacks(monkeypatch, tmp_path):
     assert day1_summary["decision"]["ok"] is True
 
     assert fake_emp.logged_messages[-1][1].startswith("Mini-Cycle Days 1–2 complete")
+
+
+def test_run_day1_day2_quant_failure_reverts_default(monkeypatch, tmp_path):
+    fake_emp = FakeEMP()
+    fake_emp.compare_runs_payloads.extend(
+        [
+            {
+                "val_loss": {"reference": 0.22, "candidate": 0.19},
+                "throughput_samples_per_s": {"reference": 1000.0, "candidate": 1100.0},
+                "gpu_mem_gb": {"reference": 8.0, "candidate": 7.5},
+                "wall_clock_s": {"reference": 620.0, "candidate": 580.0},
+            },
+            {
+                "val_loss": {"reference": 0.19, "candidate": 0.188},
+                "throughput_samples_per_s": {"reference": 1180.0, "candidate": 1300.0},
+                "gpu_mem_gb": {"reference": 7.2, "candidate": 7.0},
+                "wall_clock_s": {"reference": 540.0, "candidate": 500.0},
+            },
+        ]
+    )
+    fake_emp.compare_inference_payloads.extend(
+        [
+            {
+                "val_loss": {"reference": 0.11, "candidate": 0.120},
+                "latency_ms_per_batch": {"reference": 10.0, "candidate": 9.5},
+            },
+            {
+                "val_loss": {"reference": 0.11, "candidate": 0.125},
+                "latency_ms_per_batch": {"reference": 10.0, "candidate": 9.0},
+            },
+        ]
+    )
+
+    monkeypatch.setattr(orchestration, "ARTIFACTS_REPORT_DIR", tmp_path / "reports" / "mc_d1d2_fail")
+    monkeypatch.setattr(orchestration, "ARTIFACTS_CKPT_DIR", tmp_path / "ckpts" / "mc_d1d2_fail")
+
+    def fake_evaluate_lion_success(*_: Any, **__: Any) -> Dict[str, Any]:
+        return {"ok": True, "reason": "lion wins"}
+
+    def fake_evaluate_flash_success(*_: Any, **__: Any) -> Dict[str, Any]:
+        return {"ok": True, "reason": "flash wins"}
+
+    def fake_evaluate_quant_failure(*_: Any, **__: Any) -> Dict[str, Any]:
+        return {"ok": False, "reason": "degrades"}
+
+    monkeypatch.setattr(orchestration, "evaluate_lion_success", fake_evaluate_lion_success)
+    monkeypatch.setattr(orchestration, "evaluate_flash_success", fake_evaluate_flash_success)
+    monkeypatch.setattr(orchestration, "evaluate_quant_success", fake_evaluate_quant_failure)
+
+    result = orchestration.run_day1_day2(emp_api=fake_emp)
+
+    assert result["int8"]["ok"] is False
+    assert result["int4"]["ok"] is False
+    assert fake_emp.tagged_runs["day2_infer_fp16_ref"] == "APPROVED_DEFAULT"
+    assert fake_emp.tagged_runs["day2_infer_int8"] == "REJECTED"
+    assert fake_emp.tagged_runs["day2_infer_int4"] == "REJECTED"
+    assert fake_emp.tagged_runs["day2_flashattn_lion"] == "APPROVED_DEFAULT"
 
 
 def _sample_window(ts: datetime, symbol: str, future_outcome: float) -> Dict[str, Any]:
@@ -568,6 +627,7 @@ def test_run_day3_day4_retrieval_memory_success(monkeypatch, tmp_path):
     assert result["decision"]["ok"] is True
     assert fake_emp.flags["RETRIEVAL_MEMORY_DEFAULT"] is True
     assert fake_emp.tagged_runs["day4_memON_backtest"] == "APPROVED_DEFAULT"
+    assert fake_emp.tagged_runs["day3_memOFF_backtest"] == "APPROVED_FALLBACK"
     assert fake_emp.memory_store is not None
     assert len(fake_emp.memory_store.entries) == len(fake_emp.window_stream)
     assert "emp.memory.retrieval" in fake_emp.modules
@@ -616,6 +676,7 @@ def test_run_day3_day4_retrieval_memory_failure_rolls_back(monkeypatch, tmp_path
     assert result["decision"]["ok"] is False
     assert fake_emp.flags["RETRIEVAL_MEMORY_DEFAULT"] is False
     assert fake_emp.tagged_runs["day4_memON_backtest"] == "REJECTED"
+    assert fake_emp.tagged_runs["day3_memOFF_backtest"] == "APPROVED_DEFAULT"
 
     context = dict(fake_emp.window_stream[0])
     assert fake_emp.inference.run_feature_hooks(context) == {}

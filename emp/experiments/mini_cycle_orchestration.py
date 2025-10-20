@@ -177,11 +177,13 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
     lion_ok = bool(lion_decision.get("ok"))
 
     if lion_ok:
-        emp.tag_run(run_lion, "APPROVED")
+        emp.tag_run(run_lion, "APPROVED_DEFAULT")
+        emp.tag_run(run_adam, "APPROVED_FALLBACK")
         emp.log("Lion approved; setting Lion as default optimizer.", level="info")
         emp.set_default_optimizer("Lion", lion_cfg)
     else:
         emp.tag_run(run_lion, "REJECTED")
+        emp.tag_run(run_adam, "APPROVED_DEFAULT")
         emp.log("Lion failed criteria; keeping AdamW as default optimizer.", level="warn")
         emp.set_default_optimizer("AdamW", adam_cfg)
 
@@ -232,11 +234,13 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
     flash_ok = bool(flash_decision.get("ok"))
 
     if flash_ok:
-        emp.tag_run(run_flash, "APPROVED")
+        emp.tag_run(run_flash, "APPROVED_DEFAULT")
+        emp.tag_run(ref_for_flash, "APPROVED_FALLBACK")
         emp.log("FlashAttention approved; kept enabled for next steps.", level="info")
     else:
         emp.tag_run(run_flash, "REJECTED")
         emp.enable_kernel("flashattention2", enabled=False)
+        emp.tag_run(ref_for_flash, "APPROVED_DEFAULT")
         emp.log("FlashAttention failed criteria; rolled back to SDPA.", level="warn")
 
     emp.render_table(comparison_flash, title="Day 2A: FlashAttention vs Reference")
@@ -311,6 +315,7 @@ def run_day1_day2(emp_api: Any | None = None) -> Dict[str, Any]:
         emp.log("INT8 approved as default inference precision; INT4 rejected.", level="info")
     else:
         emp.set_default_inference_precision(bits=16)
+        emp.tag_run(eval_ref, "APPROVED_DEFAULT")
         emp.tag_run(eval_int8, "REJECTED")
         emp.tag_run(eval_int4, "REJECTED")
         emp.log("Quantization failed thresholds; keeping FP16 as default.", level="warn")
@@ -813,10 +818,12 @@ def run_day3_day4(emp_api: Any | None = None) -> Dict[str, Any]:
 
     if decision["ok"]:
         emp.tag_run(run_on, "APPROVED_DEFAULT")
+        emp.tag_run(run_off, "APPROVED_FALLBACK")
         emp.set_flag("RETRIEVAL_MEMORY_DEFAULT", True)
         emp.log("Retrieval memory APPROVED as default (flag on).", level="info")
     else:
         emp.tag_run(run_on, "REJECTED")
+        emp.tag_run(run_off, "APPROVED_DEFAULT")
         emp.set_flag("RETRIEVAL_MEMORY_DEFAULT", False)
         cfg["MEMORY_ENABLED"] = False
         emp.log("Retrieval memory REJECTED (kept off).", level="warn")

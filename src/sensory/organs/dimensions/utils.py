@@ -430,9 +430,19 @@ def calculate_divergence(price_series: List[float], indicator_series: List[float
     if len(price_series) < 2 or len(indicator_series) < 2:
         return 0.0
 
-    # Calculate recent trends
-    price_trend = (price_series[-1] - price_series[-2]) / price_series[-2]
-    indicator_trend = (indicator_series[-1] - indicator_series[-2]) / abs(indicator_series[-2])
+    # Calculate recent trends safely to avoid division by zero
+    previous_price = price_series[-2]
+    if previous_price == 0:
+        price_trend = 0.0
+    else:
+        price_trend = (price_series[-1] - previous_price) / previous_price
+
+    previous_indicator = indicator_series[-2]
+    indicator_denominator = abs(previous_indicator)
+    if indicator_denominator == 0:
+        indicator_trend = 0.0
+    else:
+        indicator_trend = (indicator_series[-1] - previous_indicator) / indicator_denominator
 
     # Divergence occurs when trends are opposite
     if price_trend * indicator_trend < 0:

@@ -12,8 +12,9 @@ from __future__ import annotations
 from contextlib import contextmanager
 import logging
 from pathlib import Path
+import sys
 import threading
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, Iterator, Mapping
 
 import structlog
 
@@ -135,10 +136,120 @@ def _configure_otel_logging_handler(
         return handler
 
 
+def _fallback_keyvalue_renderer() -> Any:
+    """Return a lightweight key=value renderer compatible with structlog."""
+
+    def _renderer(_logger: Any, _name: str, event_dict: Mapping[str, Any]) -> str:
+        parts: list[str] = []
+        event_value = event_dict.get("event")
+        if event_value is not None:
+            parts.append(f"event={event_value!r}")
+        for key in sorted(k for k in event_dict if k != "event"):
+            parts.append(f"{key}={event_dict[key]!r}")
+        return " ".join(parts)
+
+    return _renderer
+
+
+def _select_renderer(output_format: str | None) -> Any:
+    """Return a structlog renderer for the requested output format."""
+
+    if not output_format:
+        return structlog.processors.JSONRenderer()
+
+    normalized = output_format.strip().lower()
+    if not normalized or normalized in {"json", "structured"}:
+        return structlog.processors.JSONRenderer()
+    if normalized in {"keyvalue", "kv", "text"}:
+        try:
+            from structlog.processors import KeyValueRenderer  # type: ignore[attr-defined]
+        except (ImportError, AttributeError):
+            return _fallback_keyvalue_renderer()
+        return KeyValueRenderer(key_order=["event"], sort_keys=True)
+    if normalized in {"console", "pretty"}:
+        try:
+            from structlog.dev import ConsoleRenderer
+        except ImportError:  # pragma: no cover - structlog without dev extras
+            logger.warning(
+                "structlog.dev unavailable; falling back to JSON renderer",
+                extra={"structlog.output_format": output_format},
+            )
+            return structlog.processors.JSONRenderer()
+        return ConsoleRenderer(colors=False)
+
+    logger.warning(
+        "Unsupported structlog output format %r; defaulting to JSON",
+        output_format,
+    )
+    return structlog.processors.JSONRenderer()
+
+
+def _build_structlog_handler(
+    *, stream: Any | None, destination: str | Path | None
+) -> logging.Handler:
+    """Create a logging handler for structlog output."""
+
+    if stream is not None:
+        handler = logging.StreamHandler(stream)
+        handler.set_name("structlog")
+        return handler
+
+    if destination is None:
+        handler = logging.StreamHandler()
+        handler.set_name("structlog")
+        return handler
+
+    dest_text = str(destination).strip()
+    if not dest_text:
+        handler = logging.StreamHandler()
+        handler.set_name("structlog")
+        return handler
+
+    lowered = dest_text.lower()
+    if lowered in {"stdout", "standard_output", "sys.stdout"}:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.set_name("structlog")
+        return handler
+    if lowered in {"stderr", "standard_error", "sys.stderr", "default"}:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.set_name("structlog")
+        return handler
+
+    path = Path(dest_text).expanduser()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        logger.warning(
+            "Failed to create structlog destination directory; defaulting to stderr",
+            extra={"structlog.destination": str(path)},
+            exc_info=True,
+        )
+        handler = logging.StreamHandler(sys.stderr)
+        handler.set_name("structlog")
+        return handler
+
+    try:
+        file_handler = logging.FileHandler(path, encoding="utf-8")
+    except OSError as exc:
+        logger.warning(
+            "Failed to open structlog destination %s: %s; defaulting to stderr",
+            path,
+            exc,
+        )
+        handler = logging.StreamHandler(sys.stderr)
+        handler.set_name("structlog")
+        return handler
+
+    file_handler.set_name(f"structlog:{path}")
+    return file_handler
+
+
 def configure_structlog(
     *,
     level: int = logging.INFO,
     stream: Any | None = None,
+    output_format: str | None = None,
+    destination: str | Path | None = None,
     otel_settings: OpenTelemetrySettings | None = None,
 ) -> None:
     """Configure ``structlog`` to emit JSON log lines with context variables.
@@ -146,6 +257,11 @@ def configure_structlog(
     Args:
         level: Minimum logging level. Defaults to :data:`logging.INFO`.
         stream: Optional IO stream for the root handler, primarily used in tests.
+        output_format: Format of the emitted log records. Supported values are
+            ``"json"`` (default), ``"keyvalue"`` or ``"kv"``, and ``"console"``.
+        destination: Optional log destination. Accepts ``"stdout"``, ``"stderr"``
+            (or ``"default"``), or a filesystem path. When omitted, logs are
+            written to ``stderr``.
         otel_settings: Optional OpenTelemetry configuration. When provided and
             instrumentation is enabled, structured log records are forwarded to
             the configured collector alongside the standard stream handler.
@@ -162,11 +278,11 @@ def configure_structlog(
     ]
 
     formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.processors.JSONRenderer(),
+        processor=_select_renderer(output_format),
         foreign_pre_chain=pre_chain,
     )
 
-    handler = logging.StreamHandler(stream)
+    handler = _build_structlog_handler(stream=stream, destination=destination)
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()

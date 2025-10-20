@@ -73,6 +73,44 @@ def test_order_logging_context_supports_custom_correlation_id() -> None:
     assert record["correlation_id"] == "chain-1"
 
 
+def test_configure_structlog_supports_keyvalue_output() -> None:
+    buffer = io.StringIO()
+    configure_structlog(level=logging.INFO, stream=buffer, output_format="keyvalue")
+
+    logger = get_logger("structlog-keyvalue")
+    logger.info("kv_log", foo="bar")
+
+    contents = buffer.getvalue().strip().splitlines()
+    assert contents, "expected log output"
+    last = contents[-1]
+    assert "event='kv_log'" in last
+    assert "foo='bar'" in last
+
+
+def test_configure_structlog_writes_to_file_destination(tmp_path: Path) -> None:
+    destination = tmp_path / "logs" / "runtime.log"
+
+    configure_structlog(
+        level=logging.INFO,
+        destination=destination,
+        output_format="keyvalue",
+    )
+
+    logger = get_logger("structlog-file")
+    logger.info("file_log", foo="baz")
+
+    for handler in logging.getLogger().handlers:
+        flush = getattr(handler, "flush", None)
+        if callable(flush):
+            flush()
+
+    contents = destination.read_text(encoding="utf-8").strip().splitlines()
+    assert contents, "expected file log output"
+    last = contents[-1]
+    assert "event='file_log'" in last
+    assert "foo='baz'" in last
+
+
 def test_load_structlog_otel_settings_translates_profile(tmp_path: Path) -> None:
     config_path = tmp_path / "logging.yaml"
     config_path.write_text(

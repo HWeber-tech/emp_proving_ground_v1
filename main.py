@@ -137,6 +137,38 @@ def _maybe_start_metrics_exporter(extras: Mapping[str, str] | None) -> None:
         logger.exception("Failed to start Prometheus metrics exporter")
 
 
+def _normalise_optional_str(value: object | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _parse_structlog_level(raw: object | None) -> int:
+    text = _normalise_optional_str(raw)
+    if text is None:
+        return logging.INFO
+    candidate = logging.getLevelName(text.upper())
+    if isinstance(candidate, int):
+        return candidate
+    logger.warning(
+        "Unrecognised STRUCTLOG_LEVEL %r; defaulting to INFO",
+        raw,
+        extra={"structlog.level_invalid": text},
+    )
+    return logging.INFO
+
+
+def _parse_structlog_destination(raw: object | None) -> str | Path | None:
+    text = _normalise_optional_str(raw)
+    if text is None:
+        return None
+    lowered = text.lower()
+    if lowered in {"stdout", "stderr", "default"}:
+        return lowered
+    return Path(text).expanduser()
+
+
 async def main() -> None:
     """Main entry point for Professional Predator."""
 
@@ -177,7 +209,17 @@ async def main() -> None:
                     exc,
                     extra={"structlog.otel_config": str(profile_path)},
                 )
-    configure_structlog(level=logging.INFO, otel_settings=otel_settings)
+    structlog_level = _parse_structlog_level(extras.get("STRUCTLOG_LEVEL"))
+    raw_format = extras.get("STRUCTLOG_OUTPUT_FORMAT") or extras.get("STRUCTLOG_FORMAT")
+    output_format = _normalise_optional_str(raw_format)
+    destination = _parse_structlog_destination(extras.get("STRUCTLOG_DESTINATION"))
+
+    configure_structlog(
+        level=structlog_level,
+        output_format=output_format,
+        destination=destination,
+        otel_settings=otel_settings,
+    )
     _maybe_start_metrics_exporter(extras)
 
     if rng_seed is not None:

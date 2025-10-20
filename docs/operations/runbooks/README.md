@@ -26,6 +26,7 @@ briefs and CI health snapshot.
 - [Incident playbook validation](incident_playbook_validation.md) – Bundles the
   kill-switch, nightly replay, and trade rollback drills into a repeatable
   evidence pack for the incident response programme.
+- [Validation framework failure response](validation_framework.md) – Explains the composite validation suite, success thresholds, and how to triage failing checks before promoting builds.
 
 Keep these documents close to the institutional data backbone alignment brief so
 runbooks, roadmap status, and acceptance hooks evolve together.

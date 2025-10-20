@@ -117,6 +117,10 @@ class AnomalySensor:
             inputs["mean"] = evaluation.mean
             inputs["std_dev"] = evaluation.std_dev
             inputs["z_score"] = evaluation.z_score
+            inputs["iqr"] = evaluation.iqr
+            inputs["iqr_lower"] = evaluation.iqr_lower
+            inputs["iqr_upper"] = evaluation.iqr_upper
+            inputs["iqr_outlier"] = evaluation.iqr_outlier
             reading = self._engine.analyze_anomaly_understanding(values)
             return [
                 self._build_signal(
@@ -154,6 +158,10 @@ class AnomalySensor:
                 inputs["mean"] = evaluation.mean
                 inputs["std_dev"] = evaluation.std_dev
                 inputs["z_score"] = evaluation.z_score
+                inputs["iqr"] = evaluation.iqr
+                inputs["iqr_lower"] = evaluation.iqr_lower
+                inputs["iqr_upper"] = evaluation.iqr_upper
+                inputs["iqr_outlier"] = evaluation.iqr_outlier
             return [
                 self._build_signal(
                     reading,
@@ -228,7 +236,7 @@ class AnomalySensor:
         if basic_eval is not None and dispersion <= 0.0:
             z_score = basic_eval.z_score
         abs_z_score = abs(z_score)
-        telemetry: dict[str, float] = {
+        telemetry: dict[str, object] = {
             "baseline": baseline,
             "dispersion": dispersion,
             "latest": latest,
@@ -236,6 +244,10 @@ class AnomalySensor:
         }
         if basic_eval is not None:
             telemetry["sample_size"] = float(basic_eval.sample_size)
+            telemetry["iqr"] = float(basic_eval.iqr)
+            telemetry["iqr_lower"] = float(basic_eval.iqr_lower)
+            telemetry["iqr_upper"] = float(basic_eval.iqr_upper)
+            telemetry["iqr_outlier"] = basic_eval.iqr_outlier
 
         anomaly_flag = basic_eval.is_anomaly if basic_eval is not None else abs_z_score >= self._config.z_score_threshold
         if assessment.state in {"alert", "critical"}:
@@ -284,6 +296,7 @@ class AnomalySensor:
                 "min_samples": self._basic_detector.min_samples,
                 "z_threshold": self._basic_detector.z_threshold,
                 "sample_size": basic_eval.sample_size,
+                "iqr_outlier": basic_eval.iqr_outlier,
             }
         metadata["audit"].update(telemetry)
         if extra_metadata:
@@ -308,9 +321,19 @@ class AnomalySensor:
             "state": assessment.state,
             "is_anomaly": anomaly_flag,
             "z_score": float(z_score),
+            "iqr_outlier": False,
+            "iqr_bounds": {
+                "lower": float(telemetry.get("iqr_lower", latest)),
+                "upper": float(telemetry.get("iqr_upper", latest)),
+            },
         }
         if basic_eval is not None:
             value["sample_size"] = basic_eval.sample_size
+            value["iqr_outlier"] = basic_eval.iqr_outlier
+            value["iqr_bounds"] = {
+                "lower": float(basic_eval.iqr_lower),
+                "upper": float(basic_eval.iqr_upper),
+            }
         self._record_lineage(lineage)
         return SensorSignal(
             signal_type="ANOMALY",
@@ -358,6 +381,10 @@ class AnomalySensor:
                 "baseline": 0.0,
                 "dispersion": 0.0,
                 "latest": 0.0,
+                "iqr": 0.0,
+                "iqr_lower": 0.0,
+                "iqr_upper": 0.0,
+                "iqr_outlier": False,
             },
             "lineage": lineage.as_dict(),
             "state": assessment.state,
@@ -381,6 +408,8 @@ class AnomalySensor:
                 "state": assessment.state,
                 "is_anomaly": False,
                 "z_score": 0.0,
+                "iqr_outlier": False,
+                "iqr_bounds": {"lower": 0.0, "upper": 0.0},
             },
             confidence=0.0,
             metadata=metadata,

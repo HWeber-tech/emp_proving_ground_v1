@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import isfinite
-from statistics import fmean, pstdev
+from statistics import StatisticsError, fmean, pstdev, quantiles
 from typing import Iterable, Sequence
 
 import pandas as pd
@@ -20,6 +20,10 @@ class AnomalyEvaluation:
     latest: float
     z_score: float
     is_anomaly: bool
+    iqr: float = 0.0
+    iqr_lower: float = 0.0
+    iqr_upper: float = 0.0
+    iqr_outlier: bool = False
 
 
 class BasicAnomalyDetector:
@@ -60,8 +64,41 @@ class BasicAnomalyDetector:
         else:
             z_score = (latest - mean) / std_dev
 
-        is_anomaly = sample_size >= self._min_samples and abs(z_score) >= self._z_threshold
-        return AnomalyEvaluation(sample_size, float(mean), float(std_dev), float(latest), float(z_score), is_anomaly)
+        iqr = 0.0
+        iqr_lower = latest
+        iqr_upper = latest
+        iqr_outlier = False
+
+        if sample_size >= 4:
+            try:
+                quartiles = quantiles(windowed, n=4, method="inclusive")
+            except StatisticsError:
+                quartiles = None
+            if quartiles is not None and len(quartiles) == 3:
+                q1 = float(quartiles[0])
+                q3 = float(quartiles[2])
+                iqr = q3 - q1
+                iqr_lower = q1 - 1.5 * iqr
+                iqr_upper = q3 + 1.5 * iqr
+                iqr_outlier = latest < iqr_lower or latest > iqr_upper
+
+        enough_samples = sample_size >= self._min_samples
+        z_trigger = enough_samples and abs(z_score) >= self._z_threshold
+        iqr_trigger = enough_samples and iqr_outlier
+        is_anomaly = z_trigger or iqr_trigger
+
+        return AnomalyEvaluation(
+            sample_size,
+            float(mean),
+            float(std_dev),
+            float(latest),
+            float(z_score),
+            bool(is_anomaly),
+            float(iqr),
+            float(iqr_lower),
+            float(iqr_upper),
+            bool(iqr_outlier),
+        )
 
     def _normalise_values(
         self, data: Sequence[float] | Iterable[float] | pd.Series

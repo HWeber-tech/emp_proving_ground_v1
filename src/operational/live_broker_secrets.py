@@ -18,6 +18,11 @@ from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, MutableMapping
 
 
+from src.operations.secrets_manager import resolve_secret_reference
+
+
+logger = logging.getLogger(__name__)
+
 _MASK = "***"
 logger = logging.getLogger(__name__)
 
@@ -444,14 +449,12 @@ def _extract_profile(
     name: str,
     prefixes: Iterable[str],
     fallback_prefixes: Iterable[str] = (),
+    secret_loader: Callable[[str], Mapping[str, str] | None] | None = None,
 ) -> BrokerCredentialProfile | None:
     for prefix in list(prefixes) + list(fallback_prefixes):
-        price = _session_from_prefix(mapping, prefix, "PRICE")
-        trade = _session_from_prefix(mapping, prefix, "TRADE")
-        rotated_at = _parse_timestamp(mapping.get(f"{prefix}ROTATED_AT"))
-        expires_at = _parse_timestamp(mapping.get(f"{prefix}EXPIRES_AT"))
+        local_mapping: MutableMapping[str, str] = dict(mapping)
         secret_ref = _first_value(
-            mapping,
+            local_mapping,
             (
                 f"{prefix}SECRET_NAME",
                 f"{prefix}SECRET_PATH",
@@ -459,10 +462,32 @@ def _extract_profile(
             ),
         )
 
+        if secret_loader is not None and secret_ref:
+            try:
+                secret_payload = secret_loader(secret_ref)
+            except Exception:  # pragma: no cover - defensive guard to keep optional
+                logger.debug(
+                    "Secret loader failed for reference %s", secret_ref, exc_info=True
+                )
+                secret_payload = None
+            if secret_payload:
+                for key, value in secret_payload.items():
+                    if not value:
+                        continue
+                    if key.startswith("LIVE_BROKER_"):
+                        local_mapping.setdefault(key, value)
+                    else:
+                        local_mapping.setdefault(f"{prefix}{key}", value)
+
+        price = _session_from_prefix(local_mapping, prefix, "PRICE")
+        trade = _session_from_prefix(local_mapping, prefix, "TRADE")
+        rotated_at = _parse_timestamp(local_mapping.get(f"{prefix}ROTATED_AT"))
+        expires_at = _parse_timestamp(local_mapping.get(f"{prefix}EXPIRES_AT"))
+
         metadata_prefix = f"{prefix}METADATA_"
         metadata: dict[str, Any] = {
             key[len(metadata_prefix) :].lower(): value
-            for key, value in mapping.items()
+            for key, value in local_mapping.items()
             if key.startswith(metadata_prefix)
         }
 
@@ -523,6 +548,7 @@ def load_live_broker_secrets(
     *,
     environment: str | object | None,
     fallback: Mapping[str, object] | None = None,
+    secret_loader: Callable[[str], Mapping[str, str] | None] | None = None,
 ) -> LiveBrokerSecrets:
     """Return resolved live broker credentials for the requested environment."""
 
@@ -543,6 +569,34 @@ def load_live_broker_secrets(
     active_key = _classify_environment(environment)
 
     profiles: dict[str, BrokerCredentialProfile] = {}
+
+    default_loader = secret_loader
+    if default_loader is None:
+
+        def _default_loader(reference: str) -> Mapping[str, str] | None:
+            try:
+                return resolve_secret_reference(reference)
+            except Exception:  # pragma: no cover - diagnostics only
+                logger.debug(
+                    "Failed to resolve secret reference %s", reference, exc_info=True
+                )
+                return None
+
+        default_loader = _default_loader
+
+    secret_cache: dict[str, Mapping[str, str] | None] = {}
+
+    def _load_secret(reference: str) -> Mapping[str, str] | None:
+        if reference in secret_cache:
+            return secret_cache[reference]
+        payload = default_loader(reference) if default_loader is not None else None
+        if payload is not None:
+            normalised_payload = _normalise_mapping(payload)
+        else:
+            normalised_payload = None
+        secret_cache[reference] = normalised_payload
+        return normalised_payload
+
     for key, aliases in _ENVIRONMENT_ALIASES.items():
         prefixes = [f"LIVE_BROKER_{alias.upper()}_" for alias in (key, *aliases)]
         fallback_prefixes: list[str] = []
@@ -563,6 +617,7 @@ def load_live_broker_secrets(
             name=key,
             prefixes=prefixes,
             fallback_prefixes=fallback_prefixes,
+            secret_loader=_load_secret,
         )
         if profile is None:
             profile = BrokerCredentialProfile(name=key.lower())

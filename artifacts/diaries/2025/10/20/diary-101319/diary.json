@@ -1,0 +1,4569 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-4dfa0e29",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-01b99993",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:05:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:05:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-324d77e9",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:10:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:10:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-6496d650",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:15:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:15:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-8f2d0b3a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:20:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:20:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-844900aa",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:25:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:25:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-9555e0c2",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-ddc6ed56",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:35:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:35:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-d8cd07d8",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:40:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:40:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-92484b58",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:45:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:45:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-4d3930be",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:50:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:50:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-cda2bd8e",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T09:55:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T09:55:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-6c33dfc7",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-54c1a356",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:05:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:05:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-cfd39c7b",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:10:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:10:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-887b29c3",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:15:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:15:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-eddf185c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:20:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:20:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-472e2c91",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:25:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:25:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-bcafb0e6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-fc90a773",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "experiment"
+        },
+        "release_stage": "experiment"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T10:35:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T10:35:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-434df509",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-a358dff8",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-01T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-01T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-3443090a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-02T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-02T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-9ea7f642",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-02T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-02T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-1a030230",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-02T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-02T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-1b6965fb",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-02T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-02T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-3242a654",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-03T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-03T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-7bbc68ec",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-03T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-03T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-f77b9566",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-03T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-03T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-31a29908",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-03T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-03T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-16622c0e",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-04T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-04T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-7f133c8b",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-04T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-04T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-107c4050",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-04T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-04T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-96f95160",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-04T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-04T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-dea9b703",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-05T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-05T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-aa5dd2b5",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-05T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-05T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-fd7e5f33",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-05T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-05T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-bc30ed7e",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-05T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-05T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-1ebcd3f7",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-06T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-06T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-a776a394",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-06T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-06T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-6524d84c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-06T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-06T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-035ad955",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-06T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-06T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-d526b486",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-07T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-07T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-485eeecb",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-07T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-07T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-c32da412",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-07T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-07T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-72cd76db",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-07T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-07T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-915f763f",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-08T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-08T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-6a020668",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-08T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-08T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-367f0035",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-08T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-08T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-8cec7305",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-08T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-08T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-50fd5771",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-09T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-09T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-6c8b06bb",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-09T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-09T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-2f94c331",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-09T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-09T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-733f226a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-09T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-09T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-b0285c07",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-10T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-10T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-61a632bd",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-10T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-10T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-11a555d4",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-10T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-10T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-42cea92a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-10T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-10T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-ebabddbf",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-a19d9a11",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "paper"
+        },
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-a2b6452a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T08:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T08:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-c50a74e8",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T08:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T08:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-36722f48",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T09:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T09:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-4cc0afa6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T09:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T09:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-518a0ec6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T10:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T10:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-baec38a8",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T10:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T10:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-7d104ed6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T11:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T11:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-7a3bac35",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T11:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T11:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-f3ca9969",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T12:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T12:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-0b336808",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T12:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T12:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-5f8e8b57",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-76b692a1",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T13:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T13:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-926f10f2",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T14:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T14:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-d68bebd6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T14:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T14:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-893ab943",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T15:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T15:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-9c5943ef",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T15:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T15:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-b828e6c0",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T16:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T16:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-2160ea7a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T16:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T16:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-0e72a577",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T17:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T17:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-b30d9175",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T17:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T17:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-7b1375f2",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T18:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T18:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-c2aaba47",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T18:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T18:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-f890f8ae",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T19:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T19:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-0ee037f3",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T19:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T19:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-c8aa63a2",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T20:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T20:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-e574e258",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T20:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T20:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-63d1d71b",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T21:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T21:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-0476b319",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T21:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T21:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-f8512cd6",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T22:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T22:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-6781e3ec",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T22:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T22:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-610974b0",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T23:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T23:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-06e7328d",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-11T23:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-11T23:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-2e655b77",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T00:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-5aa7a79b",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T00:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T00:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-ad7d68d5",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T01:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T01:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-563d106d",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T01:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T01:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-534bf03e",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T02:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T02:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-39f4c711",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T02:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T02:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-98e192bf",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T03:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T03:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-08f67f10",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T03:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T03:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-3bb04130",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T04:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T04:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-bf2a1293",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T04:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T04:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-46c90d01",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T05:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T05:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-81643b59",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T05:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T05:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-80251b02",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T06:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T06:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-33fd1764",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T06:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T06:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-109e207c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T07:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T07:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-ddad642c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T07:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T07:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-d9757818",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T08:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T08:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-5e7e8918",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T08:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T08:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-29852a38",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T09:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T09:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-09122122",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T09:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T09:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-e407256a",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T10:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T10:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-9643615c",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T10:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T10:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-9bf1415f",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T11:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T11:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-e4244767",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T11:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T11:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-1d431e01",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T12:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T12:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-52ed6f5f",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T12:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T12:30:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-61ec1914",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T13:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T13:00:00+00:00"
+      }
+    },
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "auto",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T101319Z-05b14178",
+      "metadata": {
+        "drift_decision": {
+          "force_paper": false,
+          "severity": "normal"
+        },
+        "release_execution": {
+          "forced": false,
+          "route": "paper",
+          "stage": "pilot"
+        },
+        "release_stage": "pilot"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 0.0
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2024-04-12T13:30:00+00:00",
+      "regime_state": {
+        "confidence": 0.8,
+        "features": {},
+        "regime": "balanced",
+        "timestamp": "2024-04-12T13:30:00+00:00"
+      }
+    }
+  ],
+  "generated_at": "2025-10-20T10:13:19.990567+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T10:13:19.448344+00:00",
+    "probes": {}
+  }
+}

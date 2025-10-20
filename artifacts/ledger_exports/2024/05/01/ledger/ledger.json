@@ -1,0 +1,42 @@
+{
+  "records": {
+    "alpha.policy": {
+      "approvals": [
+        "ops",
+        "risk"
+      ],
+      "created_at": "2024-05-01T12:00:00+00:00",
+      "evidence_id": "diary-002",
+      "history": [
+        {
+          "applied_at": "2024-05-01T12:00:00+00:00",
+          "approvals": [
+            "compliance",
+            "risk"
+          ],
+          "evidence_id": "diary-001",
+          "next_stage": "paper",
+          "prior_stage": null
+        },
+        {
+          "applied_at": "2024-05-01T12:02:00+00:00",
+          "approvals": [
+            "ops",
+            "risk"
+          ],
+          "evidence_id": "diary-002",
+          "next_stage": "pilot",
+          "prior_stage": "paper"
+        }
+      ],
+      "policy_id": "alpha.policy",
+      "stage": "pilot",
+      "tactic_id": "alpha-tactic",
+      "threshold_overrides": {
+        "warn_confidence_floor": 0.82
+      },
+      "updated_at": "2024-05-01T12:02:00+00:00"
+    }
+  },
+  "updated_at": "2024-05-01T12:03:00+00:00"
+}

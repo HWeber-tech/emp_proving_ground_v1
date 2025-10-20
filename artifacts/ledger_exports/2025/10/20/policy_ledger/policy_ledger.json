@@ -1,51 +1,29 @@
 {
   "records": {
-    "alpha": {
+    "catalogue/trend-alpha::0": {
       "approvals": [
         "compliance",
         "risk"
       ],
-      "created_at": "2025-10-20T08:19:02.652572+00:00",
-      "evidence_id": "diary-alpha",
+      "created_at": "2025-10-20T10:13:21.773069+00:00",
+      "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
       "history": [
         {
-          "applied_at": "2025-10-20T08:19:02.652572+00:00",
+          "applied_at": "2025-10-20T10:13:21.773069+00:00",
           "approvals": [
             "compliance",
             "risk"
           ],
-          "evidence_id": "diary-alpha",
-          "next_stage": "pilot",
-          "policy_delta": {
-            "metadata": {},
-            "notes": [],
-            "regime": "balanced",
-            "risk_config": {
-              "max_leverage": 6
-            },
-            "router_guardrails": {
-              "requires_diary": true
-            }
-          },
+          "evidence_id": "dd-catalogue/trend-alpha::0-promotion",
+          "next_stage": "paper",
           "prior_stage": null
         }
       ],
-      "policy_delta": {
-        "metadata": {},
-        "notes": [],
-        "regime": "balanced",
-        "risk_config": {
-          "max_leverage": 6
-        },
-        "router_guardrails": {
-          "requires_diary": true
-        }
-      },
-      "policy_id": "alpha",
-      "stage": "pilot",
-      "tactic_id": "alpha",
-      "updated_at": "2025-10-20T08:19:02.652572+00:00"
+      "policy_id": "catalogue/trend-alpha::0",
+      "stage": "paper",
+      "tactic_id": "catalogue/trend-alpha::0",
+      "updated_at": "2025-10-20T10:13:21.773069+00:00"
     }
   },
-  "updated_at": "2025-10-20T08:19:02.652701+00:00"
+  "updated_at": "2025-10-20T10:13:21.773633+00:00"
 }

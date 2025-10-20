@@ -5,22 +5,23 @@
         "ops",
         "risk"
       ],
-      "created_at": "2025-10-20T10:13:21.664231+00:00",
-      "evidence_id": "diary-2",
+      "created_at": "2024-01-01T00:00:00+00:00",
+      "evidence_id": "diary-002",
       "history": [
         {
-          "applied_at": "2025-10-20T10:13:21.664231+00:00",
+          "applied_at": "2024-01-01T00:00:00+00:00",
           "approvals": [
             "compliance",
             "risk"
           ],
-          "evidence_id": "diary-1",
+          "evidence_id": "diary-001",
           "next_stage": "paper",
           "policy_delta": {
             "metadata": {},
             "notes": [],
+            "regime": "balanced",
             "risk_config": {
-              "max_leverage": 7
+              "max_leverage": "8"
             },
             "router_guardrails": {
               "requires_diary": true
@@ -29,18 +30,18 @@
           "prior_stage": null
         },
         {
-          "applied_at": "2025-10-20T10:13:21.668616+00:00",
+          "applied_at": "2024-01-01T00:00:02+00:00",
           "approvals": [
             "ops",
             "risk"
           ],
-          "evidence_id": "diary-2",
+          "evidence_id": "diary-002",
           "next_stage": "pilot",
           "policy_delta": {
             "metadata": {},
             "notes": [],
             "risk_config": {
-              "max_total_exposure_pct": 0.4
+              "max_total_exposure_pct": 0.45
             },
             "router_guardrails": {
               "max_latency_ms": 250
@@ -53,7 +54,7 @@
         "metadata": {},
         "notes": [],
         "risk_config": {
-          "max_total_exposure_pct": 0.4
+          "max_total_exposure_pct": 0.45
         },
         "router_guardrails": {
           "max_latency_ms": 250
@@ -62,8 +63,11 @@
       "policy_id": "alpha.policy",
       "stage": "pilot",
       "tactic_id": "tactic.alpha",
-      "updated_at": "2025-10-20T10:13:21.668616+00:00"
+      "threshold_overrides": {
+        "warn_notional_limit": 60000.0
+      },
+      "updated_at": "2024-01-01T00:00:02+00:00"
     }
   },
-  "updated_at": "2025-10-20T10:13:21.668898+00:00"
+  "updated_at": "2024-01-01T00:00:03+00:00"
 }

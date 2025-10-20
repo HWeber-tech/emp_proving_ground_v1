@@ -475,7 +475,7 @@ class PolicyGraduationEvaluator:
         self,
         entries: Sequence[DecisionDiaryEntry],
     ) -> float:
-        longest_span_days = 0.0
+        current_span_days = 0.0
         current_start: datetime | None = None
 
         for entry in entries:
@@ -486,13 +486,12 @@ class PolicyGraduationEvaluator:
                 timestamp = entry.recorded_at.astimezone(_UTC)
                 if current_start is None:
                     current_start = timestamp
-                span_days = (timestamp - current_start).total_seconds() / 86400.0
-                if span_days > longest_span_days:
-                    longest_span_days = span_days
+                current_span_days = (timestamp - current_start).total_seconds() / 86400.0
             else:
                 current_start = None
+                current_span_days = 0.0
 
-        return longest_span_days
+        return current_span_days
 
     @staticmethod
     def _is_paper_gate_green(entry: DecisionDiaryEntry) -> bool:

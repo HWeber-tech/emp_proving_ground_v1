@@ -1,0 +1,60 @@
+{
+  "records": {
+    "alpha": {
+      "approvals": [
+        "risk"
+      ],
+      "created_at": "2025-10-20T10:13:19.208048+00:00",
+      "evidence_id": "dd-alpha-paper",
+      "history": [
+        {
+          "applied_at": "2025-10-20T10:13:19.208048+00:00",
+          "approvals": [],
+          "evidence_id": "dd-alpha-exp",
+          "next_stage": "experiment",
+          "prior_stage": null
+        },
+        {
+          "applied_at": "2025-10-20T10:13:19.253087+00:00",
+          "approvals": [
+            "risk"
+          ],
+          "evidence_id": "dd-alpha-paper",
+          "next_stage": "paper",
+          "prior_stage": "experiment"
+        },
+        {
+          "applied_at": "2025-10-20T10:13:19.439157+00:00",
+          "approvals": [
+            "risk"
+          ],
+          "evidence_id": "dd-alpha-paper",
+          "next_stage": "pilot",
+          "prior_stage": "paper"
+        }
+      ],
+      "metadata": {
+        "traceability": {
+          "code_hash": "eb2632ec20841adefc4348da99d27990d320c64f",
+          "config_hash": "79b5d31b7324088321a2bbd7e796ff305c273ebf0ee8060ad36e71b84bcd484b",
+          "diary_slice": {
+            "diary_path": "/tmp/pytest-of-codex/pytest-1248/test_cli_apply_promotes_stage0/apply_diary.json",
+            "entry_id": "dd-alpha-paper",
+            "stage": "pilot",
+            "status": "missing_entry"
+          },
+          "evidence_id": "dd-alpha-paper",
+          "generated_at": "2025-10-20T10:13:19.439080+00:00",
+          "policy_id": "alpha",
+          "stage": "pilot",
+          "tactic_id": "alpha"
+        }
+      },
+      "policy_id": "alpha",
+      "stage": "pilot",
+      "tactic_id": "alpha",
+      "updated_at": "2025-10-20T10:13:19.439157+00:00"
+    }
+  },
+  "updated_at": "2025-10-20T10:13:19.439639+00:00"
+}

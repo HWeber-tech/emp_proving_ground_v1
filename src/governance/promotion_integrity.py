@@ -211,7 +211,7 @@ class PromotionGuard:
                 f"Decision diary entries for policy '{policy_id}' not found in {self._diary_path}"
             )
 
-        longest_span = 0.0
+        current_span = 0.0
         current_start: datetime | None = None
         saw_paper_entry = False
 
@@ -225,18 +225,17 @@ class PromotionGuard:
                 timestamp = entry.recorded_at.astimezone(_UTC)
                 if current_start is None:
                     current_start = timestamp
-                span = (timestamp - current_start).total_seconds() / _SECONDS_PER_DAY
-                if span > longest_span:
-                    longest_span = span
+                current_span = (timestamp - current_start).total_seconds() / _SECONDS_PER_DAY
             else:
                 current_start = None
+                current_span = 0.0
 
         if not saw_paper_entry:
             raise PromotionIntegrityError(
                 f"Decision diary paper stage entries for policy '{policy_id}' not found in {self._diary_path}"
             )
 
-        return longest_span
+        return current_span
 
     @staticmethod
     def _extract_regime(entry: DecisionDiaryEntry) -> str | None:

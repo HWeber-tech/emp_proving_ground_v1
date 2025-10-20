@@ -4,17 +4,25 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 import json
-from typing import MutableMapping
+from typing import Callable, MutableMapping
 
 
 class TimeStamper:
     """Add an ISO8601 timestamp to the event dictionary."""
 
-    def __init__(self, *, fmt: str = "iso", utc: bool = False, key: str = "timestamp") -> None:
+    def __init__(
+        self,
+        *,
+        fmt: str = "iso",
+        utc: bool = False,
+        key: str = "timestamp",
+        now_factory: Callable[[], datetime] | None = None,
+    ) -> None:
         self._fmt = fmt
         self._is_iso = fmt.lower() == "iso"
         self._utc = utc
         self._key = key
+        self._now_factory = now_factory
 
     def __call__(
         self,
@@ -22,7 +30,13 @@ class TimeStamper:
         _method_name: str,
         event_dict: MutableMapping[str, object],
     ) -> MutableMapping[str, object]:
-        timestamp = datetime.now(tz=UTC if self._utc else None)
+        if self._key in event_dict:
+            return event_dict
+
+        if self._now_factory is not None:
+            timestamp = self._now_factory()
+        else:
+            timestamp = datetime.now(tz=UTC if self._utc else None)
         if self._is_iso:
             rendered = timestamp.isoformat()
             if self._utc and rendered.endswith("+00:00"):

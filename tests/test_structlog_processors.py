@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from structlog.processors import TimeStamper
 
 
@@ -32,3 +34,21 @@ def test_timestamper_accepts_uppercase_iso():
     timestamper(None, "", event)
 
     assert "timestamp" in event
+
+
+def test_timestamper_respects_custom_now_factory():
+    frozen = datetime(2023, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    calls: list[object] = []
+
+    def fake_now() -> datetime:
+        calls.append(object())
+        return frozen
+
+    timestamper = TimeStamper(utc=True, now_factory=fake_now)
+    event: dict[str, str] = {}
+
+    timestamper(None, "", event)
+    timestamper(None, "", event)
+
+    assert event["timestamp"] == "2023-01-02T03:04:05Z"
+    assert len(calls) == 1

@@ -1,0 +1,602 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "bootstrap release",
+        "reflection_summary": {},
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T155516Z-b8b7f2cf",
+      "metadata": {},
+      "notes": [],
+      "outcomes": {},
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2025-10-20T15:55:16.895874+00:00",
+      "regime_state": {
+        "confidence": 1.0,
+        "features": {},
+        "regime": "calm",
+        "timestamp": "2025-10-20T15:55:16.895811+00:00"
+      },
+      "signature": "7aa341c538d6749bdac26882a33ec562b8941f4b207c1263a7b4f7f1d5aeb3f4"
+    },
+    {
+      "decision": {
+        "decision_timestamp": "2025-10-20T13:31:16.911893+00:00",
+        "experiments_applied": [],
+        "guardrails": {
+          "stop_loss_pct": 0.01
+        },
+        "parameters": {
+          "confidence": 0.6005453366293726,
+          "price": 1.1004364721233533,
+          "quantity": 1.0,
+          "side": "BUY",
+          "symbol": "EURUSD"
+        },
+        "rationale": "Bootstrap runtime threshold trigger",
+        "reflection_summary": {
+          "narrative": "BULLISH"
+        },
+        "selected_weight": 1.4732869092726362,
+        "tactic_id": "alpha",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T155516Z-16114a5d",
+      "metadata": {
+        "intent_metadata": {
+          "drift_gate": {
+            "allowed": true,
+            "blocked_dimensions": [],
+            "evaluated_at": "2025-10-20T15:55:16.930152+00:00",
+            "force_paper": true,
+            "reason": "release_stage_paper_requires_paper_execution",
+            "requirements": {
+              "block_severity": "alert",
+              "confidence_floor": 0.76,
+              "context.event_id": "unknown",
+              "context.notional": 1.1004364721233533,
+              "context.quantity": 1.0,
+              "context.release_stage": "paper",
+              "context.symbol": "EURUSD",
+              "release_stage": "paper",
+              "release_stage_gate": "release_stage_paper_requires_paper_execution",
+              "warn_notional_limit": 50000.0
+            },
+            "severity": "normal",
+            "snapshot_metadata": {}
+          },
+          "execution_risk": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "edge_ticks": 0.0,
+            "effective_spread_ticks": 0.0,
+            "estimated_cost": 3.30191489658465e-05,
+            "fees_ticks": 1.1004364721233534e-05,
+            "notional": 1.1004364721233533,
+            "notional_pct_of_equity": 1.1004364721233532e-05,
+            "sigma_ann": 0.0,
+            "size_ratio": 1.1004364721233532e-05,
+            "slippage_bps": 0.20005502182360618,
+            "slippage_ticks": 2.2014784244612965e-05,
+            "spread": 0.0,
+            "spread_cost_ticks": 0.0,
+            "spread_ticks": 0.0,
+            "top_imbalance": 0.0,
+            "total_cost_bps": 0.3000550218236062,
+            "total_cost_ticks": 3.30191489658465e-05,
+            "worst_case_fill_ticks": -3.30191489658465e-05
+          },
+          "stop_loss_pct": 0.01,
+          "understanding_snapshot": {
+            "confidence": 0.6005453366293726,
+            "narrative": "BULLISH",
+            "unified_score": 1.4732869092726362
+          }
+        },
+        "snapshot": {
+          "generated_at": "2025-10-20T13:31:16.911893+00:00",
+          "symbol": "EURUSD"
+        },
+        "trade_outcome_metadata": {
+          "drift_gate": {
+            "allowed": true,
+            "blocked_dimensions": [],
+            "evaluated_at": "2025-10-20T15:55:16.930152+00:00",
+            "force_paper": true,
+            "reason": "release_stage_paper_requires_paper_execution",
+            "requirements": {
+              "block_severity": "alert",
+              "confidence_floor": 0.76,
+              "context.event_id": "unknown",
+              "context.notional": 1.1004364721233533,
+              "context.quantity": 1.0,
+              "context.release_stage": "paper",
+              "context.symbol": "EURUSD",
+              "release_stage": "paper",
+              "release_stage_gate": "release_stage_paper_requires_paper_execution",
+              "warn_notional_limit": 50000.0
+            },
+            "severity": "normal",
+            "snapshot_metadata": {}
+          },
+          "reason": "execution_risk"
+        }
+      },
+      "notes": [
+        "Bootstrap runtime decision for EURUSD",
+        "Trade outcome status: rejected"
+      ],
+      "outcomes": {
+        "execution": {
+          "stats": {
+            "attribution_coverage": 0.0,
+            "avg_latency_ms": null,
+            "backlog": {
+              "avg_lag_ms": 8640017.655,
+              "breach_active": true,
+              "breach_rate": 1.0,
+              "breaches": 1,
+              "healthy": false,
+              "last_breach_at": "2025-10-20T15:55:16.929548+00:00",
+              "last_recovery_at": null,
+              "last_recovery_ms": null,
+              "latest_lag_ms": 8640017.655,
+              "max_breach_streak": 1,
+              "max_lag_ms": 8640017.655,
+              "p95_lag_ms": 8640017.655,
+              "samples": 1,
+              "threshold_ms": 250.0,
+              "worst_breach_ms": 8640017.655
+            },
+            "backlog_breaches": 1,
+            "guardrail_block_until": null,
+            "guardrail_force": null,
+            "guardrail_force_paper_until": null,
+            "guardrail_force_reason": null,
+            "guardrail_near_misses": 0,
+            "guardrail_violations": 0,
+            "last_attribution_executed": false,
+            "last_backlog_breach": "2025-10-20T15:55:16.929548+00:00",
+            "last_error": null,
+            "last_execution_at": null,
+            "last_guardrail_incident": null,
+            "last_successful_order": null,
+            "last_throttle_cooldown": null,
+            "last_throttle_event": null,
+            "last_throttle_multiplier": null,
+            "latency_history_samples": 0,
+            "latency_p99_ms": null,
+            "latency_samples": 0,
+            "max_latency_ms": 0.0,
+            "order_attribution_samples": 1,
+            "orders_executed": 0,
+            "orders_failed": 0,
+            "orders_submitted": 0,
+            "orders_with_attribution": 0,
+            "resource_usage": {
+              "cpu_percent": null,
+              "io_read_count": null,
+              "io_read_mb": null,
+              "io_write_count": null,
+              "io_write_mb": null,
+              "memory_mb": null,
+              "memory_percent": null,
+              "timestamp": null
+            },
+            "strategies": {
+              "alpha": {
+                "blocked": 0,
+                "completed_trades": 0,
+                "executed": 0,
+                "failed": 0,
+                "inventory_blocks": {
+                  "per_hour_cap": 0,
+                  "per_minute_cap": 0,
+                  "pressure": 0
+                },
+                "inventory_state": {
+                  "gross_notional": 0.0,
+                  "half_life_minutes": 15.0,
+                  "mean_reversion_pressure": 0.0,
+                  "net_notional": 0.0,
+                  "net_quantity": 0.0,
+                  "normaliser": 1.0,
+                  "updated_at": "2025-10-20T15:55:16.971871+00:00"
+                },
+                "last_error": "execution_risk",
+                "last_updated": "2025-10-20T15:55:16.932141+00:00",
+                "losses": 0,
+                "realized_pnl": 0.0,
+                "rejected": 1,
+                "roi": null,
+                "throttled": 0,
+                "total_notional": 0.0,
+                "turnover_state": {
+                  "cap_per_hour": null,
+                  "cap_per_minute": null,
+                  "per_hour": 0.0,
+                  "per_minute": 0.0,
+                  "updated_at": "2025-10-20T15:55:16.971880+00:00"
+                },
+                "volume": 0.0,
+                "win_rate": null,
+                "wins": 0
+              }
+            },
+            "throttle_blocks": 0,
+            "throttle_consumed_notional": null,
+            "throttle_history_size": 0,
+            "throttle_max_notional": null,
+            "throttle_notional_utilisation": null,
+            "throttle_remaining_notional": null,
+            "throttle_retry_at": null,
+            "throttle_retry_in_seconds": null,
+            "throttle_scalings": 0,
+            "throughput": {
+              "avg_lag_ms": 8640017.655,
+              "avg_processing_ms": 2.833,
+              "max_lag_ms": 8640017.655,
+              "max_processing_ms": 2.833,
+              "p95_processing_ms": 2.833,
+              "samples": 1,
+              "throttle_active": false,
+              "throttle_retry_in_seconds": null,
+              "throttle_state": null,
+              "throughput_per_min": null
+            },
+            "total_latency_ms": 0.0
+          }
+        },
+        "release": {
+          "drift_gate": {
+            "allowed": true,
+            "blocked_dimensions": [],
+            "evaluated_at": "2025-10-20T15:55:16.930152+00:00",
+            "force_paper": true,
+            "reason": "release_stage_paper_requires_paper_execution",
+            "requirements": {
+              "block_severity": "alert",
+              "confidence_floor": 0.76,
+              "context.event_id": "unknown",
+              "context.notional": 1.1004364721233533,
+              "context.quantity": 1.0,
+              "context.release_stage": "paper",
+              "context.symbol": "EURUSD",
+              "release_stage": "paper",
+              "release_stage_gate": "release_stage_paper_requires_paper_execution",
+              "warn_notional_limit": 50000.0
+            },
+            "severity": "normal",
+            "snapshot_metadata": {}
+          },
+          "execution_risk": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "edge_ticks": 0.0,
+            "effective_spread_ticks": 0.0,
+            "estimated_cost": 3.30191489658465e-05,
+            "fees_ticks": 1.1004364721233534e-05,
+            "notional": 1.1004364721233533,
+            "notional_pct_of_equity": 1.1004364721233532e-05,
+            "sigma_ann": 0.0,
+            "size_ratio": 1.1004364721233532e-05,
+            "slippage_bps": 0.20005502182360618,
+            "slippage_ticks": 2.2014784244612965e-05,
+            "spread": 0.0,
+            "spread_cost_ticks": 0.0,
+            "spread_ticks": 0.0,
+            "top_imbalance": 0.0,
+            "total_cost_bps": 0.3000550218236062,
+            "total_cost_ticks": 3.30191489658465e-05,
+            "worst_case_fill_ticks": -3.30191489658465e-05
+          },
+          "stage": "paper",
+          "stop_loss_pct": 0.01,
+          "thresholds": {
+            "adaptive_source": "normal",
+            "block_severity": "alert",
+            "stage": "paper",
+            "warn_confidence_floor": 0.76,
+            "warn_notional_limit": 50000.0
+          },
+          "understanding_snapshot": {
+            "confidence": 0.6005453366293726,
+            "narrative": "BULLISH",
+            "unified_score": 1.4732869092726362
+          }
+        },
+        "risk": {
+          "checks": [
+            {
+              "name": "risk.synthetic_invariant_posture",
+              "status": "ok"
+            },
+            {
+              "name": "daily_drawdown",
+              "threshold": 0.1,
+              "value": 0.0
+            },
+            {
+              "name": "open_positions",
+              "threshold": 5,
+              "value": 0.0
+            },
+            {
+              "name": "position_sizer",
+              "recommended": 200000.0,
+              "requested": 1.0
+            },
+            {
+              "name": "liquidity_confidence",
+              "threshold": 0.25,
+              "value": 0.964
+            },
+            {
+              "name": "policy.min_position_size",
+              "status": "ok",
+              "threshold": 1.0,
+              "value": 1.0
+            },
+            {
+              "name": "policy.max_position_size",
+              "status": "ok",
+              "threshold": 1000000.0,
+              "value": 1.0
+            },
+            {
+              "name": "policy.max_risk_per_trade_pct",
+              "ratio": 1.1004364721233532e-05,
+              "status": "ok",
+              "threshold": 2000.0,
+              "value": 0.022008729442467064
+            },
+            {
+              "name": "policy.max_total_exposure_pct",
+              "ratio": 2.2008729442467065e-05,
+              "status": "ok",
+              "threshold": 50000.0,
+              "value": 1.1004364721233533
+            },
+            {
+              "name": "policy.max_leverage",
+              "ratio": 1.1004364721233532e-06,
+              "status": "ok",
+              "threshold": 10.0,
+              "value": 1.1004364721233532e-05
+            },
+            {
+              "name": "policy.max_drawdown_pct",
+              "status": "ok",
+              "threshold": 0.1,
+              "value": 0.0
+            },
+            {
+              "metadata": {
+                "confidence": 0.6005453366293726,
+                "limit_pct": 0.3002726683146863
+              },
+              "name": "risk.confidence_notional_limit",
+              "status": "ok",
+              "threshold": 30027.26683146863,
+              "value": 1.1004364721233533
+            },
+            {
+              "metadata": {
+                "equity": 100000.0,
+                "projected_total_exposure": 1.1004364721233533
+              },
+              "name": "risk.leverage_ratio",
+              "status": "ok",
+              "threshold": 10.0,
+              "value": 1.1004364721233532e-05
+            },
+            {
+              "metadata": {
+                "gross_leverage": 2.2008729442467065e-07,
+                "leverage_ratio": 2.2008729442467064e-08,
+                "max_exposure": 0.022008729442467064,
+                "position_ratio": 1.1004364721233532e-05,
+                "risk_score": 1.1004364721233532e-05,
+                "total_exposure": 0.022008729442467064,
+                "total_ratio": 4.401745888493413e-07
+              },
+              "name": "portfolio_risk_score",
+              "status": "ok",
+              "threshold": 1.0,
+              "value": 1.1004364721233532e-05
+            },
+            {
+              "name": "execution.slippage_bps",
+              "status": "ok",
+              "threshold": 25.0,
+              "value": 0.20005502182360618
+            },
+            {
+              "name": "execution.total_cost_bps",
+              "status": "ok",
+              "threshold": 35.0,
+              "value": 0.3000550218236062
+            },
+            {
+              "name": "execution.notional_pct_of_equity",
+              "status": "ok",
+              "threshold": 0.25,
+              "value": 1.1004364721233532e-05
+            },
+            {
+              "name": "execution.worst_case_fill_ticks",
+              "status": "violation",
+              "threshold": 0.0,
+              "value": -3.30191489658465e-05
+            }
+          ],
+          "execution": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "edge_ticks": 0.0,
+            "effective_spread_ticks": 0.0,
+            "estimated_cost": 3.30191489658465e-05,
+            "fees_ticks": 1.1004364721233534e-05,
+            "notional": 1.1004364721233533,
+            "notional_pct_of_equity": 1.1004364721233532e-05,
+            "sigma_ann": 0.0,
+            "size_ratio": 1.1004364721233532e-05,
+            "slippage_bps": 0.20005502182360618,
+            "slippage_ticks": 2.2014784244612965e-05,
+            "spread": 0.0,
+            "spread_cost_ticks": 0.0,
+            "spread_ticks": 0.0,
+            "top_imbalance": 0.0,
+            "total_cost_bps": 0.3000550218236062,
+            "total_cost_ticks": 3.30191489658465e-05,
+            "worst_case_fill_ticks": -3.30191489658465e-05
+          },
+          "policy": {
+            "approved": true,
+            "metadata": {
+              "current_total_exposure": 0.0,
+              "equity": 100000.0,
+              "estimated_risk": 0.022008729442467064,
+              "existing_position_notional": 0.0,
+              "exposure_increase": 1.1004364721233533,
+              "max_total_exposure": 50000.0,
+              "projected_leverage": 1.1004364721233532e-05,
+              "projected_notional": 1.1004364721233533,
+              "projected_total_exposure": 1.1004364721233533,
+              "research_mode": false,
+              "resolved_price": 1.1004364721233533,
+              "risk_budget": 2000.0,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "reason": null,
+            "violations": []
+          },
+          "reason": "execution_risk",
+          "risk_manager": {
+            "equity": 100000.0,
+            "projected_risk_map": {
+              "REGIME::unknown": 0.022008729442467064
+            },
+            "risk_score": 1.1004364721233532e-05,
+            "snapshot": {
+              "gross_leverage": 2.2008729442467065e-07,
+              "leverage_ratio": 2.2008729442467064e-08,
+              "max_exposure": 0.022008729442467064,
+              "position_ratio": 1.1004364721233532e-05,
+              "risk_score": 1.1004364721233532e-05,
+              "total_exposure": 0.022008729442467064,
+              "total_ratio": 4.401745888493413e-07
+            }
+          },
+          "risk_reference": {
+            "limits": {
+              "liquidity_probe_threshold": 1.0,
+              "max_daily_drawdown": 0.1,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_open_positions": 5,
+              "max_position_size": 1000000.0,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "min_intent_confidence": 0.0,
+              "min_liquidity_confidence": 0.25,
+              "min_position_size": 1.0,
+              "risk_per_trade": 0.02
+            },
+            "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+            "risk_config": {
+              "instrument_sector_map": {},
+              "inventory_mean_reversion_half_life_minutes": 15.0,
+              "mandatory_stop_loss": true,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_position_size": 1000000,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "max_volatility_leverage": 3.0,
+              "min_position_size": 1,
+              "research_mode": false,
+              "sector_exposure_limits": {},
+              "target_volatility_pct": 0.1,
+              "volatility_annualisation_factor": 1.0,
+              "volatility_window": 20
+            },
+            "risk_config_summary": {
+              "mandatory_stop_loss": true,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_position_size": 1000000,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "max_volatility_leverage": 3.0,
+              "min_position_size": 1,
+              "research_mode": false,
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "target_volatility_pct": 0.1,
+              "volatility_annualisation_factor": 1.0,
+              "volatility_window": 20
+            }
+          },
+          "status": "rejected",
+          "strategy_id": "alpha",
+          "symbol": "EURUSD",
+          "timestamp": "2025-10-20T15:55:16.930215"
+        },
+        "trade_outcome": {
+          "executed": false,
+          "metadata": {
+            "drift_gate": {
+              "allowed": true,
+              "blocked_dimensions": [],
+              "evaluated_at": "2025-10-20T15:55:16.930152+00:00",
+              "force_paper": true,
+              "reason": "release_stage_paper_requires_paper_execution",
+              "requirements": {
+                "block_severity": "alert",
+                "confidence_floor": 0.76,
+                "context.event_id": "unknown",
+                "context.notional": 1.1004364721233533,
+                "context.quantity": 1.0,
+                "context.release_stage": "paper",
+                "context.symbol": "EURUSD",
+                "release_stage": "paper",
+                "release_stage_gate": "release_stage_paper_requires_paper_execution",
+                "warn_notional_limit": 50000.0
+              },
+              "severity": "normal",
+              "snapshot_metadata": {}
+            },
+            "reason": "execution_risk"
+          },
+          "status": "rejected"
+        }
+      },
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2025-10-20T15:55:16.973090+00:00",
+      "regime_state": {
+        "confidence": 0.6005453366293726,
+        "features": {
+          "dominant_narrative": "BULLISH",
+          "unified_score": 1.4732869092726362
+        },
+        "regime": "paper",
+        "timestamp": "2025-10-20T13:31:16.911893+00:00"
+      },
+      "signature": "70014988cb064012bb62b784230d1f99a3829806ab5454a7bd42673d54da1e46"
+    }
+  ],
+  "generated_at": "2025-10-20T15:55:16.975068+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T15:55:16.906271+00:00",
+    "probes": {}
+  }
+}

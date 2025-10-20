@@ -26,6 +26,8 @@ with suppress(ModuleNotFoundError):
     from .models import *
 with suppress(ModuleNotFoundError):
     from .patterns import *
+with suppress(ModuleNotFoundError):
+    from .muzero_lite_tree import *
 
 __version__ = "1.1.0"
 __author__ = "EMP System"

@@ -644,11 +644,125 @@ class Phase3Orchestrator:
 
     async def _get_current_market_state(self) -> dict[str, object]:
         """Return a minimal current market state snapshot."""
+        state_key = "phase3:market_state:last"
+
+        def _as_float(value: object, default: float = 0.0) -> float:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _as_int(value: object, default: int = 0) -> int:
+            try:
+                if isinstance(value, bool):
+                    return int(value)
+                return int(float(value))
+            except (TypeError, ValueError):
+                return default
+
         try:
-            return {"timestamp": datetime.utcnow().isoformat()}
-        except Exception:
-            # Extremely defensive: always return a dict
-            return {"timestamp": datetime.utcnow().isoformat()}
+            previous_raw = await self.state_store.get(state_key)
+        except Exception as exc:  # pragma: no cover - defensive logging only
+            logger.debug("Unable to read previous market state", exc_info=exc)
+            previous_raw = None
+
+        previous_snapshot: dict[str, object] | None = None
+        if previous_raw:
+            try:
+                decoded = json.loads(previous_raw)
+                if isinstance(decoded, dict):
+                    previous_snapshot = decoded
+            except json.JSONDecodeError as exc:  # pragma: no cover - corrupt payload guard
+                logger.debug("Discarding corrupt market state payload", exc_info=exc)
+
+        now = datetime.utcnow()
+        previous_state = (
+            previous_snapshot.get("market_state") if isinstance(previous_snapshot, dict) else None
+        )
+        if not isinstance(previous_state, dict):
+            previous_state = None
+
+        prev_price = _as_float(previous_state.get("price"), 1.0) if previous_state else 1.0
+        prev_vol = _as_float(previous_state.get("volatility"), 0.015) if previous_state else 0.015
+        prev_spread = _as_float(previous_state.get("spread"), 0.0001) if previous_state else 0.0001
+        prev_volume = _as_float(previous_state.get("volume"), 750.0) if previous_state else 750.0
+
+        prev_timestamp = (
+            previous_snapshot.get("timestamp") if isinstance(previous_snapshot, dict) else None
+        )
+        elapsed_ms = 0.0
+        if isinstance(prev_timestamp, str):
+            try:
+                prev_dt = datetime.fromisoformat(prev_timestamp)
+                elapsed_ms = max(0.0, (now - prev_dt).total_seconds() * 1000.0)
+            except ValueError:
+                elapsed_ms = 0.0
+
+        tick_raw = self.performance_metrics.get("tick_count", 0)
+        tick_count = _as_int(tick_raw, 0)
+        cycle_position = (tick_count % 8) - 4
+        momentum = 0.0 if previous_state is None else cycle_position * 0.000025
+
+        price = max(0.0, prev_price + momentum)
+        volatility = max(0.0, 0.9 * prev_vol + abs(momentum) * 12.0 + 0.0005)
+        spread = max(0.00001, 0.96 * prev_spread + 0.00001)
+        volume = max(100.0, prev_volume * 0.75 + 150.0 + abs(momentum) * 50_000.0)
+
+        directional_edge = momentum / max(prev_price if prev_price else price, 1e-6)
+        volatility_penalty = max(0.0, volatility - prev_vol) * 50.0
+        spread_cost = spread * 5000.0
+        liquidity_bonus = min(volume / 2000.0, 1.5) * 2.5
+        reward_proxy = directional_edge * 10_000.0 + liquidity_bonus - volatility_penalty - spread_cost
+
+        essentials = [
+            round(price, 6),
+            round(volatility, 6),
+            round(momentum, 6),
+            round(spread, 6),
+            round(volume, 2),
+        ]
+
+        transition = {
+            "price_change": round(momentum, 6),
+            "volatility_change": round(volatility - prev_vol, 6),
+            "volume_change": round(volume - prev_volume, 2),
+            "elapsed_ms": round(elapsed_ms, 3),
+            "trend": "up" if momentum > 0 else ("down" if momentum < 0 else "flat"),
+        }
+
+        previous_compact = None
+        if previous_state:
+            previous_compact = {
+                "price": round(prev_price, 6),
+                "volatility": round(prev_vol, 6),
+                "spread": round(prev_spread, 6),
+                "volume": round(prev_volume, 2),
+            }
+
+        snapshot: dict[str, object] = {
+            "timestamp": now.isoformat(),
+            "market_state": {
+                "price": essentials[0],
+                "volatility": essentials[1],
+                "momentum": essentials[2],
+                "spread": essentials[3],
+                "volume": essentials[4],
+            },
+            "previous_state": previous_compact,
+            "transition": transition,
+            "reward_proxy": round(reward_proxy, 6),
+            "essentials": essentials,
+            "meta": {"tick_count": tick_count},
+        }
+
+        try:
+            encoded = json.dumps(snapshot, separators=(",", ":"), sort_keys=True)
+            await self.state_store.set(state_key, encoded, expire=3600)
+        except Exception as exc:  # pragma: no cover - persistence best effort
+            logger.debug("Unable to persist market state snapshot", exc_info=exc)
+
+        self.performance_metrics["last_market_state"] = snapshot["market_state"]
+        return snapshot
 
     async def _get_strategy_population(self) -> List[str]:
         """Return placeholder strategy identifiers."""

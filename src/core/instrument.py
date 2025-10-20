@@ -99,10 +99,14 @@ class Instrument:
 
     def calculate_pip_value(self, price: float, lot_size: float = 1.0) -> float:
         """Calculate pip value for given price and lot size."""
+        if price <= 0:
+            raise ValueError("price must be positive")
         return (self.pip_value * self.contract_size * lot_size) / price
 
     def calculate_margin(self, price: float, lot_size: float, leverage: float = 100.0) -> float:
         """Calculate required margin for position."""
+        if leverage <= 0:
+            raise ValueError("leverage must be positive")
         position_size = lot_size * self.contract_size
         return position_size / leverage
 

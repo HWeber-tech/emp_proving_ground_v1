@@ -435,11 +435,14 @@ def test_config_builder_parses_retention_settings() -> None:
         TIMESCALE_RETENTION_ENABLED="true",
         TIMESCALE_RETENTION_DAILY_TARGET_DAYS="400",
         TIMESCALE_RETENTION_DAILY_MIN_DAYS="365",
+        TIMESCALE_RETENTION_DAILY_CAP_DAYS="450",
         TIMESCALE_RETENTION_INTRADAY_TARGET_DAYS="45",
         TIMESCALE_RETENTION_INTRADAY_MIN_DAYS="10",
         TIMESCALE_RETENTION_INTRADAY_OPTIONAL="true",
+        TIMESCALE_RETENTION_INTRADAY_CAP_DAYS="60",
         TIMESCALE_RETENTION_MACRO_TARGET_DAYS="720",
         TIMESCALE_RETENTION_MACRO_MIN_DAYS="540",
+        TIMESCALE_RETENTION_MACRO_CAP_DAYS="800",
     )
 
     resolved = build_institutional_ingest_config(cfg)
@@ -449,13 +452,19 @@ def test_config_builder_parses_retention_settings() -> None:
     dimensions = {policy.dimension: policy for policy in retention.policies}
     assert dimensions["daily_bars"].target_days == 400
     assert dimensions["daily_bars"].minimum_days == 365
+    assert dimensions["daily_bars"].cap_days == 450
     assert dimensions["intraday_trades"].optional is True
+    assert dimensions["intraday_trades"].cap_days == 60
     assert dimensions["macro_events"].target_days == 720
+    assert dimensions["macro_events"].cap_days == 800
 
     metadata = resolved.metadata["retention"]
     assert metadata["enabled"] is True
     names = {policy["dimension"] for policy in metadata["policies"]}
     assert {"daily_bars", "intraday_trades", "macro_events"} <= names
+    for policy in metadata["policies"]:
+        if policy["dimension"] == "daily_bars":
+            assert policy["cap_days"] == 450
 
 
 def test_config_builder_parses_recovery_settings() -> None:

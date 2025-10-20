@@ -73,11 +73,15 @@ def _seed_timescale(engine, reference: datetime) -> None:
     migrator.apply()
     ingestor = TimescaleIngestor(engine)
 
-    ingestor.upsert_daily_bars(_make_daily_frame("EURUSD", reference - timedelta(days=400), 400))
-    ingestor.upsert_intraday_trades(
-        _make_intraday_frame("EURUSD", reference - timedelta(days=40), 40 * 24)
+    ingestor.upsert_daily_bars(
+        _make_daily_frame("EURUSD", reference - timedelta(days=365), 365)
     )
-    ingestor.upsert_macro_events(_make_macro_frame(reference - timedelta(days=500), 75))
+    ingestor.upsert_intraday_trades(
+        _make_intraday_frame("EURUSD", reference - timedelta(days=30), 30 * 24)
+    )
+    ingestor.upsert_macro_events(
+        _make_macro_frame(reference - timedelta(days=365), 52)
+    )
 
 
 def test_evaluate_data_retention_pass(tmp_path) -> None:
@@ -92,6 +96,7 @@ def test_evaluate_data_retention_pass(tmp_path) -> None:
             table="daily_bars",
             target_days=365,
             minimum_days=300,
+            cap_days=365,
         ),
         RetentionPolicy(
             dimension="intraday_trades",
@@ -99,6 +104,7 @@ def test_evaluate_data_retention_pass(tmp_path) -> None:
             table="intraday_trades",
             target_days=30,
             minimum_days=7,
+            cap_days=30,
         ),
         RetentionPolicy(
             dimension="macro_events",
@@ -106,6 +112,7 @@ def test_evaluate_data_retention_pass(tmp_path) -> None:
             table="events",
             target_days=365,
             minimum_days=180,
+            cap_days=365,
         ),
     )
 
@@ -114,6 +121,28 @@ def test_evaluate_data_retention_pass(tmp_path) -> None:
     assert all(component.status is RetentionStatus.ok for component in snapshot.components)
     markdown = format_data_retention_markdown(snapshot)
     assert "| daily_bars |" in markdown
+
+
+def test_evaluate_data_retention_exceeds_cap(tmp_path) -> None:
+    reference = datetime(2024, 1, 1, tzinfo=UTC)
+    engine = create_engine(f"sqlite:///{tmp_path}/retention_cap.db")
+    _seed_timescale(engine, reference)
+
+    policies = (
+        RetentionPolicy(
+            dimension="daily_bars",
+            schema="market_data",
+            table="daily_bars",
+            target_days=365,
+            minimum_days=300,
+            cap_days=360,
+        ),
+    )
+
+    snapshot = evaluate_data_retention(engine, policies, reference=reference)
+    assert snapshot.status is RetentionStatus.fail
+    assert snapshot.components[0].status is RetentionStatus.fail
+    assert "exceeds cap" in snapshot.components[0].summary
 
 
 def test_evaluate_data_retention_warn_and_optional(tmp_path) -> None:

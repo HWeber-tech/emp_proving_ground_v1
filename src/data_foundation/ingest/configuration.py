@@ -294,6 +294,17 @@ def _parse_float(extras: Mapping[str, str], key: str, default: float) -> float:
         return default
 
 
+def _parse_optional_int(extras: Mapping[str, str], key: str) -> int | None:
+    raw = extras.get(key)
+    if raw is None:
+        return None
+    try:
+        return int(raw.strip())
+    except (TypeError, ValueError):
+        logger.warning("Invalid value for %s; expected integer", key)
+        return None
+
+
 def _parse_optional_float(extras: Mapping[str, str], key: str) -> float | None:
     raw = extras.get(key)
     if raw is None:
@@ -438,19 +449,31 @@ def _parse_retention_settings(extras: Mapping[str, str]) -> "TimescaleRetentionS
         target_key: str,
         minimum_key: str,
         optional_key: str | None = None,
+        cap_key: str | None = None,
         default_target: int,
         default_minimum: int,
+        default_cap: int | None = None,
     ) -> "TimescaleRetentionPolicySettings":
         target = max(0, _parse_int(extras, target_key, default_target))
         minimum = max(0, _parse_int(extras, minimum_key, default_minimum))
         if minimum > target:
             minimum = target
         optional = _parse_bool(extras, optional_key, False) if optional_key else False
+        cap_days: int | None = None
+        if cap_key:
+            cap_candidate = _parse_optional_int(extras, cap_key)
+            if cap_candidate is not None:
+                cap_days = max(0, cap_candidate)
+        if cap_days is None and default_cap is not None:
+            cap_days = max(0, default_cap)
+        if cap_days is not None and cap_days < target:
+            cap_days = target
         return TimescaleRetentionPolicySettings(
             dimension=dimension,
             target_days=target,
             minimum_days=minimum,
             optional=optional,
+            cap_days=cap_days,
         )
 
     policies = (
@@ -458,23 +481,29 @@ def _parse_retention_settings(extras: Mapping[str, str]) -> "TimescaleRetentionS
             dimension="daily_bars",
             target_key="TIMESCALE_RETENTION_DAILY_TARGET_DAYS",
             minimum_key="TIMESCALE_RETENTION_DAILY_MIN_DAYS",
+            cap_key="TIMESCALE_RETENTION_DAILY_CAP_DAYS",
             default_target=365,
             default_minimum=300,
+            default_cap=365,
         ),
         _policy(
             dimension="intraday_trades",
             target_key="TIMESCALE_RETENTION_INTRADAY_TARGET_DAYS",
             minimum_key="TIMESCALE_RETENTION_INTRADAY_MIN_DAYS",
             optional_key="TIMESCALE_RETENTION_INTRADAY_OPTIONAL",
+            cap_key="TIMESCALE_RETENTION_INTRADAY_CAP_DAYS",
             default_target=30,
             default_minimum=7,
+            default_cap=30,
         ),
         _policy(
             dimension="macro_events",
             target_key="TIMESCALE_RETENTION_MACRO_TARGET_DAYS",
             minimum_key="TIMESCALE_RETENTION_MACRO_MIN_DAYS",
+            cap_key="TIMESCALE_RETENTION_MACRO_CAP_DAYS",
             default_target=365,
             default_minimum=180,
+            default_cap=365,
         ),
     )
 
@@ -796,6 +825,7 @@ class TimescaleRetentionPolicySettings:
     target_days: int
     minimum_days: int
     optional: bool = False
+    cap_days: int | None = None
 
     def to_metadata(self) -> Mapping[str, object]:
         payload: dict[str, object] = {
@@ -805,6 +835,8 @@ class TimescaleRetentionPolicySettings:
         }
         if self.optional:
             payload["optional"] = True
+        if self.cap_days is not None:
+            payload["cap_days"] = self.cap_days
         return payload
 
 

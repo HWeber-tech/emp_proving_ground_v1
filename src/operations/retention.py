@@ -67,6 +67,7 @@ class RetentionPolicy:
     optional: bool = False
     timestamp_column: str = "ts"
     description: str | None = None
+    cap_days: int | None = None
 
 
 @dataclass(frozen=True)
@@ -214,6 +215,8 @@ def evaluate_data_retention(
             latest = _parse_timestamp(row["max_ts"])
             rowcount = int(row["rowcount"] or 0)
 
+            cap_days = getattr(policy, "cap_days", None)
+
             if rowcount <= 0 or earliest is None or latest is None:
                 status = RetentionStatus.warn if policy.optional else RetentionStatus.fail
                 summary = "No rows available"
@@ -222,7 +225,10 @@ def evaluate_data_retention(
             else:
                 coverage_days = _days_between(earliest, reference_ts)
                 span_days = _days_between(earliest, latest)
-                if coverage_days >= policy.target_days:
+                if cap_days is not None and coverage_days > cap_days:
+                    status = RetentionStatus.fail
+                    summary = f"Coverage {coverage_days:.1f}d exceeds cap {cap_days}d"
+                elif coverage_days >= policy.target_days:
                     status = RetentionStatus.ok
                     summary = f"Coverage {coverage_days:.1f}d (target {policy.target_days}d)"
                 elif coverage_days >= policy.minimum_days:
@@ -248,6 +254,8 @@ def evaluate_data_retention(
                 metadata_payload["optional"] = True
             if policy.description:
                 metadata_payload["description"] = policy.description
+            if cap_days is not None:
+                metadata_payload["cap_days"] = cap_days
 
             components.append(
                 RetentionComponentSnapshot(
@@ -264,10 +272,17 @@ def evaluate_data_retention(
         "policies",
         [
             {
-                "dimension": policy.dimension,
-                "target_days": policy.target_days,
-                "minimum_days": policy.minimum_days,
-                "optional": policy.optional,
+                **{
+                    "dimension": policy.dimension,
+                    "target_days": policy.target_days,
+                    "minimum_days": policy.minimum_days,
+                    "optional": policy.optional,
+                },
+                **(
+                    {"cap_days": policy.cap_days}
+                    if policy.cap_days is not None
+                    else {}
+                ),
             }
             for policy in policies
         ],

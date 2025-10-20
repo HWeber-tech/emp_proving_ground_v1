@@ -443,6 +443,7 @@ def _build_retention_policies(
                 target_days=policy.target_days,
                 minimum_days=policy.minimum_days,
                 optional=policy.optional,
+                cap_days=getattr(policy, "cap_days", None),
             )
         )
     return tuple(policies)

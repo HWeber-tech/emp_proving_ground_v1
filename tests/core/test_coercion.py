@@ -48,3 +48,10 @@ def test_coerce_helpers_accept_apostrophe_grouped_numbers() -> None:
 def test_coerce_helpers_accept_parenthesized_negatives() -> None:
     assert coerce_float("(1,234.5)") == -1234.5
     assert coerce_int("(2,000)") == -2000
+
+
+def test_coerce_helpers_strip_currency_symbols() -> None:
+    assert coerce_float("$1,234.50") == 1234.5
+    assert coerce_float("(\u20ac1,234.50)") == -1234.5
+    assert coerce_int("-\u00a32,000") == -2000
+    assert coerce_int("($3,000)") == -3000

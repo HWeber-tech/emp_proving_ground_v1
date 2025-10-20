@@ -23,7 +23,7 @@
 - [ ] **A.1.3** Guarantee **ordering per instrument** (monotone {ts,seqno}); drop or quarantine out-of-order with a reason code.
 
 ### A.2 Config single source of truth (SoT)
-- [ ] **A.2.1** `SystemConfig` reads YAML first; env only overrides explicitly set fields.  
+- [x] **A.2.1** `SystemConfig` reads YAML first; env only overrides explicitly set fields.  
 - [x] **A.2.2** In `mock` mode **skip live-cred validation**; provide `examples/run_mock.sh`.  
 - [ ] **A.2.3** Normalize `connection_protocol` once (`.lower().strip()`); remove `CONNECTION_PROTOCOL` drift.
 
@@ -109,7 +109,7 @@
 
 ### D.2 Queue & adverse selection
 - [ ] **D.2.1** L1 queue fill prob ~ our_size / (queue_size+?) × trade_flow_factor.  
-- [ ] **D.2.2** **Adverse selection**: microprice drift over last k events conditional on our action.
+- [x] **D.2.2** **Adverse selection**: microprice drift over last k events conditional on our action.
 
 ### D.3 Sizing & inventory
 - [x] **D.3.1** Size ∝ edge / σ̂ (from quantile head).  
@@ -205,7 +205,7 @@ gates:
 actions_on_fail: ["reject", "fallback_previous_model"]
 ```
 
-- [ ] **I.1** CI job runs ablations ({no-depth, no-OFI, LoRA vs per-domain head, k âˆˆ {0.3,0.5,0.7}}) and enforces **all gates**.  
+- [x] **I.1** CI job runs ablations ({no-depth, no-OFI, LoRA vs per-domain head, k âˆˆ {0.3,0.5,0.7}}) and enforces **all gates**.  
 - [ ] **I.2** Model tagging: `APPROVED_DEFAULT` on pass; **auto-revert** otherwise.
 
 **DoD (I):** one-button promotion with audited gates; rollback automatic.
@@ -218,7 +218,7 @@ actions_on_fail: ["reject", "fallback_previous_model"]
 
 - [x] **J.1** Provision Hetzner: **8+ cores / 32-64 GB / NVMe / Ubuntu  22.04**.  
 - [x] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
-- [ ] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
+- [x] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
 - [x] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
 - [ ] **J.5** Live promotion only after **2+ weeks** green gates (paper).
 
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T06:31:40Z
+## Automation updates — 2025-10-20T06:47:14Z
 
 ### Last 4 commits
-- 8bb98786 chore(mlops): tune 1 file (2025-10-20)
-- 0de885b7 feat(thinking): add 3 files (2025-10-20)
-- 3842536d refactor(thinking): tune 2 files (2025-10-20)
-- b479a996 refactor(operations): tune 2 files (2025-10-20)
+- 5965afc4 docs(docs): add 9 files (2025-10-20)
+- 1a1ba0de refactor(governance): tune 2 files (2025-10-20)
+- 389fddf1 feat(trading): add 3 files (2025-10-20)
+- df92751f feat(.github): add 6 files (2025-10-20)

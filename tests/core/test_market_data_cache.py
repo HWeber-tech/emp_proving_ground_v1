@@ -53,3 +53,17 @@ def test_market_data_cache_zero_ttl_expires_immediately(monkeypatch) -> None:
     cache.set("key", "value", ttl_seconds=0)
 
     assert cache.get("key") is None
+
+
+def test_in_memory_cache_rejects_nan_ttl() -> None:
+    cache = _InMemoryCache()
+
+    with pytest.raises(ValueError, match="ttl_seconds"):
+        cache.set("key", "value", ttl_seconds=float("nan"))
+
+
+def test_market_data_cache_rejects_nan_ttl() -> None:
+    cache = MarketDataCache()
+
+    with pytest.raises(ValueError, match="ttl_seconds"):
+        cache.set("key", "value", ttl_seconds=float("nan"))

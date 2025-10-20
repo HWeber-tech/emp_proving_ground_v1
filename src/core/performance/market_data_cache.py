@@ -12,11 +12,22 @@ class _InMemoryCache:
         self._expiry: dict[str, float] = {}
 
     def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:
-        self._store[key] = value
         if ttl_seconds is None:
+            self._store[key] = value
             self._expiry.pop(key, None)
             return
-        self._expiry[key] = time.time() + float(ttl_seconds)
+
+        ttl = float(ttl_seconds)
+        if math.isnan(ttl):
+            raise ValueError("ttl_seconds cannot be NaN")
+
+        if ttl <= 0:
+            self._store.pop(key, None)
+            self._expiry.pop(key, None)
+            return
+
+        self._store[key] = value
+        self._expiry[key] = time.time() + ttl
 
     def get(self, key: str, default: object | None = None) -> object | None:
         expires = self._expiry.get(key)
@@ -68,11 +79,22 @@ class MarketDataCache:
     # Legacy KV API (backward-compatible with _InMemoryCache)
     def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:
         with self._lock:
-            self._kv_store[key] = value
             if ttl_seconds is None:
+                self._kv_store[key] = value
                 self._kv_expiry.pop(key, None)
-            else:
-                self._kv_expiry[key] = time.time() + float(ttl_seconds)
+                return
+
+            ttl = float(ttl_seconds)
+            if math.isnan(ttl):
+                raise ValueError("ttl_seconds cannot be NaN")
+
+            if ttl <= 0:
+                self._kv_store.pop(key, None)
+                self._kv_expiry.pop(key, None)
+                return
+
+            self._kv_store[key] = value
+            self._kv_expiry[key] = time.time() + ttl
 
     def get(self, key: str, default: object | None = None) -> object | None:
         with self._lock:

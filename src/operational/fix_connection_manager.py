@@ -369,28 +369,110 @@ class FIXConnectionManager:
                         Sequence[OrderBookLevelProtocol],
                         getattr(order_book, "asks", ()),
                     )
-                    for bid in islice(bids, 10):
+                    def _normalise_venue(value: object | None) -> str | None:
+                        if value is None:
+                            return None
+                        if isinstance(value, (bytes, bytearray)):
+                            try:
+                                value = value.decode("utf-8", "ignore")
+                            except Exception:
+                                return None
+                        text = str(value).strip()
+                        return text or None
+
+                    def _extract_level_venue(level: OrderBookLevelProtocol) -> str | None:
+                        candidate_attrs = (
+                            "venue",
+                            "exchange",
+                            "market",
+                            "source",
+                            "provider",
+                            "venue_id",
+                        )
+                        for attr in candidate_attrs:
+                            if hasattr(level, attr):
+                                try:
+                                    venue_value = getattr(level, attr)
+                                except Exception:
+                                    continue
+                                venue_text = _normalise_venue(venue_value)
+                                if venue_text:
+                                    return venue_text
+                        metadata = getattr(level, "metadata", None)
+                        if isinstance(metadata, Mapping):
+                            for key in candidate_attrs:
+                                venue_text = _normalise_venue(metadata.get(key))
+                                if venue_text:
+                                    return venue_text
+                            venue_tag = metadata.get(207) or metadata.get("207")
+                            venue_text = _normalise_venue(venue_tag)
+                            if venue_text:
+                                return venue_text
+                        return None
+
+                    def _fallback_book_venue(book: OrderBookProtocol) -> str | None:
+                        for attr in (
+                            "venue",
+                            "exchange",
+                            "market",
+                            "source",
+                            "provider",
+                            "venue_id",
+                        ):
+                            if hasattr(book, attr):
+                                try:
+                                    return _normalise_venue(getattr(book, attr))
+                                except Exception:
+                                    continue
+                        metadata = getattr(book, "metadata", None)
+                        if isinstance(metadata, Mapping):
+                            for key in (
+                                "venue",
+                                "exchange",
+                                "market",
+                                "source",
+                                "provider",
+                                "venue_id",
+                            ):
+                                venue_text = _normalise_venue(metadata.get(key))
+                                if venue_text:
+                                    return venue_text
+                        return None
+
+                    default_venue = _fallback_book_venue(order_book)
+
+                    for level_index, bid in enumerate(islice(bids, 20), start=1):
                         try:
-                            entries.append(
-                                FIXMarketDataEntry(
-                                    type=b"0",
-                                    px=float(bid.price),
-                                    size=float(bid.size),
-                                )
-                            )
+                            price = float(bid.price)
+                            size = float(bid.size)
                         except (TypeError, ValueError, AttributeError):
                             continue
-                    for ask in islice(asks, 10):
+                        entry: FIXMarketDataEntry = {
+                            "type": b"0",
+                            "px": price,
+                            "size": size,
+                            "level": level_index,
+                        }
+                        venue_text = _extract_level_venue(bid) or default_venue
+                        if venue_text:
+                            entry["venue"] = venue_text
+                        entries.append(entry)
+                    for level_index, ask in enumerate(islice(asks, 20), start=1):
                         try:
-                            entries.append(
-                                FIXMarketDataEntry(
-                                    type=b"1",
-                                    px=float(ask.price),
-                                    size=float(ask.size),
-                                )
-                            )
+                            price = float(ask.price)
+                            size = float(ask.size)
                         except (TypeError, ValueError, AttributeError):
                             continue
+                        entry: FIXMarketDataEntry = {
+                            "type": b"1",
+                            "px": price,
+                            "size": size,
+                            "level": level_index,
+                        }
+                        venue_text = _extract_level_venue(ask) or default_venue
+                        if venue_text:
+                            entry["venue"] = venue_text
+                        entries.append(entry)
 
                     msg: FIXMessage = {
                         35: b"W",  # Snapshot semantics for each full update
@@ -978,7 +1060,7 @@ class FIXConnectionManager:
             self._active_market_data_request = None
             logger.info("FIXConnectionManager sessions stopped")
 
-    def subscribe_market_data(self, symbols: Sequence[str], *, depth: int = 1) -> bool:
+    def subscribe_market_data(self, symbols: Sequence[str], *, depth: int = 20) -> bool:
         """Issue a MarketDataRequest subscribe for the provided symbols."""
 
         return self._dispatch_market_data_request(symbols, subscription_type="1", depth=depth)

@@ -35,11 +35,11 @@ async def test_snapshot_builds_depth_levels() -> None:
         55: b"EUR/USD",
         34: b"123",
         b"entries": [
-            {"type": b"0", "px": 100.5, "size": 1.0},
-            {"type": b"0", "px": 101.1, "size": 2.5},
-            {"type": b"0", "px": 100.9, "size": 1.2},
-            {"type": b"1", "px": 101.4, "size": 1.8},
-            {"type": b"1", "px": 101.2, "size": 3.1},
+            {"type": b"0", "px": 100.5, "size": 1.0, "venue": "ldn"},
+            {"type": b"0", "px": 101.1, "size": 2.5, "venue": "nyc"},
+            {"type": b"0", "px": 100.9, "size": 1.2, "venue": "ldn"},
+            {"type": b"1", "px": 101.4, "size": 1.8, "venue": "ldn"},
+            {"type": b"1", "px": 101.2, "size": 3.1, "venue": "nym"},
         ],
     }
 
@@ -54,12 +54,56 @@ async def test_snapshot_builds_depth_levels() -> None:
     assert payload["ask"] == pytest.approx(101.2)
     assert payload["ask_sz"] == pytest.approx(3.1)
     assert payload["seq"] == 123
+    assert payload["depth_levels"] == 20
 
     depth = payload["depth"]
     assert depth["L2"]["bid"] == pytest.approx(100.9)
     assert depth["L1"]["ask"] == pytest.approx(101.2)
     assert depth["L3"]["bid"] == pytest.approx(100.5)
     assert depth["L5"]["ask"] is None
+
+    liquidity_map = payload["liquidity_map"]
+    bids = liquidity_map["bids"]
+    asks = liquidity_map["asks"]
+    assert bids[0]["price"] == pytest.approx(101.1)
+    assert bids[0]["venues"] == {"NYC": pytest.approx(2.5)}
+    assert asks[0]["price"] == pytest.approx(101.2)
+    assert asks[0]["venues"] == {"NYM": pytest.approx(3.1)}
+
+
+@pytest.mark.asyncio
+async def test_snapshot_merges_multivenue_levels() -> None:
+    bus = _CaptureEventBus()
+    organ = _build_organ(bus)
+    message = {
+        55: b"EUR/USD",
+        34: b"500",
+        b"entries": [
+            {"type": b"0", "px": 100.0, "size": 1.0, "venue": "nyc"},
+            {"type": b"0", "px": 100.0, "size": 2.0, "venue": "ldn"},
+            {"type": b"1", "px": 100.2, "size": 1.5, "venue": "nyc"},
+            {"type": b"1", "px": 100.2, "size": 1.0, "venue": "ldn"},
+        ],
+    }
+
+    await organ._handle_market_data_snapshot(message)
+
+    assert bus.events
+    _, payload = bus.events[-1]
+    depth = payload["depth"]
+    assert depth["L1"]["bid"] == pytest.approx(100.0)
+    assert depth["L1"]["bid_sz"] == pytest.approx(3.0)
+    assert depth["L1"]["ask"] == pytest.approx(100.2)
+    assert depth["L1"]["ask_sz"] == pytest.approx(2.5)
+
+    liquidity_map = payload["liquidity_map"]
+    bid_entry = liquidity_map["bids"][0]
+    ask_entry = liquidity_map["asks"][0]
+    assert bid_entry["total_size"] == pytest.approx(3.0)
+    assert bid_entry["venues"] == {"LDN": pytest.approx(2.0), "NYC": pytest.approx(1.0)}
+    assert bid_entry["dominant_venue"] == "LDN"
+    assert ask_entry["total_size"] == pytest.approx(2.5)
+    assert ask_entry["venues"] == {"LDN": pytest.approx(1.0), "NYC": pytest.approx(1.5)}
 
 
 @pytest.mark.asyncio
@@ -71,9 +115,9 @@ async def test_incremental_refresh_updates_snapshot() -> None:
         55: b"EUR/USD",
         34: b"200",
         b"entries": [
-            {"type": b"0", "px": 100.0, "size": 1.0},
-            {"type": b"1", "px": 100.2, "size": 1.5},
-            {"type": b"1", "px": 100.3, "size": 2.5},
+            {"type": b"0", "px": 100.0, "size": 1.0, "venue": "ldn"},
+            {"type": b"1", "px": 100.2, "size": 1.5, "venue": "nyc"},
+            {"type": b"1", "px": 100.3, "size": 2.5, "venue": "ldn"},
         ],
     }
     await organ._handle_market_data_snapshot(snapshot)
@@ -83,9 +127,9 @@ async def test_incremental_refresh_updates_snapshot() -> None:
         55: b"EUR/USD",
         34: b"201",
         b"entries": [
-            {"type": b"0", "px": 100.0, "size": 4.0, "action": b"1"},
-            {"type": b"1", "px": 100.2, "size": 0.0, "action": b"2"},
-            {"type": b"1", "px": 100.25, "size": 1.3, "action": b"0"},
+            {"type": b"0", "px": 100.0, "size": 4.0, "action": b"1", "venue": "ldn"},
+            {"type": b"1", "px": 100.2, "size": 0.0, "action": b"2", "venue": "nyc"},
+            {"type": b"1", "px": 100.25, "size": 1.3, "action": b"0", "venue": "nyc"},
         ],
     }
 
@@ -102,6 +146,10 @@ async def test_incremental_refresh_updates_snapshot() -> None:
     depth = payload["depth"]
     assert depth["L1"]["ask"] == pytest.approx(100.25)
     assert depth["L2"]["ask"] == pytest.approx(100.3)
+
+    liquidity_map = payload["liquidity_map"]
+    assert liquidity_map["bids"][0]["total_size"] == pytest.approx(4.0)
+    assert liquidity_map["asks"][0]["price"] == pytest.approx(100.25)
 
 
 @pytest.mark.asyncio
@@ -129,6 +177,8 @@ async def test_single_entry_snapshot_fallback() -> None:
     depth = payload["depth"]
     assert depth["L1"]["ask"] == pytest.approx(101.42)
     assert depth["L1"]["bid"] is None
+    liquidity_map = payload["liquidity_map"]
+    assert liquidity_map["asks"][0]["price"] == pytest.approx(101.42)
 
 
 @pytest.mark.asyncio
@@ -139,10 +189,10 @@ async def test_snapshot_parses_numeric_entry_groups() -> None:
         55: b"USD/JPY",
         34: b"45",
         268: [
-            {269: b"0", 270: b"150.10", 271: b"3.0"},
-            {269: b"0", 270: b"149.95", 271: b"2.5"},
-            {269: b"1", 270: b"150.12", 271: b"1.7"},
-            {269: b"1", 270: b"150.25", 271: b"4.1"},
+            {269: b"0", 270: b"150.10", 271: b"3.0", 207: b"TYO"},
+            {269: b"0", 270: b"149.95", 271: b"2.5", 207: b"TYO"},
+            {269: b"1", 270: b"150.12", 271: b"1.7", 207: b"TYO"},
+            {269: b"1", 270: b"150.25", 271: b"4.1", 207: b"NYC"},
         ],
     }
 
@@ -160,3 +210,5 @@ async def test_snapshot_parses_numeric_entry_groups() -> None:
     depth = payload["depth"]
     assert depth["L2"]["bid"] == pytest.approx(149.95)
     assert depth["L2"]["ask"] == pytest.approx(150.25)
+    liquidity_map = payload["liquidity_map"]
+    assert liquidity_map["asks"][1]["venues"] == {"NYC": pytest.approx(4.1)}

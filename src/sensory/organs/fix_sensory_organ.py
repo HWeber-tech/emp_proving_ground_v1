@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from contextlib import suppress
 from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine, Mapping, Optional, Protocol, Sequence
@@ -19,12 +20,15 @@ logger = logging.getLogger(__name__)
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
 
 
+_UNKNOWN_VENUE = "UNKNOWN"
+
+
 class _OrderBookState:
     """Maintains order book depth for a single symbol."""
 
     def __init__(self) -> None:
-        self.bids: dict[float, float] = {}
-        self.asks: dict[float, float] = {}
+        self.bids: dict[float, dict[str, float]] = {}
+        self.asks: dict[float, dict[str, float]] = {}
 
     def apply_snapshot(self, entries: Sequence[dict[str, Any]]) -> None:
         self.bids.clear()
@@ -37,28 +41,44 @@ class _OrderBookState:
             price = _coerce_float(entry.get("price"))
             size = entry.get("size")
             action = _normalise_action(entry.get("action"))
+            raw_venue = entry.get("venue")
+            venue = _normalise_venue_label(raw_venue)
 
             if side not in {"bid", "ask"} or price is None:
                 continue
 
             target = self.bids if side == "bid" else self.asks
             size_value = _coerce_float(size)
+            has_explicit_venue = raw_venue is not None
 
             if action == "delete" or size_value is None or size_value <= 0.0:
-                target.pop(price, None)
+                if not has_explicit_venue:
+                    target.pop(price, None)
+                    continue
+                bucket = target.get(price)
+                if not bucket:
+                    continue
+                bucket.pop(venue, None)
+                if not bucket:
+                    target.pop(price, None)
                 continue
 
-            target[price] = size_value
+            bucket = target.setdefault(price, {})
+            bucket[venue] = float(size_value)
 
     def build_depth_snapshot(self, *, levels: int = 5) -> dict[str, dict[str, float | None]]:
         depth: dict[str, dict[str, float | None]] = {}
-        ordered_bids = sorted(self.bids.items(), key=lambda item: item[0], reverse=True)
-        ordered_asks = sorted(self.asks.items(), key=lambda item: item[0])
+        limit = max(1, int(levels))
 
-        for idx in range(levels):
+        aggregated_bids = self._aggregate_side(self.bids, descending=True)
+        aggregated_asks = self._aggregate_side(self.asks, descending=False)
+
+        for idx in range(limit):
             level_key = f"L{idx + 1}"
-            bid_price, bid_size = ordered_bids[idx] if idx < len(ordered_bids) else (None, None)
-            ask_price, ask_size = ordered_asks[idx] if idx < len(ordered_asks) else (None, None)
+            bid_entry = aggregated_bids[idx] if idx < len(aggregated_bids) else (None, None)
+            ask_entry = aggregated_asks[idx] if idx < len(aggregated_asks) else (None, None)
+            bid_price, bid_size = bid_entry
+            ask_price, ask_size = ask_entry
             depth[level_key] = {
                 "bid": bid_price,
                 "bid_sz": bid_size,
@@ -66,6 +86,73 @@ class _OrderBookState:
                 "ask_sz": ask_size,
             }
         return depth
+
+    def build_liquidity_map(self, *, levels: int = 20) -> dict[str, list[dict[str, Any]]]:
+        limit = max(1, int(levels))
+        bids = self._serialise_liquidity(self.bids, descending=True, limit=limit)
+        asks = self._serialise_liquidity(self.asks, descending=False, limit=limit)
+        return {"bids": bids, "asks": asks}
+
+    def _aggregate_side(
+        self,
+        side_levels: Mapping[float, dict[str, float]],
+        *,
+        descending: bool,
+    ) -> list[tuple[float, float]]:
+        ordered = sorted(side_levels.items(), key=lambda item: item[0], reverse=descending)
+        aggregated: list[tuple[float, float]] = []
+        for price, venues in ordered:
+            cleaned = self._sanitize_sizes(venues)
+            if not cleaned:
+                continue
+            total = sum(cleaned.values())
+            if total <= 0.0:
+                continue
+            aggregated.append((price, total))
+        return aggregated
+
+    def _serialise_liquidity(
+        self,
+        side_levels: Mapping[float, dict[str, float]],
+        *,
+        descending: bool,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        ordered = sorted(side_levels.items(), key=lambda item: item[0], reverse=descending)
+        snapshot: list[dict[str, Any]] = []
+        for index, (price, venues) in enumerate(ordered, start=1):
+            if index > limit:
+                break
+            cleaned = self._sanitize_sizes(venues)
+            if not cleaned:
+                continue
+            total = sum(cleaned.values())
+            if total <= 0.0:
+                continue
+            dominant_venue = max(cleaned.items(), key=lambda item: item[1])[0]
+            snapshot.append(
+                {
+                    "level": f"L{index}",
+                    "price": float(price),
+                    "total_size": float(total),
+                    "venues": {venue: float(size) for venue, size in sorted(cleaned.items())},
+                    "dominant_venue": dominant_venue,
+                }
+            )
+        return snapshot
+
+    @staticmethod
+    def _sanitize_sizes(venues: Mapping[str, float]) -> dict[str, float]:
+        cleaned: dict[str, float] = {}
+        for venue, size in venues.items():
+            try:
+                size_value = float(size)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(size_value) or size_value <= 0.0:
+                continue
+            cleaned[venue] = size_value
+        return cleaned
 
 
 def _normalise_entry(raw_entry: Any) -> dict[str, Any] | None:
@@ -90,11 +177,14 @@ def _normalise_entry(raw_entry: Any) -> dict[str, Any] | None:
     if action is None:
         action = raw_entry.get(279)
 
+    venue = _extract_venue_field(raw_entry)
+
     return {
         "side": side,
         "price": price,
         "size": size,
         "action": action,
+        "venue": venue,
     }
 
 
@@ -135,6 +225,20 @@ def _normalise_action(action: Any) -> str | None:
     if action_text in {"0", "add", "new"}:
         return "new"
     return None
+
+
+def _normalise_venue_label(value: Any) -> str:
+    if value is None:
+        return _UNKNOWN_VENUE
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            value = value.decode("utf-8", "ignore")
+        except Exception:
+            return _UNKNOWN_VENUE
+    text = str(value).strip()
+    if not text:
+        return _UNKNOWN_VENUE
+    return text.upper()
 
 
 def _coerce_float(value: Any) -> float | None:
@@ -181,10 +285,36 @@ def _coerce_int(value: Any) -> int | None:
     return None
 
 
+def _extract_venue_field(raw_entry: Mapping[str, Any]) -> str:
+    primary_keys = (
+        "venue",
+        "exchange",
+        "market",
+        "source",
+        "provider",
+        "venue_id",
+        "security_exchange",
+    )
+    for key in primary_keys:
+        if key in raw_entry:
+            venue = _normalise_venue_label(raw_entry.get(key))
+            if venue != _UNKNOWN_VENUE:
+                return venue
+
+    numeric_keys: tuple[Any, ...] = (207, b"207", "207")
+    for key in numeric_keys:
+        if key in raw_entry:
+            venue = _normalise_venue_label(raw_entry.get(key))
+            if venue != _UNKNOWN_VENUE:
+                return venue
+
+    return _UNKNOWN_VENUE
+
+
 class MarketDataSubscriptionClient(Protocol):
     """Interface for components capable of sending FIX market data requests."""
 
-    def subscribe_market_data(self, symbols: Sequence[str], *, depth: int = 1) -> bool:
+    def subscribe_market_data(self, symbols: Sequence[str], *, depth: int = 20) -> bool:
         ...
 
     def unsubscribe_market_data(self, symbols: Sequence[str] | None = None) -> bool:
@@ -223,6 +353,20 @@ class FIXSensoryOrgan:
         self._md_subscription_symbols: list[str] = []
         self._md_subscription_active = False
         self._order_books: dict[str, _OrderBookState] = {}
+        depth_preference: Any = (
+            config.get("order_book_depth")
+            or config.get("market_data_depth")
+            or config.get("depth_levels")
+        )
+        extras = config.get("extras") if isinstance(config, Mapping) else None
+        if isinstance(extras, Mapping):
+            depth_preference = depth_preference or extras.get("FIX_MARKET_DATA_DEPTH")
+            depth_preference = depth_preference or extras.get("FIX_MARKET_BOOK_DEPTH")
+        try:
+            depth_value = int(depth_preference)
+        except (TypeError, ValueError):
+            depth_value = 20
+        self._depth_levels = max(1, min(20, depth_value))
         if task_factory is None:
             self._fallback_supervisor = TaskSupervisor(namespace="fix-sensory-organ")
 
@@ -345,8 +489,9 @@ class FIXSensoryOrgan:
             logger.error(f"Error handling market data incremental: {e}")
 
     def _build_market_data_payload(self, symbol: str, book: "_OrderBookState", message: Any) -> dict[str, Any]:
-        depth = book.build_depth_snapshot(levels=5)
+        depth = book.build_depth_snapshot(levels=self._depth_levels)
         level_one = depth.get("L1", {"bid": None, "ask": None, "bid_sz": None, "ask_sz": None})
+        liquidity_map = book.build_liquidity_map(levels=self._depth_levels)
         payload = {
             "symbol": symbol,
             "bid": level_one.get("bid"),
@@ -354,6 +499,8 @@ class FIXSensoryOrgan:
             "bid_sz": level_one.get("bid_sz"),
             "ask_sz": level_one.get("ask_sz"),
             "depth": depth,
+            "liquidity_map": liquidity_map,
+            "depth_levels": self._depth_levels,
             "ts": datetime.now(tz=timezone.utc),
             "seq": _coerce_int(message.get(34)),
         }
@@ -415,7 +562,12 @@ class FIXSensoryOrgan:
         if not symbols or self._market_data_client is None:
             return
         try:
-            subscribed = bool(self._market_data_client.subscribe_market_data(symbols))
+            subscribed = bool(
+                self._market_data_client.subscribe_market_data(
+                    symbols,
+                    depth=self._depth_levels,
+                )
+            )
         except Exception:
             logger.exception("Failed to send MarketDataRequest subscribe", extra={"symbols": symbols})
             return

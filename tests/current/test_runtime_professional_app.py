@@ -227,7 +227,7 @@ class _StubMarketDataClient:
         self.subscribed: list[tuple[tuple[str, ...], int]] = []
         self.unsubscribed: list[tuple[str, ...] | None] = []
 
-    def subscribe_market_data(self, symbols, *, depth: int = 1) -> bool:
+    def subscribe_market_data(self, symbols, *, depth: int = 20) -> bool:
         self.subscribed.append((tuple(symbols), depth))
         return True
 
@@ -313,7 +313,7 @@ async def test_fix_sensory_organ_subscribes_and_unsubscribes_market_data():
     )
 
     await organ.start()
-    assert client.subscribed == [(('1', '2'), 1)]
+    assert client.subscribed == [(('1', '2'), 20)]
 
     await organ.stop()
     assert client.unsubscribed == [("1", "2")]

@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Protocol, SupportsFloat, TypedDict, runtime_checkable
+from typing import NotRequired, Protocol, Required, SupportsFloat, TypedDict, runtime_checkable
 
 
-class FIXMarketDataEntry(TypedDict):
+class FIXMarketDataEntry(TypedDict, total=False):
     """Normalized FIX market data entry used by application adapters."""
 
-    type: bytes
-    px: float
-    size: float
+    type: Required[bytes]
+    px: Required[float]
+    size: Required[float]
+    venue: NotRequired[str]
+    level: NotRequired[int]
 
 
 FIXMessage = dict[int | bytes, bytes | list[FIXMarketDataEntry]]

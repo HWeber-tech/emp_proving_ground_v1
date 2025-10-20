@@ -256,6 +256,7 @@ class MockOrderBookLevel:
 
     price: float
     size: float
+    venue: str | None = None
 
 
 @dataclass(slots=True)
@@ -442,19 +443,47 @@ def _coerce_order_book_level(value: object) -> MockOrderBookLevel | None:
             ),
             default=0.0,
         )
-        return MockOrderBookLevel(price=price, size=size)
+        venue = _coerce_optional_str(
+            value.get("venue")
+            or value.get("exchange")
+            or value.get("market")
+            or value.get("source")
+            or value.get("provider")
+            or value.get("venue_id"),
+        )
+        if venue is None:
+            venue_tag = value.get(207) or value.get(b"207")
+            venue = _coerce_optional_str(venue_tag)
+        return MockOrderBookLevel(price=price, size=size, venue=venue)
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         if len(value) >= 2:
+            venue = None
+            if len(value) >= 3:
+                venue = _coerce_optional_str(value[2])
             return MockOrderBookLevel(
                 price=_coerce_float(cast(SupportsFloat | str | None, value[0])),
                 size=_coerce_float(cast(SupportsFloat | str | None, value[1])),
+                venue=venue,
             )
         return None
     if hasattr(value, "price") and hasattr(value, "size"):
         try:
+            venue_value = None
+            for attr in ("venue", "exchange", "market", "source", "provider", "venue_id"):
+                if hasattr(value, attr):
+                    venue_value = getattr(value, attr)
+                    break
+            metadata = getattr(value, "metadata", None)
+            if venue_value is None and isinstance(metadata, Mapping):
+                for key in ("venue", "exchange", "market", "source", "provider", "venue_id"):
+                    if key in metadata:
+                        venue_value = metadata.get(key)
+                        if venue_value is not None:
+                            break
             return MockOrderBookLevel(
                 price=_coerce_float(getattr(value, "price")),
                 size=_coerce_float(getattr(value, "size")),
+                venue=_coerce_optional_str(venue_value),
             )
         except (AttributeError, TypeError, ValueError) as exc:
             logger.debug(
@@ -487,7 +516,13 @@ def _normalize_market_data_side(levels: object) -> tuple[MockOrderBookLevel, ...
 
 
 def _levels_to_telemetry(levels: Sequence[MockOrderBookLevel]) -> list[dict[str, float]]:
-    return [{"price": level.price, "size": level.size} for level in levels]
+    snapshot: list[dict[str, float | str]] = []
+    for level in levels:
+        payload: dict[str, float | str] = {"price": level.price, "size": level.size}
+        if level.venue:
+            payload["venue"] = level.venue
+        snapshot.append(payload)
+    return snapshot
 
 
 @dataclass(slots=True)

@@ -1,0 +1,36 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "feature_hashes": {},
+        "features_signature": "e26404852640c49b7739cdcb2c580cf8d5309b34d62728eaa9ac8db59c357359",
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "bootstrap release",
+        "reflection_summary": {},
+        "tactic_id": "alpha"
+      },
+      "entry_id": "dd-20251020T210853Z-dfe68b4f",
+      "metadata": {},
+      "notes": [],
+      "outcomes": {},
+      "policy_id": "alpha",
+      "probes": [],
+      "recorded_at": "2025-10-20T21:08:53.912377+00:00",
+      "regime_state": {
+        "confidence": 1.0,
+        "features": {},
+        "regime": "calm",
+        "timestamp": "2025-10-20T21:08:53.912322+00:00"
+      },
+      "signature": "024d9f5e9565ea26666ff03304a7a84a9d6f1de1acc7d031bc07de7e9faeacf5"
+    }
+  ],
+  "generated_at": "2025-10-20T21:08:53.912982+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T21:08:53.912299+00:00",
+    "probes": {}
+  }
+}

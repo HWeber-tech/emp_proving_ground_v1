@@ -1,0 +1,2679 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": "2025-10-20T21:06:55.006942+00:00",
+        "experiments_applied": [],
+        "feature_hashes": {
+          "dominant_narrative": "56cdeb0d3e32016a19a28064077e2f7b9dda6f63bd90675214f0103081f9a9d3",
+          "unified_score": "25e41a1e2665fadd755639a6c436052d1403b81c77a816185f7efc025609cff5"
+        },
+        "features_signature": "16b7df2e751c06ffe527b2036d93f07daaf4970b348b6a1b343e89aefeff1023",
+        "guardrails": {
+          "liquidity_summary": {
+            "average_depth": 5500.0,
+            "average_liquidity": 1089.0000000000002,
+            "average_quality": 0.9,
+            "average_spread": 0.00011025000000000001,
+            "evaluated_levels": 5,
+            "observations_used": 1,
+            "peak_level": 1.1025,
+            "peak_liquidity": 5445.000000000001,
+            "structural_exit": {
+              "anchor_price": 1.1025,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1025,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 5445.000000000001,
+                  "fraction": 1.0,
+                  "price": 1.1025
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            },
+            "symbol": "EURUSD",
+            "total_liquidity": 5445.000000000001
+          },
+          "stop_loss_pct": 0.02
+        },
+        "parameters": {
+          "confidence": 0.5773510935580546,
+          "price": 1.1025,
+          "quantity": 1.0,
+          "side": "BUY",
+          "symbol": "EURUSD"
+        },
+        "rationale": "Bootstrap runtime threshold trigger",
+        "reflection_summary": {
+          "liquidity": {
+            "average_depth": 5500.0,
+            "average_liquidity": 1089.0000000000002,
+            "average_quality": 0.9,
+            "average_spread": 0.00011025000000000001,
+            "evaluated_levels": 5,
+            "observations_used": 1,
+            "peak_level": 1.1025,
+            "peak_liquidity": 5445.000000000001,
+            "structural_exit": {
+              "anchor_price": 1.1025,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1025,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 5445.000000000001,
+                  "fraction": 1.0,
+                  "price": 1.1025
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            },
+            "symbol": "EURUSD",
+            "total_liquidity": 5445.000000000001
+          },
+          "narrative": "BULLISH"
+        },
+        "selected_weight": 1.914846265729863,
+        "tactic_id": "bootstrap-alpha",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T210855Z-d4306c34",
+      "metadata": {
+        "intent_metadata": {
+          "execution_risk": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "delta_hat": 25.0,
+            "edge_spread_floor_ticks": 5.0,
+            "edge_ticks": 125.0,
+            "effective_spread_ticks": 5.0,
+            "estimated_cost": 7.968995409375e-05,
+            "fees_ticks": 1.0000000000000002,
+            "notional": 1.1025,
+            "notional_pct_of_equity": 1.1025e-05,
+            "sigma_ann": 0.0004,
+            "size_ratio": 1.1025e-05,
+            "slippage_bps": 0.6228113750000001,
+            "slippage_ticks": 6.228113750000001,
+            "spread": 5.5125000000000005e-05,
+            "spread_cost_ticks": 2.5,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1025e-05,
+            "top_imbalance": 0.2,
+            "total_cost_bps": 0.722811375,
+            "total_cost_ticks": 9.728113750000002,
+            "worst_case_fill_ticks": 115.27188625
+          },
+          "microstructure": {
+            "delta_hat": 25.0,
+            "depth": 5500.0,
+            "edge_spread_floor": 5.5125000000000005e-05,
+            "liquidity_imbalance": 0.2,
+            "sigma_ann": 0.0004,
+            "spread": 5.5125000000000005e-05,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1025e-05
+          },
+          "risk_assessment": {
+            "checks": [
+              {
+                "name": "risk.synthetic_invariant_posture",
+                "status": "ok"
+              },
+              {
+                "name": "daily_drawdown",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "name": "open_positions",
+                "threshold": 5,
+                "value": 0.0
+              },
+              {
+                "name": "position_sizer",
+                "recommended": 200000.0,
+                "requested": 1.0
+              },
+              {
+                "name": "liquidity_confidence",
+                "threshold": 0.3,
+                "value": 0.97
+              },
+              {
+                "name": "policy.min_position_size",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_position_size",
+                "status": "ok",
+                "threshold": 1000000.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_risk_per_trade_pct",
+                "ratio": 1.1025e-05,
+                "status": "ok",
+                "threshold": 2000.0,
+                "value": 0.02205
+              },
+              {
+                "name": "policy.max_total_exposure_pct",
+                "ratio": 2.205e-05,
+                "status": "ok",
+                "threshold": 50000.0,
+                "value": 1.1025
+              },
+              {
+                "name": "policy.max_leverage",
+                "ratio": 1.1025e-06,
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 1.1025e-05
+              },
+              {
+                "name": "policy.max_drawdown_pct",
+                "status": "ok",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "metadata": {
+                  "confidence": 0.5773510935580546,
+                  "limit_pct": 0.2886755467790273
+                },
+                "name": "risk.confidence_notional_limit",
+                "status": "ok",
+                "threshold": 28867.554677902728,
+                "value": 1.1025
+              },
+              {
+                "metadata": {
+                  "equity": 100000.0,
+                  "projected_total_exposure": 1.1025
+                },
+                "name": "risk.leverage_ratio",
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 1.1025e-05
+              },
+              {
+                "metadata": {
+                  "gross_leverage": 2.205e-07,
+                  "leverage_ratio": 2.205e-08,
+                  "max_exposure": 0.02205,
+                  "position_ratio": 1.1025e-05,
+                  "risk_score": 1.1025e-05,
+                  "total_exposure": 0.02205,
+                  "total_ratio": 4.41e-07
+                },
+                "name": "portfolio_risk_score",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 1.1025e-05
+              },
+              {
+                "name": "execution.slippage_bps",
+                "status": "ok",
+                "threshold": 25.0,
+                "value": 0.6228113750000001
+              },
+              {
+                "name": "execution.total_cost_bps",
+                "status": "ok",
+                "threshold": 35.0,
+                "value": 0.722811375
+              },
+              {
+                "name": "execution.notional_pct_of_equity",
+                "status": "ok",
+                "threshold": 0.25,
+                "value": 1.1025e-05
+              },
+              {
+                "name": "execution.worst_case_fill_ticks",
+                "status": "ok",
+                "threshold": 0.0,
+                "value": 115.27188625
+              },
+              {
+                "detail": "missing_ensemble",
+                "name": "dominance_gate",
+                "reason": "missing_ensemble",
+                "status": "skipped"
+              }
+            ],
+            "exit_mode": "liquidity_weighted",
+            "final_quantity": 1.0,
+            "liquidity_confidence": 0.97,
+            "liquidity_probe": {
+              "average_depth": 5500.0,
+              "average_liquidity": 1089.0000000000002,
+              "average_quality": 0.9,
+              "average_spread": 0.00011025000000000001,
+              "evaluated_levels": 5,
+              "observations_used": 1,
+              "peak_level": 1.1025,
+              "peak_liquidity": 5445.000000000001,
+              "structural_exit": {
+                "anchor_price": 1.1025,
+                "baseline_stop_loss_pct": 0.01,
+                "covered_fraction": 1.0,
+                "effective_stop_loss_pct": 0.02,
+                "exit_side": "sell",
+                "expected_exit_price": 1.1025,
+                "mode": "liquidity_weighted",
+                "path": [
+                  {
+                    "allocated": 1.0,
+                    "available_liquidity": 5445.000000000001,
+                    "fraction": 1.0,
+                    "price": 1.1025
+                  }
+                ],
+                "planned_loss_pct": 0.0,
+                "planned_quantity": 1.0,
+                "residual_quantity": 0.0
+              },
+              "symbol": "EURUSD",
+              "total_liquidity": 5445.000000000001
+            },
+            "policy": {
+              "current_total_exposure": 0.0,
+              "equity": 100000.0,
+              "estimated_risk": 0.02205,
+              "existing_position_notional": 0.0,
+              "exposure_increase": 1.1025,
+              "max_total_exposure": 50000.0,
+              "projected_leverage": 1.1025e-05,
+              "projected_notional": 1.1025,
+              "projected_total_exposure": 1.1025,
+              "research_mode": false,
+              "resolved_price": 1.1025,
+              "risk_budget": 2000.0,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "portfolio_risk": {
+              "equity": 100000.0,
+              "projected_risk_map": {
+                "REGIME::unknown": 0.02205
+              },
+              "risk_score": 1.1025e-05,
+              "snapshot": {
+                "gross_leverage": 2.205e-07,
+                "leverage_ratio": 2.205e-08,
+                "max_exposure": 0.02205,
+                "position_ratio": 1.1025e-05,
+                "risk_score": 1.1025e-05,
+                "total_exposure": 0.02205,
+                "total_ratio": 4.41e-07
+              }
+            },
+            "risk_reference": {
+              "limits": {
+                "liquidity_probe_threshold": 1.0,
+                "max_daily_drawdown": 0.1,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_open_positions": 5,
+                "max_position_size": 1000000.0,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "min_intent_confidence": 0.2,
+                "min_liquidity_confidence": 0.3,
+                "min_position_size": 1.0,
+                "risk_per_trade": 0.02
+              },
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "risk_config": {
+                "instrument_sector_map": {},
+                "inventory_mean_reversion_half_life_minutes": 15.0,
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "sector_exposure_limits": {},
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              },
+              "risk_config_summary": {
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              }
+            },
+            "stop_loss_pct": 0.02,
+            "structural_exit": {
+              "anchor_price": 1.1025,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1025,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 5445.000000000001,
+                  "fraction": 1.0,
+                  "price": 1.1025
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            }
+          },
+          "stop_loss_pct": 0.02,
+          "understanding_snapshot": {
+            "confidence": 0.5773510935580546,
+            "narrative": "BULLISH",
+            "unified_score": 1.914846265729863
+          }
+        },
+        "snapshot": {
+          "generated_at": "2025-10-20T21:06:55.006942+00:00",
+          "symbol": "EURUSD"
+        },
+        "trade_throttle": {
+          "active": false,
+          "metadata": {
+            "context": {
+              "confidence": 0.5773510935580546,
+              "notional": 1.1025,
+              "strategy_id": "bootstrap-alpha",
+              "symbol": "EURUSD"
+            },
+            "max_trades": 1,
+            "recent_trades": 1,
+            "remaining_trades": 0,
+            "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+            "window_reset_in_seconds": 120.0,
+            "window_seconds": 120.0,
+            "window_utilisation": 1.0
+          },
+          "name": "trade_rate_limit",
+          "state": "open"
+        }
+      },
+      "notes": [
+        "Bootstrap runtime decision for EURUSD"
+      ],
+      "outcomes": {
+        "execution": {
+          "stats": {
+            "attribution_coverage": 0.0,
+            "avg_latency_ms": null,
+            "backlog": {
+              "avg_lag_ms": 120013.273,
+              "breach_active": true,
+              "breach_rate": 1.0,
+              "breaches": 1,
+              "healthy": false,
+              "last_breach_at": "2025-10-20T21:08:55.020215+00:00",
+              "last_recovery_at": null,
+              "last_recovery_ms": null,
+              "latest_lag_ms": 120013.273,
+              "max_breach_streak": 1,
+              "max_lag_ms": 120013.273,
+              "p95_lag_ms": 120013.273,
+              "samples": 1,
+              "threshold_ms": 250.0,
+              "worst_breach_ms": 120013.273
+            },
+            "backlog_breaches": 1,
+            "fills": 1,
+            "guardrail_block_until": null,
+            "guardrail_force": null,
+            "guardrail_force_paper_until": null,
+            "guardrail_force_reason": null,
+            "guardrail_near_misses": 0,
+            "guardrail_violations": 0,
+            "last_backlog_breach": "2025-10-20T21:08:55.020215+00:00",
+            "last_error": null,
+            "last_execution_at": null,
+            "last_guardrail_incident": null,
+            "last_successful_order": null,
+            "last_throttle_cooldown": null,
+            "last_throttle_event": null,
+            "last_throttle_multiplier": null,
+            "latency_history_samples": 0,
+            "latency_p99_ms": null,
+            "latency_samples": 0,
+            "max_latency_ms": 0.0,
+            "orders_executed": 0,
+            "orders_failed": 0,
+            "orders_submitted": 1,
+            "orders_with_attribution": 0,
+            "resource_usage": {
+              "cpu_percent": null,
+              "io_read_count": null,
+              "io_read_mb": null,
+              "io_write_count": null,
+              "io_write_mb": null,
+              "memory_mb": null,
+              "memory_percent": null,
+              "timestamp": null
+            },
+            "strategies": {
+              "bootstrap-alpha": {
+                "blocked": 0,
+                "completed_trades": 0,
+                "executed": 0,
+                "failed": 0,
+                "inventory_blocks": {
+                  "per_hour_cap": 0,
+                  "per_minute_cap": 0,
+                  "pressure": 0
+                },
+                "inventory_state": {
+                  "gross_notional": 0.0,
+                  "half_life_minutes": 15.0,
+                  "mean_reversion_pressure": 0.0,
+                  "net_notional": 0.0,
+                  "net_quantity": 0.0,
+                  "normaliser": 1.0,
+                  "updated_at": "2025-10-20T21:08:55.020215+00:00"
+                },
+                "last_updated": "2025-10-20T21:08:55.020465+00:00",
+                "losses": 0,
+                "realized_pnl": 0.0,
+                "rejected": 0,
+                "roi": null,
+                "throttled": 0,
+                "total_notional": 0.0,
+                "turnover_state": {
+                  "cap_per_hour": null,
+                  "cap_per_minute": null,
+                  "per_hour": 0.0,
+                  "per_minute": 0.0,
+                  "updated_at": "2025-10-20T21:08:55.088185+00:00"
+                },
+                "volume": 0.0,
+                "win_rate": null,
+                "wins": 0
+              }
+            },
+            "throttle_blocks": 0,
+            "throttle_consumed_notional": null,
+            "throttle_history_size": 0,
+            "throttle_max_notional": null,
+            "throttle_notional_utilisation": null,
+            "throttle_remaining_notional": null,
+            "throttle_retry_at": null,
+            "throttle_retry_in_seconds": null,
+            "throttle_scalings": 0,
+            "throughput": {
+              "avg_lag_ms": 120013.273,
+              "avg_processing_ms": 30.622,
+              "max_lag_ms": 120013.273,
+              "max_processing_ms": 30.622,
+              "p95_processing_ms": 30.622,
+              "samples": 1,
+              "throttle_active": false,
+              "throttle_max_trades": 1,
+              "throttle_remaining_trades": 0,
+              "throttle_retry_in_seconds": null,
+              "throttle_state": "open",
+              "throttle_window_utilisation": 1.0,
+              "throughput_per_min": null
+            },
+            "total_latency_ms": 0.0,
+            "trade_throttle": {
+              "active": false,
+              "metadata": {
+                "context": {
+                  "confidence": 0.5773510935580546,
+                  "notional": 1.1025,
+                  "strategy_id": "bootstrap-alpha",
+                  "symbol": "EURUSD"
+                },
+                "max_trades": 1,
+                "recent_trades": 1,
+                "remaining_trades": 0,
+                "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+                "window_reset_in_seconds": 120.0,
+                "window_seconds": 120.0,
+                "window_utilisation": 1.0
+              },
+              "name": "trade_rate_limit",
+              "state": "open"
+            },
+            "trade_throttle_scopes": [
+              {
+                "active": false,
+                "metadata": {
+                  "context": {
+                    "confidence": 0.5773510935580546,
+                    "notional": 1.1025,
+                    "strategy_id": "bootstrap-alpha",
+                    "symbol": "EURUSD"
+                  },
+                  "max_trades": 1,
+                  "recent_trades": 1,
+                  "remaining_trades": 0,
+                  "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+                  "window_reset_in_seconds": 120.0,
+                  "window_seconds": 120.0,
+                  "window_utilisation": 1.0
+                },
+                "name": "trade_rate_limit",
+                "state": "open"
+              }
+            ]
+          }
+        },
+        "release": {
+          "execution_risk": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "delta_hat": 25.0,
+            "edge_spread_floor_ticks": 5.0,
+            "edge_ticks": 125.0,
+            "effective_spread_ticks": 5.0,
+            "estimated_cost": 7.968995409375e-05,
+            "fees_ticks": 1.0000000000000002,
+            "notional": 1.1025,
+            "notional_pct_of_equity": 1.1025e-05,
+            "sigma_ann": 0.0004,
+            "size_ratio": 1.1025e-05,
+            "slippage_bps": 0.6228113750000001,
+            "slippage_ticks": 6.228113750000001,
+            "spread": 5.5125000000000005e-05,
+            "spread_cost_ticks": 2.5,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1025e-05,
+            "top_imbalance": 0.2,
+            "total_cost_bps": 0.722811375,
+            "total_cost_ticks": 9.728113750000002,
+            "worst_case_fill_ticks": 115.27188625
+          },
+          "microstructure": {
+            "delta_hat": 25.0,
+            "depth": 5500.0,
+            "edge_spread_floor": 5.5125000000000005e-05,
+            "liquidity_imbalance": 0.2,
+            "sigma_ann": 0.0004,
+            "spread": 5.5125000000000005e-05,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1025e-05
+          },
+          "risk_assessment": {
+            "checks": [
+              {
+                "name": "risk.synthetic_invariant_posture",
+                "status": "ok"
+              },
+              {
+                "name": "daily_drawdown",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "name": "open_positions",
+                "threshold": 5,
+                "value": 0.0
+              },
+              {
+                "name": "position_sizer",
+                "recommended": 200000.0,
+                "requested": 1.0
+              },
+              {
+                "name": "liquidity_confidence",
+                "threshold": 0.3,
+                "value": 0.97
+              },
+              {
+                "name": "policy.min_position_size",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_position_size",
+                "status": "ok",
+                "threshold": 1000000.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_risk_per_trade_pct",
+                "ratio": 1.1025e-05,
+                "status": "ok",
+                "threshold": 2000.0,
+                "value": 0.02205
+              },
+              {
+                "name": "policy.max_total_exposure_pct",
+                "ratio": 2.205e-05,
+                "status": "ok",
+                "threshold": 50000.0,
+                "value": 1.1025
+              },
+              {
+                "name": "policy.max_leverage",
+                "ratio": 1.1025e-06,
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 1.1025e-05
+              },
+              {
+                "name": "policy.max_drawdown_pct",
+                "status": "ok",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "metadata": {
+                  "confidence": 0.5773510935580546,
+                  "limit_pct": 0.2886755467790273
+                },
+                "name": "risk.confidence_notional_limit",
+                "status": "ok",
+                "threshold": 28867.554677902728,
+                "value": 1.1025
+              },
+              {
+                "metadata": {
+                  "equity": 100000.0,
+                  "projected_total_exposure": 1.1025
+                },
+                "name": "risk.leverage_ratio",
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 1.1025e-05
+              },
+              {
+                "metadata": {
+                  "gross_leverage": 2.205e-07,
+                  "leverage_ratio": 2.205e-08,
+                  "max_exposure": 0.02205,
+                  "position_ratio": 1.1025e-05,
+                  "risk_score": 1.1025e-05,
+                  "total_exposure": 0.02205,
+                  "total_ratio": 4.41e-07
+                },
+                "name": "portfolio_risk_score",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 1.1025e-05
+              },
+              {
+                "name": "execution.slippage_bps",
+                "status": "ok",
+                "threshold": 25.0,
+                "value": 0.6228113750000001
+              },
+              {
+                "name": "execution.total_cost_bps",
+                "status": "ok",
+                "threshold": 35.0,
+                "value": 0.722811375
+              },
+              {
+                "name": "execution.notional_pct_of_equity",
+                "status": "ok",
+                "threshold": 0.25,
+                "value": 1.1025e-05
+              },
+              {
+                "name": "execution.worst_case_fill_ticks",
+                "status": "ok",
+                "threshold": 0.0,
+                "value": 115.27188625
+              },
+              {
+                "detail": "missing_ensemble",
+                "name": "dominance_gate",
+                "reason": "missing_ensemble",
+                "status": "skipped"
+              }
+            ],
+            "exit_mode": "liquidity_weighted",
+            "final_quantity": 1.0,
+            "liquidity_confidence": 0.97,
+            "liquidity_probe": {
+              "average_depth": 5500.0,
+              "average_liquidity": 1089.0000000000002,
+              "average_quality": 0.9,
+              "average_spread": 0.00011025000000000001,
+              "evaluated_levels": 5,
+              "observations_used": 1,
+              "peak_level": 1.1025,
+              "peak_liquidity": 5445.000000000001,
+              "structural_exit": {
+                "anchor_price": 1.1025,
+                "baseline_stop_loss_pct": 0.01,
+                "covered_fraction": 1.0,
+                "effective_stop_loss_pct": 0.02,
+                "exit_side": "sell",
+                "expected_exit_price": 1.1025,
+                "mode": "liquidity_weighted",
+                "path": [
+                  {
+                    "allocated": 1.0,
+                    "available_liquidity": 5445.000000000001,
+                    "fraction": 1.0,
+                    "price": 1.1025
+                  }
+                ],
+                "planned_loss_pct": 0.0,
+                "planned_quantity": 1.0,
+                "residual_quantity": 0.0
+              },
+              "symbol": "EURUSD",
+              "total_liquidity": 5445.000000000001
+            },
+            "policy": {
+              "current_total_exposure": 0.0,
+              "equity": 100000.0,
+              "estimated_risk": 0.02205,
+              "existing_position_notional": 0.0,
+              "exposure_increase": 1.1025,
+              "max_total_exposure": 50000.0,
+              "projected_leverage": 1.1025e-05,
+              "projected_notional": 1.1025,
+              "projected_total_exposure": 1.1025,
+              "research_mode": false,
+              "resolved_price": 1.1025,
+              "risk_budget": 2000.0,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "portfolio_risk": {
+              "equity": 100000.0,
+              "projected_risk_map": {
+                "REGIME::unknown": 0.02205
+              },
+              "risk_score": 1.1025e-05,
+              "snapshot": {
+                "gross_leverage": 2.205e-07,
+                "leverage_ratio": 2.205e-08,
+                "max_exposure": 0.02205,
+                "position_ratio": 1.1025e-05,
+                "risk_score": 1.1025e-05,
+                "total_exposure": 0.02205,
+                "total_ratio": 4.41e-07
+              }
+            },
+            "risk_reference": {
+              "limits": {
+                "liquidity_probe_threshold": 1.0,
+                "max_daily_drawdown": 0.1,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_open_positions": 5,
+                "max_position_size": 1000000.0,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "min_intent_confidence": 0.2,
+                "min_liquidity_confidence": 0.3,
+                "min_position_size": 1.0,
+                "risk_per_trade": 0.02
+              },
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "risk_config": {
+                "instrument_sector_map": {},
+                "inventory_mean_reversion_half_life_minutes": 15.0,
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "sector_exposure_limits": {},
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              },
+              "risk_config_summary": {
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              }
+            },
+            "stop_loss_pct": 0.02,
+            "structural_exit": {
+              "anchor_price": 1.1025,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1025,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 5445.000000000001,
+                  "fraction": 1.0,
+                  "price": 1.1025
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            }
+          },
+          "stage": "experiment",
+          "stop_loss_pct": 0.02,
+          "thresholds": {},
+          "understanding_snapshot": {
+            "confidence": 0.5773510935580546,
+            "narrative": "BULLISH",
+            "unified_score": 1.914846265729863
+          }
+        },
+        "risk": {
+          "checks": [
+            {
+              "name": "risk.synthetic_invariant_posture",
+              "status": "ok"
+            },
+            {
+              "name": "daily_drawdown",
+              "threshold": 0.1,
+              "value": 0.0
+            },
+            {
+              "name": "open_positions",
+              "threshold": 5,
+              "value": 0.0
+            },
+            {
+              "name": "position_sizer",
+              "recommended": 200000.0,
+              "requested": 1.0
+            },
+            {
+              "name": "liquidity_confidence",
+              "threshold": 0.3,
+              "value": 0.97
+            },
+            {
+              "name": "policy.min_position_size",
+              "status": "ok",
+              "threshold": 1.0,
+              "value": 1.0
+            },
+            {
+              "name": "policy.max_position_size",
+              "status": "ok",
+              "threshold": 1000000.0,
+              "value": 1.0
+            },
+            {
+              "name": "policy.max_risk_per_trade_pct",
+              "ratio": 1.1025e-05,
+              "status": "ok",
+              "threshold": 2000.0,
+              "value": 0.02205
+            },
+            {
+              "name": "policy.max_total_exposure_pct",
+              "ratio": 2.205e-05,
+              "status": "ok",
+              "threshold": 50000.0,
+              "value": 1.1025
+            },
+            {
+              "name": "policy.max_leverage",
+              "ratio": 1.1025e-06,
+              "status": "ok",
+              "threshold": 10.0,
+              "value": 1.1025e-05
+            },
+            {
+              "name": "policy.max_drawdown_pct",
+              "status": "ok",
+              "threshold": 0.1,
+              "value": 0.0
+            },
+            {
+              "metadata": {
+                "confidence": 0.5773510935580546,
+                "limit_pct": 0.2886755467790273
+              },
+              "name": "risk.confidence_notional_limit",
+              "status": "ok",
+              "threshold": 28867.554677902728,
+              "value": 1.1025
+            },
+            {
+              "metadata": {
+                "equity": 100000.0,
+                "projected_total_exposure": 1.1025
+              },
+              "name": "risk.leverage_ratio",
+              "status": "ok",
+              "threshold": 10.0,
+              "value": 1.1025e-05
+            },
+            {
+              "metadata": {
+                "gross_leverage": 2.205e-07,
+                "leverage_ratio": 2.205e-08,
+                "max_exposure": 0.02205,
+                "position_ratio": 1.1025e-05,
+                "risk_score": 1.1025e-05,
+                "total_exposure": 0.02205,
+                "total_ratio": 4.41e-07
+              },
+              "name": "portfolio_risk_score",
+              "status": "ok",
+              "threshold": 1.0,
+              "value": 1.1025e-05
+            },
+            {
+              "name": "execution.slippage_bps",
+              "status": "ok",
+              "threshold": 25.0,
+              "value": 0.6228113750000001
+            },
+            {
+              "name": "execution.total_cost_bps",
+              "status": "ok",
+              "threshold": 35.0,
+              "value": 0.722811375
+            },
+            {
+              "name": "execution.notional_pct_of_equity",
+              "status": "ok",
+              "threshold": 0.25,
+              "value": 1.1025e-05
+            },
+            {
+              "name": "execution.worst_case_fill_ticks",
+              "status": "ok",
+              "threshold": 0.0,
+              "value": 115.27188625
+            },
+            {
+              "detail": "missing_ensemble",
+              "name": "dominance_gate",
+              "reason": "missing_ensemble",
+              "status": "skipped"
+            },
+            {
+              "name": "liquidity_probe",
+              "summary": {
+                "average_depth": 5500.0,
+                "average_liquidity": 1089.0000000000002,
+                "average_quality": 0.9,
+                "average_spread": 0.00011025000000000001,
+                "evaluated_levels": 5,
+                "observations_used": 1,
+                "peak_level": 1.1025,
+                "peak_liquidity": 5445.000000000001,
+                "structural_exit": {
+                  "anchor_price": 1.1025,
+                  "baseline_stop_loss_pct": 0.01,
+                  "covered_fraction": 1.0,
+                  "effective_stop_loss_pct": 0.02,
+                  "exit_side": "sell",
+                  "expected_exit_price": 1.1025,
+                  "mode": "liquidity_weighted",
+                  "path": [
+                    {
+                      "allocated": 1.0,
+                      "available_liquidity": 5445.000000000001,
+                      "fraction": 1.0,
+                      "price": 1.1025
+                    }
+                  ],
+                  "planned_loss_pct": 0.0,
+                  "planned_quantity": 1.0,
+                  "residual_quantity": 0.0
+                },
+                "symbol": "EURUSD",
+                "total_liquidity": 5445.000000000001
+              }
+            }
+          ],
+          "execution": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "delta_hat": 25.0,
+            "edge_spread_floor_ticks": 5.0,
+            "edge_ticks": 125.0,
+            "effective_spread_ticks": 5.0,
+            "estimated_cost": 7.968995409375e-05,
+            "fees_ticks": 1.0000000000000002,
+            "notional": 1.1025,
+            "notional_pct_of_equity": 1.1025e-05,
+            "sigma_ann": 0.0004,
+            "size_ratio": 1.1025e-05,
+            "slippage_bps": 0.6228113750000001,
+            "slippage_ticks": 6.228113750000001,
+            "spread": 5.5125000000000005e-05,
+            "spread_cost_ticks": 2.5,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1025e-05,
+            "top_imbalance": 0.2,
+            "total_cost_bps": 0.722811375,
+            "total_cost_ticks": 9.728113750000002,
+            "worst_case_fill_ticks": 115.27188625
+          },
+          "policy": {
+            "approved": true,
+            "metadata": {
+              "current_total_exposure": 0.0,
+              "equity": 100000.0,
+              "estimated_risk": 0.02205,
+              "existing_position_notional": 0.0,
+              "exposure_increase": 1.1025,
+              "max_total_exposure": 50000.0,
+              "projected_leverage": 1.1025e-05,
+              "projected_notional": 1.1025,
+              "projected_total_exposure": 1.1025,
+              "research_mode": false,
+              "resolved_price": 1.1025,
+              "risk_budget": 2000.0,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "reason": null,
+            "violations": []
+          },
+          "quantity": 1.0,
+          "risk_manager": {
+            "equity": 100000.0,
+            "projected_risk_map": {
+              "REGIME::unknown": 0.02205
+            },
+            "risk_score": 1.1025e-05,
+            "snapshot": {
+              "gross_leverage": 2.205e-07,
+              "leverage_ratio": 2.205e-08,
+              "max_exposure": 0.02205,
+              "position_ratio": 1.1025e-05,
+              "risk_score": 1.1025e-05,
+              "total_exposure": 0.02205,
+              "total_ratio": 4.41e-07
+            }
+          },
+          "risk_reference": {
+            "limits": {
+              "liquidity_probe_threshold": 1.0,
+              "max_daily_drawdown": 0.1,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_open_positions": 5,
+              "max_position_size": 1000000.0,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "min_intent_confidence": 0.2,
+              "min_liquidity_confidence": 0.3,
+              "min_position_size": 1.0,
+              "risk_per_trade": 0.02
+            },
+            "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+            "risk_config": {
+              "instrument_sector_map": {},
+              "inventory_mean_reversion_half_life_minutes": 15.0,
+              "mandatory_stop_loss": true,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_position_size": 1000000,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "max_volatility_leverage": 3.0,
+              "min_position_size": 1,
+              "research_mode": false,
+              "sector_exposure_limits": {},
+              "target_volatility_pct": 0.1,
+              "volatility_annualisation_factor": 1.0,
+              "volatility_window": 20
+            },
+            "risk_config_summary": {
+              "mandatory_stop_loss": true,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_position_size": 1000000,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "max_volatility_leverage": 3.0,
+              "min_position_size": 1,
+              "research_mode": false,
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "target_volatility_pct": 0.1,
+              "volatility_annualisation_factor": 1.0,
+              "volatility_window": 20
+            }
+          },
+          "status": "approved",
+          "strategy_id": "bootstrap-alpha",
+          "symbol": "EURUSD",
+          "timestamp": "2025-10-20T21:08:55.020631"
+        },
+        "throttle": {
+          "active": false,
+          "metadata": {
+            "context": {
+              "confidence": 0.5773510935580546,
+              "notional": 1.1025,
+              "strategy_id": "bootstrap-alpha",
+              "symbol": "EURUSD"
+            },
+            "max_trades": 1,
+            "recent_trades": 1,
+            "remaining_trades": 0,
+            "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+            "window_reset_in_seconds": 120.0,
+            "window_seconds": 120.0,
+            "window_utilisation": 1.0
+          },
+          "name": "trade_rate_limit",
+          "state": "open"
+        },
+        "trade_outcome": {
+          "executed": true,
+          "status": "executed",
+          "throttle": {
+            "active": false,
+            "metadata": {
+              "context": {
+                "confidence": 0.5773510935580546,
+                "notional": 1.1025,
+                "strategy_id": "bootstrap-alpha",
+                "symbol": "EURUSD"
+              },
+              "max_trades": 1,
+              "recent_trades": 1,
+              "remaining_trades": 0,
+              "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+              "window_reset_in_seconds": 120.0,
+              "window_seconds": 120.0,
+              "window_utilisation": 1.0
+            },
+            "name": "trade_rate_limit",
+            "state": "open"
+          }
+        }
+      },
+      "policy_id": "bootstrap-alpha",
+      "probes": [],
+      "recorded_at": "2025-10-20T21:08:55.090378+00:00",
+      "regime_state": {
+        "confidence": 0.5773510935580546,
+        "features": {
+          "dominant_narrative": "BULLISH",
+          "unified_score": 1.914846265729863
+        },
+        "regime": "experiment",
+        "timestamp": "2025-10-20T21:06:55.006942+00:00"
+      },
+      "signature": "dbdf4da4f49e57dd39137acfa39bfa978c8334a8076b937981bae5bf7fa8bb02"
+    },
+    {
+      "decision": {
+        "decision_timestamp": "2025-10-20T21:07:55.006942+00:00",
+        "experiments_applied": [],
+        "feature_hashes": {
+          "dominant_narrative": "56cdeb0d3e32016a19a28064077e2f7b9dda6f63bd90675214f0103081f9a9d3",
+          "unified_score": "82214f328e91edb2ba01e0e44bb615a05fd3d75f1f9b77b0d59087b1556ffb75"
+        },
+        "features_signature": "009dc91edb631af760f26952885d16f2c14612dba2dd9539c505edbc0711ad43",
+        "guardrails": {
+          "liquidity_summary": {
+            "average_depth": 5750.0,
+            "average_liquidity": 1258.5600000000002,
+            "average_quality": 0.91,
+            "average_spread": 0.0001104,
+            "evaluated_levels": 5,
+            "observations_used": 2,
+            "peak_level": 1.1055,
+            "peak_liquidity": 6292.800000000001,
+            "structural_exit": {
+              "anchor_price": 1.1055,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1055,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 6292.800000000001,
+                  "fraction": 1.0,
+                  "price": 1.1055
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            },
+            "symbol": "EURUSD",
+            "total_liquidity": 6292.800000000001
+          },
+          "stop_loss_pct": 0.02
+        },
+        "parameters": {
+          "confidence": 0.5806228047005481,
+          "price": 1.1055,
+          "quantity": 1.0,
+          "side": "BUY",
+          "symbol": "EURUSD"
+        },
+        "rationale": "Bootstrap runtime threshold trigger",
+        "reflection_summary": {
+          "liquidity": {
+            "average_depth": 5750.0,
+            "average_liquidity": 1258.5600000000002,
+            "average_quality": 0.91,
+            "average_spread": 0.0001104,
+            "evaluated_levels": 5,
+            "observations_used": 2,
+            "peak_level": 1.1055,
+            "peak_liquidity": 6292.800000000001,
+            "structural_exit": {
+              "anchor_price": 1.1055,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1055,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 6292.800000000001,
+                  "fraction": 1.0,
+                  "price": 1.1055
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            },
+            "symbol": "EURUSD",
+            "total_liquidity": 6292.800000000001
+          },
+          "narrative": "BULLISH"
+        },
+        "selected_weight": 1.9795929395208551,
+        "tactic_id": "bootstrap-alpha",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-20251020T210855Z-a8d25bd5",
+      "metadata": {
+        "intent_metadata": {
+          "execution_risk": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "delta_hat": 25.0,
+            "edge_spread_floor_ticks": 5.0,
+            "edge_ticks": 125.0,
+            "effective_spread_ticks": 5.0,
+            "estimated_cost": 9.78720181463808e-05,
+            "fees_ticks": 1.0,
+            "notional": 1.1055,
+            "notional_pct_of_equity": 1.1054878119968727e-05,
+            "sigma_ann": 0.00045,
+            "size_ratio": 1.1054878119968727e-05,
+            "slippage_bps": 0.7853190243905999,
+            "slippage_ticks": 7.853190243905998,
+            "spread": 5.5275e-05,
+            "spread_cost_ticks": 2.5,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1055e-05,
+            "top_imbalance": 0.28,
+            "total_cost_bps": 0.8853190243905998,
+            "total_cost_ticks": 11.353190243905999,
+            "worst_case_fill_ticks": 113.646809756094
+          },
+          "microstructure": {
+            "delta_hat": 25.0,
+            "depth": 6000.0,
+            "edge_spread_floor": 5.5275e-05,
+            "liquidity_imbalance": 0.28,
+            "sigma_ann": 0.00045,
+            "spread": 5.5275e-05,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1055e-05
+          },
+          "risk_assessment": {
+            "checks": [
+              {
+                "name": "risk.synthetic_invariant_posture",
+                "status": "ok"
+              },
+              {
+                "name": "daily_drawdown",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "name": "open_positions",
+                "threshold": 5,
+                "value": 1.0
+              },
+              {
+                "name": "position_sizer",
+                "recommended": 200002.205,
+                "requested": 1.0
+              },
+              {
+                "name": "liquidity_confidence",
+                "threshold": 0.3,
+                "value": 0.973
+              },
+              {
+                "name": "policy.min_position_size",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_position_size",
+                "status": "ok",
+                "threshold": 1000000.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_risk_per_trade_pct",
+                "ratio": 1.1084877789222373e-05,
+                "status": "ok",
+                "threshold": 2000.0220499999998,
+                "value": 0.022169999999999995
+              },
+              {
+                "name": "policy.max_total_exposure_pct",
+                "ratio": 4.421951247987491e-05,
+                "status": "ok",
+                "threshold": 50000.55125,
+                "value": 2.211
+              },
+              {
+                "name": "policy.max_leverage",
+                "ratio": 2.2109756239937453e-06,
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 2.2109756239937454e-05
+              },
+              {
+                "name": "policy.max_drawdown_pct",
+                "status": "ok",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "metadata": {
+                  "confidence": 0.5806228047005481,
+                  "limit_pct": 0.29031140235027403
+                },
+                "name": "risk.confidence_notional_limit",
+                "status": "ok",
+                "threshold": 29031.460303348493,
+                "value": 1.1055
+              },
+              {
+                "metadata": {
+                  "equity": 100001.1025,
+                  "projected_total_exposure": 1.1055
+                },
+                "name": "risk.leverage_ratio",
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 1.1054878119968727e-05
+              },
+              {
+                "metadata": {
+                  "gross_leverage": 4.415951314136762e-07,
+                  "leverage_ratio": 4.4159513141367615e-08,
+                  "max_exposure": 0.04416,
+                  "position_ratio": 2.2079756570683808e-05,
+                  "risk_score": 2.2079756570683808e-05,
+                  "total_exposure": 0.04416,
+                  "total_ratio": 8.831902628273524e-07
+                },
+                "name": "portfolio_risk_score",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 2.2079756570683808e-05
+              },
+              {
+                "name": "execution.slippage_bps",
+                "status": "ok",
+                "threshold": 25.0,
+                "value": 0.7853190243905999
+              },
+              {
+                "name": "execution.total_cost_bps",
+                "status": "ok",
+                "threshold": 35.0,
+                "value": 0.8853190243905998
+              },
+              {
+                "name": "execution.notional_pct_of_equity",
+                "status": "ok",
+                "threshold": 0.25,
+                "value": 1.1054878119968727e-05
+              },
+              {
+                "name": "execution.worst_case_fill_ticks",
+                "status": "ok",
+                "threshold": 0.0,
+                "value": 113.646809756094
+              },
+              {
+                "detail": "missing_ensemble",
+                "name": "dominance_gate",
+                "reason": "missing_ensemble",
+                "status": "skipped"
+              }
+            ],
+            "exit_mode": "liquidity_weighted",
+            "final_quantity": 1.0,
+            "liquidity_confidence": 0.973,
+            "liquidity_probe": {
+              "average_depth": 5750.0,
+              "average_liquidity": 1258.5600000000002,
+              "average_quality": 0.91,
+              "average_spread": 0.0001104,
+              "evaluated_levels": 5,
+              "observations_used": 2,
+              "peak_level": 1.1055,
+              "peak_liquidity": 6292.800000000001,
+              "structural_exit": {
+                "anchor_price": 1.1055,
+                "baseline_stop_loss_pct": 0.01,
+                "covered_fraction": 1.0,
+                "effective_stop_loss_pct": 0.02,
+                "exit_side": "sell",
+                "expected_exit_price": 1.1055,
+                "mode": "liquidity_weighted",
+                "path": [
+                  {
+                    "allocated": 1.0,
+                    "available_liquidity": 6292.800000000001,
+                    "fraction": 1.0,
+                    "price": 1.1055
+                  }
+                ],
+                "planned_loss_pct": 0.0,
+                "planned_quantity": 1.0,
+                "residual_quantity": 0.0
+              },
+              "symbol": "EURUSD",
+              "total_liquidity": 6292.800000000001
+            },
+            "policy": {
+              "current_total_exposure": 1.1025,
+              "equity": 100001.1025,
+              "estimated_risk": 0.022169999999999995,
+              "existing_position_notional": 1.1025,
+              "exposure_increase": 1.1084999999999998,
+              "max_total_exposure": 50000.55125,
+              "projected_leverage": 2.2109756239937454e-05,
+              "projected_notional": 2.211,
+              "projected_total_exposure": 2.211,
+              "research_mode": false,
+              "resolved_price": 1.1055,
+              "risk_budget": 2000.0220499999998,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "portfolio_risk": {
+              "equity": 100001.1025,
+              "projected_risk_map": {
+                "REGIME::unknown": 0.04416
+              },
+              "risk_score": 2.2079756570683808e-05,
+              "snapshot": {
+                "gross_leverage": 4.415951314136762e-07,
+                "leverage_ratio": 4.4159513141367615e-08,
+                "max_exposure": 0.04416,
+                "position_ratio": 2.2079756570683808e-05,
+                "risk_score": 2.2079756570683808e-05,
+                "total_exposure": 0.04416,
+                "total_ratio": 8.831902628273524e-07
+              }
+            },
+            "risk_reference": {
+              "limits": {
+                "liquidity_probe_threshold": 1.0,
+                "max_daily_drawdown": 0.1,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_open_positions": 5,
+                "max_position_size": 1000000.0,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "min_intent_confidence": 0.2,
+                "min_liquidity_confidence": 0.3,
+                "min_position_size": 1.0,
+                "risk_per_trade": 0.02
+              },
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "risk_config": {
+                "instrument_sector_map": {},
+                "inventory_mean_reversion_half_life_minutes": 15.0,
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "sector_exposure_limits": {},
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              },
+              "risk_config_summary": {
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              }
+            },
+            "stop_loss_pct": 0.02,
+            "structural_exit": {
+              "anchor_price": 1.1055,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1055,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 6292.800000000001,
+                  "fraction": 1.0,
+                  "price": 1.1055
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            }
+          },
+          "stop_loss_pct": 0.02,
+          "understanding_snapshot": {
+            "confidence": 0.5806228047005481,
+            "narrative": "BULLISH",
+            "unified_score": 1.9795929395208551
+          }
+        },
+        "snapshot": {
+          "generated_at": "2025-10-20T21:07:55.006942+00:00",
+          "symbol": "EURUSD"
+        },
+        "trade_outcome_metadata": {
+          "inventory_state": {
+            "gross_notional": 0.0,
+            "half_life_minutes": 15.0,
+            "mean_reversion_pressure": 0.0,
+            "net_notional": 0.0,
+            "net_quantity": 0.0,
+            "normaliser": 1.0,
+            "updated_at": "2025-10-20T21:08:55.102448+00:00"
+          },
+          "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+          "reason": "max_1_trades_per_120s",
+          "retry_at": "2025-10-20T21:10:55.021874+00:00",
+          "retry_in_seconds": 119.917856,
+          "throttle": {
+            "active": true,
+            "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+            "metadata": {
+              "context": {
+                "confidence": 0.5806228047005481,
+                "notional": 1.1055,
+                "strategy_id": "bootstrap-alpha",
+                "symbol": "EURUSD"
+              },
+              "max_trades": 1,
+              "recent_trades": 1,
+              "remaining_trades": 0,
+              "retry_at": "2025-10-20T21:10:55.021874+00:00",
+              "retry_in_seconds": 119.917856,
+              "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+              "window_reset_in_seconds": 119.917856,
+              "window_seconds": 120.0,
+              "window_utilisation": 1.0
+            },
+            "name": "trade_rate_limit",
+            "reason": "max_1_trades_per_120s",
+            "state": "rate_limited"
+          },
+          "turnover": {
+            "cap_per_hour": null,
+            "cap_per_minute": null,
+            "per_hour": 0.0,
+            "per_minute": 0.0,
+            "updated_at": "2025-10-20T21:08:55.104166+00:00"
+          }
+        },
+        "trade_throttle": {
+          "active": true,
+          "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+          "metadata": {
+            "context": {
+              "confidence": 0.5806228047005481,
+              "notional": 1.1055,
+              "strategy_id": "bootstrap-alpha",
+              "symbol": "EURUSD"
+            },
+            "max_trades": 1,
+            "recent_trades": 1,
+            "remaining_trades": 0,
+            "retry_at": "2025-10-20T21:10:55.021874+00:00",
+            "retry_in_seconds": 119.917856,
+            "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+            "window_reset_in_seconds": 119.917856,
+            "window_seconds": 120.0,
+            "window_utilisation": 1.0
+          },
+          "name": "trade_rate_limit",
+          "reason": "max_1_trades_per_120s",
+          "state": "rate_limited"
+        }
+      },
+      "notes": [
+        "Bootstrap runtime decision for EURUSD",
+        "Trade outcome status: throttled",
+        "Throttled: too many trades in short time (limit 1 trade per 2 minutes)"
+      ],
+      "outcomes": {
+        "execution": {
+          "stats": {
+            "attribution_coverage": 0.0,
+            "avg_latency_ms": null,
+            "backlog": {
+              "avg_lag_ms": 90054.3895,
+              "breach_active": true,
+              "breach_rate": 1.0,
+              "breaches": 2,
+              "healthy": false,
+              "last_breach_at": "2025-10-20T21:08:55.102448+00:00",
+              "last_recovery_at": null,
+              "last_recovery_ms": null,
+              "latest_lag_ms": 60095.506,
+              "max_breach_streak": 2,
+              "max_lag_ms": 120013.273,
+              "p95_lag_ms": 117017.38465,
+              "samples": 2,
+              "threshold_ms": 250.0,
+              "worst_breach_ms": 120013.273
+            },
+            "backlog_breaches": 2,
+            "fills": 1,
+            "guardrail_block_until": null,
+            "guardrail_force": null,
+            "guardrail_force_paper_until": null,
+            "guardrail_force_reason": null,
+            "guardrail_near_misses": 0,
+            "guardrail_violations": 0,
+            "last_attribution_executed": false,
+            "last_backlog_breach": "2025-10-20T21:08:55.102448+00:00",
+            "last_error": null,
+            "last_execution_at": null,
+            "last_guardrail_incident": null,
+            "last_successful_order": null,
+            "last_throttle_at": "2025-10-20T21:08:55.104157+00:00",
+            "last_throttle_cooldown": null,
+            "last_throttle_event": {
+              "action": "blocked",
+              "active": true,
+              "allowed": false,
+              "context": {
+                "confidence": 0.5806228047005481,
+                "notional": 1.1055,
+                "strategy_id": "bootstrap-alpha",
+                "symbol": "EURUSD"
+              },
+              "event_metadata": {
+                "inventory_state": {
+                  "gross_notional": 0.0,
+                  "half_life_minutes": 15.0,
+                  "mean_reversion_pressure": 0.0,
+                  "net_notional": 0.0,
+                  "net_quantity": 0.0,
+                  "normaliser": 1.0,
+                  "updated_at": "2025-10-20T21:08:55.102448+00:00"
+                },
+                "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+                "reason": "max_1_trades_per_120s",
+                "retry_at": "2025-10-20T21:10:55.021874+00:00",
+                "retry_in_seconds": 119.917856,
+                "turnover": {
+                  "cap_per_hour": null,
+                  "cap_per_minute": null,
+                  "per_hour": 0.0,
+                  "per_minute": 0.0,
+                  "updated_at": "2025-10-20T21:08:55.104166+00:00"
+                }
+              },
+              "max_trades": 1,
+              "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+              "name": "trade_rate_limit",
+              "reason": "max_1_trades_per_120s",
+              "remaining_trades": 0,
+              "retry_at": "2025-10-20T21:10:55.021874+00:00",
+              "retry_in_seconds": 119.917856,
+              "state": "rate_limited",
+              "timestamp": "2025-10-20T21:08:55.104215+00:00",
+              "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+              "window_reset_in_seconds": 119.917856,
+              "window_utilisation": 1.0
+            },
+            "last_throttle_multiplier": null,
+            "latency_history_samples": 0,
+            "latency_p99_ms": null,
+            "latency_samples": 0,
+            "max_latency_ms": 0.0,
+            "order_attribution_samples": 1,
+            "orders_executed": 0,
+            "orders_failed": 0,
+            "orders_submitted": 1,
+            "orders_with_attribution": 0,
+            "resource_usage": {
+              "cpu_percent": null,
+              "io_read_count": null,
+              "io_read_mb": null,
+              "io_write_count": null,
+              "io_write_mb": null,
+              "memory_mb": null,
+              "memory_percent": null,
+              "timestamp": null
+            },
+            "strategies": {
+              "bootstrap-alpha": {
+                "blocked": 0,
+                "completed_trades": 0,
+                "executed": 0,
+                "failed": 0,
+                "inventory_blocks": {
+                  "per_hour_cap": 0,
+                  "per_minute_cap": 0,
+                  "pressure": 0
+                },
+                "inventory_state": {
+                  "gross_notional": 0.0,
+                  "half_life_minutes": 15.0,
+                  "mean_reversion_pressure": 0.0,
+                  "net_notional": 0.0,
+                  "net_quantity": 0.0,
+                  "normaliser": 1.0,
+                  "updated_at": "2025-10-20T21:08:55.102448+00:00"
+                },
+                "last_updated": "2025-10-20T21:08:55.104327+00:00",
+                "losses": 0,
+                "realized_pnl": 0.0,
+                "rejected": 0,
+                "roi": null,
+                "throttled": 1,
+                "total_notional": 0.0,
+                "turnover_state": {
+                  "cap_per_hour": null,
+                  "cap_per_minute": null,
+                  "per_hour": 0.0,
+                  "per_minute": 0.0,
+                  "updated_at": "2025-10-20T21:08:55.149338+00:00"
+                },
+                "volume": 0.0,
+                "win_rate": null,
+                "wins": 0
+              }
+            },
+            "throttle_blocks": 1,
+            "throttle_consumed_notional": null,
+            "throttle_history_size": 1,
+            "throttle_max_notional": null,
+            "throttle_notional_utilisation": null,
+            "throttle_remaining_notional": null,
+            "throttle_retry_at": "2025-10-20T21:10:55.021874+00:00",
+            "throttle_retry_in_seconds": 119.917856,
+            "throttle_scalings": 0,
+            "throughput": {
+              "avg_lag_ms": 90054.3895,
+              "avg_processing_ms": 16.3085,
+              "max_lag_ms": 120013.273,
+              "max_processing_ms": 30.622,
+              "p95_processing_ms": 29.190649999999998,
+              "samples": 2,
+              "throttle_active": true,
+              "throttle_max_trades": 1,
+              "throttle_message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+              "throttle_reason": "max_1_trades_per_120s",
+              "throttle_remaining_trades": 0,
+              "throttle_retry_at": "2025-10-20T21:10:55.021874+00:00",
+              "throttle_retry_in_seconds": 119.917856,
+              "throttle_state": "rate_limited",
+              "throttle_window_utilisation": 1.0,
+              "throughput_per_min": 1424.7043738424277
+            },
+            "total_latency_ms": 0.0,
+            "trade_throttle": {
+              "active": true,
+              "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+              "metadata": {
+                "context": {
+                  "confidence": 0.5806228047005481,
+                  "notional": 1.1055,
+                  "strategy_id": "bootstrap-alpha",
+                  "symbol": "EURUSD"
+                },
+                "max_trades": 1,
+                "recent_trades": 1,
+                "remaining_trades": 0,
+                "retry_at": "2025-10-20T21:10:55.021874+00:00",
+                "retry_in_seconds": 119.917856,
+                "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+                "window_reset_in_seconds": 119.917856,
+                "window_seconds": 120.0,
+                "window_utilisation": 1.0
+              },
+              "name": "trade_rate_limit",
+              "reason": "max_1_trades_per_120s",
+              "state": "rate_limited"
+            },
+            "trade_throttle_scopes": [
+              {
+                "active": true,
+                "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+                "metadata": {
+                  "context": {
+                    "confidence": 0.5806228047005481,
+                    "notional": 1.1055,
+                    "strategy_id": "bootstrap-alpha",
+                    "symbol": "EURUSD"
+                  },
+                  "max_trades": 1,
+                  "recent_trades": 1,
+                  "remaining_trades": 0,
+                  "retry_at": "2025-10-20T21:10:55.021874+00:00",
+                  "retry_in_seconds": 119.917856,
+                  "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+                  "window_reset_in_seconds": 119.917856,
+                  "window_seconds": 120.0,
+                  "window_utilisation": 1.0
+                },
+                "name": "trade_rate_limit",
+                "reason": "max_1_trades_per_120s",
+                "state": "rate_limited"
+              }
+            ]
+          }
+        },
+        "release": {
+          "execution_risk": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "delta_hat": 25.0,
+            "edge_spread_floor_ticks": 5.0,
+            "edge_ticks": 125.0,
+            "effective_spread_ticks": 5.0,
+            "estimated_cost": 9.78720181463808e-05,
+            "fees_ticks": 1.0,
+            "notional": 1.1055,
+            "notional_pct_of_equity": 1.1054878119968727e-05,
+            "sigma_ann": 0.00045,
+            "size_ratio": 1.1054878119968727e-05,
+            "slippage_bps": 0.7853190243905999,
+            "slippage_ticks": 7.853190243905998,
+            "spread": 5.5275e-05,
+            "spread_cost_ticks": 2.5,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1055e-05,
+            "top_imbalance": 0.28,
+            "total_cost_bps": 0.8853190243905998,
+            "total_cost_ticks": 11.353190243905999,
+            "worst_case_fill_ticks": 113.646809756094
+          },
+          "microstructure": {
+            "delta_hat": 25.0,
+            "depth": 6000.0,
+            "edge_spread_floor": 5.5275e-05,
+            "liquidity_imbalance": 0.28,
+            "sigma_ann": 0.00045,
+            "spread": 5.5275e-05,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1055e-05
+          },
+          "risk_assessment": {
+            "checks": [
+              {
+                "name": "risk.synthetic_invariant_posture",
+                "status": "ok"
+              },
+              {
+                "name": "daily_drawdown",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "name": "open_positions",
+                "threshold": 5,
+                "value": 1.0
+              },
+              {
+                "name": "position_sizer",
+                "recommended": 200002.205,
+                "requested": 1.0
+              },
+              {
+                "name": "liquidity_confidence",
+                "threshold": 0.3,
+                "value": 0.973
+              },
+              {
+                "name": "policy.min_position_size",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_position_size",
+                "status": "ok",
+                "threshold": 1000000.0,
+                "value": 1.0
+              },
+              {
+                "name": "policy.max_risk_per_trade_pct",
+                "ratio": 1.1084877789222373e-05,
+                "status": "ok",
+                "threshold": 2000.0220499999998,
+                "value": 0.022169999999999995
+              },
+              {
+                "name": "policy.max_total_exposure_pct",
+                "ratio": 4.421951247987491e-05,
+                "status": "ok",
+                "threshold": 50000.55125,
+                "value": 2.211
+              },
+              {
+                "name": "policy.max_leverage",
+                "ratio": 2.2109756239937453e-06,
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 2.2109756239937454e-05
+              },
+              {
+                "name": "policy.max_drawdown_pct",
+                "status": "ok",
+                "threshold": 0.1,
+                "value": 0.0
+              },
+              {
+                "metadata": {
+                  "confidence": 0.5806228047005481,
+                  "limit_pct": 0.29031140235027403
+                },
+                "name": "risk.confidence_notional_limit",
+                "status": "ok",
+                "threshold": 29031.460303348493,
+                "value": 1.1055
+              },
+              {
+                "metadata": {
+                  "equity": 100001.1025,
+                  "projected_total_exposure": 1.1055
+                },
+                "name": "risk.leverage_ratio",
+                "status": "ok",
+                "threshold": 10.0,
+                "value": 1.1054878119968727e-05
+              },
+              {
+                "metadata": {
+                  "gross_leverage": 4.415951314136762e-07,
+                  "leverage_ratio": 4.4159513141367615e-08,
+                  "max_exposure": 0.04416,
+                  "position_ratio": 2.2079756570683808e-05,
+                  "risk_score": 2.2079756570683808e-05,
+                  "total_exposure": 0.04416,
+                  "total_ratio": 8.831902628273524e-07
+                },
+                "name": "portfolio_risk_score",
+                "status": "ok",
+                "threshold": 1.0,
+                "value": 2.2079756570683808e-05
+              },
+              {
+                "name": "execution.slippage_bps",
+                "status": "ok",
+                "threshold": 25.0,
+                "value": 0.7853190243905999
+              },
+              {
+                "name": "execution.total_cost_bps",
+                "status": "ok",
+                "threshold": 35.0,
+                "value": 0.8853190243905998
+              },
+              {
+                "name": "execution.notional_pct_of_equity",
+                "status": "ok",
+                "threshold": 0.25,
+                "value": 1.1054878119968727e-05
+              },
+              {
+                "name": "execution.worst_case_fill_ticks",
+                "status": "ok",
+                "threshold": 0.0,
+                "value": 113.646809756094
+              },
+              {
+                "detail": "missing_ensemble",
+                "name": "dominance_gate",
+                "reason": "missing_ensemble",
+                "status": "skipped"
+              }
+            ],
+            "exit_mode": "liquidity_weighted",
+            "final_quantity": 1.0,
+            "liquidity_confidence": 0.973,
+            "liquidity_probe": {
+              "average_depth": 5750.0,
+              "average_liquidity": 1258.5600000000002,
+              "average_quality": 0.91,
+              "average_spread": 0.0001104,
+              "evaluated_levels": 5,
+              "observations_used": 2,
+              "peak_level": 1.1055,
+              "peak_liquidity": 6292.800000000001,
+              "structural_exit": {
+                "anchor_price": 1.1055,
+                "baseline_stop_loss_pct": 0.01,
+                "covered_fraction": 1.0,
+                "effective_stop_loss_pct": 0.02,
+                "exit_side": "sell",
+                "expected_exit_price": 1.1055,
+                "mode": "liquidity_weighted",
+                "path": [
+                  {
+                    "allocated": 1.0,
+                    "available_liquidity": 6292.800000000001,
+                    "fraction": 1.0,
+                    "price": 1.1055
+                  }
+                ],
+                "planned_loss_pct": 0.0,
+                "planned_quantity": 1.0,
+                "residual_quantity": 0.0
+              },
+              "symbol": "EURUSD",
+              "total_liquidity": 6292.800000000001
+            },
+            "policy": {
+              "current_total_exposure": 1.1025,
+              "equity": 100001.1025,
+              "estimated_risk": 0.022169999999999995,
+              "existing_position_notional": 1.1025,
+              "exposure_increase": 1.1084999999999998,
+              "max_total_exposure": 50000.55125,
+              "projected_leverage": 2.2109756239937454e-05,
+              "projected_notional": 2.211,
+              "projected_total_exposure": 2.211,
+              "research_mode": false,
+              "resolved_price": 1.1055,
+              "risk_budget": 2000.0220499999998,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "portfolio_risk": {
+              "equity": 100001.1025,
+              "projected_risk_map": {
+                "REGIME::unknown": 0.04416
+              },
+              "risk_score": 2.2079756570683808e-05,
+              "snapshot": {
+                "gross_leverage": 4.415951314136762e-07,
+                "leverage_ratio": 4.4159513141367615e-08,
+                "max_exposure": 0.04416,
+                "position_ratio": 2.2079756570683808e-05,
+                "risk_score": 2.2079756570683808e-05,
+                "total_exposure": 0.04416,
+                "total_ratio": 8.831902628273524e-07
+              }
+            },
+            "risk_reference": {
+              "limits": {
+                "liquidity_probe_threshold": 1.0,
+                "max_daily_drawdown": 0.1,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_open_positions": 5,
+                "max_position_size": 1000000.0,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "min_intent_confidence": 0.2,
+                "min_liquidity_confidence": 0.3,
+                "min_position_size": 1.0,
+                "risk_per_trade": 0.02
+              },
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "risk_config": {
+                "instrument_sector_map": {},
+                "inventory_mean_reversion_half_life_minutes": 15.0,
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "sector_exposure_limits": {},
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              },
+              "risk_config_summary": {
+                "mandatory_stop_loss": true,
+                "max_drawdown_pct": 0.1,
+                "max_leverage": 10.0,
+                "max_position_size": 1000000,
+                "max_risk_per_trade_pct": 0.02,
+                "max_total_exposure_pct": 0.5,
+                "max_volatility_leverage": 3.0,
+                "min_position_size": 1,
+                "research_mode": false,
+                "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+                "target_volatility_pct": 0.1,
+                "volatility_annualisation_factor": 1.0,
+                "volatility_window": 20
+              }
+            },
+            "stop_loss_pct": 0.02,
+            "structural_exit": {
+              "anchor_price": 1.1055,
+              "baseline_stop_loss_pct": 0.01,
+              "covered_fraction": 1.0,
+              "effective_stop_loss_pct": 0.02,
+              "exit_side": "sell",
+              "expected_exit_price": 1.1055,
+              "mode": "liquidity_weighted",
+              "path": [
+                {
+                  "allocated": 1.0,
+                  "available_liquidity": 6292.800000000001,
+                  "fraction": 1.0,
+                  "price": 1.1055
+                }
+              ],
+              "planned_loss_pct": 0.0,
+              "planned_quantity": 1.0,
+              "residual_quantity": 0.0
+            }
+          },
+          "stage": "experiment",
+          "stop_loss_pct": 0.02,
+          "thresholds": {},
+          "understanding_snapshot": {
+            "confidence": 0.5806228047005481,
+            "narrative": "BULLISH",
+            "unified_score": 1.9795929395208551
+          }
+        },
+        "risk": {
+          "checks": [
+            {
+              "name": "risk.synthetic_invariant_posture",
+              "status": "ok"
+            },
+            {
+              "name": "daily_drawdown",
+              "threshold": 0.1,
+              "value": 0.0
+            },
+            {
+              "name": "open_positions",
+              "threshold": 5,
+              "value": 1.0
+            },
+            {
+              "name": "position_sizer",
+              "recommended": 200002.205,
+              "requested": 1.0
+            },
+            {
+              "name": "liquidity_confidence",
+              "threshold": 0.3,
+              "value": 0.973
+            },
+            {
+              "name": "policy.min_position_size",
+              "status": "ok",
+              "threshold": 1.0,
+              "value": 1.0
+            },
+            {
+              "name": "policy.max_position_size",
+              "status": "ok",
+              "threshold": 1000000.0,
+              "value": 1.0
+            },
+            {
+              "name": "policy.max_risk_per_trade_pct",
+              "ratio": 1.1084877789222373e-05,
+              "status": "ok",
+              "threshold": 2000.0220499999998,
+              "value": 0.022169999999999995
+            },
+            {
+              "name": "policy.max_total_exposure_pct",
+              "ratio": 4.421951247987491e-05,
+              "status": "ok",
+              "threshold": 50000.55125,
+              "value": 2.211
+            },
+            {
+              "name": "policy.max_leverage",
+              "ratio": 2.2109756239937453e-06,
+              "status": "ok",
+              "threshold": 10.0,
+              "value": 2.2109756239937454e-05
+            },
+            {
+              "name": "policy.max_drawdown_pct",
+              "status": "ok",
+              "threshold": 0.1,
+              "value": 0.0
+            },
+            {
+              "metadata": {
+                "confidence": 0.5806228047005481,
+                "limit_pct": 0.29031140235027403
+              },
+              "name": "risk.confidence_notional_limit",
+              "status": "ok",
+              "threshold": 29031.460303348493,
+              "value": 1.1055
+            },
+            {
+              "metadata": {
+                "equity": 100001.1025,
+                "projected_total_exposure": 1.1055
+              },
+              "name": "risk.leverage_ratio",
+              "status": "ok",
+              "threshold": 10.0,
+              "value": 1.1054878119968727e-05
+            },
+            {
+              "metadata": {
+                "gross_leverage": 4.415951314136762e-07,
+                "leverage_ratio": 4.4159513141367615e-08,
+                "max_exposure": 0.04416,
+                "position_ratio": 2.2079756570683808e-05,
+                "risk_score": 2.2079756570683808e-05,
+                "total_exposure": 0.04416,
+                "total_ratio": 8.831902628273524e-07
+              },
+              "name": "portfolio_risk_score",
+              "status": "ok",
+              "threshold": 1.0,
+              "value": 2.2079756570683808e-05
+            },
+            {
+              "name": "execution.slippage_bps",
+              "status": "ok",
+              "threshold": 25.0,
+              "value": 0.7853190243905999
+            },
+            {
+              "name": "execution.total_cost_bps",
+              "status": "ok",
+              "threshold": 35.0,
+              "value": 0.8853190243905998
+            },
+            {
+              "name": "execution.notional_pct_of_equity",
+              "status": "ok",
+              "threshold": 0.25,
+              "value": 1.1054878119968727e-05
+            },
+            {
+              "name": "execution.worst_case_fill_ticks",
+              "status": "ok",
+              "threshold": 0.0,
+              "value": 113.646809756094
+            },
+            {
+              "detail": "missing_ensemble",
+              "name": "dominance_gate",
+              "reason": "missing_ensemble",
+              "status": "skipped"
+            },
+            {
+              "name": "liquidity_probe",
+              "summary": {
+                "average_depth": 5750.0,
+                "average_liquidity": 1258.5600000000002,
+                "average_quality": 0.91,
+                "average_spread": 0.0001104,
+                "evaluated_levels": 5,
+                "observations_used": 2,
+                "peak_level": 1.1055,
+                "peak_liquidity": 6292.800000000001,
+                "structural_exit": {
+                  "anchor_price": 1.1055,
+                  "baseline_stop_loss_pct": 0.01,
+                  "covered_fraction": 1.0,
+                  "effective_stop_loss_pct": 0.02,
+                  "exit_side": "sell",
+                  "expected_exit_price": 1.1055,
+                  "mode": "liquidity_weighted",
+                  "path": [
+                    {
+                      "allocated": 1.0,
+                      "available_liquidity": 6292.800000000001,
+                      "fraction": 1.0,
+                      "price": 1.1055
+                    }
+                  ],
+                  "planned_loss_pct": 0.0,
+                  "planned_quantity": 1.0,
+                  "residual_quantity": 0.0
+                },
+                "symbol": "EURUSD",
+                "total_liquidity": 6292.800000000001
+              }
+            }
+          ],
+          "execution": {
+            "adverse_selection_penalty_ticks": 0.0,
+            "commission_bps": 0.1,
+            "delta_hat": 25.0,
+            "edge_spread_floor_ticks": 5.0,
+            "edge_ticks": 125.0,
+            "effective_spread_ticks": 5.0,
+            "estimated_cost": 9.78720181463808e-05,
+            "fees_ticks": 1.0,
+            "notional": 1.1055,
+            "notional_pct_of_equity": 1.1054878119968727e-05,
+            "sigma_ann": 0.00045,
+            "size_ratio": 1.1054878119968727e-05,
+            "slippage_bps": 0.7853190243905999,
+            "slippage_ticks": 7.853190243905998,
+            "spread": 5.5275e-05,
+            "spread_cost_ticks": 2.5,
+            "spread_ticks": 5.0,
+            "tick_size": 1.1055e-05,
+            "top_imbalance": 0.28,
+            "total_cost_bps": 0.8853190243905998,
+            "total_cost_ticks": 11.353190243905999,
+            "worst_case_fill_ticks": 113.646809756094
+          },
+          "policy": {
+            "approved": true,
+            "metadata": {
+              "current_total_exposure": 1.1025,
+              "equity": 100001.1025,
+              "estimated_risk": 0.022169999999999995,
+              "existing_position_notional": 1.1025,
+              "exposure_increase": 1.1084999999999998,
+              "max_total_exposure": 50000.55125,
+              "projected_leverage": 2.2109756239937454e-05,
+              "projected_notional": 2.211,
+              "projected_total_exposure": 2.211,
+              "research_mode": false,
+              "resolved_price": 1.1055,
+              "risk_budget": 2000.0220499999998,
+              "stop_loss_pct": 0.02,
+              "symbol": "EURUSD",
+              "violations": []
+            },
+            "reason": null,
+            "violations": []
+          },
+          "quantity": 1.0,
+          "risk_manager": {
+            "equity": 100001.1025,
+            "projected_risk_map": {
+              "REGIME::unknown": 0.04416
+            },
+            "risk_score": 2.2079756570683808e-05,
+            "snapshot": {
+              "gross_leverage": 4.415951314136762e-07,
+              "leverage_ratio": 4.4159513141367615e-08,
+              "max_exposure": 0.04416,
+              "position_ratio": 2.2079756570683808e-05,
+              "risk_score": 2.2079756570683808e-05,
+              "total_exposure": 0.04416,
+              "total_ratio": 8.831902628273524e-07
+            }
+          },
+          "risk_reference": {
+            "limits": {
+              "liquidity_probe_threshold": 1.0,
+              "max_daily_drawdown": 0.1,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_open_positions": 5,
+              "max_position_size": 1000000.0,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "min_intent_confidence": 0.2,
+              "min_liquidity_confidence": 0.3,
+              "min_position_size": 1.0,
+              "risk_per_trade": 0.02
+            },
+            "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+            "risk_config": {
+              "instrument_sector_map": {},
+              "inventory_mean_reversion_half_life_minutes": 15.0,
+              "mandatory_stop_loss": true,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_position_size": 1000000,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "max_volatility_leverage": 3.0,
+              "min_position_size": 1,
+              "research_mode": false,
+              "sector_exposure_limits": {},
+              "target_volatility_pct": 0.1,
+              "volatility_annualisation_factor": 1.0,
+              "volatility_window": 20
+            },
+            "risk_config_summary": {
+              "mandatory_stop_loss": true,
+              "max_drawdown_pct": 0.1,
+              "max_leverage": 10.0,
+              "max_position_size": 1000000,
+              "max_risk_per_trade_pct": 0.02,
+              "max_total_exposure_pct": 0.5,
+              "max_volatility_leverage": 3.0,
+              "min_position_size": 1,
+              "research_mode": false,
+              "risk_api_runbook": "docs/operations/runbooks/risk_api_contract.md",
+              "target_volatility_pct": 0.1,
+              "volatility_annualisation_factor": 1.0,
+              "volatility_window": 20
+            }
+          },
+          "status": "approved",
+          "strategy_id": "bootstrap-alpha",
+          "symbol": "EURUSD",
+          "timestamp": "2025-10-20T21:08:55.102873"
+        },
+        "throttle": {
+          "active": true,
+          "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+          "metadata": {
+            "context": {
+              "confidence": 0.5806228047005481,
+              "notional": 1.1055,
+              "strategy_id": "bootstrap-alpha",
+              "symbol": "EURUSD"
+            },
+            "max_trades": 1,
+            "recent_trades": 1,
+            "remaining_trades": 0,
+            "retry_at": "2025-10-20T21:10:55.021874+00:00",
+            "retry_in_seconds": 119.917856,
+            "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+            "window_reset_in_seconds": 119.917856,
+            "window_seconds": 120.0,
+            "window_utilisation": 1.0
+          },
+          "name": "trade_rate_limit",
+          "reason": "max_1_trades_per_120s",
+          "state": "rate_limited"
+        },
+        "trade_outcome": {
+          "executed": false,
+          "metadata": {
+            "inventory_state": {
+              "gross_notional": 0.0,
+              "half_life_minutes": 15.0,
+              "mean_reversion_pressure": 0.0,
+              "net_notional": 0.0,
+              "net_quantity": 0.0,
+              "normaliser": 1.0,
+              "updated_at": "2025-10-20T21:08:55.102448+00:00"
+            },
+            "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+            "reason": "max_1_trades_per_120s",
+            "retry_at": "2025-10-20T21:10:55.021874+00:00",
+            "retry_in_seconds": 119.917856,
+            "throttle": {
+              "active": true,
+              "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+              "metadata": {
+                "context": {
+                  "confidence": 0.5806228047005481,
+                  "notional": 1.1055,
+                  "strategy_id": "bootstrap-alpha",
+                  "symbol": "EURUSD"
+                },
+                "max_trades": 1,
+                "recent_trades": 1,
+                "remaining_trades": 0,
+                "retry_at": "2025-10-20T21:10:55.021874+00:00",
+                "retry_in_seconds": 119.917856,
+                "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+                "window_reset_in_seconds": 119.917856,
+                "window_seconds": 120.0,
+                "window_utilisation": 1.0
+              },
+              "name": "trade_rate_limit",
+              "reason": "max_1_trades_per_120s",
+              "state": "rate_limited"
+            },
+            "turnover": {
+              "cap_per_hour": null,
+              "cap_per_minute": null,
+              "per_hour": 0.0,
+              "per_minute": 0.0,
+              "updated_at": "2025-10-20T21:08:55.104166+00:00"
+            }
+          },
+          "status": "throttled",
+          "throttle": {
+            "active": true,
+            "message": "Throttled: too many trades in short time (limit 1 trade per 2 minutes)",
+            "metadata": {
+              "context": {
+                "confidence": 0.5806228047005481,
+                "notional": 1.1055,
+                "strategy_id": "bootstrap-alpha",
+                "symbol": "EURUSD"
+              },
+              "max_trades": 1,
+              "recent_trades": 1,
+              "remaining_trades": 0,
+              "retry_at": "2025-10-20T21:10:55.021874+00:00",
+              "retry_in_seconds": 119.917856,
+              "window_reset_at": "2025-10-20T21:10:55.021874+00:00",
+              "window_reset_in_seconds": 119.917856,
+              "window_seconds": 120.0,
+              "window_utilisation": 1.0
+            },
+            "name": "trade_rate_limit",
+            "reason": "max_1_trades_per_120s",
+            "state": "rate_limited"
+          }
+        }
+      },
+      "policy_id": "bootstrap-alpha",
+      "probes": [],
+      "recorded_at": "2025-10-20T21:08:55.151916+00:00",
+      "regime_state": {
+        "confidence": 0.5806228047005481,
+        "features": {
+          "dominant_narrative": "BULLISH",
+          "unified_score": 1.9795929395208551
+        },
+        "regime": "experiment",
+        "timestamp": "2025-10-20T21:07:55.006942+00:00"
+      },
+      "signature": "46b93374178346809318804507fa15f3f48509cafbf3736424013988b2be7725"
+    }
+  ],
+  "generated_at": "2025-10-20T21:08:55.155240+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T21:08:55.014374+00:00",
+    "probes": {}
+  }
+}

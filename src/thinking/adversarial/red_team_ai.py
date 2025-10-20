@@ -494,6 +494,7 @@ class RedTeamAI:
 
         self._attack_history_key = "emp:red_team_attacks"
         self._exploit_history_key = "emp:red_team_exploits"
+        self._agent_registry_key = "emp:red_team_agents"
 
     async def initialize(self) -> bool:
         return True
@@ -529,10 +530,16 @@ class RedTeamAI:
                 profile_map, known_vulnerabilities
             )
 
+            agent_map = await self._load_persistent_agents(weaknesses) if weaknesses else {}
+
             # Step 3: Generate attacks
             attacks = []
             for weakness in weaknesses:
                 attack = await self.attack_generator.create_attack(weakness, target_strategy)
+                if agent_map:
+                    agent = agent_map.get(weakness)
+                    if agent is not None:
+                        attack = self._apply_agent_specialization(agent, attack)
                 attacks.append(attack)
 
             # Step 4: Develop exploits
@@ -543,6 +550,9 @@ class RedTeamAI:
             for attack in attacks:
                 result = await self._execute_attack(target_strategy, attack)
                 attack_results.append(result)
+
+            if agent_map:
+                await self._update_persistent_agents(agent_map, attacks, attack_results)
 
             # Step 6: Store results
             await self._store_attack_results(
@@ -562,6 +572,18 @@ class RedTeamAI:
                 "improvements": recommendations,
                 "timestamp": datetime.utcnow().isoformat(),
             }
+
+            if agent_map:
+                report["persistent_agents"] = [
+                    {
+                        "agent_id": str(agent.get("agent_id", "")),
+                        "weakness": str(agent.get("weakness", "")),
+                        "skill_level": str(agent.get("skill_level", "")),
+                        "attack_count": int(agent.get("attack_count", 0)),
+                        "success_rate": float(agent.get("success_rate", 0.0)),
+                    }
+                    for _, agent in sorted(agent_map.items(), key=lambda item: item[0])
+                ]
 
             logger.info(
                 f"Red team attack complete on {target_strategy}: "
@@ -626,12 +648,28 @@ class RedTeamAI:
                 attack, "attack_id", (attack.get("attack_id") if isinstance(attack, dict) else None)
             ) or str(uuid.uuid4())
 
+            if isinstance(attack, Mapping):
+                agent_id = attack.get("assigned_agent_id")
+                specialization_level = attack.get("specialization_level")
+                params = attack.get("parameters") if isinstance(attack.get("parameters"), Mapping) else None
+            else:
+                agent_id = getattr(attack, "assigned_agent_id", None)
+                specialization_level = getattr(attack, "specialization_level", None)
+                params = getattr(attack, "parameters", None)
+
+            intensity: object | None = None
+            if isinstance(params, Mapping):
+                intensity = params.get("intensity")
+
             return {
                 "attack_id": attack_id,
                 "strategy_id": target_strategy,
                 "success": actual_success,
                 "impact": success_probability if actual_success else 0.0,
                 "timestamp": datetime.utcnow().isoformat(),
+                "assigned_agent_id": agent_id,
+                "specialization_level": specialization_level,
+                "intensity": intensity,
             }
 
         except Exception as e:
@@ -651,6 +689,267 @@ class RedTeamAI:
                 "impact": 0.0,
                 "error": str(e),
             }
+
+    async def _load_persistent_agents(
+        self, weaknesses: Sequence[str]
+    ) -> dict[str, dict[str, object]]:
+        """Load or initialize persistent adversaries for each weakness."""
+        agents: dict[str, dict[str, object]] = {}
+        seen: set[str] = set()
+        for weakness in weaknesses:
+            if not isinstance(weakness, str) or not weakness:
+                continue
+            if weakness in seen:
+                continue
+            seen.add(weakness)
+
+            key = f"{self._agent_registry_key}:{weakness}"
+            raw_agent = await self.state_store.get(key)
+            agent: dict[str, object]
+            is_new = False
+            if raw_agent:
+                try:
+                    decoded = json.loads(raw_agent)
+                except json.JSONDecodeError as exc:
+                    logger.warning(
+                        "Invalid persistent red-team agent payload for %s: %s",
+                        key,
+                        exc,
+                        exc_info=exc,
+                    )
+                    decoded = None
+                if isinstance(decoded, dict):
+                    agent = decoded
+                else:
+                    agent = self._create_agent_profile(weakness)
+                    is_new = True
+            else:
+                agent = self._create_agent_profile(weakness)
+                is_new = True
+
+            agent.setdefault("weakness", weakness)
+            agent.setdefault("attack_count", 0)
+            agent.setdefault("success_count", 0)
+            agent.setdefault("success_rate", 0.0)
+            agent.setdefault("known_tactics", [])
+            agent.setdefault("agent_id", str(uuid.uuid4()))
+            agent.setdefault("created_at", datetime.utcnow().isoformat())
+            agent.setdefault("skill_level", self._classify_agent_skill(agent))
+            if is_new:
+                agent["updated_at"] = agent["created_at"]
+                await self._persist_agent_profile(agent)
+            agents[weakness] = agent
+
+        return agents
+
+    def _create_agent_profile(self, weakness: str) -> dict[str, object]:
+        """Create a default agent profile for a weakness."""
+        now = datetime.utcnow().isoformat()
+        return {
+            "agent_id": str(uuid.uuid4()),
+            "weakness": weakness,
+            "attack_count": 0,
+            "success_count": 0,
+            "success_rate": 0.0,
+            "skill_level": "novice",
+            "known_tactics": [],
+            "preferred_intensity": "medium",
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    def _forecast_agent_skill(self, agent: Mapping[str, object]) -> str:
+        """Estimate agent skill for the upcoming engagement."""
+        try:
+            attack_count = int(agent.get("attack_count", 0))
+        except Exception:
+            attack_count = 0
+        try:
+            success_rate = float(agent.get("success_rate", 0.0))
+        except Exception:
+            success_rate = 0.0
+
+        if attack_count >= 4 and success_rate >= 0.6:
+            return "elite"
+        if attack_count >= 1 and success_rate >= 0.4:
+            return "seasoned"
+        return "novice"
+
+    def _apply_agent_specialization(
+        self, agent: dict[str, object], attack: object
+    ) -> dict[str, object]:
+        """Tailor an attack to leverage a persistent agent's expertise."""
+
+        payload: dict[str, object]
+        if isinstance(attack, Mapping):
+            payload = dict(attack)
+        else:
+            payload = _to_mapping(attack)
+
+        parameters = payload.get("parameters")
+        if isinstance(parameters, Mapping):
+            params = dict(parameters)
+        else:
+            params = {}
+
+        skill = self._forecast_agent_skill(agent)
+        base_intensity = str(params.get("intensity", "medium"))
+        calibrated_intensity = self._calibrate_intensity(base_intensity, skill)
+
+        params["intensity"] = calibrated_intensity
+        params["assigned_agent_id"] = agent.get("agent_id")
+        params["specialization_level"] = skill
+        params.setdefault("attack_vector", payload.get("attack_type", params.get("attack_vector")))
+        params["focus_weakness"] = agent.get("weakness")
+
+        payload["parameters"] = params
+        payload["assigned_agent_id"] = agent.get("agent_id")
+        payload["specialization_level"] = skill
+        payload.setdefault("weakness_targeted", agent.get("weakness"))
+
+        agent["skill_level"] = skill
+        agent["preferred_intensity"] = calibrated_intensity
+
+        return payload
+
+    def _calibrate_intensity(self, current: str, skill: str) -> str:
+        """Raise attack intensity based on agent skill while preserving intent."""
+        order = ["low", "medium", "high", "extreme"]
+        try:
+            current_idx = order.index(current)
+        except ValueError:
+            current_idx = 1
+
+        target_idx = {
+            "novice": 1,
+            "seasoned": 2,
+            "elite": 3,
+        }.get(skill, 1)
+
+        final_idx = max(current_idx, target_idx)
+        return order[final_idx]
+
+    def _classify_agent_skill(self, agent: Mapping[str, object]) -> str:
+        """Classify an agent's long-term proficiency."""
+        try:
+            attack_count = int(agent.get("attack_count", 0))
+        except Exception:
+            attack_count = 0
+        try:
+            success_rate = float(agent.get("success_rate", 0.0))
+        except Exception:
+            success_rate = 0.0
+
+        if attack_count >= 5 and success_rate >= 0.6:
+            return "elite"
+        if attack_count >= 1 and success_rate >= 0.5:
+            return "seasoned"
+        return "novice"
+
+    async def _persist_agent_profile(self, agent: Mapping[str, object]) -> None:
+        """Persist agent metadata with a generous TTL."""
+        weakness = agent.get("weakness")
+        if not isinstance(weakness, str) or not weakness:
+            return
+
+        try:
+            payload = json.dumps(agent, sort_keys=True, separators=(",", ":"), default=str)
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to encode persistent red-team agent for %s: %s",
+                weakness,
+                exc,
+                exc_info=exc,
+            )
+            return
+
+        await self.state_store.set(
+            f"{self._agent_registry_key}:{weakness}",
+            payload,
+            expire=86400 * 90,
+        )
+
+    async def _update_persistent_agents(
+        self,
+        agent_map: Mapping[str, dict[str, object]],
+        attacks: Sequence[object],
+        attack_results: Sequence[Mapping[str, object]],
+    ) -> None:
+        """Update persistent agent records after executing attacks."""
+        if not agent_map:
+            return
+
+        attack_lookup: dict[str, Mapping[str, object]] = {}
+        for attack in attacks:
+            if isinstance(attack, Mapping):
+                payload = attack
+            else:
+                payload = _to_mapping(attack)
+            aid = payload.get("attack_id")
+            if isinstance(aid, str) and aid:
+                attack_lookup[aid] = payload
+
+        for result in attack_results:
+            if not isinstance(result, Mapping):
+                continue
+            attack_id = result.get("attack_id")
+            if not isinstance(attack_id, str) or attack_id not in attack_lookup:
+                continue
+
+            attack_payload = attack_lookup[attack_id]
+            weakness = attack_payload.get("weakness_targeted")
+            if not isinstance(weakness, str):
+                continue
+
+            agent = agent_map.get(weakness)
+            if agent is None:
+                continue
+
+            success = bool(result.get("success", False))
+            total_attacks = int(agent.get("attack_count", 0)) + 1
+            success_count = int(agent.get("success_count", 0)) + (1 if success else 0)
+            success_rate = float(success_count / total_attacks) if total_attacks else 0.0
+
+            agent["attack_count"] = total_attacks
+            agent["success_count"] = success_count
+            agent["success_rate"] = success_rate
+            agent["last_attack"] = datetime.utcnow().isoformat()
+
+            params = attack_payload.get("parameters")
+            if isinstance(params, Mapping):
+                maybe_intensity = params.get("intensity")
+                if isinstance(maybe_intensity, str):
+                    agent["preferred_intensity"] = maybe_intensity
+
+            tactic = attack_payload.get("attack_type")
+            if not isinstance(tactic, str):
+                if isinstance(params, Mapping):
+                    maybe = params.get("attack_vector")
+                    if isinstance(maybe, str):
+                        tactic = maybe
+            if isinstance(tactic, str):
+                known_raw = agent.get("known_tactics", [])
+                known = list(known_raw) if isinstance(known_raw, list) else []
+                if tactic not in known:
+                    known.append(tactic)
+                    if len(known) > 5:
+                        known = known[-5:]
+                agent["known_tactics"] = known
+
+            agent["skill_level"] = self._classify_agent_skill(agent)
+            agent.setdefault("agent_id", str(uuid.uuid4()))
+            agent.setdefault("created_at", datetime.utcnow().isoformat())
+            agent["updated_at"] = datetime.utcnow().isoformat()
+
+            try:
+                await self._persist_agent_profile(agent)
+            except Exception as exc:  # pragma: no cover - defensive persistence guard
+                logger.error(
+                    "Failed to persist red-team agent %s: %s",
+                    agent.get("agent_id"),
+                    exc,
+                    exc_info=exc,
+                )
 
     async def _store_attack_results(
         self,
@@ -727,6 +1026,7 @@ class RedTeamAI:
         """Get Red Team AI statistics."""
         try:
             keys = await self.state_store.keys(f"{self._attack_history_key}:*")
+            agent_keys = await self.state_store.keys(f"{self._agent_registry_key}:*")
 
             total_attacks = 0
             successful_attacks = 0
@@ -755,12 +1055,35 @@ class RedTeamAI:
                     if isinstance(weaknesses, list):
                         total_weaknesses += len(weaknesses)
 
+            skill_distribution = {"novice": 0, "seasoned": 0, "elite": 0}
+            for agent_key in agent_keys:
+                payload = await self.state_store.get(agent_key)
+                if not payload:
+                    continue
+                try:
+                    agent_record = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    logger.debug(
+                        "Skipping malformed agent record %s: %s",
+                        agent_key,
+                        exc,
+                        exc_info=exc,
+                    )
+                    continue
+                if not isinstance(agent_record, dict):
+                    continue
+                skill = agent_record.get("skill_level", "novice")
+                if isinstance(skill, str) and skill in skill_distribution:
+                    skill_distribution[skill] += 1
+
             return {
                 "total_strategies_attacked": len(keys),
                 "total_attacks": total_attacks,
                 "successful_attacks": successful_attacks,
                 "total_weaknesses_found": total_weaknesses,
                 "success_rate": successful_attacks / total_attacks if total_attacks > 0 else 0,
+                "dedicated_agents": len(agent_keys),
+                "agent_skill_distribution": skill_distribution,
                 "last_attack": datetime.utcnow().isoformat(),
             }
 
@@ -772,5 +1095,7 @@ class RedTeamAI:
                 "successful_attacks": 0,
                 "total_weaknesses_found": 0,
                 "success_rate": 0,
+                "dedicated_agents": 0,
+                "agent_skill_distribution": {"novice": 0, "seasoned": 0, "elite": 0},
                 "last_attack": None,
             }

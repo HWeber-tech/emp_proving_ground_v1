@@ -8,7 +8,7 @@
 
 - [x] Integrate OAuth2 or token-based authentication for APIs and dashboards  
 - [x] Add authentication middleware to protect endpoints  
-- [ ] Create basic user role storage (in-memory or database)  
+- [x] Create basic user role storage (in-memory or database)  
 - [x] Secure API access via token validation  
 - [ ] Document how to acquire and use authentication tokens  
 
@@ -18,10 +18,10 @@
 
 - [x] Enforce TLS on all API/web services  
 - [x] Support HTTPS for development (e.g. self-signed certificates)  
-- [ ] Add warnings if production runs without TLS  
+- [x] Add warnings if production runs without TLS  
 - [x] Store DuckDB files on encrypted volume or encrypt sensitive fields  
 - [x] Ensure logs/configs do not store plaintext secrets  
-- [ ] Document encryption setup and deployment practices  
+- [x] Document encryption setup and deployment practices  
 
 ---
 

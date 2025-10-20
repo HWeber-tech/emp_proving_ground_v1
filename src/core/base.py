@@ -125,8 +125,17 @@ class MarketData:
         self.symbol: str = str(kwargs.pop("symbol", "UNKNOWN"))
 
         # Time
-        ts_raw: object = kwargs.pop("timestamp", datetime.utcnow())
-        self.timestamp: datetime = ts_raw if isinstance(ts_raw, datetime) else datetime.utcnow()
+        ts_raw: object | None = kwargs.pop("timestamp", None)
+        self.timestamp: datetime
+        if isinstance(ts_raw, datetime):
+            self.timestamp = ts_raw
+        elif isinstance(ts_raw, (int, float)):
+            try:
+                self.timestamp = datetime.utcfromtimestamp(ts_raw)
+            except (OverflowError, OSError, ValueError):
+                self.timestamp = datetime.utcnow()
+        else:
+            self.timestamp = datetime.utcnow()
 
         # Prices and helpers
         def _to_float(x: Optional[Union[float, int, str]], default: float = 0.0) -> float:

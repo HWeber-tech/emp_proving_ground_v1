@@ -33,12 +33,12 @@
 - [ ] **A.3.3** cTrader adapter: replace missing domain events with typed payloads or plain bus events; ensure async usage is correct.
 
 ### A.4 Minimal compose & health
-- [ ] **A.4.1** `docker-compose.yml` services: **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
+- [x] **A.4.1** `docker-compose.yml` services: **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
 - [x] **A.4.2** `/health` + `/metrics` (Prometheus): `event_lag_ms`, `queue_depth`, `p50/90/99_infer_ms`, `drops`, `risk_halted`.
 
 ### A.5 Tests & validation
 - [ ] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
-- [ ] **A.5.2** Turn `system_validation_report` into **CI**; build fails if any check red.  
+- [x] **A.5.2** Turn `system_validation_report` into **CI**; build fails if any check red.  
 - [x] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock-paper status).
 
 **Definition of Done (A):** `docker compose up` runs mock end-to-end; FIX replay test passes; `/metrics` exposes latency & queue stats; CI green.
@@ -61,7 +61,7 @@
 - [x] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
 
 ### B.3 Targets & guards
-- [ ] **B.3.1** Robust σ: EWMA(|returns|) or rolling MAD×1.4826 over past‑only window  
+- [x] **B.3.1** Robust σ: EWMA(|returns|) or rolling MAD×1.4826 over past‑only window  
 - [x] **B.3.2** Dimensionless delta_hat = (mid[t+H]-mid[t])/(tick*max(spread, kσ).  
 - [ ] **B.3.3** Dual horizons: event-time {1,5,20} **and** wall-time {100ms, 500ms, 2s}.  
 - [x] **B.3.4** Daily **class prior** estimation for `pos_weight`; no future peeking.  
@@ -291,7 +291,7 @@ body:
 ## Automation updates — 2025-10-20T06:47:14Z
 
 ### Last 4 commits
-- 5965afc4 docs(docs): add 9 files (2025-10-20)
-- 1a1ba0de refactor(governance): tune 2 files (2025-10-20)
-- 389fddf1 feat(trading): add 3 files (2025-10-20)
-- df92751f feat(.github): add 6 files (2025-10-20)
+- 653da17f chore(docker-compose.yml): tune 1 file (2025-10-20)
+- 62273713 refactor(trading): tune 2 files (2025-10-20)
+- 1877d43a test(scripts): tune 3 files (2025-10-20)
+- d997cc48 chore(docker-compose.yml): tune 1 file (2025-10-20)

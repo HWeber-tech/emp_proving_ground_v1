@@ -23,7 +23,10 @@ class TimeStamper:
     ) -> MutableMapping[str, object]:
         timestamp = datetime.now(tz=UTC if self._utc else None)
         if self._fmt == "iso":
-            event_dict.setdefault(self._key, timestamp.isoformat())
+            rendered = timestamp.isoformat()
+            if self._utc and rendered.endswith("+00:00"):
+                rendered = rendered[:-6] + "Z"
+            event_dict.setdefault(self._key, rendered)
         else:  # pragma: no cover - alternative formats are out of scope
             event_dict.setdefault(self._key, timestamp.strftime(self._fmt))
         return event_dict

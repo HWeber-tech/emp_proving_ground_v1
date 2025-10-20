@@ -14,3 +14,12 @@ def test_timestamper_respects_custom_key():
     timestamper(None, "", event)
 
     assert event["time"] == first_value
+
+
+def test_timestamper_utc_iso_uses_z_suffix():
+    timestamper = TimeStamper(utc=True)
+    event: dict[str, str] = {}
+
+    timestamper(None, "", event)
+
+    assert event["timestamp"].endswith("Z")

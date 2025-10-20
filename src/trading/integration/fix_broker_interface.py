@@ -468,12 +468,15 @@ class FIXBrokerInterface:
         except Exception as exc:
             logger.debug("risk_violation_emit_failed", error=str(exc))
 
-    def _has_seen_exec(self, order_id: str, exec_id: str) -> bool:
-        key = (order_id, exec_id)
+    def _make_exec_key(self, order_id: str | None, exec_id: str | None) -> tuple[str, str] | None:
+        if not order_id or not exec_id:
+            return None
+        return (order_id, exec_id)
+
+    def _has_seen_exec(self, key: tuple[str, str]) -> bool:
         return key in self._exec_dedupe
 
-    def _remember_exec(self, order_id: str, exec_id: str) -> None:
-        key = (order_id, exec_id)
+    def _remember_exec(self, key: tuple[str, str]) -> None:
         cache = self._exec_dedupe
         cache[key] = None
         if len(cache) > self._exec_dedupe_capacity:
@@ -704,7 +707,8 @@ class FIXBrokerInterface:
             if not order_id or not exec_type:
                 return
 
-            if exec_id and self._has_seen_exec(order_id, exec_id):
+            dedupe_key = self._make_exec_key(order_id, exec_id)
+            if dedupe_key and self._has_seen_exec(dedupe_key):
                 with order_logging_context(order_id, exec_type=exec_type):
                     logger.debug("execution_report_duplicate", exec_id=exec_id)
                 return
@@ -780,6 +784,8 @@ class FIXBrokerInterface:
                 "timestamp": datetime.now(timezone.utc),
             }
 
+            update_payload["cl_ord_id"] = order_id
+
             if exec_id is not None:
                 update_payload["exec_id"] = exec_id
             update_payload["last_qty"] = last_qty
@@ -820,8 +826,8 @@ class FIXBrokerInterface:
                         )
                 await self._notify_listeners(event_type, order_id, update_payload)
 
-            if exec_id:
-                self._remember_exec(order_id, exec_id)
+            if dedupe_key:
+                self._remember_exec(dedupe_key)
 
             with order_logging_context(order_id, exec_type=exec_type):
                 try:

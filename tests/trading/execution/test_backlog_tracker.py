@@ -34,6 +34,9 @@ def test_backlog_tracker_records_samples_and_breaches() -> None:
     assert snapshot["healthy"] is False
     assert snapshot["worst_breach_ms"] == 150.0
     assert snapshot["last_breach_at"] is not None
+    assert snapshot["breach_active"] is True
+    assert snapshot["last_recovery_ms"] is None
+    assert snapshot["last_recovery_at"] is None
 
 
 def test_backlog_tracker_handles_empty_samples() -> None:
@@ -51,6 +54,9 @@ def test_backlog_tracker_handles_empty_samples() -> None:
         "latest_lag_ms": None,
         "healthy": True,
         "last_breach_at": None,
+        "breach_active": False,
+        "last_recovery_at": None,
+        "last_recovery_ms": None,
     }
 
 
@@ -65,6 +71,7 @@ def test_backlog_tracker_clamps_negative_lag() -> None:
     assert snapshot["latest_lag_ms"] == 0.0
     assert snapshot["p95_lag_ms"] == 0.0
     assert snapshot["healthy"] is True
+    assert snapshot["breach_active"] is False
 
 
 def test_backlog_tracker_rolls_window_efficiency() -> None:
@@ -101,3 +108,22 @@ def test_backlog_tracker_updates_worst_breach_after_rollover() -> None:
     assert snapshot["breach_rate"] == pytest.approx(1.0)
     assert snapshot["max_breach_streak"] == 2
     assert snapshot["latest_lag_ms"] == pytest.approx(130.0)
+
+
+def test_backlog_tracker_records_recovery_latency() -> None:
+    tracker = EventBacklogTracker(threshold_ms=200.0, window=8)
+    base = datetime.now(tz=timezone.utc)
+    tracker.record(lag_ms=20.0, timestamp=base)
+    tracker.record(lag_ms=320.0, timestamp=base + timedelta(milliseconds=10))
+    tracker.record(lag_ms=280.0, timestamp=base + timedelta(milliseconds=60))
+
+    recovery_time = base + timedelta(milliseconds=190)
+    observation = tracker.record(lag_ms=40.0, timestamp=recovery_time)
+    assert observation is not None
+    assert observation.breach is False
+
+    snapshot = tracker.snapshot()
+    assert snapshot["breach_active"] is False
+    assert snapshot["last_recovery_ms"] == pytest.approx(180.0)
+    assert snapshot["last_recovery_at"] is not None
+    assert snapshot["breaches"] == 2

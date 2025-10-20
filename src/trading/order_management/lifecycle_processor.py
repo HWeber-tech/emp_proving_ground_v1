@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
-from typing import Callable, Iterable, Optional
+from typing import Callable, Iterable, Mapping, Optional
 
 from .event_journal import OrderEventJournal
 from .order_state_machine import (
@@ -83,7 +83,7 @@ class OrderLifecycleProcessor:
         return None
 
     @staticmethod
-    def _normalise_exec_id(value: object | None) -> str | None:
+    def _normalise_identifier(value: object | None) -> str | None:
         if value is None:
             return None
         if isinstance(value, (bytes, bytearray)):
@@ -94,17 +94,46 @@ class OrderLifecycleProcessor:
         text = str(value).strip()
         return text or None
 
+    @classmethod
+    def _normalise_exec_id(cls, value: object | None) -> str | None:
+        return cls._normalise_identifier(value)
+
     def _extract_exec_id(self, payload: dict) -> str | None:
         for key in ("exec_id", "execId", "ExecID", "execID", "ExecId"):
             if key in payload:
                 return self._normalise_exec_id(payload.get(key))
         return None
 
-    def _has_seen_exec(self, order_id: str, exec_id: str) -> bool:
-        return (order_id, exec_id) in self._exec_dedupe
+    def _extract_cl_ord_id(self, payload: Mapping[str, object], fallback: str) -> str:
+        candidates = (
+            "cl_ord_id",
+            "clOrdID",
+            "clOrdId",
+            "ClOrdID",
+            "client_order_id",
+            "clientOrderId",
+            "order_id",
+            "orderId",
+        )
+        for key in candidates:
+            if key in payload:
+                text = self._normalise_identifier(payload.get(key))
+                if text:
+                    return text
+        return fallback
 
-    def _remember_exec(self, order_id: str, exec_id: str) -> None:
-        key = (order_id, exec_id)
+    def _make_exec_dedupe_key(
+        self, order_id: str, exec_id: str | None, payload: Mapping[str, object]
+    ) -> tuple[str, str] | None:
+        if not exec_id:
+            return None
+        cl_ord_id = self._extract_cl_ord_id(payload, order_id)
+        return (cl_ord_id, exec_id)
+
+    def _has_seen_exec(self, key: tuple[str, str]) -> bool:
+        return key in self._exec_dedupe
+
+    def _remember_exec(self, key: tuple[str, str]) -> None:
         cache = self._exec_dedupe
         cache[key] = None
         if len(cache) > self._exec_dedupe_capacity:
@@ -146,7 +175,8 @@ class OrderLifecycleProcessor:
 
         event = OrderExecutionEvent.from_broker_payload(order_id, payload)
         exec_id = self._extract_exec_id(payload)
-        if exec_id and self._has_seen_exec(order_id, exec_id):
+        dedupe_key = self._make_exec_dedupe_key(order_id, exec_id, payload)
+        if dedupe_key and self._has_seen_exec(dedupe_key):
             return self._state_machine.snapshot(order_id)
         state = self._state_machine.apply_event(event)
         snapshot = self._state_machine.snapshot(event.order_id)
@@ -155,8 +185,8 @@ class OrderLifecycleProcessor:
             self._latency_monitor.record_transition(state, event, snapshot)
         if self._journal is not None:
             self._journal.append(event, snapshot)
-        if exec_id:
-            self._remember_exec(order_id, exec_id)
+        if dedupe_key:
+            self._remember_exec(dedupe_key)
         return snapshot
 
     # ------------------------------------------------------------------

@@ -47,6 +47,10 @@ class EventBacklogTracker:
         self._sample_sum: float = 0.0
         self._worst_breach: float = 0.0
         self._latest_lag: float | None = None
+        self._breach_active: bool = False
+        self._last_breach_at: datetime | None = None
+        self._last_recovery_at: datetime | None = None
+        self._last_recovery_ms: float | None = None
 
     @property
     def threshold_ms(self) -> float:
@@ -97,6 +101,11 @@ class EventBacklogTracker:
         breach_event: BacklogBreach | None = None
         if breach_flag:
             breach_event = BacklogBreach(timestamp=timestamp, lag_ms=lag_value)
+            if not self._breach_active:
+                self._last_breach_at = timestamp
+            self._breach_active = True
+            self._last_recovery_at = None
+            self._last_recovery_ms = None
             if len(self._breaches) >= self._window:
                 removed_breach = self._breaches.popleft()
                 if removed_breach.lag_ms >= self._worst_breach:
@@ -106,6 +115,11 @@ class EventBacklogTracker:
             self._breaches.append(breach_event)
             if lag_value > self._worst_breach:
                 self._worst_breach = lag_value
+        elif self._breach_active and self._last_breach_at is not None:
+            delta = (timestamp - self._last_breach_at).total_seconds() * 1000.0
+            self._last_recovery_ms = max(delta, 0.0)
+            self._last_recovery_at = timestamp
+            self._breach_active = False
 
         return BacklogObservation(
             timestamp=timestamp,
@@ -130,6 +144,9 @@ class EventBacklogTracker:
                 "latest_lag_ms": None,
                 "healthy": True,
                 "last_breach_at": None,
+                "breach_active": self._breach_active,
+                "last_recovery_at": None,
+                "last_recovery_ms": None,
             }
 
         samples = len(self._samples)
@@ -147,6 +164,11 @@ class EventBacklogTracker:
             else None
         )
         healthy = max_lag <= self._threshold_ms
+        last_recovery_at = (
+            self._last_recovery_at.astimezone(UTC).isoformat()
+            if self._last_recovery_at is not None
+            else None
+        )
         snapshot: MutableMapping[str, object | None] = {
             "samples": samples,
             "threshold_ms": self._threshold_ms,
@@ -159,6 +181,9 @@ class EventBacklogTracker:
             "latest_lag_ms": latest_lag,
             "healthy": healthy,
             "last_breach_at": last_breach_at,
+            "breach_active": self._breach_active,
+            "last_recovery_at": last_recovery_at,
+            "last_recovery_ms": self._last_recovery_ms,
         }
         if breaches:
             worst = self._worst_breach
@@ -178,6 +203,10 @@ class EventBacklogTracker:
         self._sample_sum = 0.0
         self._worst_breach = 0.0
         self._latest_lag = None
+        self._breach_active = False
+        self._last_breach_at = None
+        self._last_recovery_at = None
+        self._last_recovery_ms = None
 
 
 def _percentile(values: Sequence[float], percentile: float) -> float | None:

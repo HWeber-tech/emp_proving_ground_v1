@@ -351,6 +351,8 @@ def _evaluate_candidates(
             print(f"[failed] id={candidate_id} reason=timeout")
             findings_memory.promote_tested(conn, candidate_id, {"error": "timeout"}, False)
             _append_note_once(conn, candidate_id, "full_eval_error:timeout")
+            _append_note_once(conn, candidate_id, EVIDENCE_NOTE_FULL)
+            _append_note_once(conn, candidate_id, EVIDENCE_NOTE_COVERAGE)
             _append_note_once(conn, candidate_id, metadata_note)
             evaluated += 1
             continue
@@ -358,6 +360,8 @@ def _evaluate_candidates(
             print(f"[failed] id={candidate_id} reason=error")
             findings_memory.promote_tested(conn, candidate_id, {"error": repr(exc)}, False)
             _append_note_once(conn, candidate_id, f"full_eval_error:{exc!r}")
+            _append_note_once(conn, candidate_id, EVIDENCE_NOTE_FULL)
+            _append_note_once(conn, candidate_id, EVIDENCE_NOTE_COVERAGE)
             _append_note_once(conn, candidate_id, metadata_note)
             evaluated += 1
             continue

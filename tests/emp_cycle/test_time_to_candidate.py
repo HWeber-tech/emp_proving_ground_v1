@@ -54,8 +54,8 @@ def test_time_to_candidate_stats(tmp_path):
 
     with conn:
         conn.execute(
-            "UPDATE findings SET tested_at = ?, completed_at = ? WHERE id = ?",
-            ("2024-01-02 18:00:00", "2024-01-02 18:00:00", fid_slow),
+            "UPDATE findings SET tested_at = ?, completed_at = NULL WHERE id = ?",
+            ("2024-01-02 18:00:00", fid_slow),
         )
 
     stats = findings_memory.time_to_candidate_stats(conn)
@@ -69,6 +69,7 @@ def test_time_to_candidate_stats(tmp_path):
     assert len(stats.breaches) == 1
     assert stats.breaches[0].id == fid_slow
     assert pytest.approx(stats.breaches[0].hours, rel=1e-4) == 42.0
+    assert stats.breaches[0].completed_at == "2024-01-02 18:00:00"
 
 
 def test_nearest_novelty_excludes_current_row(tmp_path):

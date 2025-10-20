@@ -53,7 +53,11 @@ def test_scheduler_promotes_candidate(tmp_path: Path) -> None:
     assert row is not None
     assert row["stage"] in {"tested", "progress"}
     assert row["tested_at"] is not None
-    assert "scheduler:test" in (row["notes"] or "")
+    notes = row["notes"] or ""
+    assert "scheduler:test" in notes
+    assert "evidence:quick-screen" in notes
+    assert "evidence:full-eval" in notes
+    assert "coverage:regression" in notes
 
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
     assert "sharpe" in baseline

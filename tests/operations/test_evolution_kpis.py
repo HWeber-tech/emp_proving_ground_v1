@@ -154,3 +154,35 @@ def test_evaluate_evolution_kpis_handles_missing_inputs(
     assert snapshot.promotion is None
     assert snapshot.budget is None
     assert snapshot.rollback is None
+
+
+def test_evolution_kpis_normalises_missing_completed_at(monkeypatch: pytest.MonkeyPatch) -> None:
+    _stub_metrics(monkeypatch)
+
+    stats_payload = {
+        "count": 1,
+        "average_hours": 10.0,
+        "median_hours": 10.0,
+        "p90_hours": 10.0,
+        "max_hours": 10.0,
+        "threshold_hours": 24.0,
+        "sla_met": True,
+        "breaches": [
+            {
+                "id": 99,
+                "stage": "tested",
+                "created_at": "2025-01-01T00:00:00Z",
+                "progress_at": "2025-01-01T06:00:00Z",
+                "tested_at": "2025-01-01T08:00:00Z",
+                "completed_at": None,
+                "hours": 10.0,
+            }
+        ],
+    }
+
+    snapshot = evaluate_evolution_kpis(time_to_candidate=stats_payload)
+
+    assert snapshot.time_to_candidate is not None
+    breaches = snapshot.time_to_candidate.breaches
+    assert len(breaches) == 1
+    assert breaches[0]["completed_at"] == "2025-01-01T06:00:00Z"

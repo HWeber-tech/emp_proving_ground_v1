@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from src.core.performance.market_data_cache import MarketDataCache, _InMemoryCache
 
 

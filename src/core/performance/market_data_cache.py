@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import threading
 import time
 from typing import TypedDict, cast
@@ -56,9 +57,13 @@ class MarketDataCache:
         if snap is None:
             return None
         try:
-            return (float(snap["bid"]) + float(snap["ask"])) / 2.0
+            bid = float(snap["bid"])
+            ask = float(snap["ask"])
         except Exception:
             return None
+        if not math.isfinite(bid) or not math.isfinite(ask):
+            return None
+        return (bid + ask) / 2.0
 
     # Legacy KV API (backward-compatible with _InMemoryCache)
     def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:

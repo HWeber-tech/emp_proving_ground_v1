@@ -779,6 +779,9 @@ class MarketAnalyzer(ThinkingPattern):
         opportunity, sentiment = state
         reward = self._estimate_reward(opportunity, sentiment, action)
         next_state = self._advance_state(opportunity, sentiment, action, depth)
+        next_state, reward = self._apply_adversarial_factors(
+            opportunity, sentiment, action, depth, next_state, reward
+        )
         return next_state, reward
 
     def _advance_state(
@@ -848,6 +851,68 @@ class MarketAnalyzer(ThinkingPattern):
         if urgency < 0.45:
             return "hold"
         return "post"
+
+    def _apply_adversarial_factors(
+        self,
+        opportunity: float,
+        sentiment: float,
+        action: str,
+        depth: int,
+        next_state: tuple[float, float],
+        reward: float,
+    ) -> tuple[tuple[float, float], float]:
+        spoofer_pressure, front_run_pressure, reversion_pressure = self._simulate_adversaries(
+            opportunity, sentiment, action, depth
+        )
+
+        reward_penalty = 0.0
+        if action == "cross":
+            reward_penalty += front_run_pressure * 0.35 + spoofer_pressure * 0.22
+            reward_penalty += reversion_pressure * 0.18
+        elif action == "post":
+            reward_penalty += spoofer_pressure * 0.28 + front_run_pressure * 0.12
+            reward_penalty += reversion_pressure * 0.1
+        else:  # hold
+            reward_penalty += reversion_pressure * 0.05
+
+        adjusted_reward = reward - reward_penalty
+
+        next_opportunity, next_sentiment = next_state
+        next_opportunity = self._clamp(
+            next_opportunity - spoofer_pressure * 0.04 - front_run_pressure * 0.05
+        )
+        next_sentiment = self._clamp(next_sentiment - spoofer_pressure * 0.03)
+
+        if action != "hold":
+            next_opportunity = self._clamp(next_opportunity - reversion_pressure * 0.06)
+            next_sentiment = self._clamp(next_sentiment - reversion_pressure * 0.04)
+
+        return (next_opportunity, next_sentiment), adjusted_reward
+
+    def _simulate_adversaries(
+        self, opportunity: float, sentiment: float, action: str, depth: int
+    ) -> tuple[float, float, float]:
+        alignment = min(opportunity, sentiment)
+        urgency = max(opportunity, sentiment)
+
+        base_seed = (
+            int(opportunity * 1000.0) * 97
+            + int(sentiment * 1000.0) * 53
+            + depth * 37
+            + self._planner_action_hash[action] * 19
+        ) & 0xFFFFFFFF
+
+        spoofer_raw = (base_seed >> 8) & 0xFF
+        front_run_raw = (base_seed >> 16) & 0xFF
+        reversion_raw = (base_seed >> 24) & 0xFF
+
+        imbalance = abs(opportunity - sentiment)
+
+        spoofer_pressure = (spoofer_raw / 255.0) * (0.25 + imbalance * 0.75)
+        front_run_pressure = (front_run_raw / 255.0) * (0.2 + urgency * 0.6)
+        reversion_pressure = (reversion_raw / 255.0) * (0.15 + alignment * 0.85)
+
+        return spoofer_pressure, front_run_pressure, reversion_pressure
 
     @staticmethod
     def _clamp(value: float) -> float:

@@ -129,3 +129,34 @@ async def test_single_entry_snapshot_fallback() -> None:
     depth = payload["depth"]
     assert depth["L1"]["ask"] == pytest.approx(101.42)
     assert depth["L1"]["bid"] is None
+
+
+@pytest.mark.asyncio
+async def test_snapshot_parses_numeric_entry_groups() -> None:
+    bus = _CaptureEventBus()
+    organ = _build_organ(bus)
+    message = {
+        55: b"USD/JPY",
+        34: b"45",
+        268: [
+            {269: b"0", 270: b"150.10", 271: b"3.0"},
+            {269: b"0", 270: b"149.95", 271: b"2.5"},
+            {269: b"1", 270: b"150.12", 271: b"1.7"},
+            {269: b"1", 270: b"150.25", 271: b"4.1"},
+        ],
+    }
+
+    await organ._handle_market_data_snapshot(message)
+
+    assert bus.events
+    _, payload = bus.events[-1]
+    assert payload["symbol"] == "USD/JPY"
+    assert payload["bid"] == pytest.approx(150.10)
+    assert payload["bid_sz"] == pytest.approx(3.0)
+    assert payload["ask"] == pytest.approx(150.12)
+    assert payload["ask_sz"] == pytest.approx(1.7)
+    assert payload["seq"] == 45
+
+    depth = payload["depth"]
+    assert depth["L2"]["bid"] == pytest.approx(149.95)
+    assert depth["L2"]["ask"] == pytest.approx(150.25)

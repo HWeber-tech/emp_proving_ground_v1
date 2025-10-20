@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Coroutine, Mapping, Optional, Protocol, Sequence
 
 from src.runtime.task_supervisor import TaskSupervisor
@@ -354,7 +354,7 @@ class FIXSensoryOrgan:
             "bid_sz": level_one.get("bid_sz"),
             "ask_sz": level_one.get("ask_sz"),
             "depth": depth,
-            "ts": datetime.utcnow(),
+            "ts": datetime.now(tz=timezone.utc),
             "seq": _coerce_int(message.get(34)),
         }
         return payload
@@ -362,14 +362,48 @@ class FIXSensoryOrgan:
     def _extract_entries(self, message: Any) -> list[dict[str, Any]]:
         entries: list[dict[str, Any]] = []
 
-        raw_entries = message.get(b"entries")
-        if isinstance(raw_entries, Sequence) and not isinstance(raw_entries, (bytes, bytearray, str)):
-            for entry in raw_entries:
+        if not isinstance(message, Mapping):
+            return entries
+
+        candidate_keys: tuple[object, ...] = (
+            b"entries",
+            "entries",
+            268,
+            b"268",
+            "NoMDEntries",
+        )
+
+        for key in candidate_keys:
+            try:
+                raw_entries = message.get(key)  # type: ignore[call-arg]
+            except AttributeError:  # pragma: no cover - defensive guard
+                raw_entries = None
+            if raw_entries is None:
+                continue
+
+            containers: Sequence[Any]
+            if isinstance(raw_entries, Mapping):
+                items: list[Any]
+                try:
+                    items = [raw_entries[idx] for idx in sorted(raw_entries)]
+                except TypeError:
+                    items = list(raw_entries.values())
+                containers = items
+            elif isinstance(raw_entries, Sequence) and not isinstance(
+                raw_entries,
+                (bytes, bytearray, str),
+            ):
+                containers = raw_entries
+            else:
+                continue
+
+            for entry in containers:
                 normalised = _normalise_entry(entry)
                 if normalised is not None:
                     entries.append(normalised)
-        if entries:
-            return entries
+
+            if entries:
+                return entries
 
         fallback_entry = _normalise_entry(message)
         if fallback_entry is not None:

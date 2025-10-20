@@ -25,3 +25,16 @@ def test_set_metrics_sink_rejects_invalid_object(monkeypatch):
 
     assert telemetry.has_metrics_sink() is False
     assert telemetry.get_metrics_sink() is not None
+
+
+def test_clear_metrics_sink_resets_to_default(monkeypatch):
+    monkeypatch.setattr(telemetry, "_SINK", None)
+    default_sink = telemetry.get_metrics_sink()
+
+    telemetry.set_metrics_sink(_StubSink())
+    assert telemetry.has_metrics_sink()
+
+    telemetry.clear_metrics_sink()
+
+    assert telemetry.has_metrics_sink() is False
+    assert telemetry.get_metrics_sink() is default_sink

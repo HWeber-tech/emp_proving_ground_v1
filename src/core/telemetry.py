@@ -76,6 +76,12 @@ def set_metrics_sink(sink: MetricsSink) -> None:
     _SINK = sink
 
 
+def clear_metrics_sink() -> None:
+    """Reset the metrics sink to the default no-op implementation."""
+    global _SINK
+    _SINK = None
+
+
 def get_metrics_sink() -> MetricsSink:
     """Return the currently-registered metrics sink, or a no-op sink."""
     return _SINK if _SINK is not None else _NOOP

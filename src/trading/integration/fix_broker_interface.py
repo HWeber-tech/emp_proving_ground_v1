@@ -6,6 +6,7 @@ Provides integration between FIX protocol and trading system
 from __future__ import annotations
 
 import asyncio
+import inspect
 from contextlib import suppress
 from datetime import datetime, timezone
 
@@ -37,6 +38,7 @@ from src.trading.risk.risk_api import (
     TradingRiskInterface,
     merge_risk_references,
 )
+from src.core.event_bus import Event, publish_event
 
 logger = get_logger(__name__)
 
@@ -402,6 +404,118 @@ class FIXBrokerInterface:
             cache.popitem(last=False)
 
     @staticmethod
+    def _serialise_timestamp(value: Any) -> str:
+        if isinstance(value, datetime):
+            ts = value
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            return ts.astimezone(timezone.utc).isoformat()
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(float(value), tz=timezone.utc).isoformat()
+        if isinstance(value, str):
+            return value
+        if value is None:
+            return datetime.now(timezone.utc).isoformat()
+        return str(value)
+
+    def _build_lifecycle_event_payload(
+        self,
+        event_type: str,
+        order_id: str,
+        order_state: Mapping[str, Any] | None,
+        update_payload: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        merged: dict[str, Any] = {}
+        if isinstance(order_state, Mapping):
+            merged.update(order_state)
+        merged.update(update_payload)
+
+        payload: dict[str, Any] = {
+            "order_id": order_id,
+            "event": event_type,
+            "status": merged.get("status"),
+            "symbol": merged.get("symbol"),
+            "side": merged.get("side"),
+            "order_quantity": self._coerce_float(merged.get("quantity")),
+            "filled_qty": merged.get("filled_qty"),
+            "avg_px": merged.get("avg_px"),
+            "exec_type": merged.get("exec_type"),
+            "exec_id": merged.get("exec_id"),
+            "last_qty": merged.get("last_qty"),
+            "last_px": merged.get("last_px"),
+            "cum_qty": merged.get("cum_qty"),
+            "leaves_qty": merged.get("leaves_qty"),
+            "timestamp": self._serialise_timestamp(merged.get("timestamp")),
+            "reason": merged.get("reason") or merged.get("text"),
+            "source": "fix_broker_interface",
+        }
+
+        metadata = merged.get("metadata")
+        if isinstance(metadata, Mapping):
+            payload["metadata"] = dict(metadata)
+
+        for key in ("risk_decision", "policy_snapshot", "risk_context"):
+            value = merged.get(key)
+            if isinstance(value, Mapping):
+                payload[key] = dict(value)
+
+        # Drop keys with ``None`` values to keep payload compact
+        return {key: value for key, value in payload.items() if value is not None}
+
+    async def _emit_topic_event(self, topic: str, payload: Mapping[str, Any]) -> None:
+        bus = self.event_bus
+        if not bus:
+            return
+
+        event_payload = dict(payload)
+        event = Event(type=topic, payload=event_payload, source="fix_broker_interface")
+
+        publish_callable = getattr(bus, "publish", None)
+        if callable(publish_callable):
+            try:
+                result = publish_callable(event)
+            except TypeError:
+                try:
+                    result = publish_callable(topic, event_payload)
+                except Exception as exc:
+                    logger.debug("order_event_publish_failed", topic=topic, error=str(exc))
+                else:
+                    if inspect.isawaitable(result):
+                        await result
+                    return
+            except Exception as exc:
+                logger.debug("order_event_publish_failed", topic=topic, error=str(exc))
+            else:
+                if inspect.isawaitable(result):
+                    await result
+                return
+
+        emit_callable = getattr(bus, "emit", None)
+        if callable(emit_callable):
+            try:
+                result = emit_callable(topic, event_payload)
+            except Exception as exc:
+                logger.debug("order_event_emit_failed", topic=topic, error=str(exc))
+            else:
+                if inspect.isawaitable(result):
+                    await result
+                return
+
+        publish_sync = getattr(bus, "publish_sync", None)
+        if callable(publish_sync):
+            try:
+                publish_sync(topic, event_payload, source=event.source)
+            except Exception as exc:
+                logger.debug("order_event_publish_sync_failed", topic=topic, error=str(exc))
+            else:
+                return
+
+        try:
+            await publish_event(event)
+        except Exception as exc:
+            logger.debug("order_event_global_publish_failed", topic=topic, error=str(exc))
+
+    @staticmethod
     def _normalise_risk_interface(candidate: Any) -> dict[str, object]:
         """Convert ``candidate`` into a serialisable risk reference payload."""
 
@@ -588,14 +702,6 @@ class FIXBrokerInterface:
             if leaves_qty is not None:
                 update_payload["leaves_qty"] = leaves_qty
 
-            # Emit event for system (if compatible bus provided)
-            try:
-                if self.event_bus and hasattr(self.event_bus, "emit"):
-                    await self.event_bus.emit("order_update", update_payload)
-            except Exception as emit_err:
-                with order_logging_context(order_id, exec_type=exec_type):
-                    logger.debug("event_bus_emit_failed", error=str(emit_err))
-
             # Notify local listeners
             await self._notify_listeners("order_update", order_id, update_payload)
 
@@ -608,10 +714,33 @@ class FIXBrokerInterface:
             }
             event_type = exec_event_map.get(exec_type)
             if event_type:
+                lifecycle_payload = self._build_lifecycle_event_payload(
+                    event_type,
+                    order_id,
+                    order_state,
+                    update_payload,
+                )
+                with order_logging_context(order_id, lifecycle_event=event_type):
+                    try:
+                        await self._emit_topic_event(
+                            "trading.order.lifecycle", lifecycle_payload
+                        )
+                    except Exception as emit_err:  # pragma: no cover - defensive logging
+                        logger.debug(
+                            "lifecycle_event_dispatch_failed",
+                            error=str(emit_err),
+                            event=event_type,
+                        )
                 await self._notify_listeners(event_type, order_id, update_payload)
 
             if exec_id:
                 self._remember_exec(order_id, exec_id)
+
+            with order_logging_context(order_id, exec_type=exec_type):
+                try:
+                    await self._emit_topic_event("order_update", update_payload)
+                except Exception as emit_err:  # pragma: no cover - defensive logging
+                    logger.debug("order_event_dispatch_failed", error=str(emit_err))
 
         except Exception as e:
             with order_logging_context(order_id or "unknown"):
@@ -629,18 +758,23 @@ class FIXBrokerInterface:
                         "order_cancel_rejected", reason=reject_reason
                     )
 
-                # Emit event for system
                 payload = {
                     "order_id": order_id,
                     "reason": reject_reason,
                     "timestamp": datetime.now(timezone.utc),
                 }
 
-                if self.event_bus and hasattr(self.event_bus, "emit"):
-                    await self.event_bus.emit(
-                        "order_cancel_rejected",
-                        payload,
-                    )
+                lifecycle_payload = self._build_lifecycle_event_payload(
+                    "cancel_rejected",
+                    order_id,
+                    self.orders.get(order_id, {}),
+                    {**payload, "status": "CANCEL_REJECTED"},
+                )
+                await self._emit_topic_event(
+                    "trading.order.lifecycle", lifecycle_payload
+                )
+
+                await self._emit_topic_event("order_cancel_rejected", payload)
 
                 await self._notify_listeners("cancel_rejected", order_id, payload)
 
@@ -874,10 +1008,9 @@ class FIXBrokerInterface:
         callbacks = list(self._event_callbacks.get(event_type, ()))
         for callback in callbacks:
             try:
-                if asyncio.iscoroutinefunction(callback):
-                    await callback(order_id, payload)
-                else:
-                    callback(order_id, payload)
+                result = callback(order_id, payload)
+                if inspect.isawaitable(result):
+                    await result
             except Exception as cb_err:
                 with order_logging_context(order_id, event_type=event_type):
                     logger.warning(

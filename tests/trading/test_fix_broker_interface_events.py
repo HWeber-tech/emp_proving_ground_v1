@@ -166,6 +166,101 @@ async def test_fix_interface_emits_structured_order_events() -> None:
 
 
 @pytest.mark.asyncio
+async def test_fix_interface_publishes_lifecycle_bus_events() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    interface = FIXBrokerInterface(bus, trade_queue, fix_initiator=None)
+
+    interface.orders["ORD-LC"] = {
+        "symbol": "EURUSD",
+        "side": "BUY",
+        "quantity": 5,
+        "status": "PENDING",
+        "timestamp": datetime.utcnow(),
+    }
+
+    ack_msg = simplefix.FixMessage()
+    ack_msg.append_pair(11, "ORD-LC")
+    ack_msg.append_pair(150, "0")
+
+    await interface._handle_execution_report(ack_msg)  # type: ignore[attr-defined]
+
+    lifecycle_events = [
+        payload for topic, payload in bus.emitted if topic == "trading.order.lifecycle"
+    ]
+    assert lifecycle_events
+    payload = lifecycle_events[-1]
+    assert payload["order_id"] == "ORD-LC"
+    assert payload["event"] == "acknowledged"
+    assert payload["status"] == "ACKNOWLEDGED"
+    assert payload["symbol"] == "EURUSD"
+    assert "T" in payload["timestamp"]
+    assert payload["source"] == "fix_broker_interface"
+
+
+@pytest.mark.asyncio
+async def test_fix_interface_emits_lifecycle_event_for_cancel_reject() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    interface = FIXBrokerInterface(bus, trade_queue, fix_initiator=None)
+
+    interface.orders["ORD-CNCL"] = {
+        "symbol": "EURUSD",
+        "side": "SELL",
+        "quantity": 2,
+        "status": "PENDING",
+        "timestamp": datetime.utcnow(),
+    }
+
+    message = simplefix.FixMessage()
+    message.append_pair(11, "ORD-CNCL")
+    message.append_pair(58, "Cannot cancel in terminal state")
+
+    await interface._handle_order_cancel_reject(message)  # type: ignore[attr-defined]
+
+    lifecycle_events = [
+        payload for topic, payload in bus.emitted if topic == "trading.order.lifecycle"
+    ]
+    assert lifecycle_events
+    payload = lifecycle_events[-1]
+    assert payload["order_id"] == "ORD-CNCL"
+    assert payload["event"] == "cancel_rejected"
+    assert payload["reason"] == "Cannot cancel in terminal state"
+
+
+@pytest.mark.asyncio
+async def test_async_event_listener_is_awaited() -> None:
+    bus = DummyEventBus()
+    trade_queue: asyncio.Queue[Any] = asyncio.Queue()
+    interface = FIXBrokerInterface(bus, trade_queue, fix_initiator=None)
+
+    interface.orders["ORD-ASYNC"] = {
+        "symbol": "GBPUSD",
+        "side": "BUY",
+        "quantity": 3,
+        "status": "PENDING",
+        "timestamp": datetime.utcnow(),
+    }
+
+    triggered = asyncio.Event()
+
+    async def listener(order_id: str, _: dict[str, Any]) -> None:
+        await asyncio.sleep(0)
+        if order_id == "ORD-ASYNC":
+            triggered.set()
+
+    interface.add_event_listener("acknowledged", listener)
+
+    msg = simplefix.FixMessage()
+    msg.append_pair(11, "ORD-ASYNC")
+    msg.append_pair(150, "0")
+
+    await interface._handle_execution_report(msg)  # type: ignore[attr-defined]
+
+    assert triggered.is_set()
+
+
+@pytest.mark.asyncio
 async def test_fix_interface_blocks_when_risk_gateway_rejects() -> None:
     bus = DummyEventBus()
     trade_queue: asyncio.Queue[Any] = asyncio.Queue()

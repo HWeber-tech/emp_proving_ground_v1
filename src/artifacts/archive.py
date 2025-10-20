@@ -39,6 +39,7 @@ def _normalise_run_id(run_id: str | None, timestamp: datetime) -> str:
     if not run_id:
         return timestamp.strftime("run-%H%M%S")
     cleaned = _RUN_PATTERN.sub("-", run_id.strip())
+    cleaned = re.sub("-+", "-", cleaned)
     cleaned = cleaned.strip("-._")
     return cleaned or timestamp.strftime("run-%H%M%S")
 

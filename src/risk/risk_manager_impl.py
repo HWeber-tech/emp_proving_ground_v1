@@ -33,6 +33,7 @@ from src.risk.analytics import (
     determine_target_allocation,
 )
 from src.risk.position_sizing import normalise_quantile_triplet, quantile_edge_ratio
+from src.risk.slow_context import SlowContextDecision, resolve_slow_context_multiplier
 from src.risk.real_risk_manager import RealRiskManager, RealRiskConfig
 from src.data_foundation.config.sizing_config import SizingConfig, load_sizing_config
 from src.trading.risk.market_regime_detector import (
@@ -75,6 +76,112 @@ def _to_float(value: object | None, *, default: float = 0.0) -> float:
     """Coerce heterogeneous inputs to ``float`` at API boundaries."""
 
     return coerce_float(value, default=default)
+
+
+def _coerce_datetime(value: object | None) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = f"{text[:-1]}+00:00"
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    if hasattr(value, "to_pydatetime"):
+        try:
+            converted = value.to_pydatetime()
+        except Exception:  # pragma: no cover - defensive guard
+            return None
+        if isinstance(converted, datetime):
+            return _coerce_datetime(converted)
+    return None
+
+
+def _optional_float(value: object | None) -> float | None:
+    resolved = coerce_float(value, default=None)
+    if resolved is None:
+        return None
+    try:
+        numeric = float(resolved)
+    except (TypeError, ValueError):  # pragma: no cover - defensive guard
+        return None
+    if math.isnan(numeric):
+        return None
+    return numeric
+
+
+def _normalise_macro_events(candidate: object | None) -> list[datetime]:
+    if candidate is None:
+        return []
+
+    stack: list[object] = [candidate]
+    seen: set[int] = set()
+    collected: list[datetime] = []
+
+    while stack:
+        item = stack.pop()
+        if item is None:
+            continue
+        marker = id(item)
+        if marker in seen:
+            continue
+        seen.add(marker)
+
+        if isinstance(item, datetime):
+            coerced = _coerce_datetime(item)
+            if coerced is not None:
+                collected.append(coerced)
+            continue
+
+        if isinstance(item, str):
+            coerced = _coerce_datetime(item)
+            if coerced is not None:
+                collected.append(coerced)
+            continue
+
+        if hasattr(item, "to_pydatetime") and not isinstance(item, Mapping):
+            try:
+                converted = item.to_pydatetime()
+            except Exception:  # pragma: no cover - dtype guard
+                converted = None
+            if isinstance(converted, datetime):
+                stack.append(converted)
+            continue
+
+        if isinstance(item, Mapping):
+            for key in ("timestamp", "ts", "time", "event_time", "datetime"):
+                if key in item:
+                    stack.append(item[key])
+            for key in ("events", "macro_events", "upcoming", "items"):
+                if key in item:
+                    stack.append(item[key])
+            continue
+
+        if isinstance(item, Sequence) and not isinstance(item, (str, bytes, bytearray)):
+            stack.extend(item)
+            continue
+
+    collected.sort()
+    unique: list[datetime] = []
+    seen_iso: set[str] = set()
+    for timestamp in collected:
+        fingerprint = timestamp.isoformat()
+        if fingerprint in seen_iso:
+            continue
+        seen_iso.add(fingerprint)
+        unique.append(timestamp)
+    return unique
 
 
 class PositionEntry(TypedDict):
@@ -582,6 +689,17 @@ class RiskManagerImpl(RiskManagerProtocol):
                 return 0.0
 
             final_size = position_size * kelly_fraction
+
+            slow_context = self._evaluate_slow_context(signal)
+            applied_multiplier = max(0.0, slow_context.multiplier)
+            if applied_multiplier != 1.0:
+                final_size *= applied_multiplier
+                logger.info(
+                    "Applying slow-context multiplier %.2f due to %s",
+                    applied_multiplier,
+                    slow_context.reason,
+                )
+
             bounded_size = min(self._max_position_size, final_size)
 
             if bounded_size < self._min_position_size:
@@ -605,6 +723,97 @@ class RiskManagerImpl(RiskManagerProtocol):
         except Exception as e:
             logger.error(f"Error calculating position size: {e}")
             return 0.0  # Fail closed when sizing is unreliable
+
+    def _evaluate_slow_context(self, signal: Mapping[str, object]) -> SlowContextDecision:
+        try:
+            timestamp = self._extract_signal_timestamp(signal)
+            macro_events = self._extract_macro_events(signal)
+            vix_value = self._extract_vix(signal)
+            decision = resolve_slow_context_multiplier(
+                as_of=timestamp,
+                macro_events=macro_events,
+                vix_value=vix_value,
+            )
+        except Exception:  # pragma: no cover - defensive guard
+            decision = SlowContextDecision(multiplier=1.0, reason="normal")
+
+        self.telemetry["slow_context"] = {
+            "multiplier": decision.multiplier,
+            "reason": decision.reason,
+            "seconds_to_macro_event": decision.seconds_to_macro_event,
+            "vix": decision.vix,
+        }
+        return decision
+
+    @staticmethod
+    def _extract_signal_timestamp(signal: Mapping[str, object]) -> datetime | None:
+        for key in ("timestamp", "as_of"):
+            candidate = _coerce_datetime(signal.get(key))
+            if candidate is not None:
+                return candidate
+        metadata = signal.get("metadata")
+        if isinstance(metadata, Mapping):
+            for key in ("timestamp", "as_of"):
+                candidate = _coerce_datetime(metadata.get(key))
+                if candidate is not None:
+                    return candidate
+            slow_context = metadata.get("slow_context")
+            if isinstance(slow_context, Mapping):
+                for key in ("timestamp", "as_of"):
+                    candidate = _coerce_datetime(slow_context.get(key))
+                    if candidate is not None:
+                        return candidate
+        return None
+
+    @staticmethod
+    def _extract_macro_events(signal: Mapping[str, object]) -> tuple[datetime, ...]:
+        candidates: list[datetime] = []
+        for key in ("macro_events", "macro_event", "macro"):
+            value = signal.get(key)
+            if value is not None:
+                candidates.extend(_normalise_macro_events(value))
+        metadata = signal.get("metadata")
+        if isinstance(metadata, Mapping):
+            for key in ("macro_events", "macro_event", "macro"):
+                value = metadata.get(key)
+                if value is not None:
+                    candidates.extend(_normalise_macro_events(value))
+            slow_context = metadata.get("slow_context")
+            if isinstance(slow_context, Mapping):
+                candidates.extend(_normalise_macro_events(slow_context))
+
+        if not candidates:
+            return ()
+
+        unique: list[datetime] = []
+        seen_iso: set[str] = set()
+        for timestamp in sorted(candidates):
+            signature = timestamp.isoformat()
+            if signature in seen_iso:
+                continue
+            seen_iso.add(signature)
+            unique.append(timestamp)
+        return tuple(unique)
+
+    @staticmethod
+    def _extract_vix(signal: Mapping[str, object]) -> float | None:
+        for key in ("vix", "vix_value", "volatility_index"):
+            value = _optional_float(signal.get(key))
+            if value is not None:
+                return value
+        metadata = signal.get("metadata")
+        if isinstance(metadata, Mapping):
+            for key in ("vix", "vix_value", "volatility_index"):
+                value = _optional_float(metadata.get(key))
+                if value is not None:
+                    return value
+            slow_context = metadata.get("slow_context")
+            if isinstance(slow_context, Mapping):
+                for key in ("vix", "vix_value", "volatility_index"):
+                    value = _optional_float(slow_context.get(key))
+                    if value is not None:
+                        return value
+        return None
 
     def _extract_quantile_triplet(
         self, signal: Mapping[str, object]

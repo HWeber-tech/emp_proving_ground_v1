@@ -20,6 +20,7 @@ from .position_sizing import (
     position_size,
     quantile_edge_ratio,
 )
+from .slow_context import SlowContextDecision, resolve_slow_context_multiplier
 from .reporting import (
     BudgetUtilisation,
     ExposureBreakdown,
@@ -78,6 +79,8 @@ __all__ = [
     "position_size",
     "normalise_quantile_triplet",
     "quantile_edge_ratio",
+    "SlowContextDecision",
+    "resolve_slow_context_multiplier",
 ]
 
 

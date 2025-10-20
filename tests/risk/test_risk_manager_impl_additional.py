@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import importlib
 from typing import Any, Mapping
@@ -75,6 +75,51 @@ async def test_calculate_position_size_returns_bounded_size() -> None:
     )
 
     assert 1_000 <= size <= 5_000
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_applies_macro_event_halt() -> None:
+    config = RiskConfig(min_position_size=1_000, max_position_size=100_000)
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=config)
+
+    now = datetime.now(timezone.utc)
+    size = await manager.calculate_position_size(
+        {
+            "symbol": "EURUSD",
+            "confidence": 0.7,
+            "stop_loss_pct": 0.02,
+            "timestamp": now,
+            "macro_events": [now + timedelta(seconds=60)],
+        }
+    )
+
+    assert size == pytest.approx(0.0)
+    assert manager.telemetry.get("slow_context", {}).get("reason") == "macro_event_proximity"
+
+
+@pytest.mark.asyncio
+async def test_calculate_position_size_applies_vix_multiplier() -> None:
+    config = RiskConfig(min_position_size=1_000, max_position_size=120_000)
+    baseline_manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+    high_vix_manager = RiskManagerImpl(initial_balance=100_000, risk_config=config)
+
+    now = datetime.now(timezone.utc)
+    base_signal = {
+        "symbol": "EURUSD",
+        "confidence": 0.7,
+        "stop_loss_pct": 0.02,
+        "timestamp": now,
+    }
+
+    baseline_size = await baseline_manager.calculate_position_size(base_signal)
+
+    high_vix_signal = dict(base_signal)
+    high_vix_signal["vix"] = 39.5
+    adjusted_size = await high_vix_manager.calculate_position_size(high_vix_signal)
+
+    assert baseline_size > 0.0
+    assert adjusted_size == pytest.approx(baseline_size * 0.3, rel=1e-6)
+    assert high_vix_manager.telemetry.get("slow_context", {}).get("reason") == "high_volatility"
 
 
 @pytest.mark.asyncio

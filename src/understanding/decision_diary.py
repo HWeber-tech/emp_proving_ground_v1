@@ -22,6 +22,7 @@ from src.understanding.probe_registry import ProbeDefinition, ProbeRegistry
 from src.core.event_bus import Event, EventBus
 from src.operations.event_bus_failover import EventPublishError, publish_event_with_failover
 from src.artifacts import archive_artifact
+from src.observability.immutable_audit import compute_audit_signature
 
 if TYPE_CHECKING:
     from src.understanding.belief import BeliefState
@@ -292,8 +293,14 @@ class DecisionDiaryEntry:
     probes: tuple[ProbeActivation, ...] = ()
     notes: tuple[str, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    signature: str = field(init=False)
 
-    def as_dict(self) -> Mapping[str, Any]:
+    def __post_init__(self) -> None:
+        payload = self._core_payload()
+        signature = compute_audit_signature(kind="decision_diary_entry", payload=payload)
+        object.__setattr__(self, "signature", signature)
+
+    def _core_payload(self) -> Mapping[str, Any]:
         payload: MutableMapping[str, Any] = {
             "entry_id": self.entry_id,
             "recorded_at": self.recorded_at.astimezone(UTC).isoformat(),
@@ -307,6 +314,11 @@ class DecisionDiaryEntry:
         }
         if self.belief_state is not None:
             payload["belief_state"] = dict(self.belief_state)
+        return payload
+
+    def as_dict(self) -> Mapping[str, Any]:
+        payload = dict(self._core_payload())
+        payload["signature"] = self.signature
         return payload
 
     def to_markdown(self) -> str:
@@ -433,7 +445,7 @@ class DecisionDiaryEntry:
                 except Exception as exc:
                     logger.warning("Skipping invalid probe activation for %s: %s", entry_id, exc)
 
-        return cls(
+        entry = cls(
             entry_id=entry_id,
             recorded_at=recorded_at,
             policy_id=policy_id,
@@ -445,6 +457,11 @@ class DecisionDiaryEntry:
             notes=notes,
             metadata=metadata,
         )
+
+        expected_signature = payload.get("signature")
+        if isinstance(expected_signature, str) and expected_signature and expected_signature != entry.signature:
+            logger.warning("Signature mismatch for decision diary entry %s", entry.entry_id)
+        return entry
 
 
 class DecisionDiaryStore:

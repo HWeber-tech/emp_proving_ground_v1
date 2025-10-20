@@ -31,6 +31,7 @@ import json
 import logging
 
 from src.artifacts import archive_artifact
+from src.observability.immutable_audit import compute_audit_signature
 
 logger = logging.getLogger(__name__)
 
@@ -453,6 +454,40 @@ class PolicyLedgerRecord:
     created_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
     history: tuple[Mapping[str, Any], ...] = ()
+    signature: str | None = None
+
+    def __post_init__(self) -> None:
+        payload = self._core_payload()
+        computed = compute_audit_signature(kind="policy_ledger_record", payload=payload)
+        if self.signature and self.signature != computed:
+            logger.warning("Signature mismatch for policy ledger record %s", self.policy_id)
+        self.signature = computed
+
+    def _core_payload(self) -> Mapping[str, Any]:
+        payload: MutableMapping[str, Any] = {
+            "policy_id": self.policy_id,
+            "tactic_id": self.tactic_id,
+            "stage": self.stage.value,
+            "approvals": list(self.approvals),
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "history": list(self.history),
+        }
+        if self.evidence_id:
+            payload["evidence_id"] = self.evidence_id
+        if self.threshold_overrides:
+            payload["threshold_overrides"] = dict(self.threshold_overrides)
+        if self.policy_delta is not None and not self.policy_delta.is_empty():
+            payload["policy_delta"] = dict(self.policy_delta.as_dict())
+        if self.accepted_proposals:
+            payload["accepted_proposals"] = list(self.accepted_proposals)
+        if self.rejected_proposals:
+            payload["rejected_proposals"] = list(self.rejected_proposals)
+        if self.human_signoffs:
+            payload["human_signoffs"] = [dict(entry) for entry in self.human_signoffs]
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
 
     def promotion_checklist(self) -> PromotionChecklistStatus:
         """Return the promotion checklist status captured in metadata."""
@@ -535,29 +570,9 @@ class PolicyLedgerRecord:
         )
 
     def as_dict(self) -> Mapping[str, Any]:
-        payload: MutableMapping[str, Any] = {
-            "policy_id": self.policy_id,
-            "tactic_id": self.tactic_id,
-            "stage": self.stage.value,
-            "approvals": list(self.approvals),
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "history": list(self.history),
-        }
-        if self.evidence_id:
-            payload["evidence_id"] = self.evidence_id
-        if self.threshold_overrides:
-            payload["threshold_overrides"] = dict(self.threshold_overrides)
-        if self.policy_delta is not None and not self.policy_delta.is_empty():
-            payload["policy_delta"] = dict(self.policy_delta.as_dict())
-        if self.accepted_proposals:
-            payload["accepted_proposals"] = list(self.accepted_proposals)
-        if self.rejected_proposals:
-            payload["rejected_proposals"] = list(self.rejected_proposals)
-        if self.human_signoffs:
-            payload["human_signoffs"] = [dict(entry) for entry in self.human_signoffs]
-        if self.metadata:
-            payload["metadata"] = dict(self.metadata)
+        payload = dict(self._core_payload())
+        if self.signature:
+            payload["signature"] = self.signature
         return payload
 
     def promotion_checklist_status(self) -> Mapping[str, bool]:
@@ -688,6 +703,12 @@ class PolicyLedgerRecord:
             for entry in data.get("history", ())
             if isinstance(entry, Mapping)
         )
+        signature_raw = data.get("signature")
+        signature: str | None
+        if isinstance(signature_raw, str) and signature_raw.strip():
+            signature = signature_raw.strip()
+        else:
+            signature = None
         return cls(
             policy_id=policy_id,
             tactic_id=tactic_id,
@@ -703,6 +724,7 @@ class PolicyLedgerRecord:
             created_at=created_at,
             updated_at=updated_at,
             history=history_payload,
+            signature=signature,
         )
 
 

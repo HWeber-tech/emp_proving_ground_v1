@@ -23,6 +23,7 @@ import numpy as np
 from src.core.event_bus import Event, EventBus, TopicBus
 from src.sensory.lineage import SensorLineageRecord, build_lineage_record
 from src.thinking.adaptation.policy_router import RegimeState
+from src.observability.immutable_audit import compute_audit_signature
 
 logger = logging.getLogger(__name__)
 
@@ -782,6 +783,27 @@ class BeliefSnapshotRecord:
     activation_method: str
     top_features: tuple[Mapping[str, object], ...]
     payload: Mapping[str, object]
+    signature: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        payload = self._core_payload()
+        signature = compute_audit_signature(kind="belief_snapshot", payload=payload)
+        object.__setattr__(self, "signature", signature)
+
+    def _core_payload(self) -> Mapping[str, object]:
+        return {
+            "belief_id": self.belief_id,
+            "generated_at": self.generated_at.astimezone(UTC).isoformat(),
+            "version": self.version,
+            "symbol": self.symbol,
+            "regime_hint": self.regime_hint,
+            "feature_count": int(self.feature_count),
+            "active_count": int(self.active_count),
+            "sparsity": float(self.sparsity),
+            "activation_method": self.activation_method,
+            "top_features": [dict(entry) for entry in self.top_features],
+            "payload": dict(self.payload),
+        }
 
     def to_row(self) -> Mapping[str, object]:
         top_features_serialised = [
@@ -805,6 +827,7 @@ class BeliefSnapshotRecord:
             "activation_method": self.activation_method,
             "top_features": json.dumps(top_features_serialised, default=_json_safe_default),
             "payload": payload_serialised,
+            "signature": self.signature,
         }
 
 
@@ -934,8 +957,9 @@ class BeliefSnapshotPersister:
             "activation_method",
             "top_features",
             "payload",
+            "signature",
         )
-        sql = f"INSERT INTO {self._duckdb_table} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        sql = f"INSERT INTO {self._duckdb_table} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         create_sql = f"""
             CREATE TABLE IF NOT EXISTS {self._duckdb_table} (
                 belief_id TEXT,
@@ -948,12 +972,22 @@ class BeliefSnapshotPersister:
                 sparsity DOUBLE,
                 activation_method TEXT,
                 top_features JSON,
-                payload JSON
+                payload JSON,
+                signature TEXT
             )
         """
 
         with duckdb.connect(str(self._duckdb_path)) as connection:  # type: ignore[attr-defined]
             connection.execute(create_sql)
+            try:
+                columns_info = connection.execute(
+                    f"PRAGMA table_info('{self._duckdb_table}')"
+                ).fetchall()
+            except duckdb.Error:  # type: ignore[attr-defined]
+                columns_info = []
+            existing_columns = {row[1] for row in columns_info}
+            if "signature" not in existing_columns:
+                connection.execute(f"ALTER TABLE {self._duckdb_table} ADD COLUMN signature TEXT")
             connection.execute(sql, [row[name] for name in columns])
 
     def _persist_parquet(self, record: BeliefSnapshotRecord) -> None:

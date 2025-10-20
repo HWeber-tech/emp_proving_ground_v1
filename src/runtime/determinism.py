@@ -85,6 +85,7 @@ def resolve_seed(
         elif isinstance(raw_value, str):
             text = raw_value.strip()
             if not text:
+                invalid.append((key, raw_value))
                 continue
             try:
                 float_value = float(text)

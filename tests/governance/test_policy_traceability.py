@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.governance.policy_ledger import PolicyDelta, PolicyLedgerStage
-from src.governance.policy_traceability import build_traceability_metadata
+from src.governance.policy_traceability import build_traceability_metadata, _normalise
 from src.understanding.decision_diary import DecisionDiaryStore
 
 
@@ -79,3 +79,9 @@ def test_build_traceability_metadata_without_diary_store() -> None:
     diary_slice = traceability["diary_slice"]
     assert diary_slice["status"] == "store_unavailable"
     assert diary_slice["entry_id"] == "dd-missing"
+
+
+def test_normalise_sorts_sets_deterministically() -> None:
+    normalised = _normalise({"beta", "alpha", "gamma"})
+
+    assert normalised == ["alpha", "beta", "gamma"]

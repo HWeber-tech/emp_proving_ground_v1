@@ -92,14 +92,24 @@ def _resolve_code_hash() -> str:
     return _CODE_HASH_CACHE
 
 
+def _normalise_sort_key(value: Any) -> str:
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+    except TypeError:  # pragma: no cover - fallback for non-serialisable data
+        return repr(value)
+
+
 def _normalise(value: Any) -> Any:
     if isinstance(value, Mapping):
         normalised: MutableMapping[str, Any] = {}
         for key, payload in value.items():
             normalised[str(key)] = _normalise(payload)
         return dict(sorted(normalised.items()))
-    if isinstance(value, (list, tuple, set)):
+    if isinstance(value, (list, tuple)):
         return [_normalise(item) for item in value]
+    if isinstance(value, set):
+        normalised_items = [_normalise(item) for item in value]
+        return sorted(normalised_items, key=_normalise_sort_key)
     if isinstance(value, _dt.datetime):
         return value.astimezone(_dt.timezone.utc).isoformat()
     if isinstance(value, _dt.date):

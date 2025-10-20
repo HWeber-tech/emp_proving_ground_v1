@@ -9,6 +9,11 @@ from .ablation_suite import (
     render_ablation_markdown,
     run_ablation_suite,
 )
+from .retention_gates import (
+    HorizonRetentionGate,
+    RetentionGateDecision,
+    evaluate_retention_gates,
+)
 
 __all__ = [
     "AblationGateOutcome",
@@ -18,4 +23,7 @@ __all__ = [
     "evaluate_ablation_gates",
     "render_ablation_markdown",
     "run_ablation_suite",
+    "HorizonRetentionGate",
+    "RetentionGateDecision",
+    "evaluate_retention_gates",
 ]

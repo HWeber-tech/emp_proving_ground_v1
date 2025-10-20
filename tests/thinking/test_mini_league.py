@@ -17,10 +17,17 @@ def _entry(
     sharpe: float,
     turnover: float,
     *,
+    sharpness: float = 0.2,
+    calibration_brier: float = 0.08,
     turnover_variance: float | None = None,
     inventory_variance: float | None = None,
 ) -> LeagueEntry:
-    metadata = {"sharpe": sharpe, "turnover": turnover}
+    metadata = {
+        "sharpe": sharpe,
+        "turnover": turnover,
+        "sharpness": sharpness,
+        "calibration_brier": calibration_brier,
+    }
     if turnover_variance is not None:
         metadata["turnover_variance"] = turnover_variance
     if inventory_variance is not None:
@@ -34,7 +41,15 @@ def _entry(
 
 def test_mini_league_promotes_current_to_best() -> None:
     league = MiniLeague()
-    league.register(LeagueSlot.CURRENT, LeagueEntry(agent_id="agent-cur", score=0.42))
+    league.register(
+        LeagueSlot.CURRENT,
+        _entry("agent-cur", sharpe=0.42, turnover=1.0, sharpness=0.25, calibration_brier=0.05),
+    )
+    league.register(
+        LeagueSlot.BEST,
+        _entry("agent-best", sharpe=0.42, turnover=1.0, sharpness=0.22, calibration_brier=0.05),
+    )
+    league.record_exploitability_observation()
 
     promoted = league.promote_current_to_best()
     assert promoted is not None
@@ -118,7 +133,10 @@ def test_exploitability_observation_requires_matched_turnover() -> None:
 
 def test_promotion_requires_exploitability_gap_to_shrink() -> None:
     league = MiniLeague()
-    league.register(LeagueSlot.CURRENT, _entry("current", 1.0, 1.0))
+    league.register(
+        LeagueSlot.CURRENT,
+        _entry("current", 1.0, 1.0, sharpness=0.25, calibration_brier=0.05),
+    )
     league.register(LeagueSlot.BEST, _entry("best", 1.05, 1.0))
 
     first = league.record_exploitability_observation()
@@ -135,6 +153,34 @@ def test_promotion_requires_exploitability_gap_to_shrink() -> None:
     improved = league.record_exploitability_observation()
     assert improved.selected_gap == pytest.approx(0.03)
     assert improved.wow_delta == pytest.approx(-0.17)
+
+    promoted = league.promote_current_to_best()
+    assert promoted is not None
+    assert promoted.agent_id == "current"
+
+
+def test_promotion_blocked_when_covenant_metrics_fail() -> None:
+    league = MiniLeague()
+    league.register(
+        LeagueSlot.CURRENT,
+        _entry("current", 1.0, 1.0, sharpness=0.1, calibration_brier=0.05),
+    )
+    league.register(LeagueSlot.BEST, _entry("best", 1.02, 1.0))
+    league.record_exploitability_observation()
+
+    assert league.promote_current_to_best() is None
+
+    league.register(
+        LeagueSlot.CURRENT,
+        _entry("current", 1.0, 1.0, sharpness=0.2, calibration_brier=0.2),
+    )
+
+    assert league.promote_current_to_best() is None
+
+    league.register(
+        LeagueSlot.CURRENT,
+        _entry("current", 1.0, 1.0, sharpness=0.22, calibration_brier=0.05),
+    )
 
     promoted = league.promote_current_to_best()
     assert promoted is not None

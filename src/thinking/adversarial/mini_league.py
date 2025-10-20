@@ -280,6 +280,9 @@ class MiniLeague:
         max_exploit: int = 6,
         max_chaos: int = 6,
         history_limit: int = 64,
+        sharpness_floor: float = 0.15,
+        calibration_brier_ceiling: float = 0.12,
+        exploitability_gap_ceiling: float = 0.05,
     ) -> None:
         if max_exploit <= 0:
             raise ValueError("max_exploit must be positive")
@@ -287,6 +290,12 @@ class MiniLeague:
             raise ValueError("max_chaos must be positive")
         if history_limit <= 0:
             raise ValueError("history_limit must be positive")
+        if sharpness_floor <= 0.0:
+            raise ValueError("sharpness_floor must be positive")
+        if calibration_brier_ceiling <= 0.0:
+            raise ValueError("calibration_brier_ceiling must be positive")
+        if exploitability_gap_ceiling < 0.0:
+            raise ValueError("exploitability_gap_ceiling cannot be negative")
 
         self._slots: dict[LeagueSlot, list[LeagueEntry]] = {
             LeagueSlot.CURRENT: [],
@@ -303,6 +312,9 @@ class MiniLeague:
             maxlen=history_limit
         )
         self._lagrangian_state = _LagrangianConstraintState()
+        self._sharpness_floor = float(sharpness_floor)
+        self._calibration_brier_ceiling = float(calibration_brier_ceiling)
+        self._exploitability_gap_ceiling = float(exploitability_gap_ceiling)
 
     def register(self, slot: LeagueSlot, entry: LeagueEntry) -> None:
         roster = self._slots[slot]
@@ -332,21 +344,36 @@ class MiniLeague:
         current_entry = self.current()
         if current_entry is None:
             return None
-        latest_gap: float | None = None
-        previous_gap: float | None = None
-        gaps_found = 0
-        for observation in reversed(self._exploitability_observations):
-            if observation.selected_gap is None:
-                continue
-            if gaps_found == 0:
-                latest_gap = observation.selected_gap
-                gaps_found += 1
-                continue
-            previous_gap = observation.selected_gap
-            break
+        sharpness = _extract_metric(current_entry, "sharpness")
+        if sharpness is None or sharpness + 1e-9 < self._sharpness_floor:
+            return None
+        calibration_brier = _extract_metric(current_entry, "calibration_brier")
         if (
-            latest_gap is not None
-            and previous_gap is not None
+            calibration_brier is None
+            or calibration_brier - 1e-9 > self._calibration_brier_ceiling
+        ):
+            return None
+        latest_observation: ExploitabilityObservation | None = next(
+            (obs for obs in reversed(self._exploitability_observations) if obs.selected_gap is not None),
+            None,
+        )
+        if latest_observation is None or latest_observation.selected_gap is None:
+            return None
+
+        latest_gap = latest_observation.selected_gap
+        if latest_gap > self._exploitability_gap_ceiling + 1e-9:
+            return None
+
+        previous_gap: float | None = next(
+            (
+                obs.selected_gap
+                for obs in reversed(self._exploitability_observations)
+                if obs is not latest_observation and obs.selected_gap is not None
+            ),
+            None,
+        )
+        if (
+            previous_gap is not None
             and latest_gap > previous_gap + 1e-9
         ):
             return None

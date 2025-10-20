@@ -81,6 +81,18 @@ def _canonicalise_horizon_label(horizon: str | int | float, *, horizon_type: str
             return canonical
         if key.isdigit():
             return f"ev{key}"
+        try:
+            numeric_value = float(text)
+        except ValueError:
+            return text
+        if math.isfinite(numeric_value):
+            rounded = round(numeric_value)
+            if math.isclose(numeric_value, rounded, rel_tol=0.0, abs_tol=1e-12):
+                integer_text = str(int(rounded))
+                canonical = _EVENT_HORIZON_ALIAS_MAP.get(integer_text)
+                if canonical is not None:
+                    return canonical
+                return f"ev{integer_text}"
         return text
 
     if horizon_type == "time":

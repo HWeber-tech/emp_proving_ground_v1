@@ -128,7 +128,7 @@ class OrderExecutionEvent:
 
         timestamp = payload.get("timestamp")
         if isinstance(timestamp, datetime):
-            ts = timestamp
+            ts = timestamp if timestamp.tzinfo is not None else timestamp.replace(tzinfo=timezone.utc)
         else:
             ts = _utc_now()
 

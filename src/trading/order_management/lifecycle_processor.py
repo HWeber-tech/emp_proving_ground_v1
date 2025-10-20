@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Callable, Iterable, Optional
 
 from .event_journal import OrderEventJournal
@@ -48,6 +49,8 @@ class OrderLifecycleProcessor:
         self._position_tracker = position_tracker
         self._account_resolver = account_resolver
         self._latency_monitor = latency_monitor
+        self._exec_dedupe: OrderedDict[tuple[str, str], None] = OrderedDict()
+        self._exec_dedupe_capacity = 4096
 
     # ------------------------------------------------------------------
     @property
@@ -78,6 +81,34 @@ class OrderLifecycleProcessor:
         if self._account_resolver is not None:
             return self._account_resolver(metadata)
         return None
+
+    @staticmethod
+    def _normalise_exec_id(value: object | None) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                value = value.decode()
+            except Exception:
+                return None
+        text = str(value).strip()
+        return text or None
+
+    def _extract_exec_id(self, payload: dict) -> str | None:
+        for key in ("exec_id", "execId", "ExecID", "execID", "ExecId"):
+            if key in payload:
+                return self._normalise_exec_id(payload.get(key))
+        return None
+
+    def _has_seen_exec(self, order_id: str, exec_id: str) -> bool:
+        return (order_id, exec_id) in self._exec_dedupe
+
+    def _remember_exec(self, order_id: str, exec_id: str) -> None:
+        key = (order_id, exec_id)
+        cache = self._exec_dedupe
+        cache[key] = None
+        if len(cache) > self._exec_dedupe_capacity:
+            cache.popitem(last=False)
 
     # ------------------------------------------------------------------
     def attach_broker(self, broker: FIXBrokerInterface) -> None:
@@ -114,6 +145,9 @@ class OrderLifecycleProcessor:
         """Convert a broker payload into an execution event and apply it."""
 
         event = OrderExecutionEvent.from_broker_payload(order_id, payload)
+        exec_id = self._extract_exec_id(payload)
+        if exec_id and self._has_seen_exec(order_id, exec_id):
+            return self._state_machine.snapshot(order_id)
         state = self._state_machine.apply_event(event)
         snapshot = self._state_machine.snapshot(event.order_id)
         self._update_position_tracker(state, event, snapshot)
@@ -121,6 +155,8 @@ class OrderLifecycleProcessor:
             self._latency_monitor.record_transition(state, event, snapshot)
         if self._journal is not None:
             self._journal.append(event, snapshot)
+        if exec_id:
+            self._remember_exec(order_id, exec_id)
         return snapshot
 
     # ------------------------------------------------------------------
@@ -132,6 +168,7 @@ class OrderLifecycleProcessor:
 
     def reset(self) -> None:
         self._state_machine.reset()
+        self._exec_dedupe.clear()
 
     # Convenience wrappers for integration tests --------------------------------
     def apply_acknowledgement(self, order_id: str, payload: dict[str, object] | None = None) -> OrderLifecycleSnapshot:

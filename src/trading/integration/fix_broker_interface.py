@@ -7,10 +7,10 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add typing for callbacks and awaitables
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from decimal import Decimal
 from typing import (
     Any,
@@ -126,6 +126,8 @@ class FIXBrokerInterface:
         self._fallback_supervisor: TaskSupervisor | None = None
         if task_factory is None:
             self._fallback_supervisor = TaskSupervisor(namespace="fix-broker-interface")
+        self._exec_dedupe: OrderedDict[tuple[str, str], None] = OrderedDict()
+        self._exec_dedupe_capacity = 4096
 
     async def start(self) -> None:
         """Start the broker interface."""
@@ -250,6 +252,18 @@ class FIXBrokerInterface:
             return None
         return resolved
 
+    @staticmethod
+    def _decode_text(value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                value = value.decode()
+            except Exception:
+                return None
+        text = str(value).strip()
+        return text or None
+
     def _build_manual_intent(
         self, symbol: str, side: str, quantity: float, portfolio_state: Mapping[str, Any]
     ):
@@ -292,7 +306,7 @@ class FIXBrokerInterface:
             "side": side.upper(),
             "quantity": float(quantity),
             "reason": reason,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "source": "fix_broker_interface",
         }
         payload["runbook"] = _MANUAL_FIX_RISK_RUNBOOK
@@ -376,6 +390,17 @@ class FIXBrokerInterface:
         except Exception as exc:
             logger.debug("risk_violation_emit_failed", error=str(exc))
 
+    def _has_seen_exec(self, order_id: str, exec_id: str) -> bool:
+        key = (order_id, exec_id)
+        return key in self._exec_dedupe
+
+    def _remember_exec(self, order_id: str, exec_id: str) -> None:
+        key = (order_id, exec_id)
+        cache = self._exec_dedupe
+        cache[key] = None
+        if len(cache) > self._exec_dedupe_capacity:
+            cache.popitem(last=False)
+
     @staticmethod
     def _normalise_risk_interface(candidate: Any) -> dict[str, object]:
         """Convert ``candidate`` into a serialisable risk reference payload."""
@@ -452,8 +477,9 @@ class FIXBrokerInterface:
           - 31 LastPx (bytes/str)
         """
         try:
-            order_id = message.get(11).decode() if message.get(11) else None
-            exec_type = message.get(150).decode() if message.get(150) else None
+            order_id = self._decode_text(message.get(11))
+            exec_type = self._decode_text(message.get(150))
+            exec_id = self._decode_text(message.get(17))
             last_qty_raw = message.get(32)
             last_px_raw = message.get(31)
             cum_qty_raw = message.get(14)
@@ -477,6 +503,11 @@ class FIXBrokerInterface:
             if not order_id or not exec_type:
                 return
 
+            if exec_id and self._has_seen_exec(order_id, exec_id):
+                with order_logging_context(order_id, exec_type=exec_type):
+                    logger.debug("execution_report_duplicate", exec_id=exec_id)
+                return
+
             with order_logging_context(order_id, exec_type=exec_type) as order_log:
                 order_log.info("execution_report_received")
 
@@ -488,7 +519,7 @@ class FIXBrokerInterface:
                     "side": None,
                     "quantity": 0.0,
                     "status": "UNKNOWN",
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": datetime.now(timezone.utc),
                     "filled_qty": 0.0,
                     "avg_px": None,
                 },
@@ -545,9 +576,11 @@ class FIXBrokerInterface:
                 "avg_px": order_state.get("avg_px"),
                 "symbol": order_state.get("symbol"),
                 "side": order_state.get("side"),
-                "timestamp": datetime.utcnow(),
+                "timestamp": datetime.now(timezone.utc),
             }
 
+            if exec_id is not None:
+                update_payload["exec_id"] = exec_id
             update_payload["last_qty"] = last_qty
             update_payload["last_px"] = last_px
             if cum_qty is not None:
@@ -577,6 +610,9 @@ class FIXBrokerInterface:
             if event_type:
                 await self._notify_listeners(event_type, order_id, update_payload)
 
+            if exec_id:
+                self._remember_exec(order_id, exec_id)
+
         except Exception as e:
             with order_logging_context(order_id or "unknown"):
                 logger.error("execution_report_error", error=str(e))
@@ -597,7 +633,7 @@ class FIXBrokerInterface:
                 payload = {
                     "order_id": order_id,
                     "reason": reject_reason,
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": datetime.now(timezone.utc),
                 }
 
                 if self.event_bus and hasattr(self.event_bus, "emit"):
@@ -686,7 +722,7 @@ class FIXBrokerInterface:
                     "side": side,
                     "quantity": quantity,
                     "status": "PENDING",
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": datetime.now(timezone.utc),
                 }
                 if metadata:
                     self.orders[order_id]["metadata"] = metadata

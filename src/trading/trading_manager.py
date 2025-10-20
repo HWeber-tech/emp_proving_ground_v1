@@ -84,6 +84,7 @@ from src.trading.execution.trade_throttle import (
     TradeThrottleConfig,
     TradeThrottleDecision,
 )
+from src.trading.execution.manipulation_sentinel import ManipulationSentinel
 from src.trading.execution.live_broker_adapter import LiveBrokerExecutionAdapter
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
 from src.trading.gating import (
@@ -708,6 +709,7 @@ class TradingManager:
         backlog_window: int | None = None,
         resource_monitor: ResourceUsageMonitor | None = None,
         backlog_cooldown_seconds: float | None = None,
+        manipulation_sentinel: ManipulationSentinel | None = None,
     ) -> None:
         """
         Initialize the TradingManager with risk management components.
@@ -729,6 +731,7 @@ class TradingManager:
             backlog_window: Rolling window size for backlog tracking (if tracker not provided)
             resource_monitor: Optional resource monitor instance to reuse across managers
             backlog_cooldown_seconds: Optional cooldown duration applied after backlog breaches
+            manipulation_sentinel: Optional override for spoof-pattern sentinel instrumentation
         """
         if throughput_monitor is not None and throughput_window is not None:
             raise ValueError(
@@ -936,6 +939,10 @@ class TradingManager:
         self._throttle_history: deque[dict[str, Any]] = deque(maxlen=256)
         self._latency_history: deque[float] = deque(maxlen=512)
         self._latency_sorted: list[float] = []
+
+        self._manipulation_sentinel = (
+            manipulation_sentinel or ManipulationSentinel()
+        )
 
         self._trade_throttle: TradeThrottle | None = None
         self._trade_throttle_snapshot: Mapping[str, Any] | None = None
@@ -1734,27 +1741,148 @@ class TradingManager:
                                 )
 
                 if not throttle_blocked:
-                    block_metadata_raw = self._should_block_execution(validated_intent)
-                    if block_metadata_raw:
-                        block_metadata = {
-                            str(key): value for key, value in dict(block_metadata_raw).items()
-                        }
-                        strategy_stats.record_blocked(
-                            str(block_metadata.get("reason")) if block_metadata.get("reason") else None
+                    manipulation_block = self._evaluate_manipulation_sentinel(
+                        event_id=event_id,
+                        symbol=symbol,
+                        side=side_value,
+                        quantity=float(quantity),
+                        price=float(price),
+                        strategy_id=strategy_id,
+                        timestamp=ingested_at or started_wall,
+                    )
+                    if manipulation_block is not None:
+                        block_metadata_raw = manipulation_block
+                    else:
+                        block_metadata_raw = self._should_block_execution(validated_intent)
+                if block_metadata_raw:
+                    block_metadata = {
+                        str(key): value for key, value in dict(block_metadata_raw).items()
+                    }
+                    strategy_stats.record_blocked(
+                        str(block_metadata.get("reason"))
+                        if block_metadata.get("reason")
+                        else None
+                    )
+                    if throttle_scaling_summary and "throttle" not in block_metadata:
+                        block_metadata["throttle"] = dict(throttle_scaling_summary)
+                    self._record_execution_blocked(block_metadata)
+                    self._rollback_trade_throttle_decision(throttle_decision)
+                    release_metadata = self._extract_release_execution_metadata(
+                        validated_intent
+                    )
+                    if release_metadata and "release_execution" not in block_metadata:
+                        enriched = dict(block_metadata)
+                        enriched["release_execution"] = release_metadata
+                        block_metadata = enriched
+                    self._maybe_attach_guardrails(
+                        block_metadata,
+                        validated_intent,
+                        event,
+                    )
+                    attribution_metadata = self._extract_attribution_metadata(
+                        validated_intent
+                    )
+                    if attribution_metadata is None:
+                        attribution_metadata = self._extract_attribution_metadata(event)
+                    if attribution_metadata:
+                        block_metadata["attribution"] = attribution_metadata
+                    decision = self._get_last_risk_decision()
+                    if release_metadata:
+                        await self._publish_release_route_event(
+                            event_id=event_id,
+                            strategy_id=strategy_id,
+                            status="blocked",
+                            release_metadata=release_metadata,
                         )
-                        if throttle_scaling_summary and "throttle" not in block_metadata:
-                            block_metadata["throttle"] = dict(throttle_scaling_summary)
-                        self._record_execution_blocked(block_metadata)
+                    self._record_experiment_event(
+                        event_id=event_id,
+                        status="execution_blocked",
+                        strategy_id=strategy_id,
+                        symbol=symbol,
+                        confidence=confidence,
+                        notional=notional,
+                        metadata=block_metadata,
+                        decision=decision,
+                        fast_weight=fast_weight_metadata,
+                    )
+                    drift_event_status = "execution_blocked"
+                    drift_confidence_value = confidence
+                    drift_release_metadata = release_metadata
+                    trade_outcome = TradeIntentOutcome(
+                        status="blocked",
+                        executed=False,
+                        throttle=self.get_trade_throttle_snapshot(),
+                        metadata=block_metadata,
+                    )
+                    self._note_manipulation_outcome(
+                        event_id,
+                        executed=False,
+                        notional=float(notional),
+                        timestamp=ingested_at or started_wall,
+                        reason=str(block_metadata.get("reason", "execution_blocked")),
+                    )
+                    if gate_decision is not None and not drift_event_emitted:
+                        await self._publish_drift_gate_event(
+                            decision=gate_decision,
+                            event_id=event_id,
+                            status=drift_event_status,
+                            strategy_id=strategy_id,
+                            symbol=symbol,
+                            confidence=drift_confidence_value,
+                            notional=drift_notional_value,
+                            release_metadata=drift_release_metadata,
+                        )
+                        drift_event_emitted = True
+                else:
+                    cast(Any, self.portfolio_monitor).reserve_position(
+                        symbol, float(quantity), price
+                    )
+
+                    start = time.perf_counter()
+                    current_submitted = coerce_int(
+                        self._execution_stats.get("orders_submitted"), default=0
+                    )
+                    self._execution_stats["orders_submitted"] = current_submitted + 1
+                    execution_failed = False
+                    try:
+                        result = await self.execution_engine.process_order(
+                            validated_intent
+                        )
+                    except Exception as exc:
+                        execution_failed = True
+                        strategy_stats.record_failure(str(exc))
+                        try:
+                            release_quantity = float(quantity)
+                        except Exception:
+                            release_quantity = coerce_float(quantity, default=0.0)
+                        if release_quantity:
+                            try:
+                                cast(Any, self.portfolio_monitor).release_position(
+                                    symbol, release_quantity
+                                )
+                            except Exception:  # pragma: no cover - diagnostic guardrail
+                                logger.debug(
+                                    "Failed to release reserved position after execution error",
+                                    exc_info=True,
+                                )
                         self._rollback_trade_throttle_decision(throttle_decision)
+                        logger.exception(
+                            "Execution engine error for trade intent %s", event_id
+                        )
+                        self._record_execution_failure(exc)
+                        decision = self._get_last_risk_decision()
+                        failure_metadata: dict[str, object] = {"error": str(exc)}
+                        if notional:
+                            failure_metadata["notional"] = float(notional)
+                        if throttle_scaling_summary:
+                            failure_metadata.update(throttle_scaling_summary)
                         release_metadata = self._extract_release_execution_metadata(
                             validated_intent
                         )
-                        if release_metadata and "release_execution" not in block_metadata:
-                            enriched = dict(block_metadata)
-                            enriched["release_execution"] = release_metadata
-                            block_metadata = enriched
+                        if release_metadata:
+                            failure_metadata["release_execution"] = release_metadata
                         self._maybe_attach_guardrails(
-                            block_metadata,
+                            failure_metadata,
                             validated_intent,
                             event,
                         )
@@ -1764,112 +1892,12 @@ class TradingManager:
                         if attribution_metadata is None:
                             attribution_metadata = self._extract_attribution_metadata(event)
                         if attribution_metadata:
-                            block_metadata["attribution"] = attribution_metadata
-                        decision = self._get_last_risk_decision()
-                        if release_metadata:
-                            await self._publish_release_route_event(
-                                event_id=event_id,
-                                strategy_id=strategy_id,
-                                status="blocked",
-                                release_metadata=release_metadata,
-                            )
-                        self._record_experiment_event(
-                            event_id=event_id,
-                            status="execution_blocked",
-                            strategy_id=strategy_id,
-                            symbol=symbol,
-                            confidence=confidence,
-                            notional=notional,
-                            metadata=block_metadata,
-                            decision=decision,
-                            fast_weight=fast_weight_metadata,
+                            failure_metadata["attribution"] = attribution_metadata
+                        coverage_snapshot = self._extract_diary_coverage_snapshot(
+                            validated_intent
                         )
-                        drift_event_status = "execution_blocked"
-                        drift_confidence_value = confidence
-                        drift_release_metadata = release_metadata
-                        trade_outcome = TradeIntentOutcome(
-                            status="blocked",
-                            executed=False,
-                            throttle=self.get_trade_throttle_snapshot(),
-                            metadata=block_metadata,
-                        )
-                        if gate_decision is not None and not drift_event_emitted:
-                            await self._publish_drift_gate_event(
-                                decision=gate_decision,
-                                event_id=event_id,
-                                status=drift_event_status,
-                                strategy_id=strategy_id,
-                                symbol=symbol,
-                                confidence=drift_confidence_value,
-                                notional=drift_notional_value,
-                                release_metadata=drift_release_metadata,
-                            )
-                            drift_event_emitted = True
-                    else:
-                        cast(Any, self.portfolio_monitor).reserve_position(
-                            symbol, float(quantity), price
-                        )
-
-                        start = time.perf_counter()
-                        current_submitted = coerce_int(
-                            self._execution_stats.get("orders_submitted"), default=0
-                        )
-                        self._execution_stats["orders_submitted"] = current_submitted + 1
-                        execution_failed = False
-                        try:
-                            result = await self.execution_engine.process_order(
-                                validated_intent
-                            )
-                        except Exception as exc:
-                            execution_failed = True
-                            strategy_stats.record_failure(str(exc))
-                            try:
-                                release_quantity = float(quantity)
-                            except Exception:
-                                release_quantity = coerce_float(quantity, default=0.0)
-                            if release_quantity:
-                                try:
-                                    cast(Any, self.portfolio_monitor).release_position(
-                                        symbol, release_quantity
-                                    )
-                                except Exception:  # pragma: no cover - diagnostic guardrail
-                                    logger.debug(
-                                        "Failed to release reserved position after execution error",
-                                        exc_info=True,
-                                    )
-                            self._rollback_trade_throttle_decision(throttle_decision)
-                            logger.exception(
-                                "Execution engine error for trade intent %s", event_id
-                            )
-                            self._record_execution_failure(exc)
-                            decision = self._get_last_risk_decision()
-                            failure_metadata: dict[str, object] = {"error": str(exc)}
-                            if notional:
-                                failure_metadata["notional"] = float(notional)
-                            if throttle_scaling_summary:
-                                failure_metadata.update(throttle_scaling_summary)
-                            release_metadata = self._extract_release_execution_metadata(
-                                validated_intent
-                            )
-                            if release_metadata:
-                                failure_metadata["release_execution"] = release_metadata
-                            self._maybe_attach_guardrails(
-                                failure_metadata,
-                                validated_intent,
-                                event,
-                            )
-                            attribution_metadata = self._extract_attribution_metadata(
-                                validated_intent
-                            )
-                            if attribution_metadata is None:
-                                attribution_metadata = self._extract_attribution_metadata(event)
-                            if attribution_metadata:
-                                failure_metadata["attribution"] = attribution_metadata
-                            coverage_snapshot = self._extract_diary_coverage_snapshot(
-                                validated_intent
-                            )
-                            if coverage_snapshot is None:
-                                coverage_snapshot = self._extract_diary_coverage_snapshot(event)
+                        if coverage_snapshot is None:
+                            coverage_snapshot = self._extract_diary_coverage_snapshot(event)
                             if coverage_snapshot is not None:
                                 failure_metadata["diary_coverage"] = dict(coverage_snapshot)
                             if release_metadata:
@@ -1889,6 +1917,13 @@ class TradingManager:
                                 metadata=failure_metadata,
                                 decision=decision,
                                 fast_weight=fast_weight_metadata,
+                            )
+                            self._note_manipulation_outcome(
+                                event_id,
+                                executed=False,
+                                notional=float(notional),
+                                timestamp=ingested_at or started_wall,
+                                reason=str(exc),
                             )
                             drift_event_status = "execution_error"
                             drift_confidence_value = confidence
@@ -1911,11 +1946,15 @@ class TradingManager:
                                     release_metadata=drift_release_metadata,
                                 )
                                 drift_event_emitted = True
+                        success_order_id: Any | None = None
                         if not execution_failed:
                             latency_ms = (time.perf_counter() - start) * 1000.0
                             self._record_execution_success(latency_ms, result)
                             decision = self._get_last_risk_decision()
-                        if self._execution_stats.get("last_successful_order"):
+                            success_order_id = self._execution_stats.get(
+                                "last_successful_order"
+                            )
+                        if success_order_id:
                             strategy_stats.record_success(
                                 symbol=symbol,
                                 side=side_value,
@@ -1923,7 +1962,7 @@ class TradingManager:
                                 price=float(price),
                                 notional=float(notional),
                                 latency_ms=latency_ms,
-                                order_id=result,
+                                order_id=success_order_id,
                                 timestamp=ingested_at or started_wall,
                             )
                             if notional > 0:
@@ -1987,6 +2026,12 @@ class TradingManager:
                                 decision=decision,
                                 fast_weight=fast_weight_metadata,
                             )
+                            self._note_manipulation_outcome(
+                                event_id,
+                                executed=True,
+                                notional=float(notional),
+                                timestamp=ingested_at or started_wall,
+                            )
                             drift_event_status = "executed"
                             drift_confidence_value = confidence
                             drift_release_metadata = release_metadata
@@ -2008,6 +2053,25 @@ class TradingManager:
                                     release_metadata=drift_release_metadata,
                                 )
                                 drift_event_emitted = True
+                        elif not execution_failed:
+                            failure_reason = "execution_engine_returned_false"
+                            self._note_manipulation_outcome(
+                                event_id,
+                                executed=False,
+                                notional=float(notional),
+                                timestamp=ingested_at or started_wall,
+                                reason=failure_reason,
+                            )
+                            if trade_outcome is None:
+                                trade_outcome = TradeIntentOutcome(
+                                    status="failed",
+                                    executed=False,
+                                    throttle=self.get_trade_throttle_snapshot(),
+                                    metadata={
+                                        "reason": failure_reason,
+                                        "notional": float(notional),
+                                    },
+                                )
                         else:
                             error_reason = str(
                                 self._execution_stats.get("last_error")
@@ -2434,6 +2498,81 @@ class TradingManager:
                     if result:
                         return {"reason": str(result)}
         return None
+
+    def _evaluate_manipulation_sentinel(
+        self,
+        *,
+        event_id: str,
+        symbol: str,
+        side: str,
+        quantity: float,
+        price: float,
+        strategy_id: str | None,
+        timestamp: datetime | None,
+    ) -> Mapping[str, Any] | None:
+        sentinel = getattr(self, "_manipulation_sentinel", None)
+        if sentinel is None:
+            return None
+
+        reference_time = timestamp or datetime.now(tz=timezone.utc)
+        notional = abs(float(quantity)) * abs(float(price))
+        block = sentinel.should_block(
+            symbol=symbol,
+            side=side,
+            notional=notional,
+            timestamp=reference_time,
+            event_id=event_id,
+            strategy_id=strategy_id,
+        )
+        if block:
+            sentinel.record_block(
+                event_id=event_id,
+                symbol=symbol,
+                side=side,
+                notional=notional,
+                timestamp=reference_time,
+                reason=str(block.get("reason", "manipulation.spoof_pattern")),
+                metadata=block,
+            )
+            enriched = dict(block)
+            enriched.setdefault("reason", "manipulation.spoof_pattern")
+            enriched.setdefault("symbol", symbol)
+            enriched.setdefault("side", side)
+            enriched.setdefault("notional", notional)
+            enriched.setdefault("pattern", enriched.get("pattern", "spoof"))
+            return enriched
+
+        sentinel.observe_submission(
+            event_id=event_id,
+            symbol=symbol,
+            side=side,
+            notional=notional,
+            timestamp=reference_time,
+            strategy_id=strategy_id,
+        )
+        return None
+
+    def _note_manipulation_outcome(
+        self,
+        event_id: str | None,
+        *,
+        executed: bool,
+        notional: float | None,
+        timestamp: datetime | None,
+        reason: str | None = None,
+    ) -> None:
+        if not event_id or event_id == "unknown":
+            return
+        sentinel = getattr(self, "_manipulation_sentinel", None)
+        if sentinel is None:
+            return
+        sentinel.mark_outcome(
+            event_id,
+            executed=executed,
+            timestamp=timestamp,
+            fill_notional=notional,
+            reason=reason,
+        )
 
     def _evaluate_drift_gate(
         self,

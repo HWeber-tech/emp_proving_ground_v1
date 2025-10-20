@@ -146,13 +146,13 @@
 **Goal:** look ahead a few steps under a tight budget; harden against exploitation.
 
 ### F.1 MuZero?lite planner
-- [ ] **F.1.1** Learn compact state?transition: next `MarketState` essentials + reward proxy.  
+- [x] **F.1.1** Learn compact state?transition: next `MarketState` essentials + reward proxy.  
 - [ ] **F.1.2** Depth?2/3 MCTS over actions {cross, post, hold}; budget **0.3–0.5?ms**; auto?disable if SLA breached.  
 - [ ] **F.1.3** Gate: correlation between imagined edge and realized edge ? 0.2 on hold?out day.
 
 ### F.2 Mini?league self?play
 - [ ] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
-- [ ] **F.2.2** Replay buffers: main + **rare?regime** (NFP, halts); 80/20 sampling with temp schedule.  
+- [x] **F.2.2** Replay buffers: main + **rare?regime** (NFP, halts); 80/20 sampling with temp schedule.  
 - [ ] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
 - [ ] **F.2.4** Exploitability metric (?Sharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
 
@@ -177,7 +177,7 @@
 **Goal:** you can see why every action happened; system survives faults.
 
 - [ ] **H.1** Action logs: `{reason_code, edge_ticks, cost_to_take, context_mult, inventory, latency_ms}`.  
-- [ ] **H.2** Drift monitors: **PSI** for 8–12 core features; alert if PSI > 0.25.  
+- [x] **H.2** Drift monitors: **PSI** for 8–12 core features; alert if PSI > 0.25.  
 - [ ] **H.3** Dumb baseline comparator (e.g., 1×spread mean?revert); alert on sustained underperformance.  
 - [ ] **H.4** Chaos suite: 5% event drop/dup, 300?ms stall, order rejects; engine must **flatten within 200?ms**; idempotent dedupe of `(clOrdID, execID)`.
 
@@ -219,7 +219,7 @@ actions_on_fail: ["reject", "fallback_previous_model"]
 - [ ] **J.1** Provision Hetzner: **8+ cores / 32-64 GB / NVMe / Ubuntu  22.04**.  
 - [ ] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
 - [ ] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
-- [ ] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
+- [x] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
 - [ ] **J.5** Live promotion only after **2+ weeks** green gates (paper).
 
 **DoD (J):** single server runs the full stack; paper loop stable with headroom.
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T03:35:16Z
+## Automation updates — 2025-10-20T03:47:15Z
 
 ### Last 4 commits
-- f3e31408 feat(governance): add 3 files (2025-10-20)
-- a40e69af test(artifacts): add 4 files (2025-10-20)
-- ec34638b refactor(sensory): tune 7 files (2025-10-20)
-- baf8382f refactor(runtime): tune 2 files (2025-10-20)
+- dd769853 refactor(config): tune 7 files (2025-10-20)
+- a63d70af refactor(operations): tune 2 files (2025-10-20)
+- 609bba38 refactor(thinking): tune 1 file (2025-10-20)
+- 5a8ea2da feat(artifacts): add 24 files (2025-10-20)

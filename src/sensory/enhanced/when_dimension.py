@@ -10,11 +10,15 @@ from src.sensory.enhanced._shared import (
     ensure_market_data,
     safe_timestamp,
 )
+from src.sensory.when.session_analytics import SessionAnalytics
 
 __all__ = ["ChronalUnderstandingEngine"]
 
 
 class ChronalUnderstandingEngine:
+    def __init__(self) -> None:
+        self._session_analytics = SessionAnalytics()
+
     def analyze_temporal_understanding(
         self, data: Mapping[str, Any] | Any | None = None
     ) -> ReadingAdapter:
@@ -26,20 +30,22 @@ class ChronalUnderstandingEngine:
         weekday = ts.weekday()
         is_weekend = weekday >= 5
 
+        session_snapshot = self._session_analytics.analyse(ts)
+        session_token = session_snapshot.session_token
+        active_count = len(session_snapshot.active_sessions)
+
         # Model liquidity sessions (rough UTC approximations)
-        session_bias = 0.0
-        if 7 * 60 <= minute_of_day <= 10 * 60:
-            session = "asia-europe-overlap"
-            session_bias = 0.2
-        elif 12 * 60 <= minute_of_day <= 16 * 60:
-            session = "london-newyork-overlap"
-            session_bias = 0.35
-        elif 16 * 60 < minute_of_day <= 20 * 60:
-            session = "us-session"
-            session_bias = 0.15
-        else:
-            session = "off-peak"
-            session_bias = -0.05
+        base_bias = {
+            "Asia": 0.12,
+            "London": 0.3,
+            "NY": 0.18,
+            "auction_open": 0.32,
+            "auction_close": 0.24,
+            "halt/resume": -0.4,
+        }
+        session_bias = base_bias.get(session_token, -0.05)
+        if active_count >= 2:
+            session_bias = max(session_bias, 0.35)
 
         weekend_penalty = 0.4 if is_weekend else 0.0
         circadian = clamp((minute_of_day / 720.0) - 1.0, -1.0, 1.0)
@@ -49,23 +55,23 @@ class ChronalUnderstandingEngine:
             0.25
             + 0.45 * (1.0 - weekend_penalty)
             + 0.2 * (0.5 + 0.5 * abs(circadian))
-            - (0.15 if session == "off-peak" else 0.0),
+            - (0.15 if active_count == 0 and session_token != "auction_open" else 0.0),
             0.0,
             1.0,
         )
 
         regime = MarketRegime.UNKNOWN
-        if session == "london-newyork-overlap" and signal_strength > 0.2:
+        if active_count >= 2 and signal_strength > 0.2:
             regime = MarketRegime.BREAKOUT
         elif session_bias > 0.1:
             regime = MarketRegime.TRENDING_WEAK
-        elif session == "off-peak":
+        elif active_count == 0 and session_token != "auction_open":
             regime = MarketRegime.CONSOLIDATING
 
         context: dict[str, Any] = {
             "source": "sensory.when",
             "minute_of_day": float(minute_of_day),
-            "session": session,
+            "session": session_token,
             "weekday": weekday,
             "is_weekend": is_weekend,
         }
@@ -80,5 +86,5 @@ class ChronalUnderstandingEngine:
             processing_time_ms=0.0,
             timestamp=ts,
         )
-        extras = {"session": session, "minute_of_day": float(minute_of_day)}
+        extras = {"session": session_token, "minute_of_day": float(minute_of_day)}
         return build_legacy_payload(reading, source="sensory.when", extras=extras)

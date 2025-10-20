@@ -144,11 +144,14 @@ class PerInstrumentStateTable:
             return False
 
         if halted:
+            details: Dict[str, object] = {"session": "halt/resume"}
+            if entry.session is not None:
+                details["previous_session"] = entry.session
             return self.reset(
                 instrument,
                 reason="halt",
                 when=now,
-                details=self._details_with_session(entry),
+                details=details,
             )
 
         duration = self._coerce_timedelta(gap_seconds)

@@ -14,7 +14,8 @@ def test_session_analytics_identifies_overlap() -> None:
     snapshot = analytics.analyse(timestamp)
 
     assert snapshot.intensity >= 0.85
-    assert set(snapshot.active_sessions) == {"london", "new_york"}
+    assert set(snapshot.active_sessions) == {"London", "NY"}
+    assert snapshot.session_token in {"London", "NY"}
     assert snapshot.minutes_to_session_close is not None
 
 
@@ -25,9 +26,10 @@ def test_session_analytics_tracks_upcoming_session() -> None:
 
     snapshot = analytics.analyse(timestamp)
 
-    assert snapshot.active_sessions == ("asia",)
+    assert snapshot.active_sessions == ("Asia",)
     assert snapshot.minutes_to_next_session is not None
     assert snapshot.minutes_to_session_close is not None
+    assert snapshot.session_token == "Asia"
 
 
 def test_session_analytics_builds_anticipation_before_open() -> None:
@@ -37,5 +39,5 @@ def test_session_analytics_builds_anticipation_before_open() -> None:
     snapshot = analytics.analyse(timestamp)
 
     assert snapshot.intensity > 0.1
-    assert snapshot.upcoming_session in {"london", "asia", "new_york"}
-
+    assert snapshot.upcoming_session in {"London", "Asia", "NY"}
+    assert snapshot.session_token == "auction_close"

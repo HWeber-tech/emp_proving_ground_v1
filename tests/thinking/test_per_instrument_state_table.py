@@ -27,7 +27,7 @@ def clock() -> _FrozenClock:
 
 def test_pin_returns_pinned_state(clock: _FrozenClock) -> None:
     table = PerInstrumentStateTable(clock=clock.now)
-    state = table.pin("AAPL", session="us")
+    state = table.pin("AAPL", session="NY")
     state["hidden"] = [1, 2, 3]
 
     cached = table.get("AAPL")
@@ -61,21 +61,21 @@ def test_ttl_expiration_and_refresh(clock: _FrozenClock) -> None:
 
 def test_session_boundary_resets_state(clock: _FrozenClock) -> None:
     table = PerInstrumentStateTable(clock=clock.now)
-    state = table.pin("AAPL", session="asia")
+    state = table.pin("AAPL", session="Asia")
 
     # Same session keeps the state
-    assert table.apply_market_event("AAPL", session="asia") is False
+    assert table.apply_market_event("AAPL", session="Asia") is False
     assert table.get("AAPL") is state
 
     # Different session resets
-    assert table.apply_market_event("AAPL", session="london") is True
+    assert table.apply_market_event("AAPL", session="London") is True
     assert table.get("AAPL") is None
 
     reset = table.last_reset("AAPL")
     assert reset is not None
     assert reset.reason == "session_boundary"
-    assert reset.details["previous_session"] == "asia"
-    assert reset.details["session"] == "london"
+    assert reset.details["previous_session"] == "Asia"
+    assert reset.details["session"] == "London"
 
 
 def test_gap_reset_threshold(clock: _FrozenClock) -> None:
@@ -100,7 +100,7 @@ def test_gap_reset_threshold(clock: _FrozenClock) -> None:
 
 def test_halt_resets_state(clock: _FrozenClock) -> None:
     table = PerInstrumentStateTable(clock=clock.now)
-    table.pin("TSLA", session="ny")
+    table.pin("TSLA", session="NY")
 
     assert table.apply_market_event("TSLA", halted=True) is True
     assert table.get("TSLA") is None
@@ -108,7 +108,8 @@ def test_halt_resets_state(clock: _FrozenClock) -> None:
     reset = table.last_reset("TSLA")
     assert reset is not None
     assert reset.reason == "halt"
-    assert reset.details["session"] == "ny"
+    assert reset.details["session"] == "halt/resume"
+    assert reset.details["previous_session"] == "NY"
 
 
 def test_purge_expired_bulk(clock: _FrozenClock) -> None:

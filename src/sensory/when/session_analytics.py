@@ -30,9 +30,9 @@ class TradingSession:
 @dataclass(slots=True)
 class SessionAnalyticsConfig:
     sessions: tuple[TradingSession, ...] = (
-        TradingSession("asia", time(22, 0), time(7, 0)),
-        TradingSession("london", time(7, 0), time(16, 0)),
-        TradingSession("new_york", time(12, 0), time(21, 0)),
+        TradingSession("Asia", time(22, 0), time(7, 0)),
+        TradingSession("London", time(7, 0), time(16, 0)),
+        TradingSession("NY", time(12, 0), time(21, 0)),
     )
 
     overlap_bonus: float = 0.3
@@ -49,6 +49,7 @@ class SessionSnapshot:
     upcoming_session: str | None
     minutes_to_session_close: float | None
     minutes_to_next_session: float | None
+    session_token: str
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -57,6 +58,7 @@ class SessionSnapshot:
             "upcoming_session": self.upcoming_session,
             "minutes_to_session_close": self.minutes_to_session_close,
             "minutes_to_next_session": self.minutes_to_next_session,
+            "session_token": self.session_token,
         }
 
 
@@ -97,13 +99,45 @@ class SessionAnalytics:
             intensity = max(intensity, 0.6 + 0.3 * proximity)
 
         active_names = tuple(session.name for session in active)
+        session_token = self._derive_session_token(
+            active_sessions=active_names,
+            minutes_to_close=minutes_to_close,
+            upcoming_session=upcoming_session,
+            minutes_to_next=minutes_to_next,
+        )
         return SessionSnapshot(
             intensity=float(min(1.0, intensity)),
             active_sessions=active_names,
             upcoming_session=upcoming_session,
             minutes_to_session_close=minutes_to_close,
             minutes_to_next_session=minutes_to_next,
+            session_token=session_token,
         )
+
+    def _derive_session_token(
+        self,
+        *,
+        active_sessions: tuple[str, ...],
+        minutes_to_close: float | None,
+        upcoming_session: str | None,
+        minutes_to_next: float | None,
+    ) -> str:
+        if active_sessions:
+            if (
+                minutes_to_close is not None
+                and minutes_to_close <= max(self._config.near_close_minutes, 0)
+            ):
+                return "auction_close"
+            return active_sessions[-1]
+
+        if (
+            upcoming_session
+            and minutes_to_next is not None
+            and minutes_to_next <= max(self._config.near_open_minutes, 0)
+        ):
+            return "auction_open"
+
+        return upcoming_session or "Asia"
 
     def _minutes_to_close(
         self, timestamp: pd.Timestamp, active: Iterable[TradingSession]
@@ -142,9 +176,13 @@ class SessionAnalytics:
     def _session_start_timestamp(
         self, session: TradingSession, timestamp: pd.Timestamp
     ) -> pd.Timestamp:
-        date = timestamp.tz_convert(timezone.utc).date()
+        ts = timestamp.tz_convert(timezone.utc)
+        date = ts.date()
         dt = datetime.combine(date, session.start, tzinfo=timezone.utc)
-        return pd.Timestamp(dt)
+        start = pd.Timestamp(dt)
+        if session.start > session.end and ts.time() < session.start:
+            start -= pd.Timedelta(days=1)
+        return start
 
     def _session_end_timestamp(
         self, session: TradingSession, timestamp: pd.Timestamp
@@ -156,4 +194,3 @@ class SessionAnalytics:
         else:
             dt = datetime.combine((start + pd.Timedelta(days=1)).date(), end_time, tzinfo=timezone.utc)
         return pd.Timestamp(dt)
-

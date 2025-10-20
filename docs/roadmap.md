@@ -70,7 +70,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Belief Competence Matrix**: Maintain per-regime confidence in each belief family.
 - [x] **Persistent Red-Team Agents**: Dedicated adversaries specialize in EMP's known weak spots.
 - [x] **Self-Audit Reports**: Daily introspection logs outlining what it knows, what it doubts, and what changed.
-- [ ] **Auto-RFC Generator**: When gates fail, open automatic patch proposals suggesting remediation.
+- [x] **Auto-RFC Generator**: When gates fail, open automatic patch proposals suggesting remediation.
 
 ---
 
@@ -123,10 +123,10 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ### Ultimate Philosophy
 EMP's final form is not predictive but *synchronous*. It doesnâ€™t guess; it co-oscillates with the market's hidden state. Each sensory and cognitive subsystem acts as a mirror, correcting distortion through feedback and evolution. When complete, the predator no longer chases signalsâ€”it embodies the market's structure and moves with it, flawlessly.
 
-## Automation updates — 2025-10-20T18:44:51Z
+## Automation updates — 2025-10-20T18:46:22Z
 
 ### Last 4 commits
+- 6ba6f81f refactor(governance): tune 2 files (2025-10-20)
+- f8c1b106 docs(docs): tune 1 file (2025-10-20)
 - 27b49676 refactor(governance): tune 2 files (2025-10-20)
 - 7bd95a23 refactor(orchestration): tune 1 file (2025-10-20)
-- 00431366 refactor(governance): tune 2 files (2025-10-20)
-- 678dd4a8 docs(docs): tune 1 file (2025-10-20)

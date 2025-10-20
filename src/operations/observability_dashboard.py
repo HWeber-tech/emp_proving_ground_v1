@@ -1164,17 +1164,14 @@ def _build_diary_panel(loop_results: Sequence[Any] | None) -> DashboardPanel:
     if not target_reported:
         missing_telemetry_fields.append("target")
 
-    missing_telemetry = False
-    missing_field_names: tuple[str, ...] = ()
-    if missing_telemetry_fields:
-        missing_telemetry = True
-        missing_field_names = tuple(sorted(missing_telemetry_fields))
+    missing_field_names: tuple[str, ...] = tuple(sorted(missing_telemetry_fields))
+    missing_telemetry = bool(missing_field_names)
+    if missing_telemetry:
         fields = ", ".join(missing_field_names)
         details.append(f"Missing diary telemetry: {fields}.")
         status = _escalate(status, DashboardStatus.warn)
 
-    if missing_field_names:
-        info["missing_telemetry_fields"] = missing_field_names
+    info["missing_telemetry_fields"] = missing_field_names
 
     if not details:
         details.append("No diary coverage telemetry available.")

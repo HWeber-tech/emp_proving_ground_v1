@@ -1041,6 +1041,7 @@ def test_diary_panel_reports_coverage_success() -> None:
     coverage_meta = payload["coverage"]
     assert coverage_meta["coverage_percent"] == pytest.approx(97.0)
     assert coverage_meta["target_percent"] == pytest.approx(95.0)
+    assert coverage_meta["missing_telemetry_fields"] == ()
 
 
 def test_diary_panel_infers_coverage_from_percentages() -> None:
@@ -1068,6 +1069,7 @@ def test_diary_panel_infers_coverage_from_percentages() -> None:
     assert coverage_meta["coverage_percent"] == pytest.approx(96.0)
     assert coverage_meta["target"] == pytest.approx(0.95)
     assert coverage_meta["target_percent"] == pytest.approx(95.0)
+    assert coverage_meta["missing_telemetry_fields"] == ()
 
 
 def test_diary_panel_infers_coverage_from_counts() -> None:
@@ -1120,6 +1122,7 @@ def test_diary_panel_flags_coverage_shortfall() -> None:
     assert payload["alerts"]["coverage_below_target"] is True
     assert payload["alerts"]["gap_breach"] is False
     assert payload["alerts"]["missing_telemetry"] is False
+    assert payload["coverage"]["missing_telemetry_fields"] == ()
 
 
 def test_diary_panel_marks_gap_breach() -> None:
@@ -1148,6 +1151,7 @@ def test_diary_panel_marks_gap_breach() -> None:
     payload = panel.metadata["decision_diary"]
     assert payload["alerts"]["gap_breach"] is True
     assert payload["alerts"]["missing_telemetry"] is False
+    assert payload["coverage"]["missing_telemetry_fields"] == ()
 
 
 def test_diary_panel_enforces_default_target() -> None:
@@ -1176,6 +1180,10 @@ def test_diary_panel_enforces_default_target() -> None:
     assert coverage_meta["coverage_percent"] == pytest.approx(90.0)
     assert coverage_meta["target_percent"] == pytest.approx(95.0)
     assert coverage_meta["target_inferred"] is True
+    assert coverage_meta["missing_telemetry_fields"] == (
+        "coverage",
+        "target",
+    )
 
 
 def test_diary_panel_warns_on_missing_telemetry() -> None:

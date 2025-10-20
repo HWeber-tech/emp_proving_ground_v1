@@ -888,27 +888,28 @@ class AlphaTradeLoopRunner:
             )
             )
 
-        explanation = AlphaTradeLoopRunner._build_brief_explanation(
+        brief_explanation = AlphaTradeLoopRunner._build_brief_explanation(
             getattr(decision_bundle.decision, "rationale", "")
         )
-        if not explanation:
+        if not brief_explanation:
             tactic_label = str(getattr(decision_bundle.decision, "tactic_id", "") or "").strip()
             if not tactic_label:
                 tactic_label = str(getattr(diary_entry, "policy_id", "") or "").strip()
             if not tactic_label:
                 tactic_label = symbol or "trade"
-            explanation = AlphaTradeLoopRunner._build_brief_explanation(
+            brief_explanation = AlphaTradeLoopRunner._build_brief_explanation(
                 f"{tactic_label} routed under {fallback_regime}"
             )
-        if not explanation:
-            explanation = "Routed under governing regime"
+        if not brief_explanation:
+            brief_explanation = "Routed under governing regime"
 
         attribution: dict[str, Any] = {
             "diary_entry_id": diary_entry.entry_id,
             "policy_id": diary_entry.policy_id,
             "belief": belief_summary,
             "probes": probes_payload,
-            "explanation": explanation,
+            "brief_explanation": brief_explanation,
+            "explanation": brief_explanation,
         }
         return attribution
 

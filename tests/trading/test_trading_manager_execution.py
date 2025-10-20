@@ -1077,6 +1077,7 @@ async def test_trading_manager_tracks_order_attribution(
             "generated_at": datetime.now(tz=timezone.utc).isoformat(),
         },
         "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "brief_explanation": "Test attribution coverage",
         "explanation": "Test attribution coverage",
     }
 
@@ -1139,6 +1140,7 @@ async def test_trading_manager_counts_failed_order_attribution(
             "confidence": 0.61,
         },
         "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "brief_explanation": "Execution failed after broker error",
         "explanation": "Execution failed after broker error",
     }
 
@@ -1199,6 +1201,7 @@ async def test_trading_manager_counts_rejected_order_attribution(
             "confidence": 0.7,
         },
         "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "brief_explanation": "Risk gateway rejected order",
         "explanation": "Risk gateway rejected order",
     }
 
@@ -1246,7 +1249,9 @@ def test_trading_manager_normalises_attribution_explanation() -> None:
 
     normalised = TradingManager._normalise_attribution_payload(payload)
     explanation = normalised.get("explanation")
+    brief_explanation = normalised.get("brief_explanation")
     assert explanation is not None
+    assert brief_explanation == explanation
     assert len(explanation) <= TradingManager._ATTRIBUTION_EXPLANATION_LIMIT
     assert explanation.endswith("...")
 
@@ -1293,6 +1298,7 @@ async def test_trading_manager_requires_complete_attribution_components(
             "confidence": 0.9,
         },
         "probes": [{"probe_id": "probe.health", "status": "ok"}],
+        "brief_explanation": "Executed with full context",
         "explanation": "Executed with full context",
     }
 
@@ -1336,6 +1342,7 @@ async def test_trading_manager_requires_complete_attribution_components(
                     "confidence": 0.88,
                 },
                 "probes": [{"probe_id": "probe.health", "status": "ok"}],
+                "brief_explanation": "Missing belief id should not count",
                 "explanation": "Missing belief id should not count",
             },
         },

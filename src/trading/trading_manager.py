@@ -3944,10 +3944,13 @@ class TradingManager:
             return {}
         normalised: dict[str, Any] = {}
 
-        explanation = payload.get("explanation")
-        if isinstance(explanation, str):
-            explanation_text = TradingManager._trim_attribution_explanation(explanation)
+        explanation_value = payload.get("brief_explanation")
+        if not isinstance(explanation_value, str) or not explanation_value.strip():
+            explanation_value = payload.get("explanation")
+        if isinstance(explanation_value, str):
+            explanation_text = TradingManager._trim_attribution_explanation(explanation_value)
             if explanation_text:
+                normalised["brief_explanation"] = explanation_text
                 normalised["explanation"] = explanation_text
 
         diary_entry_id = payload.get("diary_entry_id")
@@ -4120,7 +4123,7 @@ class TradingManager:
         if not isinstance(payload, Mapping):
             return False
 
-        explanation = payload.get("explanation")
+        explanation = payload.get("brief_explanation") or payload.get("explanation")
         if not isinstance(explanation, str) or not explanation.strip():
             return False
 

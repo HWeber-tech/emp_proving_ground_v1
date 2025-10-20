@@ -343,6 +343,7 @@ def test_alpha_trade_runner_build_trade_intent_threads_metadata() -> None:
         "attribution": {
             "belief": {"belief_id": "belief-123"},
             "probes": [{"probe_id": "guardrail.requires_diary", "status": "ok"}],
+            "brief_explanation": "unit test attribution context",
             "explanation": "unit test attribution context",
         },
         "diary_coverage": {"belief": True},
@@ -417,8 +418,10 @@ def test_alpha_trade_runner_attribution_fallback_explanation() -> None:
 
     assert attribution is not None
     explanation = attribution["explanation"]
+    brief_explanation = attribution["brief_explanation"]
     assert explanation == "alpha.trade routed under balanced"
-    assert len(explanation) <= AlphaTradeLoopRunner._ATTRIBUTION_EXPLANATION_LIMIT
+    assert brief_explanation == explanation
+    assert len(brief_explanation) <= AlphaTradeLoopRunner._ATTRIBUTION_EXPLANATION_LIMIT
 
     belief_summary = attribution["belief"]
     assert belief_summary["belief_id"] == "belief-fallback"
@@ -478,7 +481,8 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     belief_summary = attribution.get("belief")
     assert isinstance(belief_summary, dict)
     assert belief_summary.get("belief_id") == result.belief_state.belief_id
-    assert attribution.get("explanation")
+    assert attribution.get("brief_explanation")
+    assert attribution.get("explanation") == attribution.get("brief_explanation")
     probes = attribution.get("probes")
     assert isinstance(probes, list) and probes, "expected attribution probes to be populated"
     probe_ids = {probe.get("probe_id") for probe in probes if isinstance(probe, Mapping)}

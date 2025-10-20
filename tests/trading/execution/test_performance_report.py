@@ -15,6 +15,9 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
         "orders_submitted": 5,
         "orders_executed": 3,
         "orders_failed": 1,
+        "avg_latency_ms": 14.5,
+        "latency_p99_ms": 22.0,
+        "max_latency_ms": 25.0,
         "trade_throttle": {
             "name": "rate_limit",
             "state": "rate_limited",
@@ -61,6 +64,10 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
             "cpu_percent": 35.0,
             "memory_mb": 512.0,
             "memory_percent": 42.0,
+            "io_read_mb": 1.5,
+            "io_write_mb": 0.75,
+            "io_read_count": 12,
+            "io_write_count": 3,
         },
     }
 
@@ -81,6 +88,7 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
     assert "Scope key:" in report
     assert "Throughput (per min)" in report
     assert "96.00" in report
+    assert "P99 order latency (ms)" in report
     assert "Event backlog" in report
     assert "Threshold (ms): 150.00" in report
     assert "Latest lag (ms): 30.00" in report
@@ -91,6 +99,10 @@ def test_build_execution_performance_report_includes_throttle_and_throughput() -
     assert "Resource usage snapshot" in report
     assert "CPU (%): 35.00" in report
     assert "Memory (MB): 512.00" in report
+    assert "IO read (MB): 1.50" in report
+    assert "IO write (MB): 0.75" in report
+    assert "IO read ops: 12" in report
+    assert "IO write ops: 3" in report
 
 
 def test_build_execution_performance_report_handles_missing_sections() -> None:

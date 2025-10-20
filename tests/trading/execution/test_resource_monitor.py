@@ -23,6 +23,14 @@ class _StubProcess:
     def memory_percent(self) -> float:
         return 42.0
 
+    def io_counters(self) -> SimpleNamespace:
+        return SimpleNamespace(
+            read_bytes=512 * 1024,
+            write_bytes=1024 * 1024,
+            read_count=7,
+            write_count=11,
+        )
+
 
 def test_resource_monitor_with_psutil(monkeypatch: pytest.MonkeyPatch) -> None:
     stub_process = _StubProcess()
@@ -37,6 +45,10 @@ def test_resource_monitor_with_psutil(monkeypatch: pytest.MonkeyPatch) -> None:
     assert snapshot["cpu_percent"] == pytest.approx(13.5)
     assert snapshot["memory_mb"] == pytest.approx(256.0)
     assert snapshot["memory_percent"] == pytest.approx(42.0)
+    assert snapshot["io_read_mb"] == pytest.approx(0.5)
+    assert snapshot["io_write_mb"] == pytest.approx(1.0)
+    assert snapshot["io_read_count"] == 7
+    assert snapshot["io_write_count"] == 11
     assert snapshot["timestamp"] is not None
 
 
@@ -49,4 +61,8 @@ def test_resource_monitor_without_psutil(monkeypatch: pytest.MonkeyPatch) -> Non
         "cpu_percent": None,
         "memory_mb": None,
         "memory_percent": None,
+        "io_read_mb": None,
+        "io_write_mb": None,
+        "io_read_count": None,
+        "io_write_count": None,
     }

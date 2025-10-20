@@ -3,6 +3,7 @@
 import logging
 import math
 import time
+from bisect import bisect_left, insort
 from collections import deque
 from collections.abc import Mapping as MappingABC, MutableMapping as MutableMappingABC
 from dataclasses import dataclass, field
@@ -563,6 +564,8 @@ class TradingManager:
             "latency_samples": 0,
             "total_latency_ms": 0.0,
             "max_latency_ms": 0.0,
+            "latency_p99_ms": None,
+            "latency_history_samples": 0,
             "last_error": None,
             "last_execution_at": None,
             "last_successful_order": None,
@@ -597,6 +600,8 @@ class TradingManager:
         self._strategy_stats: dict[str, StrategyExecutionStats] = {}
         self._experiment_events: deque[dict[str, Any]] = deque(maxlen=512)
         self._throttle_history: deque[dict[str, Any]] = deque(maxlen=256)
+        self._latency_history: deque[float] = deque(maxlen=512)
+        self._latency_sorted: list[float] = []
 
         self._trade_throttle: TradeThrottle | None = None
         self._trade_throttle_snapshot: Mapping[str, Any] | None = None
@@ -1860,15 +1865,53 @@ class TradingManager:
         samples += 1
         total_latency += float(latency_ms)
         max_latency = max(max_latency, float(latency_ms))
+        self._add_latency_sample(float(latency_ms))
 
         executed = coerce_int(self._execution_stats.get("orders_executed"), default=0)
         self._execution_stats["orders_executed"] = executed + 1
         self._execution_stats["latency_samples"] = samples
         self._execution_stats["total_latency_ms"] = total_latency
         self._execution_stats["max_latency_ms"] = max_latency
+        self._execution_stats["latency_p99_ms"] = self._latency_percentile(99.0)
+        self._execution_stats["latency_history_samples"] = len(self._latency_history)
         self._execution_stats["last_execution_at"] = datetime.now(tz=timezone.utc)
         self._execution_stats["last_successful_order"] = result
         self._execution_stats["last_error"] = None
+
+    def _add_latency_sample(self, latency_ms: float) -> None:
+        history = self._latency_history
+        maxlen = history.maxlen
+        if maxlen is not None and len(history) >= maxlen:
+            removed = history.popleft()
+            self._remove_latency_sample(removed)
+        history.append(latency_ms)
+        insort(self._latency_sorted, float(latency_ms))
+
+    def _remove_latency_sample(self, value: float) -> None:
+        index = bisect_left(self._latency_sorted, float(value))
+        if 0 <= index < len(self._latency_sorted):
+            del self._latency_sorted[index]
+
+    def _latency_percentile(self, percentile: float) -> float | None:
+        if not self._latency_sorted:
+            return None
+
+        if percentile <= 0:
+            return self._latency_sorted[0]
+        if percentile >= 100:
+            return self._latency_sorted[-1]
+
+        rank = (percentile / 100.0) * (len(self._latency_sorted) - 1)
+        lower = math.floor(rank)
+        upper = math.ceil(rank)
+
+        lower_value = self._latency_sorted[lower]
+        if lower == upper:
+            return lower_value
+
+        upper_value = self._latency_sorted[upper]
+        fraction = rank - lower
+        return lower_value + (upper_value - lower_value) * fraction
 
     def _record_execution_failure(self, error: Exception | str) -> None:
         """Record a failed execution attempt."""

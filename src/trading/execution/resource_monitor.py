@@ -17,6 +17,10 @@ class ResourceSample:
     cpu_percent: float | None
     memory_mb: float | None
     memory_percent: float | None
+    io_read_mb: float | None
+    io_write_mb: float | None
+    io_read_count: int | None
+    io_write_count: int | None
 
 
 class ResourceUsageMonitor:
@@ -46,11 +50,16 @@ class ResourceUsageMonitor:
 
         cpu_percent = self._safe_cpu_percent()
         memory_mb, memory_percent = self._safe_memory_usage()
+        io_read_mb, io_write_mb, io_read_count, io_write_count = self._safe_io_counters()
         return ResourceSample(
             timestamp=timestamp,
             cpu_percent=cpu_percent,
             memory_mb=memory_mb,
             memory_percent=memory_percent,
+            io_read_mb=io_read_mb,
+            io_write_mb=io_write_mb,
+            io_read_count=io_read_count,
+            io_write_count=io_write_count,
         )
 
     def _safe_cpu_percent(self) -> float | None:
@@ -75,6 +84,49 @@ class ResourceUsageMonitor:
             memory_percent = None
         return (memory_mb, memory_percent)
 
+    def _safe_io_counters(self) -> tuple[
+        float | None, float | None, int | None, int | None
+    ]:
+        if self._process is None:
+            return (None, None, None, None)
+
+        io_counters_fn = getattr(self._process, "io_counters", None)
+        if io_counters_fn is None:
+            return (None, None, None, None)
+
+        try:
+            counters = io_counters_fn()
+        except Exception:
+            return (None, None, None, None)
+
+        read_bytes = getattr(counters, "read_bytes", None)
+        write_bytes = getattr(counters, "write_bytes", None)
+        read_count = getattr(counters, "read_count", None)
+        write_count = getattr(counters, "write_count", None)
+
+        def _bytes_to_mb(value: object | None) -> float | None:
+            if value is None:
+                return None
+            try:
+                return float(value) / 1024.0 / 1024.0
+            except (TypeError, ValueError):
+                return None
+
+        def _coerce_int(value: object | None) -> int | None:
+            if value is None:
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        return (
+            _bytes_to_mb(read_bytes),
+            _bytes_to_mb(write_bytes),
+            _coerce_int(read_count),
+            _coerce_int(write_count),
+        )
+
     def _build_snapshot(self, sample: ResourceSample | None) -> Mapping[str, object | None]:
         if sample is None:
             return {
@@ -82,12 +134,20 @@ class ResourceUsageMonitor:
                 "cpu_percent": None,
                 "memory_mb": None,
                 "memory_percent": None,
+                "io_read_mb": None,
+                "io_write_mb": None,
+                "io_read_count": None,
+                "io_write_count": None,
             }
         payload: MutableMapping[str, object | None] = {
             "timestamp": sample.timestamp.astimezone(UTC).isoformat(),
             "cpu_percent": sample.cpu_percent,
             "memory_mb": sample.memory_mb,
             "memory_percent": sample.memory_percent,
+            "io_read_mb": sample.io_read_mb,
+            "io_write_mb": sample.io_write_mb,
+            "io_read_count": sample.io_read_count,
+            "io_write_count": sample.io_write_count,
         }
         return payload
 

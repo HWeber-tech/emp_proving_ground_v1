@@ -158,6 +158,12 @@ def build_execution_performance_report(stats: Mapping[str, object]) -> str:
             f"| P95 processing (ms) | {_format_float(throughput.get('p95_processing_ms'))} |")
         lines.append(
             f"| Max processing (ms) | {_format_float(throughput.get('max_processing_ms'))} |")
+        lines.append(
+            f"| Avg order latency (ms) | {_format_float(stats.get('avg_latency_ms'))} |")
+        lines.append(
+            f"| P99 order latency (ms) | {_format_float(stats.get('latency_p99_ms'))} |")
+        lines.append(
+            f"| Max order latency (ms) | {_format_float(stats.get('max_latency_ms'))} |")
         lines.append(f"| Avg lag (ms) | {_format_float(throughput.get('avg_lag_ms'))} |")
         lines.append(f"| Max lag (ms) | {_format_float(throughput.get('max_lag_ms'))} |")
         lines.append(
@@ -202,6 +208,14 @@ def build_execution_performance_report(stats: Mapping[str, object]) -> str:
         lines.append(f"- Memory (MB): {_format_float(resource.get('memory_mb'))}")
         lines.append(
             f"- Memory (%): {_format_float(resource.get('memory_percent'))}"
+        )
+        lines.append(f"- IO read (MB): {_format_float(resource.get('io_read_mb'))}")
+        lines.append(f"- IO write (MB): {_format_float(resource.get('io_write_mb'))}")
+        lines.append(
+            f"- IO read ops: {_format_optional(resource.get('io_read_count'))}"
+        )
+        lines.append(
+            f"- IO write ops: {_format_optional(resource.get('io_write_count'))}"
         )
 
     return "\n".join(lines) + "\n"

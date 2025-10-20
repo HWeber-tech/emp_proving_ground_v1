@@ -292,9 +292,23 @@ class MarketAnalyzer(ThinkingPattern):
             sla_grace=sla_grace,
         )
         self._planner_disabled_reason: str | None = None
+        threshold_ms = self.config.get("planner_latency_threshold_ms", 0.85)
+        try:
+            threshold_ms = float(threshold_ms)
+        except (TypeError, ValueError):
+            threshold_ms = 0.85
+        self._planner_latency_threshold_s = max(0.0, threshold_ms) / 1000.0
+        self._last_total_decision_latency_s: float | None = None
+        self._planner_latency_guard_reason: str | None = None
 
-    def analyze(self, signals: list[SensorySignal]) -> AnalysisResult:
+    def analyze(
+        self,
+        signals: list[SensorySignal],
+        *,
+        decision_latency_s: float | None = None,
+    ) -> AnalysisResult:
         """Analyze market using multiple analysis components."""
+        self.update_decision_latency(decision_latency_s)
         try:
             # Perform performance analysis
             performance_result = self.performance_analyzer.analyze_performance(
@@ -347,6 +361,26 @@ class MarketAnalyzer(ThinkingPattern):
         except Exception as e:
             logger.error(f"Error in market analyzer learning: {e}")
             return False
+
+    def update_decision_latency(self, total_latency_s: float | None) -> None:
+        """Record the most recent total decision latency for planner guards."""
+
+        if total_latency_s is None:
+            self._last_total_decision_latency_s = None
+            return
+        try:
+            latency = float(total_latency_s)
+        except (TypeError, ValueError):
+            return
+        if not math.isfinite(latency) or latency < 0.0:
+            return
+        self._last_total_decision_latency_s = latency
+
+    @property
+    def planner_latency_guard_reason(self) -> str | None:
+        """Explain why the planner branch was discarded in the most recent decision."""
+
+        return self._planner_latency_guard_reason
 
     def _combine_analysis_results(
         self,
@@ -590,6 +624,8 @@ class MarketAnalyzer(ThinkingPattern):
     ) -> str:
         """Recommend execution style for the opportunity window."""
 
+        self._planner_latency_guard_reason = None
+
         planner_state = _PlannerState(
             opportunity=max(0.0, min(1.0, opportunity_score)),
             sentiment=max(0.0, min(1.0, sentiment)),
@@ -601,10 +637,23 @@ class MarketAnalyzer(ThinkingPattern):
         )
 
         planner_action: Optional[str] = None
-        if self._planner.enabled:
+        latency_exceeded = (
+            self._last_total_decision_latency_s is not None
+            and self._last_total_decision_latency_s > self._planner_latency_threshold_s
+        )
+        if latency_exceeded:
+            threshold_ms = self._planner_latency_threshold_s * 1000.0
+            observed_ms = self._last_total_decision_latency_s * 1000.0
+            self._planner_latency_guard_reason = (
+                f"planner branch discarded: {observed_ms:.3f}ms > {threshold_ms:.3f}ms"
+            )
+            self._planner_disabled_reason = self._planner_latency_guard_reason
+        elif self._planner.enabled:
             planner_action = self._planner.plan(planner_state)
         if not self._planner.enabled and self._planner.disabled_reason:
             self._planner_disabled_reason = self._planner.disabled_reason
+        elif not latency_exceeded:
+            self._planner_disabled_reason = None
 
         if planner_action:
             return planner_action

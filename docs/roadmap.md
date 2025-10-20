@@ -29,7 +29,7 @@
 
 ### A.3 Market access & sensory organs
 - [x] **A.3.1** Implement FIX **MarketDataRequest** subscribe/unsubscribe on start/stop.  
-- [ ] **A.3.2** Parse W/X messages: build L1-L5 snapshots; emit "market_data_update" with `{bid,ask,bid_sz,ask_sz,depth[L],ts,seq}`.  
+- [x] **A.3.2** Parse W/X messages: build L1-L5 snapshots; emit "market_data_update" with `{bid,ask,bid_sz,ask_sz,depth[L],ts,seq}`.  
 - [x] **A.3.3** cTrader adapter: replace missing domain events with typed payloads or plain bus events; ensure async usage is correct.
 
 ### A.4 Minimal compose & health
@@ -179,7 +179,7 @@
 - [x] **H.1** Action logs: `{reason_code, edge_ticks, cost_to_take, context_mult, inventory, latency_ms}`.  
 - [x] **H.2** Drift monitors: **PSI** for 8–12 core features; alert if PSI > 0.25.  
 - [x] **H.3** Dumb baseline comparator (e.g., 1×spread mean?revert); alert on sustained underperformance.  
-- [ ] **H.4** Chaos suite: 5% event drop/dup, 300?ms stall, order rejects; engine must **flatten within 200?ms**; idempotent dedupe of `(clOrdID, execID)`.
+- [x] **H.4** Chaos suite: 5% event drop/dup, 300?ms stall, order rejects; engine must **flatten within 200?ms**; idempotent dedupe of `(clOrdID, execID)`.
 
 **DoD (H):** chaos drills pass; drift alerts behave; reasons are queryable.
 
@@ -220,7 +220,7 @@ actions_on_fail: ["reject", "fallback_previous_model"]
 - [x] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
 - [x] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
 - [x] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
-- [ ] **J.5** Live promotion only after **2+ weeks** green gates (paper).
+- [x] **J.5** Live promotion only after **2+ weeks** green gates (paper).
 
 **DoD (J):** single server runs the full stack; paper loop stable with headroom.
 

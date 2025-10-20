@@ -10,7 +10,7 @@
 - [x] Add authentication middleware to protect endpoints  
 - [x] Create basic user role storage (in-memory or database)  
 - [x] Secure API access via token validation  
-- [ ] Document how to acquire and use authentication tokens  
+- [x] Document how to acquire and use authentication tokens  
 
 ---
 
@@ -32,7 +32,7 @@
 - [x] Implement anomaly/outlier detection (e.g. IQR, z-score)  
 - [x] Log validation failures with contextual details  
 - [x] Create unit tests for invalid data scenarios  
-- [ ] Document validation logic and how to handle failures  
+- [x] Document validation logic and how to handle failures  
 
 ---
 

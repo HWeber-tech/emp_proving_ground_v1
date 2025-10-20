@@ -77,6 +77,14 @@ class DimensionalReading:
         """Legacy alias for signal_strength."""
         return float(self.signal_strength)
 
+    @value.setter
+    def value(self, new_value: float) -> None:
+        """Maintain legacy mutation pathway for signal strength."""
+        try:
+            self.signal_strength = float(new_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("DimensionalReading.value must be numeric") from exc
+
 
 @dataclass
 class SensoryReading:

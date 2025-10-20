@@ -37,7 +37,7 @@ def _parse_iso_datetime(value: str) -> datetime | None:
     text = value.strip()
     if not text:
         return None
-    if text.endswith("Z"):
+    if text.endswith(("Z", "z")):
         text = f"{text[:-1]}+00:00"
     try:
         return datetime.fromisoformat(text)

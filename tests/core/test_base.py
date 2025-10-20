@@ -25,3 +25,9 @@ def test_market_data_accepts_iso8601_timestamp() -> None:
     md = MarketData(symbol="EURUSD", timestamp="2023-07-02T15:30:00Z")
 
     assert md.timestamp == datetime(2023, 7, 2, 15, 30, tzinfo=timezone.utc)
+
+
+def test_market_data_accepts_lowercase_utc_designator() -> None:
+    md = MarketData(symbol="EURUSD", timestamp="2023-07-02T15:30:00z")
+
+    assert md.timestamp == datetime(2023, 7, 2, 15, 30, tzinfo=timezone.utc)

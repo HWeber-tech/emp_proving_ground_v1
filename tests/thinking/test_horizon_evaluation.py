@@ -4,6 +4,8 @@ import pytest
 
 from src.thinking.learning.horizon_evaluation import (
     HorizonObservation,
+    HoldoutCalibrationResult,
+    calibrate_holdout_day,
     evaluate_predictions_by_horizon,
 )
 
@@ -172,3 +174,44 @@ def test_evaluate_predictions_by_horizon_validates_inputs() -> None:
 
     with pytest.raises(ValueError):
         evaluate_predictions_by_horizon(observations, num_bins=0)
+
+
+def test_calibrate_holdout_day_temperature_scaling_reports_metrics() -> None:
+    observations = _sample_observations()
+
+    result = calibrate_holdout_day(
+        observations,
+        method="temperature",
+        num_bins=10,
+        label="2024-04-19",
+        temperature_bounds=(0.25, 4.0),
+        temperature_candidates=101,
+    )
+
+    assert isinstance(result, HoldoutCalibrationResult)
+    assert result.label == "2024-04-19"
+    assert result.method == "temperature"
+    assert result.num_observations == len(observations)
+    assert result.baseline_brier == pytest.approx(0.09375, rel=1e-6)
+    assert result.calibrated_brier == pytest.approx(0.0104730454, rel=1e-6)
+    assert result.baseline_ece == pytest.approx(0.2875, rel=1e-6)
+    assert result.calibrated_ece == pytest.approx(0.0710062247, rel=1e-6)
+    assert result.temperature is not None
+    assert 0.25 <= result.temperature <= 4.0
+
+
+def test_calibrate_holdout_day_isotonic_reports_metrics() -> None:
+    observations = _sample_observations()
+
+    result = calibrate_holdout_day(
+        observations,
+        method="isotonic",
+        num_bins=10,
+        label="2024-04-19",
+    )
+
+    assert isinstance(result, HoldoutCalibrationResult)
+    assert result.method == "isotonic"
+    assert result.temperature is None
+    assert result.calibrated_brier <= result.baseline_brier
+    assert result.calibrated_ece <= result.baseline_ece

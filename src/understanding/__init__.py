@@ -21,6 +21,11 @@ from .diagnostics import (
     UnderstandingNode,
     UnderstandingNodeKind,
 )
+from .causal_graph_engine import (
+    CausalGraphEngine,
+    CausalInterventionResult,
+    CausalNode,
+)
 from .router import (
     BeliefSnapshot,
     FastWeightAdapter,
@@ -61,6 +66,9 @@ __all__ = [
     "UnderstandingLoopSnapshot",
     "UnderstandingNode",
     "UnderstandingNodeKind",
+    "CausalGraphEngine",
+    "CausalInterventionResult",
+    "CausalNode",
     "BeliefSnapshot",
     "FastWeightAdapter",
     "FeatureGate",

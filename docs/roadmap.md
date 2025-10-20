@@ -21,7 +21,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [x] **Causal Graph Engine**: Formal DAG linking macro → liquidity → microprice → fills. Enables intervention testing.
 - [x] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
-- [ ] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
+- [x] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
 - [x] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
 - [x] **Out-of-Distribution Sentry**: Detect when live data diverges from training; reduce aggressiveness accordingly.
 

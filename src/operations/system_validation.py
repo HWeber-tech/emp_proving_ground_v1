@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from enum import StrEnum
@@ -848,6 +849,7 @@ class SystemValidationGateResult:
     status: SystemValidationStatus
     should_block: bool
     reasons: tuple[str, ...]
+    reason_codes: tuple[str, ...] = field(default_factory=tuple)
     metadata: Mapping[str, object] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, object]:
@@ -855,8 +857,19 @@ class SystemValidationGateResult:
             "status": self.status.value,
             "should_block": self.should_block,
             "reasons": list(self.reasons),
+            "reason_codes": list(self.reason_codes),
             "metadata": dict(self.metadata),
         }
+
+
+def _reason_code(*parts: object) -> str:
+    tokens: list[str] = []
+    for part in parts:
+        text = re.sub(r"[^a-z0-9]+", "_", str(part).lower()).strip("_")
+        if not text:
+            text = "unknown"
+        tokens.append(text)
+    return "_".join(tokens)
 
 
 def evaluate_system_validation_gate(
@@ -872,13 +885,16 @@ def evaluate_system_validation_gate(
     """Determine whether a snapshot meets deployment expectations."""
 
     reasons: list[str] = []
+    reason_codes: list[str] = []
     gate_status = snapshot.status
 
     if snapshot.status is SystemValidationStatus.fail:
         reasons.append("System validation status is FAIL")
+        reason_codes.append(_reason_code("status", "fail"))
         gate_status = _escalate(gate_status, SystemValidationStatus.fail)
     elif block_on_warn and snapshot.status is SystemValidationStatus.warn:
         reasons.append("System validation status is WARN and block_on_warn is enabled")
+        reason_codes.append(_reason_code("status", "warn", "blocked"))
         gate_status = _escalate(gate_status, SystemValidationStatus.warn)
 
     if snapshot.success_rate < min_success_rate:
@@ -886,6 +902,7 @@ def evaluate_system_validation_gate(
             "Success rate "
             f"{snapshot.success_rate:.1%} below minimum {min_success_rate:.1%}"
         )
+        reason_codes.append(_reason_code("success_rate", "below_min"))
         gate_status = _escalate(gate_status, SystemValidationStatus.fail)
 
     if required_checks:
@@ -895,10 +912,12 @@ def evaluate_system_validation_gate(
             check = checks_by_name.get(key)
             if check is None:
                 reasons.append(f"Required check missing from snapshot: {required}")
+                reason_codes.append(_reason_code("required_check", "missing", required))
                 gate_status = _escalate(gate_status, SystemValidationStatus.fail)
                 continue
             if not check.passed:
                 reasons.append(f"Required check failed: {check.name}")
+                reason_codes.append(_reason_code("required_check", "failed", check.name))
                 gate_status = _escalate(gate_status, SystemValidationStatus.fail)
 
     metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
@@ -918,12 +937,14 @@ def evaluate_system_validation_gate(
 
             if reliability_status is SystemValidationStatus.fail:
                 reasons.append("System validation reliability status is FAIL")
+                reason_codes.append(_reason_code("reliability", "status", "fail"))
                 gate_status = _escalate(gate_status, SystemValidationStatus.fail)
             elif reliability_status is SystemValidationStatus.warn:
                 message = "System validation reliability status is WARN"
                 gate_status = _escalate(gate_status, SystemValidationStatus.warn)
                 if reliability_block_on_warn:
                     reasons.append(message)
+                    reason_codes.append(_reason_code("reliability", "status", "warn", "blocked"))
                 else:
                     reliability_warnings.append(message)
 
@@ -934,6 +955,7 @@ def evaluate_system_validation_gate(
                         "Reliability snapshot stale "
                         f"{stale_hours:.1f} hours exceeds limit {reliability_max_stale_hours:.1f} hours"
                     )
+                    reason_codes.append(_reason_code("reliability", "snapshot", "stale"))
                     gate_status = _escalate(gate_status, SystemValidationStatus.fail)
         else:
             reliability_warnings.append("System validation reliability metadata unavailable")
@@ -959,6 +981,7 @@ def evaluate_system_validation_gate(
         status=gate_status,
         should_block=bool(reasons),
         reasons=tuple(reasons),
+        reason_codes=tuple(reason_codes),
         metadata=gate_metadata,
     )
 

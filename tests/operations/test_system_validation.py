@@ -306,6 +306,7 @@ def test_system_validation_gate_enforces_required_checks() -> None:
 
     assert result_missing.should_block is True
     assert any("missing" in reason.lower() for reason in result_missing.reasons)
+    assert "required_check_missing_routing" in result_missing.reason_codes
 
     failing_snapshot = snapshot.__class__(
         status=SystemValidationStatus.warn,
@@ -324,11 +325,13 @@ def test_system_validation_gate_enforces_required_checks() -> None:
     result = evaluate_system_validation_gate(
         failing_snapshot,
         required_checks=("ingest",),
-        min_success_rate=0.4,
+        min_success_rate=0.8,
     )
 
     assert result.should_block is True
     assert any("ingest" in reason.lower() for reason in result.reasons)
+    assert "required_check_failed_ingest" in result.reason_codes
+    assert "success_rate_below_min" in result.reason_codes
 
 
 def test_system_validation_alerts_include_gate_event() -> None:
@@ -402,6 +405,8 @@ def test_system_validation_gate_considers_reliability() -> None:
     assert result.should_block is True
     assert any("reliability status is FAIL" in reason for reason in result.reasons)
     assert any("stale" in reason for reason in result.reasons)
+    assert "reliability_status_fail" in result.reason_codes
+    assert "reliability_snapshot_stale" in result.reason_codes
     assert result.status is SystemValidationStatus.fail
     assert result.metadata["consider_reliability"] is True
     assert result.metadata["reliability_snapshot"]["status"] == "fail"

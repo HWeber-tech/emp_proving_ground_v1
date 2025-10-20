@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -723,6 +724,16 @@ def evaluate_incident_response(
     )
 
 
+def _reason_code(*parts: object) -> str:
+    tokens: list[str] = []
+    for part in parts:
+        text = re.sub(r"[^a-z0-9]+", "_", str(part).lower()).strip("_")
+        if not text:
+            text = "unknown"
+        tokens.append(text)
+    return "_".join(tokens)
+
+
 @dataclass(frozen=True)
 class IncidentResponseGateResult:
     """Gate decision derived from an :class:`IncidentResponseSnapshot`."""
@@ -731,6 +742,8 @@ class IncidentResponseGateResult:
     blocking_reasons: tuple[str, ...]
     warnings: tuple[str, ...]
     metadata: Mapping[str, object] = field(default_factory=dict)
+    blocking_reason_codes: tuple[str, ...] = field(default_factory=tuple)
+    warning_reason_codes: tuple[str, ...] = field(default_factory=tuple)
 
     def is_blocking(self) -> bool:
         """Return ``True`` when the gate indicates a blocking state."""
@@ -745,6 +758,10 @@ class IncidentResponseGateResult:
         }
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
+        if self.blocking_reason_codes:
+            payload["blocking_reason_codes"] = list(self.blocking_reason_codes)
+        if self.warning_reason_codes:
+            payload["warning_reason_codes"] = list(self.warning_reason_codes)
         return payload
 
 
@@ -773,7 +790,9 @@ def evaluate_incident_response_gate(
                 issue_details.append(entry)
 
     blocking: list[str] = []
+    blocking_codes: list[str] = []
     warnings: list[str] = []
+    warning_codes: list[str] = []
     warn_categories = {category.lower() for category in warn_block_categories}
 
     for entry in issue_details:
@@ -787,21 +806,31 @@ def evaluate_incident_response_gate(
         except ValueError:
             continue
 
+        category_token = category or "general"
+
         if severity is IncidentResponseStatus.fail:
             blocking.append(message)
+            blocking_codes.append(_reason_code("issue", category_token, "fail"))
             continue
 
         if severity is IncidentResponseStatus.warn:
             if block_on_warn or category in warn_categories:
                 blocking.append(message)
+                blocking_codes.append(_reason_code("issue", category_token, "warn", "blocked"))
             else:
                 warnings.append(message)
+                warning_codes.append(_reason_code("issue", category_token, "warn"))
 
     if snapshot.status is IncidentResponseStatus.fail and not blocking:
-        blocking.extend(snapshot.issues or (f"Incident response status {snapshot.status.value}",))
+        fallback = snapshot.issues or (f"Incident response status {snapshot.status.value}",)
+        for reason in fallback:
+            blocking.append(reason)
+            blocking_codes.append(_reason_code("status", snapshot.status.value))
 
     if snapshot.status is IncidentResponseStatus.warn and not warnings and not blocking:
-        warnings.extend(snapshot.issues)
+        for reason in snapshot.issues:
+            warnings.append(reason)
+            warning_codes.append(_reason_code("status", snapshot.status.value))
 
     status = snapshot.status
     if blocking:
@@ -826,6 +855,8 @@ def evaluate_incident_response_gate(
         blocking_reasons=tuple(dict.fromkeys(blocking)),
         warnings=tuple(dict.fromkeys(warnings)),
         metadata=gate_metadata,
+        blocking_reason_codes=tuple(dict.fromkeys(blocking_codes)),
+        warning_reason_codes=tuple(dict.fromkeys(warning_codes)),
     )
 
 

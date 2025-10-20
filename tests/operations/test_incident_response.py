@@ -420,6 +420,7 @@ def test_incident_response_gate_warn_and_block() -> None:
     assert gate_default.status is IncidentResponseStatus.warn
     assert not gate_default.is_blocking()
     assert gate_default.warnings, "expected training warning to be recorded"
+    assert "issue_training_warn" in gate_default.warning_reason_codes
 
     gate_block = evaluate_incident_response_gate(snapshot, block_on_warn=True)
 
@@ -428,6 +429,7 @@ def test_incident_response_gate_warn_and_block() -> None:
     assert gate_block.status is IncidentResponseStatus.fail
     assert gate_block.is_blocking()
     assert any("training" in reason.lower() for reason in gate_block.blocking_reasons)
+    assert "issue_training_warn_blocked" in gate_block.blocking_reason_codes
 
 
 def test_incident_response_alerts_include_gate_event() -> None:

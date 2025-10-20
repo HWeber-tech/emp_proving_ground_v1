@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -54,6 +55,16 @@ def _escalate(
     if _STATUS_ORDER[candidate] > _STATUS_ORDER[current]:
         return candidate
     return current
+
+
+def _reason_code(*parts: object) -> str:
+    tokens: list[str] = []
+    for part in parts:
+        text = re.sub(r"[^a-z0-9]+", "_", str(part).lower()).strip("_")
+        if not text:
+            text = "unknown"
+        tokens.append(text)
+    return "_".join(tokens)
 
 
 def _map_system_validation_status(
@@ -160,6 +171,8 @@ class OperationalReadinessGateResult:
     blocking_reasons: tuple[str, ...]
     warnings: tuple[str, ...] = field(default_factory=tuple)
     metadata: Mapping[str, object] = field(default_factory=dict)
+    blocking_reason_codes: tuple[str, ...] = field(default_factory=tuple)
+    warning_reason_codes: tuple[str, ...] = field(default_factory=tuple)
 
     def as_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {
@@ -170,6 +183,10 @@ class OperationalReadinessGateResult:
         }
         if self.metadata:
             payload["metadata"] = dict(self.metadata)
+        if self.blocking_reason_codes:
+            payload["blocking_reason_codes"] = list(self.blocking_reason_codes)
+        if self.warning_reason_codes:
+            payload["warning_reason_codes"] = list(self.warning_reason_codes)
         return payload
 
 def _system_validation_component(
@@ -535,16 +552,27 @@ def evaluate_operational_readiness_gate(
     gate_status = snapshot.status
     blocking_reasons: list[str] = []
     warnings: list[str] = []
+    blocking_codes: list[str] = []
+    warning_codes: list[str] = []
+
+    def _component_code(name: str, *, blocked: bool, status: OperationalReadinessStatus) -> str:
+        slug = _reason_code("component", name, status.value)
+        if blocked:
+            slug = _reason_code(slug, "blocked")
+        return slug
 
     if snapshot.status is OperationalReadinessStatus.fail:
         blocking_reasons.append("Operational readiness status is FAIL")
+        blocking_codes.append(_reason_code("status", "fail"))
         gate_status = OperationalReadinessStatus.fail
     elif snapshot.status is OperationalReadinessStatus.warn:
         reason = "Operational readiness status is WARN"
         if block_on_warn:
             blocking_reasons.append(reason + " and block_on_warn is enabled")
+            blocking_codes.append(_reason_code("status", "warn", "blocked"))
         else:
             warnings.append(reason)
+            warning_codes.append(_reason_code("status", "warn"))
         gate_status = _escalate(gate_status, OperationalReadinessStatus.warn)
 
     failing_components = [
@@ -561,20 +589,30 @@ def evaluate_operational_readiness_gate(
     for name in failing_components:
         if not fail_component_keys or name.lower() in fail_component_keys:
             blocking_reasons.append(_component_reason(name))
+            blocking_codes.append(
+                _component_code(name, blocked=False, status=OperationalReadinessStatus.fail)
+            )
             gate_status = OperationalReadinessStatus.fail
 
     for name in warning_components:
         reason_text = _component_reason(name)
         if name.lower() in warn_component_keys or block_on_warn:
             blocking_reasons.append(reason_text)
+            blocking_codes.append(
+                _component_code(name, blocked=True, status=OperationalReadinessStatus.warn)
+            )
         else:
             warnings.append(reason_text)
+            warning_codes.append(
+                _component_code(name, blocked=False, status=OperationalReadinessStatus.warn)
+            )
         gate_status = _escalate(gate_status, OperationalReadinessStatus.warn)
 
     if max_fail_components is not None and len(failing_components) > max_fail_components:
         blocking_reasons.append(
             f"{len(failing_components)} components failing exceeds limit {max_fail_components}"
         )
+        blocking_codes.append(_reason_code("max_fail_components", "exceeded"))
         gate_status = OperationalReadinessStatus.fail
 
     if max_warn_components is not None and len(warning_components) > max_warn_components:
@@ -583,8 +621,10 @@ def evaluate_operational_readiness_gate(
         )
         if block_on_warn:
             blocking_reasons.append(message)
+            blocking_codes.append(_reason_code("max_warn_components", "exceeded", "blocked"))
         else:
             warnings.append(message)
+            warning_codes.append(_reason_code("max_warn_components", "exceeded"))
         gate_status = _escalate(gate_status, OperationalReadinessStatus.warn)
 
     issue_counts = metadata.get("issue_counts") if isinstance(metadata, Mapping) else None
@@ -594,6 +634,7 @@ def evaluate_operational_readiness_gate(
             blocking_reasons.append(
                 f"Aggregated issue count reports {fail_count} failing entries"
             )
+            blocking_codes.append(_reason_code("issue_counts", "fail"))
             gate_status = OperationalReadinessStatus.fail
 
     gate_metadata: dict[str, object] = {
@@ -627,6 +668,8 @@ def evaluate_operational_readiness_gate(
         blocking_reasons=tuple(dict.fromkeys(blocking_reasons)),
         warnings=tuple(dict.fromkeys(warnings)),
         metadata=gate_metadata,
+        blocking_reason_codes=tuple(dict.fromkeys(blocking_codes)),
+        warning_reason_codes=tuple(dict.fromkeys(warning_codes)),
     )
 
 

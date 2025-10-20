@@ -443,6 +443,7 @@ def test_operational_readiness_gate_blocks_fail_components() -> None:
     assert gate.should_block is True
     assert any("incident_response" in reason for reason in gate.blocking_reasons)
     assert gate.status is OperationalReadinessStatus.fail
+    assert "component_incident_response_fail" in gate.blocking_reason_codes
 
 
 def test_operational_readiness_gate_warn_components() -> None:
@@ -460,6 +461,7 @@ def test_operational_readiness_gate_warn_components() -> None:
     assert gate.should_block is False
     assert gate.status is OperationalReadinessStatus.warn
     assert gate.warnings
+    assert "component_system_validation_warn" in gate.warning_reason_codes
 
     blocking_gate = evaluate_operational_readiness_gate(
         readiness,
@@ -470,6 +472,7 @@ def test_operational_readiness_gate_warn_components() -> None:
 
     assert blocking_gate.should_block is True
     assert any("system_validation" in reason for reason in blocking_gate.blocking_reasons)
+    assert "component_system_validation_warn_blocked" in blocking_gate.blocking_reason_codes
 
 
 def test_operational_readiness_alerts_include_gate_event() -> None:

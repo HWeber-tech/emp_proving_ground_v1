@@ -96,7 +96,7 @@ def seed_runtime(seed: int | None) -> None:
 
     # ``PYTHONHASHSEED`` only takes effect on interpreter start, but storing the
     # value documents the replay seed in child processes and diagnostics.
-    os.environ.setdefault("PYTHONHASHSEED", str(seed))
+    os.environ["PYTHONHASHSEED"] = str(seed)
 
     for hook in (_seed_numpy, _seed_torch):
         hook(seed)

@@ -1,6 +1,9 @@
 """Tests for runtime determinism helper utilities."""
 
-from src.runtime.determinism import resolve_seed
+import os
+import random
+
+from src.runtime.determinism import resolve_seed, seed_runtime
 
 
 def test_resolve_seed_prefers_primary_key() -> None:
@@ -22,3 +25,15 @@ def test_resolve_seed_handles_missing_values() -> None:
 
     assert seed is None
     assert invalid == []
+
+
+def test_seed_runtime_overrides_pythonhashseed(monkeypatch) -> None:
+    monkeypatch.setenv("PYTHONHASHSEED", "999")
+    original_state = random.getstate()
+
+    try:
+        seed_runtime(7)
+        assert os.environ["PYTHONHASHSEED"] == "7"
+        assert random.getstate() == random.Random(7).getstate()
+    finally:
+        random.setstate(original_state)

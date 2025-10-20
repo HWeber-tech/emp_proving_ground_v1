@@ -37,6 +37,11 @@ class TimeStamper:
             timestamp = self._now_factory()
         else:
             timestamp = datetime.now(tz=UTC if self._utc else None)
+        if self._utc:
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=UTC)
+            else:
+                timestamp = timestamp.astimezone(UTC)
         if self._is_iso:
             rendered = timestamp.isoformat()
             if self._utc and rendered.endswith("+00:00"):

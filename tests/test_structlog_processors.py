@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from structlog.processors import TimeStamper
 
@@ -52,3 +52,17 @@ def test_timestamper_respects_custom_now_factory():
 
     assert event["timestamp"] == "2023-01-02T03:04:05Z"
     assert len(calls) == 1
+
+
+def test_timestamper_converts_non_utc_factory_values():
+    offset = timezone(timedelta(hours=2))
+
+    def fake_now() -> datetime:
+        return datetime(2023, 1, 2, 3, 4, 5, tzinfo=offset)
+
+    timestamper = TimeStamper(utc=True, now_factory=fake_now)
+    event: dict[str, str] = {}
+
+    timestamper(None, "", event)
+
+    assert event["timestamp"] == "2023-01-02T01:04:05Z"

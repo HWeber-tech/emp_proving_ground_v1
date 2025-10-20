@@ -34,7 +34,7 @@
 
 ### A.4 Minimal compose & health
 - [ ] **A.4.1** `docker-compose.yml` services: **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
-- [ ] **A.4.2** `/health` + `/metrics` (Prometheus): `event_lag_ms`, `queue_depth`, `p50/90/99_infer_ms`, `drops`, `risk_halted`.
+- [x] **A.4.2** `/health` + `/metrics` (Prometheus): `event_lag_ms`, `queue_depth`, `p50/90/99_infer_ms`, `drops`, `risk_halted`.
 
 ### A.5 Tests & validation
 - [ ] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
@@ -51,7 +51,7 @@
 
 ### B.1 Depth & TOB features
 - [ ] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv ? GLU ? adaptive pool to **D=8-16** dims.  
-- [ ] **B.1.2** Emit `has_depth` and **zero-mask** depth features when absent (spot FX).  
+- [x] **B.1.2** Emit `has_depth` and **zero-mask** depth features when absent (spot FX).  
 - [ ] **B.1.3** Derived features (leak-free):  
   - `microprice`, `spread_ticks > 1`, `ofi_norm` (pre-event states + trade sign), `refresh_hz`, `stale_ms`, `slope/curve` (2-term poly each side).
 
@@ -76,9 +76,9 @@
 **Goal:** long memory, sub-ms inference, stable training.
 
 ### C.1 Backbone swap & toggles
-- [ ] **C.1.1** `BackboneSSM(impl="mamba2"|"mamba3")` with identical `forward(x,state)`.  
+- [x] **C.1.1** `BackboneSSM(impl="mamba2"|"mamba3")` with identical `forward(x,state)`.  
 - [ ] **C.1.2** Keep local-attention sandwich; add **RMSNorm + layer-scale 0.1**.  
-- [ ] **C.1.3** YAML toggles: `model.ssm_impl: mamba3`, `fallback_impl: mamba2`; auto-fallback on latency fail.
+- [x] **C.1.3** YAML toggles: `model.ssm_impl: mamba3`, `fallback_impl: mamba2`; auto-fallback on latency fail.
 
 ### C.2 True streaming state
 - [ ] **C.2.1** **Per-instrument state table** (pinned); TTL & reset on session boundary/gaps/halts.  
@@ -88,7 +88,7 @@
 ### C.3 Chunked BPTT
 - [ ] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
 - [ ] **C.3.2** Curriculum seq_len: 4k ? 8k ? 16k.  
-- [ ] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
+- [x] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
 
 ### C.4 Heads & calibration
 - [ ] **C.4.1** Tiny **per-domain heads**; optional shared head + per-domain affine/temperature.  
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T03:22:16Z
+## Automation updates — 2025-10-20T03:35:16Z
 
 ### Last 4 commits
-- e20da91b test(artifacts): add 15 files (2025-10-20)
-- 74b8dd33 test(.telemetry): tune 1 file (2025-10-20)
-- a9589711 Update roadmap.md (2025-10-20)
-- 9677a160 docs(docs): tune 1 file (2025-10-20)
+- f3e31408 feat(governance): add 3 files (2025-10-20)
+- a40e69af test(artifacts): add 4 files (2025-10-20)
+- ec34638b refactor(sensory): tune 7 files (2025-10-20)
+- baf8382f refactor(runtime): tune 2 files (2025-10-20)

@@ -10,7 +10,7 @@ from typing import Any, overload, cast
 __all__ = ["coerce_float", "coerce_int"]
 
 
-_NUMERIC_SEPARATOR_PATTERN = re.compile(r"(?<=\d)_(?=\d)")
+_NUMERIC_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[_,](?=\d)")
 
 
 @overload

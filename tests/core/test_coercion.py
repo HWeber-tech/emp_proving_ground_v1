@@ -16,6 +16,11 @@ def test_coerce_helpers_accept_numeric_separators() -> None:
     assert coerce_int(" -2_000 ") == -2000
 
 
+def test_coerce_helpers_accept_thousand_separators() -> None:
+    assert coerce_float("1,234.5") == 1234.5
+    assert coerce_int("1,234") == 1234
+
+
 def test_coerce_float_rejects_non_finite_strings() -> None:
     assert coerce_float("nan") is None
     assert coerce_float("inf", default=7.0) == 7.0

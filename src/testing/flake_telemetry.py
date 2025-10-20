@@ -85,11 +85,13 @@ def resolve_output_path(
     return path
 
 
-def should_record_event(outcome: str, was_xfail: bool) -> bool:
+def should_record_event(outcome: object, was_xfail: bool) -> bool:
     """Return True when an outcome warrants telemetry storage."""
 
     if was_xfail:
         return True
+    if not isinstance(outcome, str):
+        return False
     return outcome.lower() in {"failed", "error"}
 
 

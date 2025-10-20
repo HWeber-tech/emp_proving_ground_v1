@@ -45,6 +45,7 @@ class HowSensor:
         self._engine = engine or InstitutionalUnderstandingEngine()
         self._config = config or HowSensorConfig()
         self._order_book_analytics = order_book_analytics or OrderBookAnalytics()
+        self._order_book_metric_names = self._order_book_analytics.metric_names()
         self._lineage_recorder = lineage_recorder
 
     @property
@@ -52,6 +53,10 @@ class HowSensor:
         """Expose the current HOW sensor configuration."""
 
         return self._config
+
+    @property
+    def order_book_metric_names(self) -> tuple[str, ...]:
+        return self._order_book_metric_names
 
     def recalibrate_thresholds(
         self,
@@ -118,18 +123,11 @@ class HowSensor:
         if order_book is not None:
             order_snapshot = self._order_book_analytics.describe(order_book)
 
-        order_metrics = {
-            f"order_book_{name}": 0.0 for name in OrderBookSnapshot.__dataclass_fields__
-        }
+        order_metrics = {name: 0.0 for name in self._order_book_metric_names}
         has_depth = False
         if order_snapshot is not None:
             has_depth = True
-            order_metrics.update(
-                {
-                    f"order_book_{name}": float(value)
-                    for name, value in order_snapshot.as_dict().items()
-                }
-            )
+            order_metrics.update(order_snapshot.flatten())
         telemetry.update(order_metrics)
         telemetry["has_depth"] = 1.0 if has_depth else 0.0
 

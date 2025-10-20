@@ -5,6 +5,7 @@ from .order_book_analytics import (
     OrderBookAnalytics,
     OrderBookAnalyticsConfig,
     OrderBookSnapshot,
+    TickSpaceDepthEncoder,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "OrderBookAnalytics",
     "OrderBookAnalyticsConfig",
     "OrderBookSnapshot",
+    "TickSpaceDepthEncoder",
 ]

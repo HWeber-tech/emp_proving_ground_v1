@@ -57,7 +57,7 @@
 
 ### B.2 Meta/context tokens (data-driven)
 - [x] **B.2.1** `asset_class`: {equity, fx_fut, fx_spot}; `venue`: {nasdaq, globex, spot_agg}.  
-- [ ] **B.2.2** `liquidity_bucket`: daily quantiles by median L1 size/spread → {low, mid, high}.  
+- [x] **B.2.2** `liquidity_bucket`: daily quantiles by median L1 size/spread → {low, mid, high}.  
 - [x] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
 
 ### B.3 Targets & guards
@@ -147,8 +147,8 @@
 
 ### F.1 MuZero?lite planner
 - [x] **F.1.1** Learn compact state?transition: next `MarketState` essentials + reward proxy.  
-- [ ] **F.1.2** Depth-2/3 MCTS over actions {cross, post, hold}; budget **0.3–0.5?ms**; auto?disable if SLA breached.  
-- [ ] **F.1.3** Gate: correlation between imagined edge and realized edge ≥ 0.2 on hold?out day.
+- [x] **F.1.2** Depth-2/3 MCTS over actions {cross, post, hold}; budget **0.3–0.5?ms**; auto?disable if SLA breached.  
+- [x] **F.1.3** Gate: correlation between imagined edge and realized edge ≥ 0.2 on hold?out day.
 
 ### F.2 Mini?league self?play
 - [x] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
@@ -291,7 +291,7 @@ body:
 ## Automation updates — 2025-10-20T11:09:39Z
 
 ### Last 4 commits
-- f0fc8b2a refactor(artifacts): tune 5 files (2025-10-20)
-- 8a8ac6fd refactor(artifacts): tune 4 files (2025-10-20)
-- 56cbcf9c feat(trading): add 2 files (2025-10-20)
-- 803e5a16 feat(operational): add 6 files (2025-10-20)
+- b49e2e67 refactor(thinking): tune 1 file (2025-10-20)
+- 6e1f3183 refactor(thinking): tune 1 file (2025-10-20)
+- b1712ef7 feat(thinking): add 3 files (2025-10-20)
+- 04a31e7c refactor(sensory): tune 5 files (2025-10-20)

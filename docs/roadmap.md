@@ -8,12 +8,12 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [ ] **FIX + Multivenue Depth**: Parse and merge full-depth (L1-L20) order books from all connected exchanges to construct a unified liquidity map.
 - [ ] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
-- [ ] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
+- [x] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
 - [x] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
 - [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
 - [ ] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
 - [ ] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
-- [ ] **Adaptive Sampling**: Adjust sensor frequency to volatility state; always high resolution in chaos.
+- [x] **Adaptive Sampling**: Adjust sensor frequency to volatility state; always high resolution in chaos.
 
 ---
 
@@ -41,7 +41,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Belief Packets**: Each decision records context (features, regime, reasoning, confidence).
 - [ ] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
 - [ ] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
-- [ ] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
+- [x] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
 - [ ] **Decay Protocol**: Prune stale memories, reinforce recurring successful ones.
 
 ---

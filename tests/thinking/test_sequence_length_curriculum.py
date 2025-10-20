@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.thinking.learning import SequenceLengthCurriculum
+from src.thinking.learning import SequenceLengthCurriculum, SequenceLengthStage
 
 
 def test_curriculum_default_progression_manual_advance() -> None:
@@ -69,3 +69,45 @@ def test_curriculum_manual_advance_snaps_to_milestone() -> None:
     assert curriculum.stage_index == 1
     assert curriculum.tokens_observed == 10
     assert curriculum.current_length == 8192
+
+
+def test_allocate_event_mix_tracks_ratio() -> None:
+    curriculum = SequenceLengthCurriculum()
+    rare_accumulated = 0
+    main_accumulated = 0
+    for _ in range(20):
+        mix = curriculum.allocate_event_mix(1)
+        rare_accumulated += mix["rare"]
+        main_accumulated += mix["main"]
+
+    assert rare_accumulated == 4
+    assert main_accumulated == 16
+
+
+def test_allocate_event_mix_resets_on_stage_transition() -> None:
+    stages = (
+        SequenceLengthStage(
+            name="stage_a",
+            sequence_length=512,
+            max_steps=1,
+            rare_event_ratio=0.55,
+        ),
+        SequenceLengthStage(
+            name="stage_b",
+            sequence_length=1024,
+            rare_event_ratio=0.55,
+        ),
+    )
+    curriculum = SequenceLengthCurriculum(stages=stages)
+    curriculum.allocate_event_mix(1)
+
+    curriculum.record_progress(force=True, reason="advance")
+
+    mix = curriculum.allocate_event_mix(1)
+    assert mix["rare"] == 0
+    assert mix["main"] == 1
+
+
+def test_sequence_length_stage_validates_rare_ratio() -> None:
+    with pytest.raises(ValueError):
+        SequenceLengthStage(name="bad", sequence_length=128, rare_event_ratio=1.5)

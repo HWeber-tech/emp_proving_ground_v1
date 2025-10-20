@@ -219,7 +219,7 @@ def _build_parser() -> argparse.ArgumentParser:
     paper_parser.add_argument(
         "--minimum-runtime-hours",
         type=_non_negative_float,
-        default=None,
+        default=DEFAULT_MINIMUM_RUNTIME_SECONDS / 3600.0,
         help=(
             "Minimum runtime requirement in hours before the run is deemed compliant "
             "(default 168h / 7 days). Set 0 to disable."

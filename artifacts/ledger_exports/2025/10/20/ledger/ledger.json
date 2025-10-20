@@ -1,7 +1,8 @@
 {
   "records": {
-    "alpha.live": {
+    "bootstrap-strategy": {
       "approvals": [
+        "qa",
         "risk"
       ],
       "created_at": "2025-10-20T00:54:23.046568+00:00",
@@ -10,10 +11,11 @@
         {
           "applied_at": "2025-10-20T00:54:23.046568+00:00",
           "approvals": [
+            "qa",
             "risk"
           ],
-          "evidence_id": "dd-alpha-live",
-          "next_stage": "paper",
+          "evidence_id": "replay-evidence",
+          "next_stage": "limited_live",
           "prior_stage": null
         }
       ],

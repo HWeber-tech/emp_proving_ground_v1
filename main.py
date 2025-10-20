@@ -23,6 +23,7 @@ from src.operations.configuration_audit import (
     evaluate_configuration_audit,
     persist_configuration_snapshot,
 )
+from src.operational.metrics import start_metrics_server
 from src.operational.structured_logging import (
     configure_structlog,
     get_logger,
@@ -91,6 +92,51 @@ def _capture_configuration_snapshot(
         return None, exc_info, target
 
 
+def _maybe_start_metrics_exporter(extras: Mapping[str, str] | None) -> None:
+    """Start the Prometheus exporter when enabled via configuration."""
+
+    if extras is None:
+        extras = {}
+
+    raw_enabled = extras.get("METRICS_EXPORTER_ENABLED")
+    if raw_enabled is not None:
+        text = str(raw_enabled).strip().lower()
+        if text in {"0", "false", "no", "off", "disabled"}:
+            logger.info("Prometheus metrics exporter disabled via extras")
+            return
+        if text not in {"", "1", "true", "yes", "on", "enabled"}:
+            logger.warning(
+                "Unrecognised METRICS_EXPORTER_ENABLED value %r; defaulting to enabled",
+                raw_enabled,
+            )
+
+    port: int | None = None
+    raw_port = extras.get("METRICS_EXPORTER_PORT")
+    if raw_port is not None:
+        try:
+            port = int(str(raw_port).strip())
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid METRICS_EXPORTER_PORT value %r; defaulting to EMP_METRICS_PORT",
+                raw_port,
+            )
+
+    cert_path = extras.get("METRICS_EXPORTER_TLS_CERT_PATH")
+    if cert_path is not None:
+        cert_path = str(cert_path).strip() or None
+
+    key_path = extras.get("METRICS_EXPORTER_TLS_KEY_PATH")
+    if key_path is not None:
+        key_path = str(key_path).strip() or None
+
+    try:
+        start_metrics_server(port=port, cert_path=cert_path, key_path=key_path)
+    except ValueError as exc:
+        logger.warning("Prometheus metrics exporter not started: %s", exc)
+    except Exception:  # pragma: no cover - defensive guard around exporter init
+        logger.exception("Failed to start Prometheus metrics exporter")
+
+
 async def main() -> None:
     """Main entry point for Professional Predator."""
 
@@ -132,6 +178,7 @@ async def main() -> None:
                     extra={"structlog.otel_config": str(profile_path)},
                 )
     configure_structlog(level=logging.INFO, otel_settings=otel_settings)
+    _maybe_start_metrics_exporter(extras)
 
     if rng_seed is not None:
         logger.info("🔐 Deterministic RNG seed initialised", extra={"rng_seed": rng_seed})

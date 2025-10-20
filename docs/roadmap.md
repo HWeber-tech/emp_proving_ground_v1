@@ -32,7 +32,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Self-Impact Model**: Quantify how EMP's trades alter the local order book and volatility.
 - [x] **Adversary Simulation**: Train exploit agents to mimic others observing EMP's pattern; guard against being anticipated.
 - [x] **Entropy Governor**: Rotate tactics and randomize microtiming to stay unpredictable.
-- [ ] **Infrastructure Awareness**: Integrate latency, queue position, and execution certainty into planner logic.
+- [x] **Infrastructure Awareness**: Integrate latency, queue position, and execution certainty into planner logic.
 
 ---
 
@@ -42,14 +42,14 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
 - [x] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
 - [x] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
-- [ ] **Decay Protocol**: Prune stale memories, reinforce recurring successful ones.
+- [x] **Decay Protocol**: Prune stale memories, reinforce recurring successful ones.
 
 ---
 
 ## V. Planner & Foresight - Acting Only When the Future Aligns
 
 - [x] **MuZero-Lite Tree**: Simulate short-horizon futures with causal edge adjustments.
-- [ ] **Veto Logic**: No action executes without positive expected return under ensemble belief.
+- [x] **Veto Logic**: No action executes without positive expected return under ensemble belief.
 - [x] **Latency-Aware Planning**: Discard planner branch if total decision latency > 0.85ms.
 - [x] **Adversarial Simulation**: Inject spoofers, front-runners, and reversion agents into planner rollouts.
 
@@ -59,7 +59,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [x] **League Evolution Engine**: Run evolutionary cycles with champions, exploiters, and chaos agents.
 - [x] **Mutation Ledger**: Record all parameter mutations, fitness improvements, and exploitability results.
-- [ ] **Surrogate Simulation**: Fast proxy model (GraphNet) for testing policy evolution.
+- [x] **Surrogate Simulation**: Fast proxy model (GraphNet) for testing policy evolution.
 - [x] **Curriculum Scheduler**: Inject rare or catastrophic events into training more frequently.
 - [x] **Auto-Demotion**: Any live policy failing drift or exploitability gates is rolled back automatically.
 

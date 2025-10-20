@@ -1,49 +1,233 @@
 {
   "records": {
-    "alpha.policy": {
+    "bootstrap-strategy": {
+      "accepted_proposals": [
+        "rim-abc"
+      ],
       "approvals": [
-        "compliance",
+        "rim-auto",
         "risk"
       ],
-      "created_at": "2025-10-20T04:30:55.497001+00:00",
-      "evidence_id": "diary-101",
+      "created_at": "2025-10-20T05:21:47.828973+00:00",
+      "evidence_id": "diary-001",
       "history": [
         {
-          "applied_at": "2025-10-20T04:30:55.497001+00:00",
+          "applied_at": "2025-10-20T05:21:47.828973+00:00",
           "approvals": [
-            "compliance",
             "risk"
           ],
-          "evidence_id": "diary-101",
+          "evidence_id": "diary-001",
           "next_stage": "paper",
-          "policy_delta": {
-            "metadata": {},
-            "notes": [],
-            "risk_config": {
-              "max_leverage": 6
-            },
-            "router_guardrails": {
-              "max_latency_ms": 180
-            }
-          },
           "prior_stage": null
+        },
+        {
+          "accepted_proposals": [
+            "rim-abc"
+          ],
+          "applied_at": "2025-10-20T05:21:47.834081+00:00",
+          "approvals": [
+            "rim-auto",
+            "risk"
+          ],
+          "evidence_id": "diary-001",
+          "next_stage": "paper",
+          "prior_stage": "paper"
+        },
+        {
+          "applied_at": "2025-10-20T05:21:47.840518+00:00",
+          "approvals": [
+            "rim-auto",
+            "risk"
+          ],
+          "evidence_id": "diary-001",
+          "next_stage": "paper",
+          "prior_stage": "paper",
+          "rejected_proposals": [
+            "rim-reject"
+          ]
         }
       ],
-      "policy_delta": {
-        "metadata": {},
-        "notes": [],
-        "risk_config": {
-          "max_leverage": 6
+      "metadata": {
+        "rim_auto_apply": {
+          "rim-abc": {
+            "affected_regimes": [
+              "calm"
+            ],
+            "applied_at": "2025-10-20T05:21:47Z",
+            "audit_ids": [
+              "diary-001"
+            ],
+            "auto_apply": {
+              "applied": true,
+              "evaluation": {
+                "budget_remaining": 25.0,
+                "budget_utilisation": 0.25,
+                "invariant_breaches": 0,
+                "oos_uplift": 0.12,
+                "risk_hits": 0,
+                "suggestion_id": "rim-abc"
+              },
+              "reasons": []
+            },
+            "confidence": 0.83,
+            "evidence": {
+              "audit_ids": [
+                "diary-001"
+              ],
+              "diary_source": "artifacts/diaries/diaries-0001.jsonl",
+              "input_hash": "batch-hash",
+              "target_strategy_ids": [
+                "bootstrap-strategy"
+              ],
+              "window": {
+                "end": "2025-10-20T05:21:47Z",
+                "minutes": 60,
+                "start": "2025-10-20T05:21:47Z"
+              }
+            },
+            "payload": {
+              "proposed_weight_delta": -0.07,
+              "strategy_id": "bootstrap-strategy",
+              "window_minutes": 1440
+            },
+            "run_id": "rim-run-001",
+            "trace": {
+              "batch_input_hash": "batch-hash",
+              "code_hash": "test-code",
+              "config_hash": "cfg-hash",
+              "diary_slice": {
+                "aggregates": {
+                  "total_entries": 1
+                },
+                "entry_count": 1,
+                "source_path": "artifacts/diaries/diaries-0001.jsonl",
+                "strategy_entries": [
+                  {
+                    "action": "hold",
+                    "input_hash": "entry-001",
+                    "instrument": "test-instrument",
+                    "outcome_labels": [],
+                    "pnl": 0.0,
+                    "raw": {
+                      "strategy_id": "bootstrap-strategy"
+                    },
+                    "risk_flags": [],
+                    "strategy_id": "bootstrap-strategy",
+                    "timestamp": "2025-10-20T05:21:47Z"
+                  }
+                ],
+                "strategy_entry_count": 1,
+                "window": {
+                  "end": "2025-10-20T05:21:47Z",
+                  "minutes": 60,
+                  "start": "2025-10-20T05:21:47Z"
+                }
+              },
+              "model_hash": "model-hash",
+              "target_strategy_ids": [
+                "bootstrap-strategy"
+              ]
+            },
+            "type": "WEIGHT_ADJUST"
+          }
         },
-        "router_guardrails": {
-          "max_latency_ms": 180
+        "rim_auto_apply_rejections": {
+          "rim-reject": {
+            "affected_regimes": [
+              "calm"
+            ],
+            "audit_ids": [
+              "diary-001"
+            ],
+            "auto_apply": {
+              "applied": false,
+              "evaluation": {
+                "budget_remaining": 25.0,
+                "budget_utilisation": 0.25,
+                "invariant_breaches": 0,
+                "oos_uplift": 0.05,
+                "risk_hits": 2,
+                "suggestion_id": "rim-reject"
+              },
+              "reasons": [
+                "risk_hits_exceeded:2>0"
+              ]
+            },
+            "confidence": 0.83,
+            "evidence": {
+              "audit_ids": [
+                "diary-001"
+              ],
+              "diary_source": "artifacts/diaries/diaries-0001.jsonl",
+              "input_hash": "batch-hash",
+              "target_strategy_ids": [
+                "bootstrap-strategy"
+              ],
+              "window": {
+                "end": "2025-10-20T05:21:47Z",
+                "minutes": 60,
+                "start": "2025-10-20T05:21:47Z"
+              }
+            },
+            "payload": {
+              "proposed_weight_delta": -0.02,
+              "strategy_id": "bootstrap-strategy",
+              "window_minutes": 1440
+            },
+            "run_id": "rim-run-001",
+            "status": "pending",
+            "trace": {
+              "batch_input_hash": "batch-hash",
+              "code_hash": "test-code",
+              "config_hash": "cfg-hash",
+              "diary_slice": {
+                "aggregates": {
+                  "total_entries": 1
+                },
+                "entry_count": 1,
+                "source_path": "artifacts/diaries/diaries-0001.jsonl",
+                "strategy_entries": [
+                  {
+                    "action": "hold",
+                    "input_hash": "entry-001",
+                    "instrument": "test-instrument",
+                    "outcome_labels": [],
+                    "pnl": 0.0,
+                    "raw": {
+                      "strategy_id": "bootstrap-strategy"
+                    },
+                    "risk_flags": [],
+                    "strategy_id": "bootstrap-strategy",
+                    "timestamp": "2025-10-20T05:21:47Z"
+                  }
+                ],
+                "strategy_entry_count": 1,
+                "window": {
+                  "end": "2025-10-20T05:21:47Z",
+                  "minutes": 60,
+                  "start": "2025-10-20T05:21:47Z"
+                }
+              },
+              "model_hash": "model-hash",
+              "target_strategy_ids": [
+                "bootstrap-strategy"
+              ]
+            },
+            "type": "WEIGHT_ADJUST"
+          }
         }
       },
-      "policy_id": "alpha.policy",
+      "policy_id": "bootstrap-strategy",
+      "rejected_proposals": [
+        "rim-reject"
+      ],
       "stage": "paper",
-      "tactic_id": "tactic.alpha",
-      "updated_at": "2025-10-20T04:30:55.497001+00:00"
+      "tactic_id": "bootstrap-strategy",
+      "threshold_overrides": {
+        "rim_weight_delta__bootstrap-strategy": -0.07
+      },
+      "updated_at": "2025-10-20T05:21:47.840518+00:00"
     }
   },
-  "updated_at": "2025-10-20T04:30:55.497189+00:00"
+  "updated_at": "2025-10-20T05:21:47.840972+00:00"
 }

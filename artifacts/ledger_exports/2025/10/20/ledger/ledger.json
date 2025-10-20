@@ -1,75 +1,128 @@
 {
   "records": {
-    "beta": {
+    "bootstrap-strategy": {
       "approvals": [
-        "compliance",
         "risk"
       ],
-      "created_at": "2025-10-20T04:30:55.438842+00:00",
-      "evidence_id": "dd-beta",
+      "created_at": "2025-10-20T05:21:47.866188+00:00",
+      "evidence_id": "diary-001",
       "history": [
         {
-          "applied_at": "2025-10-20T04:30:55.438842+00:00",
+          "applied_at": "2025-10-20T05:21:47.866188+00:00",
           "approvals": [
-            "compliance",
             "risk"
           ],
-          "evidence_id": "dd-beta",
-          "next_stage": "pilot",
+          "evidence_id": "diary-001",
+          "next_stage": "paper",
           "prior_stage": null
+        },
+        {
+          "applied_at": "2025-10-20T05:21:47.869566+00:00",
+          "approvals": [
+            "risk"
+          ],
+          "evidence_id": "diary-001",
+          "next_stage": "paper",
+          "prior_stage": "paper",
+          "rejected_proposals": [
+            "rim-invariant-unknown"
+          ]
         }
       ],
       "metadata": {
-        "traceability": {
-          "code_hash": "6838050af201b49bf09c05d96f2acf0792b28cb0",
-          "config_hash": "79b5d31b7324088321a2bbd7e796ff305c273ebf0ee8060ad36e71b84bcd484b",
-          "diary_slice": {
-            "diary_path": "/tmp/pytest-of-codex/pytest-1207/test_promote_policy_cli_writes0/diary.json",
-            "entry": {
-              "decision": {
-                "decision_timestamp": null,
-                "experiments_applied": [],
-                "guardrails": {},
-                "parameters": {},
-                "rationale": "summary",
-                "reflection_summary": {},
-                "selected_weight": 1.0,
-                "tactic_id": "beta",
-                "weight_breakdown": {}
+        "rim_auto_apply_rejections": {
+          "rim-invariant-unknown": {
+            "affected_regimes": [
+              "calm"
+            ],
+            "audit_ids": [
+              "diary-001"
+            ],
+            "auto_apply": {
+              "applied": false,
+              "evaluation": {
+                "budget_remaining": 25.0,
+                "budget_utilisation": 0.25,
+                "oos_uplift": 0.12,
+                "risk_hits": 0,
+                "suggestion_id": "rim-invariant-unknown"
               },
-              "entry_id": "dd-beta",
-              "metadata": {
-                "release_stage": "paper"
-              },
-              "notes": [],
-              "outcomes": {
-                "paper_pnl": 5.0
-              },
-              "policy_id": "beta",
-              "probes": [],
-              "recorded_at": "2024-02-01T00:00:00+00:00",
-              "regime_state": {
-                "confidence": 0.77,
-                "features": {},
-                "regime": "balanced"
+              "reasons": [
+                "invariants_unknown"
+              ]
+            },
+            "confidence": 0.83,
+            "evidence": {
+              "audit_ids": [
+                "diary-001"
+              ],
+              "diary_source": "artifacts/diaries/diaries-0001.jsonl",
+              "input_hash": "batch-hash",
+              "target_strategy_ids": [
+                "bootstrap-strategy"
+              ],
+              "window": {
+                "end": "2025-10-20T05:21:47Z",
+                "minutes": 60,
+                "start": "2025-10-20T05:21:47Z"
               }
             },
-            "entry_id": "dd-beta",
-            "stage": "pilot",
-            "status": "ok"
-          },
-          "evidence_id": "dd-beta",
-          "generated_at": "2025-10-20T04:30:55.438808+00:00",
-          "policy_id": "beta",
-          "stage": "pilot",
-          "tactic_id": "beta"
+            "payload": {
+              "proposed_weight_delta": -0.05,
+              "strategy_id": "bootstrap-strategy",
+              "window_minutes": 1440
+            },
+            "run_id": "rim-run-001",
+            "status": "auto_applied",
+            "trace": {
+              "batch_input_hash": "batch-hash",
+              "code_hash": "test-code",
+              "config_hash": "cfg-hash",
+              "diary_slice": {
+                "aggregates": {
+                  "total_entries": 1
+                },
+                "entry_count": 1,
+                "source_path": "artifacts/diaries/diaries-0001.jsonl",
+                "strategy_entries": [
+                  {
+                    "action": "hold",
+                    "input_hash": "entry-001",
+                    "instrument": "test-instrument",
+                    "outcome_labels": [],
+                    "pnl": 0.0,
+                    "raw": {
+                      "strategy_id": "bootstrap-strategy"
+                    },
+                    "risk_flags": [],
+                    "strategy_id": "bootstrap-strategy",
+                    "timestamp": "2025-10-20T05:21:47Z"
+                  }
+                ],
+                "strategy_entry_count": 1,
+                "window": {
+                  "end": "2025-10-20T05:21:47Z",
+                  "minutes": 60,
+                  "start": "2025-10-20T05:21:47Z"
+                }
+              },
+              "model_hash": "model-hash",
+              "target_strategy_ids": [
+                "bootstrap-strategy"
+              ]
+            },
+            "type": "WEIGHT_ADJUST"
+          }
         }
       },
-      "policy_id": "beta",
-      "stage": "pilot",
-      "tactic_id": "beta",
-      "updated_at": "2025-10-20T04:30:55.438842+00:00"
+      "policy_id": "bootstrap-strategy",
+      "rejected_proposals": [
+        "rim-invariant-unknown"
+      ],
+      "stage": "paper",
+      "tactic_id": "bootstrap-strategy",
+      "updated_at": "2025-10-20T05:21:47.869566+00:00"
     }
   },
-  "updated_at": "2025-10-20T04:30:55.438961+00:00"
+  "updated_at": "2025-10-20T05:21:47.869755+00:00"
 }

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import math
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
 
@@ -84,13 +84,29 @@ class GraphNetSurrogate:
         if min_speedup <= 0 or max_speedup <= 0 or min_speedup > max_speedup:
             raise ValueError("Speedup bounds must be positive with min <= max")
 
-        self._adjacency: dict[str, tuple[str, ...]] = {
-            str(node): tuple(str(neighbour) for neighbour in neighbours)
-            for node, neighbours in adjacency.items()
+        adjacency_normalised: dict[str, tuple[str, ...]] = {}
+        node_ids: set[str] = set()
+        for node, neighbours in adjacency.items():
+            node_key = str(node)
+            neighbour_keys = tuple(str(neighbour) for neighbour in neighbours)
+            adjacency_normalised[node_key] = neighbour_keys
+            node_ids.add(node_key)
+            node_ids.update(neighbour_keys)
+
+        feature_nodes = {
+            str(node) for node in (node_features or {}).keys()
         }
-        self._nodes: tuple[str, ...] = tuple(sorted(self._adjacency))
-        if not self._nodes:
+        node_ids.update(feature_nodes)
+
+        if not node_ids:
             raise ValueError("Adjacency must contain at least one node")
+
+        ordered_nodes = tuple(sorted(node_ids))
+        self._adjacency = {
+            node: adjacency_normalised.get(node, tuple())
+            for node in ordered_nodes
+        }
+        self._nodes = ordered_nodes
 
         self._max_hops = int(max_hops)
         self._baseline_step_cost = float(baseline_step_cost)
@@ -111,7 +127,12 @@ class GraphNetSurrogate:
         self._residuals: dict[str, float] = {}
         self._non_negative_metrics = {"turnover"}
 
-        self._prepare_base_vectors(node_features or {})
+        feature_mapping = {
+            str(node): {str(name): float(value) for name, value in features.items()}
+            for node, features in (node_features or {}).items()
+        }
+
+        self._prepare_base_vectors(feature_mapping)
         self._build_graph_embeddings()
 
     # ------------------------------------------------------------------
@@ -133,9 +154,10 @@ class GraphNetSurrogate:
     def is_trained(self) -> bool:
         return bool(self._weights)
 
-    def train(self, examples: Sequence[RolloutExample]) -> None:
+    def train(self, examples: Iterable[RolloutExample]) -> None:
         """Fit the surrogate on training examples produced by the slow sim."""
 
+        examples = tuple(examples)
         if not examples:
             raise ValueError("At least one training example is required")
 

@@ -144,3 +144,29 @@ them on operator offboarding, and remove peers with `sudo wg set wg0 peer
   command returns `latest handshake: (none)` when peers are offline.
 - Incorporate these checks into the promotion and incident runbooks so
   credential leakage and inadvertent port exposure surface immediately.
+
+## 5. Secret rotation practices and automation goals
+
+- **Rotation cadence:** rotate interactive operator credentials quarterly, API
+  tokens and signing keys every 60 days, and infrastructure service accounts
+  within 30 days of any incident or role change. Track the last-rotated
+  timestamp alongside each entry in the credential register maintained by the
+  security team so the aging script can flag drift.
+- **Execution workflow:** prepare replacement secrets in a temporary dotenv
+  file, apply them through `install -m 640` into `/etc/emp/secrets`, reload the
+  dependent services (`systemctl reload emp-runtime`, restart connectors), and
+  confirm the old values are shredded with `shred --remove`. For database and
+  broker users, stage dual credentials so the new key is tested before the old
+  one is revoked.
+- **Automation baseline:** implement a lightweight `secret_age` script that runs
+  in CI and a nightly cron, reads the credential register, fails builds when
+  entries exceed the defined cadence, and emits Slack alerts via the
+  `SLACK_CI_WEBHOOK` secret. Store generated reports in `artifacts/security` so
+  audit reviews have a single history.
+- **Future-state integration:** target Vault or AWS Secrets Manager to supply
+  runtime dotenv files on demand. The rollout plan is to (1) mirror the
+  credential register into the secrets manager, (2) replace `EMP_SECRETS_ENV_FILE`
+  with a bootstrap script that materializes short-lived leases, and (3) gate CI
+  merges on automated rotation checks finishing successfully. This keeps
+  rotation hands-free once service accounts are migrated off static `.env`
+  files.

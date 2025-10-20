@@ -14,6 +14,7 @@ Rules:
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Mapping
 from typing import Optional, SupportsFloat, SupportsIndex, cast
 
@@ -38,6 +39,39 @@ def _to_float(value: object, default: float = 0.0) -> float:
         return float(cast(Floatable, value))
     except (TypeError, ValueError):
         return default
+
+
+def _to_bool(value: object, default: bool = False) -> bool:
+    """Best-effort coercion of heterogeneous truthy/falsey inputs."""
+
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return default
+        if math.isnan(numeric):
+            return default
+        return numeric != 0.0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return default
+        if normalized in {"0", "false", "f", "no", "n", "off"}:
+            return False
+        if normalized in {"1", "true", "t", "yes", "y", "on"}:
+            return True
+        try:
+            numeric = float(normalized)
+        except ValueError:
+            return default
+        if math.isnan(numeric):
+            return default
+        return numeric != 0.0
+    return bool(value)
 
 
 def _call_dict_method(obj: object) -> Mapping[str, object] | None:
@@ -101,7 +135,7 @@ def normalize_prediction(p: object) -> dict[str, object]:
     lower = _to_float(_safe_getattr(p, "lower_bound_return"), expected)
     upper = _to_float(_safe_getattr(p, "upper_bound_return"), expected)
     actionable_attr = _safe_getattr(p, "actionable")
-    actionable = bool(actionable_attr) if actionable_attr is not None else lower > 0.0
+    actionable = _to_bool(actionable_attr, lower > 0.0)
 
     interval_attr = _safe_getattr(p, "return_interval")
     if isinstance(interval_attr, Mapping):
@@ -138,7 +172,7 @@ def _normalise_prediction_mapping(payload: Mapping[str, object]) -> dict[str, ob
         lower, upper = upper, lower
 
     actionable_raw = payload.get("actionable")
-    actionable = bool(actionable_raw) if actionable_raw is not None else lower > 0.0
+    actionable = _to_bool(actionable_raw, lower > 0.0)
 
     return {
         "confidence": _to_float(payload.get("confidence", 0.0), 0.0),

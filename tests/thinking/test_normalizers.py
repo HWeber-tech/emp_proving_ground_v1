@@ -25,7 +25,9 @@ def test_normalize_prediction_handles_dict_failure() -> None:
 
     normalised = normalize_prediction(payload)
 
-    assert normalised == {"confidence": pytest.approx(0.73), "probability": pytest.approx(0.61)}
+    assert normalised["confidence"] == pytest.approx(0.73)
+    assert normalised["probability"] == pytest.approx(0.61)
+    assert normalised["actionable"] is False
 
 
 class _BrokenConfidence:
@@ -41,7 +43,22 @@ def test_normalize_prediction_handles_attribute_errors() -> None:
 
     normalised = normalize_prediction(payload)
 
-    assert normalised == {"confidence": 0.0, "probability": pytest.approx(0.42)}
+    assert normalised["confidence"] == 0.0
+    assert normalised["probability"] == pytest.approx(0.42)
+
+
+def test_normalize_prediction_coerces_string_actionable_flag() -> None:
+    payload = {
+        "confidence": 0.5,
+        "probability": 0.4,
+        "lower_bound_return": 0.2,
+        "upper_bound_return": 0.3,
+        "actionable": "false",
+    }
+
+    normalised = normalize_prediction(payload)
+
+    assert normalised["actionable"] is False
 
 
 class _SurvivalProbe:

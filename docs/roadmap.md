@@ -39,7 +39,7 @@
 ### A.5 Tests & validation
 - [ ] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
 - [ ] **A.5.2** Turn `system_validation_report` into **CI**; build fails if any check red.  
-- [x] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock?paper status).
+- [x] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock-paper status).
 
 **Definition of Done (A):** `docker compose up` runs mock end-to-end; FIX replay test passes; `/metrics` exposes latency & queue stats; CI green.
 
@@ -50,7 +50,7 @@
 **Goal:** instrument-agnostic **MarketState** emitted on every event, no leakage.
 
 ### B.1 Depth & TOB features
-- [x] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv ? GLU ? adaptive pool to **D=8-16** dims.  
+- [x] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv → GLU → adaptive pool to **D=8-16** dims.  
 - [x] **B.1.2** Emit `has_depth` and **zero-mask** depth features when absent (spot FX).  
 - [x] **B.1.3** Derived features (leak-free):  
   - `microprice`, `spread_ticks > 1`, `ofi_norm` (pre-event states + trade sign), `refresh_hz`, `stale_ms`, `slope/curve` (2-term poly each side).

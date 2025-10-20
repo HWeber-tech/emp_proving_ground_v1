@@ -115,7 +115,7 @@
 
 **Acceptance (DoD)**
 - [x] `[ops]` Liveâ€‘pilot drill: turn on tiny capital; trigger killâ€‘switch; rollback; reconcile â€” all green. _Progress: Live pilot drill CLI now orchestrates tiny-capital overrides, kill-switch enforcement, trade-throttle rollback, and reconciliation replays into timestamped JSON evidence packs with regression coverage validating successful runs.【F:tools/operations/live_pilot_drill.py†L1-L307】【F:tests/tools/test_live_pilot_drill.py†L1-L54】_
-- [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper). _Progress: PolicyRouter now exposes an `allow_forced_exploration` property with a setter that coerces the flag, and UnderstandingRouter zeros exploration settings before live-mode instantiation while flipping the property post-build so live catalogs fail closed, with regression coverage locking forced-pick rejections and live-mode freezes.【F:src/thinking/adaptation/policy_router.py†L640-L700】【F:src/understanding/router.py†L247-L264】【F:tests/thinking/test_policy_router.py†L571-L584】【F:tests/understanding/test_understanding_router.py†L275-L307】_
+- [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper). _Progress: PolicyRouter now exposes an `allow_forced_exploration` property with a setter that coerces truthy and falsy assignments, and UnderstandingRouter zeros exploration settings before live-mode instantiation then freezes the router with a live-mode metadata payload so live catalogs fail closed, with regression coverage locking forced-pick rejections, freeze-state propagation, and live-mode block metadata.【F:src/thinking/adaptation/policy_router.py†L693-L700】【F:src/understanding/router.py†L250-L311】【F:tests/thinking/test_policy_router.py†L571-L587】【F:tests/understanding/test_understanding_router.py†L275-L312】_
 
 ---
 
@@ -163,6 +163,14 @@
 ### Notes
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
+
+## Automation updates — 2025-10-20T02:59:28Z
+
+### Last 4 commits
+- ab9dfb43 refactor(understanding): tune 4 files (2025-10-20)
+- 3254f96d feat(_automation): add 2 files (2025-10-20)
+- 1d00c665 test(.telemetry): tune 1 file (2025-10-20)
+- 149ee278 docs(docs): tune 1 file (2025-10-20)
 
 ## Automation updates — 2025-10-20T02:55:53Z
 

@@ -39,7 +39,7 @@
 ### A.5 Tests & validation
 - [ ] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
 - [ ] **A.5.2** Turn `system_validation_report` into **CI**; build fails if any check red.  
-- [ ] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock?paper status).
+- [x] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock?paper status).
 
 **Definition of Done (A):** `docker compose up` runs mock end-to-end; FIX replay test passes; `/metrics` exposes latency & queue stats; CI green.
 
@@ -151,7 +151,7 @@
 - [ ] **F.1.3** Gate: correlation between imagined edge and realized edge ? 0.2 on hold?out day.
 
 ### F.2 Mini?league self?play
-- [ ] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
+- [x] **F.2.1** League {**Current**, **Best**, **Exploit**, **Chaos**}.  
 - [x] **F.2.2** Replay buffers: main + **rare?regime** (NFP, halts); 80/20 sampling with temp schedule.  
 - [ ] **F.2.3** **Lagrangian constraints** for turnover/inventory variance; no manual tuning.  
 - [ ] **F.2.4** Exploitability metric (?Sharpe vs Best/Exploit at matched turnover); promote only if gap shrinks WoW.
@@ -165,7 +165,7 @@
 **Goal:** fast stress testing without lying to ourselves.
 
 - [ ] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
-- [ ] **G.2** A/B validator: surrogate vs ground?truth sim **? within 5%**, turnover within 10%; otherwise retrain.  
+- [x] **G.2** A/B validator: surrogate vs ground?truth sim **? within 5%**, turnover within 10%; otherwise retrain.  
 - [ ] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
 
 **DoD (G):** surrogate gated; capacity curves published per instrument.

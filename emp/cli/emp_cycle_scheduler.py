@@ -30,6 +30,9 @@ from ._emp_cycle_common import (
 )
 
 DEFAULT_METADATA_NOTE = "scheduler:auto"
+EVIDENCE_NOTE_QUICK = "evidence:quick-screen"
+EVIDENCE_NOTE_FULL = "evidence:full-eval"
+EVIDENCE_NOTE_COVERAGE = "coverage:regression"
 
 
 @dataclass(frozen=True)
@@ -297,6 +300,8 @@ def _screen_pending_ideas(
             if args.dry_run:
                 continue
             findings_memory.update_quick(conn, fid, metrics, score)
+            _append_note_once(conn, fid, EVIDENCE_NOTE_QUICK)
+            _append_note_once(conn, fid, EVIDENCE_NOTE_COVERAGE)
             _append_note_once(conn, fid, metadata_note)
         else:
             print(f"[filtered] id={fid} score={score:.3f}")
@@ -361,6 +366,8 @@ def _evaluate_candidates(
         progress = is_progress(full_metrics, baseline, cfg)
 
         findings_memory.promote_tested(conn, candidate_id, full_metrics, progress)
+        _append_note_once(conn, candidate_id, EVIDENCE_NOTE_FULL)
+        _append_note_once(conn, candidate_id, EVIDENCE_NOTE_COVERAGE)
         _append_note_once(conn, candidate_id, metadata_note)
 
         if progress:

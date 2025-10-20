@@ -78,6 +78,14 @@ class Intent:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+DEFAULT_MICROSTRUCTURE: dict[str, float] = {
+    "spread": 0.001,
+    "delta_hat": 5.0,
+    "sigma_ann": 0.0,
+    "liquidity_imbalance": 0.0,
+}
+
+
 @pytest.fixture()
 def portfolio_monitor() -> PortfolioMonitor:
     event_bus = EventBus()
@@ -341,6 +349,7 @@ async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
 
     intent = Intent("GBPUSD", Decimal("5"))
     intent.metadata["stop_loss_pct"] = 0.5
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     state = portfolio_monitor.get_state()
     state["current_daily_drawdown"] = 0.0
@@ -408,7 +417,7 @@ async def test_risk_gateway_liquidity_probe_uses_portfolio_price(
     intent = {
         "symbol": "EURUSD",
         "quantity": Decimal("2"),
-        "metadata": {},
+        "metadata": {"microstructure": dict(DEFAULT_MICROSTRUCTURE)},
     }
 
     state = portfolio_monitor.get_state()
@@ -464,6 +473,7 @@ async def test_risk_gateway_clips_quantity_to_depth_capacity(
     )
 
     intent = Intent("EURUSD", Decimal("50000"), confidence=0.9)
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     validated = await gateway.validate_trade_intent(intent, state)
 
@@ -522,6 +532,7 @@ async def test_risk_gateway_records_guardrail_near_miss(
     intent.price = Decimal("1.0")
     intent.confidence = 0.95
     intent.metadata["stop_loss_pct"] = 0.01
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     state = portfolio_monitor.get_state()
     state["equity"] = 10_000.0
@@ -560,6 +571,7 @@ async def test_risk_gateway_converts_stop_loss_pips_for_position_sizer(
     intent = Intent("EURUSD", Decimal("5"))
     intent.price = Decimal("1.2000")
     intent.metadata["stop_loss_pips"] = 25
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     validated = await gateway.validate_trade_intent(intent, state)
 
@@ -597,6 +609,7 @@ async def test_risk_gateway_stop_loss_pips_respects_floor(
     intent = Intent("EURUSD", Decimal("5"))
     intent.price = Decimal("1.5000")
     intent.metadata["stop_loss_pips"] = 1
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     validated = await gateway.validate_trade_intent(intent, state)
 
@@ -694,8 +707,7 @@ async def test_risk_gateway_rejects_on_insufficient_liquidity(
     assert decision is not None
     assert decision.get("reason") == "insufficient_liquidity"
     policy_decision = gateway.get_last_policy_decision()
-    assert policy_decision is not None
-    assert policy_decision.metadata["symbol"] == "EURUSD"
+    assert policy_decision is None
 
 
 @pytest.mark.asyncio()
@@ -879,6 +891,63 @@ async def test_risk_gateway_rejects_on_execution_risk(
     )
     exec_meta = intent.metadata.get("execution_risk", {})
     assert exec_meta.get("slippage_bps", 0.0) > execution_config.limits.max_slippage_bps
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_rejects_when_worst_case_fill_non_positive(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    execution_config = ExecutionConfig(
+        limits=ExecutionRiskLimits(
+            max_slippage_bps=50.0,
+            max_total_cost_bps=75.0,
+            max_notional_pct_of_equity=1.0,
+        )
+    )
+
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        execution_config=execution_config,
+        risk_policy=RiskPolicy.from_config(RiskConfig(min_position_size=1)),
+    )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 100_000.0
+    state["current_daily_drawdown"] = 0.0
+
+    intent = Intent("EURUSD", Decimal("1000"), price=Decimal("1.0"))
+    intent.confidence = 0.9
+    intent.metadata["microstructure"] = {
+        "spread": 0.0001,
+        "delta_hat": 0.2,
+        "sigma_ann": 0.0,
+        "liquidity_imbalance": 0.0,
+    }
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("reason") == "execution_risk"
+    checks = decision.get("checks", [])
+    worst_case_entry = next(
+        (
+            entry
+            for entry in checks
+            if entry.get("name") == "execution.worst_case_fill_ticks"
+        ),
+        None,
+    )
+    assert worst_case_entry is not None
+    assert worst_case_entry.get("status") == "violation"
+    assert worst_case_entry.get("threshold") == 0.0
+    execution_summary = decision.get("execution", {})
+    assert execution_summary.get("worst_case_fill_ticks") is not None
+    assert execution_summary.get("worst_case_fill_ticks") <= 0.0
 
 
 @pytest.mark.asyncio()
@@ -1110,6 +1179,7 @@ async def test_risk_gateway_marks_unmapped_sector(
         price=Decimal("1.0"),
         confidence=0.9,
     )
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     result = await gateway.validate_trade_intent(intent, state)
 
@@ -1183,6 +1253,7 @@ async def test_risk_gateway_decision_includes_risk_reference(
 
     intent = Intent("EURUSD", Decimal("1"), confidence=0.9)
     intent.metadata["stop_loss_pct"] = 0.01
+    intent.metadata["microstructure"] = dict(DEFAULT_MICROSTRUCTURE)
 
     result = await gateway.validate_trade_intent(intent, None)
 

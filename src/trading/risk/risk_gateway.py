@@ -1591,6 +1591,19 @@ class RiskGateway:
         execution_metadata["adverse_selection_penalty_ticks"] = as_penalty_ticks
         execution_metadata["total_cost_ticks"] = total_cost_ticks
 
+        worst_case_fill_ticks = edge_ticks - total_cost_ticks
+        execution_metadata["worst_case_fill_ticks"] = worst_case_fill_ticks
+
+        worst_case_entry: dict[str, Any] = {
+            "name": "execution.worst_case_fill_ticks",
+            "value": worst_case_fill_ticks,
+            "threshold": 0.0,
+            "status": "ok" if worst_case_fill_ticks > 0 else "violation",
+        }
+        checks.append(worst_case_entry)
+        if worst_case_fill_ticks <= 0:
+            breaches.append("execution.worst_case_fill_ticks")
+
         metadata.setdefault("execution_risk", {}).update(execution_metadata)
 
         return {

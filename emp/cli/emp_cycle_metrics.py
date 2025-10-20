@@ -56,11 +56,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     print(f"SLA (<= {args.threshold_hours:.2f}h): {status}")
 
     if stats.breaches:
-        print("Breaches (id, stage, hours, created_at, tested_at):")
+        print("Breaches (id, stage, hours, created_at, completed_at):")
         for breach in stats.breaches:
             print(
                 f"  {breach.id} | {breach.stage} | "
-                f"{breach.hours:.2f}h | {breach.created_at} | {breach.tested_at}"
+                f"{breach.hours:.2f}h | {breach.created_at} | {breach.completed_at}"
             )
 
     return 0 if stats.sla_met else 1

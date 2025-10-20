@@ -110,7 +110,7 @@ def test_evaluate_evolution_kpis_aggregates_metrics(monkeypatch: pytest.MonkeyPa
                 id=101,
                 stage="tested",
                 created_at="2025-01-01T00:00:00Z",
-                tested_at="2025-01-02T06:00:00Z",
+                completed_at="2025-01-02T06:00:00Z",
                 hours=30.0,
             ),
         ),

@@ -357,7 +357,7 @@ class TimeToCandidateBreach(NamedTuple):
     id: int
     stage: str
     created_at: str
-    tested_at: str
+    completed_at: str
     hours: float
 
 
@@ -436,7 +436,7 @@ def time_to_candidate_stats(
                     id=int(row["id"]),
                     stage=str(row["stage"]),
                     created_at=str(row["created_at"]),
-                    tested_at=str(completion_ts),
+                    completed_at=str(completion_ts),
                     hours=hours,
                 )
             )

@@ -229,7 +229,7 @@ def _coerce_time_to_candidate(
                 "id": breach.id,
                 "stage": breach.stage,
                 "created_at": breach.created_at,
-                "tested_at": breach.tested_at,
+                "completed_at": breach.completed_at,
                 "hours": breach.hours,
             }
             for breach in getattr(stats, "breaches", ())

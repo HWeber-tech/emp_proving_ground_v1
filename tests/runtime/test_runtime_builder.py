@@ -69,11 +69,13 @@ from src.runtime.predator_app import ProfessionalPredatorApp
 from src.runtime.task_supervisor import TaskSupervisor
 from src.observability.tracing import NullRuntimeTracer
 from src.runtime.runtime_builder import (
+    TimeDriftMeasurement,
     _normalise_ingest_plan_metadata,
     _plan_dimensions,
     _process_sensory_status,
     _supervise_background_task,
     _configure_drift_monitor,
+    _configure_time_integrity_daemon,
     _merge_task_snapshots,
 )
 from src.reflection.trm.config import ModelConfig, RIMRuntimeConfig, RuntimeConfigBundle, TelemetryConfig
@@ -511,6 +513,16 @@ class _StubSensoryApp:
 
     def record_sensory_drift_snapshot(self, snapshot: Any) -> None:
         self.drift_snapshots.append(snapshot)
+
+
+class _StubTimeIntegrityApp:
+    def __init__(self) -> None:
+        self.shutdown_requested = False
+        self.shutdown_calls = 0
+
+    def request_shutdown(self) -> None:
+        self.shutdown_requested = True
+        self.shutdown_calls += 1
 
 
 class _StubDriftSensoryOrgan:
@@ -2754,6 +2766,105 @@ async def test_runtime_application_recovers_from_ingest_failure(caplog: pytest.L
     assert summary.get("trading", {}).get("state") == "finished"
 
     await supervisor.cancel_all()
+
+
+def test_configure_time_integrity_daemon_respects_disabled_flag() -> None:
+    app = _StubTimeIntegrityApp()
+    runtime_app = RuntimeApplication()
+    tracer = NullRuntimeTracer()
+
+    _configure_time_integrity_daemon(
+        runtime_app,
+        app,
+        tracer,
+        {"RUNTIME_TIME_INTEGRITY_ENABLED": "false"},
+    )
+
+    assert runtime_app.auxiliary == ()
+    assert not app.shutdown_requested
+
+
+@pytest.mark.asyncio()
+async def test_configure_time_integrity_daemon_requests_shutdown_on_drift(monkeypatch) -> None:
+    app = _StubTimeIntegrityApp()
+    supervisor = TaskSupervisor(namespace="test-time-integrity", cancel_timeout=0.1)
+    runtime_app = RuntimeApplication(task_supervisor=supervisor)
+    tracer = NullRuntimeTracer()
+
+    created: list[Any] = []
+    measurement_ok = TimeDriftMeasurement(
+        drift_seconds=0.05,
+        wall_seconds=100.0,
+        expected_seconds=99.95,
+        monotonic_seconds=50.0,
+    )
+    measurement_violation = TimeDriftMeasurement(
+        drift_seconds=0.75,
+        wall_seconds=100.75,
+        expected_seconds=100.0,
+        monotonic_seconds=50.75,
+    )
+
+    class _FakeTimeIntegritySentinel:
+        def __init__(self, *, monotonic: Any, wall_clock: Any) -> None:
+            created.append(self)
+            self.calibrated = False
+            self.measurements: deque[TimeDriftMeasurement] = deque(
+                [measurement_ok, measurement_violation]
+            )
+            self.rebaseline_count = 0
+
+        def calibrate(self) -> None:
+            self.calibrated = True
+
+        def measure(self) -> TimeDriftMeasurement:
+            if not self.measurements:
+                raise RuntimeError("no measurements available")
+            return self.measurements.popleft()
+
+        def rebaseline(self, measurement: TimeDriftMeasurement) -> None:
+            self.rebaseline_count += 1
+
+    monkeypatch.setattr(
+        runtime_builder_module,
+        "_TimeIntegritySentinel",
+        _FakeTimeIntegritySentinel,
+    )
+
+    _configure_time_integrity_daemon(
+        runtime_app,
+        app,
+        tracer,
+        {
+            "RUNTIME_TIME_INTEGRITY_INTERVAL_SECONDS": "0.05",
+            "RUNTIME_TIME_INTEGRITY_THRESHOLD_SECONDS": "0.5",
+        },
+    )
+
+    assert len(runtime_app.auxiliary) == 1
+    workload = runtime_app.auxiliary[0]
+    metadata = workload.metadata or {}
+    assert metadata.get("workload_kind") == "time_integrity"
+    assert metadata.get("threshold_seconds") == pytest.approx(0.5)
+    assert metadata.get("supervised_components") == ("time_integrity",)
+
+    task = asyncio.create_task(workload.factory())
+    try:
+        await asyncio.wait_for(task, timeout=1.0)
+    finally:
+        if not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        await supervisor.cancel_all()
+
+    assert task.done()
+    assert app.shutdown_requested
+    assert app.shutdown_calls == 1
+    assert created, "sentinel should be instantiated"
+    sentinel = created[0]
+    assert getattr(sentinel, "calibrated", False)
+    assert getattr(sentinel, "rebaseline_count", 0) == 1
 
 
 @pytest.mark.asyncio()

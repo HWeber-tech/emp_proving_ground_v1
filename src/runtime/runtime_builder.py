@@ -13,6 +13,7 @@ import asyncio
 import inspect
 import json
 import logging
+import time
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -354,6 +355,61 @@ def _merge_task_snapshots(
             if isinstance(payload, Mapping):
                 merged.append({str(key): payload[key] for key in payload})
     return tuple(merged)
+
+
+def _wall_clock_seconds() -> float:
+    """Return the current UTC wall-clock time in seconds."""
+
+    return datetime.now(tz=UTC).timestamp()
+
+
+@dataclass(frozen=True)
+class TimeDriftMeasurement:
+    """Snapshot of a wall-clock drift measurement."""
+
+    drift_seconds: float
+    wall_seconds: float
+    expected_seconds: float
+    monotonic_seconds: float
+
+
+class _TimeIntegritySentinel:
+    """Track wall-clock drift against a monotonic reference."""
+
+    def __init__(
+        self,
+        *,
+        monotonic: Callable[[], float],
+        wall_clock: Callable[[], float],
+    ) -> None:
+        self._monotonic = monotonic
+        self._wall_clock = wall_clock
+        self._baseline_monotonic: float | None = None
+        self._baseline_wall: float | None = None
+
+    def calibrate(self) -> None:
+        self._baseline_wall = self._wall_clock()
+        self._baseline_monotonic = self._monotonic()
+
+    def measure(self) -> TimeDriftMeasurement:
+        if self._baseline_wall is None or self._baseline_monotonic is None:
+            self.calibrate()
+
+        monotonic_now = self._monotonic()
+        wall_now = self._wall_clock()
+        expected_wall = self._baseline_wall + (monotonic_now - self._baseline_monotonic)
+        drift_seconds = wall_now - expected_wall
+
+        return TimeDriftMeasurement(
+            drift_seconds=drift_seconds,
+            wall_seconds=wall_now,
+            expected_seconds=expected_wall,
+            monotonic_seconds=monotonic_now,
+        )
+
+    def rebaseline(self, measurement: TimeDriftMeasurement) -> None:
+        self._baseline_wall = measurement.wall_seconds
+        self._baseline_monotonic = measurement.monotonic_seconds
 
 
 _RETENTION_TABLES: dict[str, tuple[str, str]] = {
@@ -3210,6 +3266,128 @@ def _adjust_security_policy_for_run_mode(
     return policy
 
 
+def _configure_time_integrity_daemon(
+    runtime_app: RuntimeApplication,
+    app: ProfessionalPredatorApp,
+    tracer: RuntimeTracer,
+    extras: Mapping[str, object],
+) -> None:
+    """Register a watchdog that halts the runtime on wall-clock drift."""
+
+    enabled = _coerce_bool(extras.get("RUNTIME_TIME_INTEGRITY_ENABLED"), True)
+    if not enabled:
+        logger.debug("Time integrity daemon disabled via configuration flag")
+        return
+
+    threshold_seconds = _coerce_float(
+        extras.get("RUNTIME_TIME_INTEGRITY_THRESHOLD_SECONDS"),
+        0.75,
+    )
+    if threshold_seconds <= 0:
+        threshold_seconds = 0.75
+    threshold_seconds = max(threshold_seconds, 0.001)
+
+    interval_default = max(threshold_seconds * 0.5, 15.0)
+    interval_seconds = _coerce_float(
+        extras.get("RUNTIME_TIME_INTEGRITY_INTERVAL_SECONDS"),
+        interval_default,
+    )
+    if interval_seconds <= 0:
+        interval_seconds = interval_default
+    if interval_seconds < 0.1:
+        interval_seconds = 0.1
+
+    default_hang_timeout = max(interval_seconds * 4.0, interval_seconds + 60.0)
+    hang_timeout = _resolve_workload_hang_timeout(
+        extras,
+        component="time_integrity",
+        default_timeout=default_hang_timeout,
+    )
+
+    workload_metadata = {
+        "interval_seconds": interval_seconds,
+        "threshold_seconds": threshold_seconds,
+        "workload_kind": "time_integrity",
+        "supervised_components": ("time_integrity",),
+    }
+
+    async def _run_time_integrity_daemon() -> None:
+        sentinel = _TimeIntegritySentinel(
+            monotonic=time.monotonic,
+            wall_clock=_wall_clock_seconds,
+        )
+        sentinel.calibrate()
+        shutdown_callback = getattr(app, "request_shutdown", None)
+        logger.info(
+            "⏱️ Time integrity daemon active (interval=%ss threshold=%ss)",
+            interval_seconds,
+            threshold_seconds,
+        )
+        sample_index = 0
+        try:
+            while True:
+                try:
+                    await asyncio.sleep(interval_seconds)
+                    measurement = sentinel.measure()
+                    sample_index += 1
+                    drift_seconds = measurement.drift_seconds
+                    abs_drift = abs(drift_seconds)
+                    span_metadata = {
+                        "sample_index": sample_index,
+                        "drift_seconds": round(drift_seconds, 6),
+                        "abs_drift_seconds": round(abs_drift, 6),
+                        "threshold_seconds": threshold_seconds,
+                    }
+                    with tracer.operation_span(
+                        name="runtime.time_integrity",
+                        metadata=span_metadata,
+                    ):
+                        if abs_drift > threshold_seconds:
+                            logger.critical(
+                                "⏱️ System clock drift exceeded threshold"
+                                " (drift=%.6fs threshold=%.6fs wall=%.6f expected=%.6f)."
+                                " Initiating runtime shutdown.",
+                                drift_seconds,
+                                threshold_seconds,
+                                measurement.wall_seconds,
+                                measurement.expected_seconds,
+                            )
+                            if callable(shutdown_callback):
+                                try:
+                                    shutdown_callback()
+                                except Exception:
+                                    logger.exception(
+                                        "Time integrity shutdown request failed",
+                                        exc_info=True,
+                                    )
+                            break
+                    if abs_drift <= threshold_seconds:
+                        sentinel.rebaseline(measurement)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.exception(
+                        "Unexpected error during time integrity daemon iteration",
+                        exc_info=True,
+                    )
+        finally:
+            logger.info("⏱️ Time integrity daemon stopped")
+
+    runtime_app.add_auxiliary_workload(
+        RuntimeWorkload(
+            name="time-integrity-daemon",
+            factory=_run_time_integrity_daemon,
+            description="Monitor wall-clock drift and halt on threshold breach",
+            metadata=workload_metadata,
+            restart_policy=WorkloadRestartPolicy(
+                max_restarts=None,
+                backoff_seconds=max(5.0, min(interval_seconds, 60.0)),
+            ),
+            hang_timeout=hang_timeout,
+        )
+    )
+
+
 def _configure_drift_monitor(
     runtime_app: RuntimeApplication,
     app: ProfessionalPredatorApp,
@@ -4952,6 +5130,7 @@ def build_professional_runtime_application(
         runtime_app.add_startup_callback(risk_startup_callback)
 
     extras = app.config.extras or {}
+    _configure_time_integrity_daemon(runtime_app, app, runtime_tracer, extras)
     _configure_drift_monitor(runtime_app, app, runtime_tracer, extras)
     _configure_reflection_trm_runtime(runtime_app, app, runtime_tracer, extras)
     _configure_governance_cadence(runtime_app, app, runtime_tracer, extras)
@@ -4992,6 +5171,7 @@ def build_professional_runtime_application(
 
 
 __all__ = [
+    "TimeDriftMeasurement",
     "RuntimeApplication",
     "RuntimeWorkload",
     "WorkloadRestartPolicy",

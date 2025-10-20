@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import random
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -50,6 +51,166 @@ def _normalise_anchor(anchor: datetime | None) -> datetime:
     return anchor.astimezone(timezone.utc)
 
 
+_REPLAY_SERIES_LENGTH = 144
+_REPLAY_WARMUP_STEPS = 5
+_REPLAY_MAIN_WEIGHT = 0.8
+_REPLAY_RARE_WEIGHT = 0.2
+_REPLAY_TEMPERATURE_START = 1.2
+_REPLAY_TEMPERATURE_MIN = 0.8
+_REPLAY_TEMPERATURE_DECAY = 0.995
+
+
+def _temperature_mix(
+    temperature: float,
+    *,
+    main_weight: float = _REPLAY_MAIN_WEIGHT,
+    rare_weight: float = _REPLAY_RARE_WEIGHT,
+) -> tuple[float, float]:
+    main_scaled = main_weight ** (1.0 / temperature)
+    rare_scaled = rare_weight ** (1.0 / temperature)
+    total = main_scaled + rare_scaled
+    if total <= 0:
+        return 1.0, 0.0
+    return main_scaled / total, rare_scaled / total
+
+
+class _ReplaySeriesBuilder:
+    """Synthesize bootstrap replay buffers with rare regime injections."""
+
+    def __init__(
+        self,
+        symbol: str,
+        *,
+        index: int,
+        anchor: datetime,
+    ) -> None:
+        self._symbol = symbol
+        self._symbol_index = index
+        self._anchor = anchor
+        self._base_price = 1.10 + 0.002 * index
+        self._amplitude = 0.0008 + 0.0002 * index
+        self._drift = 0.0003 + 0.00005 * index
+        self._depth_seed = 5200 + index * 250
+        self._imbalance_bias = 0.15 + 0.05 * index
+        self._phase = 0.6 * (index + 1)
+        self._price = self._base_price
+        self._prev_price = self._base_price
+        self._step = 0
+        self._temperature = _REPLAY_TEMPERATURE_START
+        self._rare_cycle = ("rare_nfp", "rare_halt")
+        self._rare_index = 0
+        self._nfp_direction = 1.0
+
+    def build(self, length: int) -> list[MarketData]:
+        start = self._anchor - timedelta(minutes=length)
+        timestamp = start
+        bars: list[MarketData] = []
+        for _ in range(length):
+            regime = self._select_regime()
+            bar = self._next_bar(timestamp, regime)
+            bars.append(bar)
+            timestamp += timedelta(minutes=1)
+            self._step += 1
+        return bars
+
+    def _select_regime(self) -> str:
+        if self._step < _REPLAY_WARMUP_STEPS:
+            return "main"
+
+        main_prob, rare_prob = _temperature_mix(self._temperature)
+        threshold = random.random()
+        regime = "main" if threshold <= main_prob else self._next_rare_regime()
+        self._temperature = max(
+            _REPLAY_TEMPERATURE_MIN,
+            self._temperature * _REPLAY_TEMPERATURE_DECAY,
+        )
+        return regime
+
+    def _next_rare_regime(self) -> str:
+        regime = self._rare_cycle[self._rare_index % len(self._rare_cycle)]
+        self._rare_index += 1
+        return regime
+
+    def _base_metrics(self, step: int) -> dict[str, float]:
+        volume = 1800.0 + step * 120.0 + self._symbol_index * 200.0
+        volatility = 0.00035 + 0.00005 * abs(math.sin((self._phase + step) / 2.3))
+        spread = 0.00005 + 0.00001 * ((self._symbol_index + step) % 4)
+        depth = self._depth_seed + step * 180.0
+        imbalance = math.tanh((step - 18) / 9.0) * (0.4 + self._imbalance_bias)
+        macro_bias = 0.25 + 0.05 * self._symbol_index
+        return {
+            "volume": volume,
+            "volatility": volatility,
+            "spread": spread,
+            "depth": depth,
+            "imbalance": imbalance,
+            "macro_bias": macro_bias,
+            "data_quality": 0.88,
+        }
+
+    def _advance_main(self, step: int) -> float:
+        oscillation = self._amplitude * math.sin((self._phase + step) / 3.5)
+        self._price = max(0.35, self._price + self._drift + oscillation)
+        return self._price
+
+    def _advance_nfp(self) -> float:
+        jump = 0.0018 * self._nfp_direction + self._drift * 6.0
+        self._price = max(0.35, self._price + jump)
+        self._nfp_direction *= -1.0
+        return self._price
+
+    def _advance_halt(self) -> float:
+        self._price = max(0.35, self._price + self._drift * 0.15)
+        return self._price
+
+    def _next_bar(self, timestamp: datetime, regime: str) -> MarketData:
+        metrics = self._base_metrics(self._step)
+        if regime == "main":
+            price = self._advance_main(self._step)
+        elif regime == "rare_nfp":
+            price = self._advance_nfp()
+            metrics["volume"] *= 2.8
+            metrics["volatility"] *= 3.5
+            metrics["spread"] *= 2.4
+            metrics["imbalance"] *= 1.35
+            metrics["macro_bias"] += 0.06 * self._nfp_direction
+            metrics["data_quality"] = 0.83
+        else:  # rare_halt
+            price = self._advance_halt()
+            metrics["volume"] = max(40.0, metrics["volume"] * 0.08)
+            metrics["volatility"] = max(0.00002, metrics["volatility"] * 0.25)
+            metrics["spread"] *= 3.6
+            metrics["depth"] *= 0.45
+            metrics["imbalance"] *= 0.25
+            metrics["macro_bias"] -= 0.08
+            metrics["data_quality"] = 0.62
+
+        open_price = self._prev_price
+        tick_range = max(0.00005, metrics["volatility"] * 6.0)
+        high_price = max(open_price, price) + tick_range
+        low_price = min(open_price, price) - tick_range
+
+        bar = MarketData(
+            symbol=self._symbol,
+            timestamp=timestamp,
+            open=open_price,
+            high=high_price,
+            low=low_price,
+            close=price,
+            volume=metrics["volume"],
+            volatility=metrics["volatility"],
+            spread=metrics["spread"],
+            depth=metrics["depth"],
+            order_imbalance=metrics["imbalance"],
+            macro_bias=metrics["macro_bias"],
+            data_quality=metrics["data_quality"],
+            replay_regime=regime,
+            replay_temperature=self._temperature,
+        )
+        self._prev_price = price
+        return bar
+
+
 def _generate_bootstrap_series(
     symbols: Sequence[str],
     *,
@@ -61,40 +222,8 @@ def _generate_bootstrap_series(
     series: dict[str, list[MarketData]] = {}
 
     for idx, symbol in enumerate(symbols or ("EURUSD",)):
-        base = 1.10 + 0.002 * idx
-        amplitude = 0.0008 + 0.0002 * idx
-        drift = 0.0003 + 0.00005 * idx
-        depth_seed = 5200 + idx * 250
-        imbalance_bias = 0.15 + 0.05 * idx
-
-        bars: list[MarketData] = []
-        price = base
-        for step in range(24):
-            ts = now - timedelta(minutes=24 - step)
-            oscillation = amplitude * math.sin(step / 3.5)
-            price = price + drift + oscillation
-            open_price = price - 0.00025
-            high_price = max(open_price, price) + 0.00018
-            low_price = min(open_price, price) - 0.00018
-
-            bar = MarketData(
-                symbol=symbol,
-                timestamp=ts,
-                open=open_price,
-                high=high_price,
-                low=low_price,
-                close=price,
-                volume=1800 + step * 120 + idx * 200,
-                volatility=0.00035 + 0.00005 * abs(math.sin(step / 2.3)),
-                spread=0.00005 + 0.00001 * ((idx + step) % 4),
-                depth=depth_seed + step * 180,
-                order_imbalance=math.tanh((step - 12) / 9.0) * (0.4 + imbalance_bias),
-                macro_bias=0.25 + 0.05 * idx,
-                data_quality=0.85,
-            )
-            bars.append(bar)
-
-        series[symbol] = bars
+        builder = _ReplaySeriesBuilder(symbol, index=idx, anchor=now)
+        series[symbol] = builder.build(_REPLAY_SERIES_LENGTH)
 
     return series
 

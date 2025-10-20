@@ -60,3 +60,8 @@ def test_coerce_helpers_strip_currency_symbols() -> None:
 def test_coerce_helpers_accept_unicode_minus_signs() -> None:
     assert coerce_float("\u2212123.5") == -123.5
     assert coerce_int("\uff0d2,000") == -2000
+
+
+def test_coerce_float_handles_percentages() -> None:
+    assert coerce_float("12%") == 0.12
+    assert coerce_float("(3.4%)") == -0.034

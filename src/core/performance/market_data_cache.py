@@ -10,9 +10,12 @@ class _InMemoryCache:
         self._store: dict[str, object] = {}
         self._expiry: dict[str, float] = {}
 
-    def set(self, key: str, value: object, ttl_seconds: int = 300) -> None:
+    def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:
         self._store[key] = value
-        self._expiry[key] = time.time() + ttl_seconds
+        if ttl_seconds is None:
+            self._expiry.pop(key, None)
+            return
+        self._expiry[key] = time.time() + float(ttl_seconds)
 
     def get(self, key: str, default: object | None = None) -> object | None:
         expires = self._expiry.get(key)
@@ -58,10 +61,13 @@ class MarketDataCache:
             return None
 
     # Legacy KV API (backward-compatible with _InMemoryCache)
-    def set(self, key: str, value: object, ttl_seconds: int = 300) -> None:
+    def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:
         with self._lock:
             self._kv_store[key] = value
-            self._kv_expiry[key] = time.time() + ttl_seconds
+            if ttl_seconds is None:
+                self._kv_expiry.pop(key, None)
+            else:
+                self._kv_expiry[key] = time.time() + float(ttl_seconds)
 
     def get(self, key: str, default: object | None = None) -> object | None:
         with self._lock:

@@ -28,7 +28,7 @@
 - [ ] **A.2.3** Normalize `connection_protocol` once (`.lower().strip()`); remove `CONNECTION_PROTOCOL` drift.
 
 ### A.3 Market access & sensory organs
-- [ ] **A.3.1** Implement FIX **MarketDataRequest** subscribe/unsubscribe on start/stop.  
+- [x] **A.3.1** Implement FIX **MarketDataRequest** subscribe/unsubscribe on start/stop.  
 - [ ] **A.3.2** Parse W/X messages: build L1-L5 snapshots; emit "market_data_update" with `{bid,ask,bid_sz,ask_sz,depth[L],ts,seq}`.  
 - [ ] **A.3.3** cTrader adapter: replace missing domain events with typed payloads or plain bus events; ensure async usage is correct.
 
@@ -217,7 +217,7 @@ actions_on_fail: ["reject", "fallback_previous_model"]
 **Goal:** full stack on one server post-training.
 
 - [ ] **J.1** Provision Hetzner: **8+ cores / 32-64 GB / NVMe / Ubuntu  22.04**.  
-- [ ] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
+- [x] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
 - [ ] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
 - [x] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
 - [ ] **J.5** Live promotion only after **2+ weeks** green gates (paper).
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T04:07:00Z
+## Automation updates — 2025-10-20T04:32:58Z
 
 ### Last 4 commits
-- ad0bd13f feat(artifacts): add 6 files (2025-10-20)
-- ff9241f2 feat(reflection): add 3 files (2025-10-20)
-- 75a8d95b refactor(governance): tune 2 files (2025-10-20)
-- 8cdb186d feat(thinking): add 3 files (2025-10-20)
+- 8578a687 refactor(artifacts): tune 25 files (2025-10-20)
+- f2f819b2 docs(docker): add 3 files (2025-10-20)
+- 103c43d3 test(emp): tune 2 files (2025-10-20)
+- 284a05c1 refactor(operational): tune 5 files (2025-10-20)

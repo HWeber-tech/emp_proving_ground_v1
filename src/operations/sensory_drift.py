@@ -8,13 +8,14 @@ markdown summaries suitable for operator dashboards and event-bus feeds.
 
 from __future__ import annotations
 
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from math import inf
-from statistics import fmean
+from math import inf, log
+from statistics import StatisticsError, fmean, quantiles
 from typing import Any, Iterable, Mapping, MutableMapping
 
 import logging
@@ -67,6 +68,213 @@ def _sanitize_sequence(value: Iterable[Any]) -> list[Mapping[str, Any]]:
         if isinstance(entry, Mapping):
             cleaned.append(dict(entry))
     return cleaned
+
+
+_PSI_ALERT_THRESHOLD = 0.25
+_PSI_MIN_FEATURES = 8
+_PSI_MAX_FEATURES = 12
+_PSI_MIN_BASELINE_SAMPLES = 20
+_PSI_MIN_EVALUATION_SAMPLES = 8
+_PSI_MAX_BASELINE_SAMPLES = 120
+_PSI_MAX_EVALUATION_SAMPLES = 24
+_PSI_BUCKETS = 10
+_PSI_EPSILON = 1e-6
+
+_CORE_FEATURE_PRIORITY: tuple[str, ...] = (
+    "unified_score",
+    "confidence",
+    "WHY.signal",
+    "WHY.confidence",
+    "WHAT.signal",
+    "WHAT.confidence",
+    "WHEN.signal",
+    "WHEN.confidence",
+    "HOW.signal",
+    "HOW.confidence",
+    "ANOMALY.signal",
+    "ANOMALY.confidence",
+)
+
+
+def _iter_core_features(entry: Mapping[str, Any]) -> Iterable[tuple[str, float]]:
+    unified_score = _coerce_float(entry.get("unified_score"))
+    if unified_score is not None:
+        yield "unified_score", unified_score
+
+    overall_confidence = _coerce_float(entry.get("confidence"))
+    if overall_confidence is not None:
+        yield "confidence", overall_confidence
+
+    dimensions = entry.get("dimensions")
+    if not isinstance(dimensions, Mapping):
+        return
+
+    for name, payload in dimensions.items():
+        if not isinstance(payload, Mapping):
+            continue
+        normalised_name = str(name).upper()
+        signal_value = _coerce_float(payload.get("signal"))
+        if signal_value is not None:
+            yield f"{normalised_name}.signal", signal_value
+        confidence_value = _coerce_float(payload.get("confidence"))
+        if confidence_value is not None:
+            yield f"{normalised_name}.confidence", confidence_value
+
+
+def _aggregate_feature_samples(
+    entries: Sequence[Mapping[str, Any]]
+) -> Mapping[str, list[float]]:
+    samples: dict[str, list[float]] = {}
+    for entry in entries:
+        if not isinstance(entry, Mapping):
+            continue
+        for feature_key, value in _iter_core_features(entry):
+            samples.setdefault(feature_key, []).append(value)
+    return samples
+
+
+def _prepare_psi_windows(
+    entries: Sequence[Mapping[str, Any]]
+) -> tuple[Sequence[Mapping[str, Any]], Sequence[Mapping[str, Any]]] | None:
+    total_entries = len(entries)
+    if total_entries < _PSI_MIN_BASELINE_SAMPLES + _PSI_MIN_EVALUATION_SAMPLES:
+        return None
+
+    max_evaluation = total_entries - _PSI_MIN_BASELINE_SAMPLES
+    if max_evaluation < _PSI_MIN_EVALUATION_SAMPLES:
+        return None
+
+    evaluation_count = min(_PSI_MAX_EVALUATION_SAMPLES, max_evaluation)
+    evaluation_count = max(_PSI_MIN_EVALUATION_SAMPLES, evaluation_count)
+
+    baseline_slice = entries[evaluation_count : evaluation_count + _PSI_MAX_BASELINE_SAMPLES]
+    if len(baseline_slice) < _PSI_MIN_BASELINE_SAMPLES:
+        return None
+
+    evaluation_slice = entries[:evaluation_count]
+    return evaluation_slice, baseline_slice
+
+
+def _build_psi_boundaries(values: Sequence[float]) -> list[float] | None:
+    try:
+        quantile_cuts = quantiles(values, n=_PSI_BUCKETS, method="inclusive")
+    except StatisticsError:
+        return None
+
+    unique_cuts = sorted(set(quantile_cuts))
+    if not unique_cuts:
+        return None
+
+    return [-inf, *unique_cuts, inf]
+
+
+def _histogram(values: Sequence[float], boundaries: Sequence[float]) -> list[int]:
+    counts = [0] * (len(boundaries) - 1)
+    for value in values:
+        index = bisect_right(boundaries, value) - 1
+        if index < 0:
+            index = 0
+        elif index >= len(counts):
+            index = len(counts) - 1
+        counts[index] += 1
+    return counts
+
+
+def _calculate_psi(
+    baseline_values: Sequence[float],
+    evaluation_values: Sequence[float],
+) -> float | None:
+    if (
+        len(baseline_values) < _PSI_MIN_BASELINE_SAMPLES
+        or len(evaluation_values) < _PSI_MIN_EVALUATION_SAMPLES
+    ):
+        return None
+
+    boundaries = _build_psi_boundaries(baseline_values)
+    if boundaries is None:
+        return None
+
+    baseline_counts = _histogram(baseline_values, boundaries)
+    evaluation_counts = _histogram(evaluation_values, boundaries)
+
+    baseline_total = sum(baseline_counts)
+    evaluation_total = sum(evaluation_counts)
+    if baseline_total == 0 or evaluation_total == 0:
+        return None
+
+    psi_value = 0.0
+    for base_count, eval_count in zip(baseline_counts, evaluation_counts):
+        base_ratio = max(_PSI_EPSILON, base_count / baseline_total)
+        eval_ratio = max(_PSI_EPSILON, eval_count / evaluation_total)
+        psi_value += (eval_ratio - base_ratio) * log(eval_ratio / base_ratio)
+
+    return psi_value
+
+
+def _evaluate_population_stability(
+    entries: Sequence[Mapping[str, Any]]
+) -> tuple[Mapping[str, float], Mapping[str, object] | None]:
+    window = _prepare_psi_windows(entries)
+    if window is None:
+        return {}, None
+
+    evaluation_entries, baseline_entries = window
+    baseline_samples = _aggregate_feature_samples(baseline_entries)
+    evaluation_samples = _aggregate_feature_samples(evaluation_entries)
+
+    feature_keys: list[str] = [
+        key
+        for key in _CORE_FEATURE_PRIORITY
+        if key in baseline_samples and key in evaluation_samples
+    ]
+
+    if len(feature_keys) < _PSI_MIN_FEATURES:
+        available = sorted(
+            set(baseline_samples).intersection(evaluation_samples).difference(feature_keys)
+        )
+        for key in available:
+            feature_keys.append(key)
+            if len(feature_keys) >= _PSI_MIN_FEATURES:
+                break
+
+    if not feature_keys:
+        return {}, None
+
+    if len(feature_keys) > _PSI_MAX_FEATURES:
+        feature_keys = feature_keys[:_PSI_MAX_FEATURES]
+
+    psi_results: dict[str, float] = {}
+    for key in feature_keys:
+        baseline_values = baseline_samples.get(key, [])[:_PSI_MAX_BASELINE_SAMPLES]
+        evaluation_values = evaluation_samples.get(key, [])[:_PSI_MAX_EVALUATION_SAMPLES]
+        psi_value = _calculate_psi(baseline_values, evaluation_values)
+        if psi_value is not None:
+            psi_results[key] = psi_value
+
+    if not psi_results:
+        return {}, None
+
+    metadata: dict[str, object] = {
+        "threshold": _PSI_ALERT_THRESHOLD,
+        "feature_count": len(psi_results),
+        "features": [
+            {"name": key, "psi": psi_results[key]}
+            for key in sorted(psi_results)
+        ],
+        "baseline_samples": len(baseline_entries),
+        "evaluation_samples": len(evaluation_entries),
+        "max_psi": max(psi_results.values()),
+    }
+
+    alert_features = [
+        {"name": key, "psi": value}
+        for key, value in psi_results.items()
+        if value >= _PSI_ALERT_THRESHOLD
+    ]
+    if alert_features:
+        metadata["alerts"] = sorted(alert_features, key=lambda item: item["psi"], reverse=True)
+
+    return psi_results, metadata
 
 
 def _page_hinkley_stat(values: Sequence[float], *, delta: float) -> float:
@@ -355,6 +563,51 @@ def evaluate_sensory_drift(
             detector_entry["variance_ratio"] = variance_ratio
         detector_catalog[name] = detector_entry
 
+    psi_results, psi_metadata = _evaluate_population_stability(cleaned_entries)
+
+    if psi_results:
+        psi_baseline_samples = int(
+            psi_metadata.get("baseline_samples", 0) if psi_metadata else 0
+        )
+        psi_evaluation_samples = int(
+            psi_metadata.get("evaluation_samples", 0) if psi_metadata else 0
+        )
+        psi_total_samples = max(psi_baseline_samples + psi_evaluation_samples, 0)
+
+        for feature_name, psi_value in psi_results.items():
+            severity = (
+                DriftSeverity.alert
+                if psi_value >= _PSI_ALERT_THRESHOLD
+                else DriftSeverity.normal
+            )
+            detectors = ["psi"]
+            if severity is DriftSeverity.alert:
+                detectors.append("psi_alert")
+
+            dimension_name = f"psi:{feature_name}"
+            dimension_payloads[dimension_name] = SensoryDimensionDrift(
+                name=dimension_name,
+                current_signal=psi_value,
+                baseline_signal=None,
+                delta=None,
+                current_confidence=None,
+                baseline_confidence=None,
+                confidence_delta=None,
+                severity=severity,
+                samples=psi_total_samples,
+                detectors=tuple(detectors),
+            )
+            severity_counts[severity.value] += 1
+            detector_entry = {
+                "severity": severity.value,
+                "psi": psi_value,
+                "threshold": _PSI_ALERT_THRESHOLD,
+            }
+            if detectors:
+                detector_entry["detectors"] = list(detectors)
+            detector_catalog[dimension_name] = detector_entry
+            aggregate_status = _max_severity(aggregate_status, severity)
+
     snapshot_metadata = {"entries": len(cleaned_entries)}
     if metadata:
         snapshot_metadata.update(dict(metadata))
@@ -362,12 +615,23 @@ def evaluate_sensory_drift(
         snapshot_metadata["severity_counts"] = dict(severity_counts)
     if detector_catalog:
         snapshot_metadata["detectors"] = detector_catalog
+    if psi_metadata:
+        snapshot_metadata["psi"] = psi_metadata
+
+    sample_window = min(len(cleaned_entries), lookback + 1)
+    if psi_metadata:
+        psi_window = int(
+            (psi_metadata.get("baseline_samples") or 0)
+            + (psi_metadata.get("evaluation_samples") or 0)
+        )
+        if psi_window > 0:
+            sample_window = max(sample_window, min(len(cleaned_entries), psi_window))
 
     return SensoryDriftSnapshot(
         generated_at=generated_at,
         status=aggregate_status,
         dimensions=dimension_payloads,
-        sample_window=min(len(cleaned_entries), lookback + 1),
+        sample_window=sample_window,
         metadata=snapshot_metadata,
     )
 

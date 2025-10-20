@@ -37,7 +37,7 @@ import pytest
 import src.operations.sensory_drift as sensory_drift_module
 
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Mapping
 
 from src.core.event_bus import Event
 from src.operations.alerts import AlertSeverity
@@ -158,6 +158,31 @@ def _entry(signal: float, confidence: float = 0.6) -> dict[str, object]:
     }
 
 
+def _psi_entry(signal_level: float, confidence_level: float) -> dict[str, object]:
+    dimension_offsets = {
+        "WHY": 0.00,
+        "WHAT": 0.03,
+        "WHEN": -0.02,
+        "HOW": 0.05,
+        "ANOMALY": -0.04,
+    }
+
+    dimensions: dict[str, dict[str, float]] = {}
+    for name, offset in dimension_offsets.items():
+        dimensions[name] = {
+            "signal": signal_level + offset,
+            "confidence": confidence_level - (offset / 2.0),
+        }
+
+    return {
+        "symbol": "EURUSD",
+        "generated_at": datetime.utcnow().isoformat(),
+        "unified_score": signal_level,
+        "confidence": confidence_level,
+        "dimensions": dimensions,
+    }
+
+
 def _load_throttle_fixture() -> tuple[tuple[ThrottleStateSnapshot, ...], str | None, str | None]:
     fixture_path = (
         Path(__file__).resolve().parent.parent
@@ -247,6 +272,36 @@ def test_page_hinkley_replay_fixture_triggers_alert() -> None:
     assert severity_counts == {"alert": 1}
 
 
+def test_population_stability_index_triggers_alert() -> None:
+    baseline_entries = [_psi_entry(0.12, 0.58) for _ in range(36)]
+    evaluation_entries = [_psi_entry(0.40, 0.66)] + [_psi_entry(0.88, 0.92) for _ in range(11)]
+    audit_entries = evaluation_entries + baseline_entries
+
+    snapshot = evaluate_sensory_drift(
+        audit_entries,
+        warn_threshold=10.0,
+        alert_threshold=10.0,
+        page_hinkley_delta=10.0,
+        page_hinkley_warn=1e6,
+        page_hinkley_alert=1e6,
+        variance_warn_ratio=1e6,
+        variance_alert_ratio=1e6,
+        metadata={"scenario": "psi_shift"},
+    )
+
+    assert snapshot.status is DriftSeverity.alert
+    psi_dimension = snapshot.dimensions["psi:WHY.signal"]
+    assert psi_dimension.severity is DriftSeverity.alert
+    assert psi_dimension.current_signal >= 0.25
+
+    psi_metadata = snapshot.metadata.get("psi")
+    assert isinstance(psi_metadata, Mapping)
+    assert psi_metadata.get("feature_count", 0) >= 8
+    assert psi_metadata.get("max_psi", 0.0) >= 0.25
+    alerts = psi_metadata.get("alerts", [])
+    assert alerts
+    alert_names = {entry["name"] for entry in alerts}
+    assert "WHY.signal" in alert_names
 def test_variance_ratio_flags_alert() -> None:
     baseline = [0.015, 0.018, 0.020, 0.017, 0.019, 0.016]
     evaluation = [0.5, 0.6, 0.8]

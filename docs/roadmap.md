@@ -50,7 +50,7 @@
 
 - [x] Build a script to check age of API keys and secrets  
 - [x] Log or alert if secrets exceed defined age thresholds  
-- [ ] (Optional) Integrate with a secrets manager (e.g. AWS Secrets Manager, Vault)  
+- [x] (Optional) Integrate with a secrets manager (e.g. AWS Secrets Manager, Vault)  
 - [x] Set expiration time on user tokens (e.g. JWT expiry)  
 - [x] Document secret rotation practices and automation goals  
 

@@ -71,3 +71,7 @@ def test_coerce_float_handles_trailing_signs() -> None:
     assert coerce_float("125-") == -125.0
     assert coerce_float("12-%") == -0.12
     assert coerce_float("8.5%+") == 0.085
+
+
+def test_coerce_int_handles_trailing_signs() -> None:
+    assert coerce_int("125-") == -125

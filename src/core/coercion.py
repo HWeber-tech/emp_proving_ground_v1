@@ -203,10 +203,23 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
             return default
         candidate = _strip_currency_symbols(candidate)
         candidate = _normalize_sign_characters(candidate)
+        trailing_sign: str | None = None
+        if candidate and candidate[-1] in "+-":
+            core = candidate[:-1].strip()
+            if core and core[0] not in "+-":
+                trailing_sign = candidate[-1]
+                candidate = core
         if not candidate or candidate in "+-":
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
         normalized = _strip_group_separators(normalized)
+        if trailing_sign == "-":
+            if normalized.startswith("+"):
+                normalized = f"-{normalized[1:]}"
+            elif not normalized.startswith("-"):
+                normalized = f"-{normalized}"
+        elif trailing_sign == "+" and not normalized.startswith(("+", "-")):
+            normalized = f"+{normalized}"
         try:
             return int(normalized)
         except ValueError:

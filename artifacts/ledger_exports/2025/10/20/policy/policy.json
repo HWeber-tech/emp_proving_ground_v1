@@ -5,11 +5,11 @@
         "ops",
         "risk"
       ],
-      "created_at": "2025-10-20T10:29:10.156779+00:00",
+      "created_at": "2025-10-20T10:58:29.280041+00:00",
       "evidence_id": "diary-alpha",
       "history": [
         {
-          "applied_at": "2025-10-20T10:29:10.156779+00:00",
+          "applied_at": "2025-10-20T10:58:29.280041+00:00",
           "approvals": [
             "ops",
             "risk"
@@ -29,8 +29,8 @@
       "policy_id": "alpha",
       "stage": "limited_live",
       "tactic_id": "alpha",
-      "updated_at": "2025-10-20T10:29:10.156779+00:00"
+      "updated_at": "2025-10-20T10:58:29.280041+00:00"
     }
   },
-  "updated_at": "2025-10-20T10:29:10.157011+00:00"
+  "updated_at": "2025-10-20T10:58:29.280250+00:00"
 }

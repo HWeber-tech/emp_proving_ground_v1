@@ -111,31 +111,61 @@ class InventoryState:
         """Clamp ``desired_delta`` so minute/hour turnover caps cannot be breached."""
 
         self.purge_turnover_windows(now)
+
         amount = abs(desired_delta)
-        available: list[float] = []
+        if amount <= 0.0:
+            return 0.0, {
+                "limited": False,
+                "limited_by": [],
+                "available_minute": (
+                    max(0.0, minute_cap - self.minute_total)
+                    if minute_cap is not None
+                    else None
+                ),
+                "available_hour": (
+                    max(0.0, hour_cap - self.hour_total)
+                    if hour_cap is not None
+                    else None
+                ),
+                "flatten_component": 0.0,
+            }
+
         limited_by: list[str] = []
+        prior_position = self.net_position
+        flatten_component = 0.0
+        if prior_position != 0.0 and desired_delta != 0.0:
+            if prior_position * desired_delta < 0.0:
+                flatten_component = min(abs(prior_position), amount)
+
+        residual_amount = max(0.0, amount - flatten_component)
 
         available_minute: float | None = None
-        if minute_cap is not None:
-            available_minute = max(0.0, minute_cap - self.minute_total)
-            available.append(available_minute)
-            if amount > available_minute + 1e-9:
-                limited_by.append("minute")
-
         available_hour: float | None = None
-        if hour_cap is not None:
-            available_hour = max(0.0, hour_cap - self.hour_total)
-            available.append(available_hour)
-            if amount > available_hour + 1e-9:
-                limited_by.append("hour")
+        allowed_residual = residual_amount
 
-        if available:
-            allowed = min(max(val, 0.0) for val in available)
-            allowed = min(amount, allowed)
+        if residual_amount > 0.0:
+            available: list[float] = []
+            if minute_cap is not None:
+                available_minute = max(0.0, minute_cap - self.minute_total)
+                available.append(available_minute)
+                if residual_amount > available_minute + 1e-9:
+                    limited_by.append("minute")
+            if hour_cap is not None:
+                available_hour = max(0.0, hour_cap - self.hour_total)
+                available.append(available_hour)
+                if residual_amount > available_hour + 1e-9:
+                    limited_by.append("hour")
+            if available:
+                allowed_residual = min(max(val, 0.0) for val in available)
+                allowed_residual = min(residual_amount, allowed_residual)
         else:
-            allowed = amount
+            if minute_cap is not None:
+                available_minute = max(0.0, minute_cap - self.minute_total)
+            if hour_cap is not None:
+                available_hour = max(0.0, hour_cap - self.hour_total)
 
-        executed = math.copysign(allowed, desired_delta) if allowed > 0.0 else 0.0
+        total_allowed = flatten_component + allowed_residual
+        executed = math.copysign(total_allowed, desired_delta) if total_allowed > 0.0 else 0.0
         if abs(executed) > 0.0:
             self.record_turnover(abs(executed), now)
 
@@ -144,6 +174,7 @@ class InventoryState:
             "limited_by": limited_by,
             "available_minute": available_minute,
             "available_hour": available_hour,
+            "flatten_component": flatten_component if flatten_component > 0.0 else 0.0,
         }
         return executed, turnover_meta
 

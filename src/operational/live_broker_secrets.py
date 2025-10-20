@@ -9,12 +9,17 @@ without importing heavy trading dependencies.
 
 from __future__ import annotations
 
+import base64
+import json
+import logging
+from importlib import import_module
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, MutableMapping
 
 
 _MASK = "***"
+logger = logging.getLogger(__name__)
 
 
 def _normalise_key(key: object) -> str:
@@ -76,6 +81,256 @@ def _first_value(mapping: Mapping[str, str], keys: Iterable[str]) -> str | None:
 
 def _has_any_payload(*values: object) -> bool:
     return any(value not in (None, "", (), [], {}) for value in values)
+
+
+def _normalise_secret_payload(payload: object) -> dict[str, str]:
+    if isinstance(payload, Mapping):
+        return {
+            str(key): str(value)
+            for key, value in payload.items()
+            if value not in (None, "")
+        }
+    if isinstance(payload, bytes):
+        return _normalise_secret_payload(payload.decode("utf-8", errors="ignore"))
+    if isinstance(payload, str):
+        text = payload.strip()
+        if not text:
+            return {}
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            env_pairs: dict[str, str] = {}
+            for line in text.splitlines():
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                key, _, value = stripped.partition("=")
+                key = key.strip()
+                if key:
+                    env_pairs[key] = value.strip()
+            if env_pairs:
+                return env_pairs
+            return {"value": text}
+        return _normalise_secret_payload(parsed)
+    return {}
+
+
+def _select_secret_payload(
+    payload: Mapping[str, object] | None,
+    *,
+    selector: str | None,
+    environment: str | None,
+) -> Mapping[str, object] | None:
+    current: object | None = payload
+    if current is None:
+        return None
+    if selector:
+        parts = [part for part in selector.replace("/", ".").split(".") if part]
+        for part in parts:
+            if isinstance(current, Mapping):
+                current = current.get(part)
+            else:
+                current = None
+                break
+    if environment and isinstance(current, Mapping):
+        env_key = environment.strip()
+        if env_key:
+            value = current.get(env_key)
+            if isinstance(value, Mapping):
+                current = value
+    return current if isinstance(current, Mapping) else None
+
+
+def _canonical_provider_name(provider: str) -> str:
+    normalised = provider.strip().lower().replace("-", "_")
+    if normalised in {
+        "aws",
+        "aws_secrets_manager",
+        "awssecretsmanager",
+        "aws_secretmanager",
+        "secretsmanager",
+        "secretmanager",
+    }:
+        return "aws"
+    if normalised in {
+        "vault",
+        "hashicorp_vault",
+        "hashicorpvault",
+    }:
+        return "vault"
+    return normalised
+
+
+def _load_from_aws_secrets_manager(mapping: Mapping[str, str]) -> dict[str, str]:
+    secret_id = (
+        mapping.get("LIVE_BROKER_SECRET_ARN")
+        or mapping.get("LIVE_BROKER_SECRET_ID")
+        or mapping.get("LIVE_BROKER_SECRET_NAME")
+    )
+    if not secret_id:
+        return {}
+
+    try:
+        boto3 = import_module("boto3")
+    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+        logger.debug("boto3 is not available; skipping AWS secrets lookup")
+        return {}
+
+    session_kwargs: MutableMapping[str, object] = {}
+    profile_name = mapping.get("LIVE_BROKER_AWS_PROFILE") or mapping.get("AWS_PROFILE")
+    if profile_name:
+        session_kwargs["profile_name"] = profile_name
+
+    region_name = (
+        mapping.get("LIVE_BROKER_SECRET_REGION")
+        or mapping.get("AWS_REGION")
+        or mapping.get("AWS_DEFAULT_REGION")
+    )
+
+    client = None
+    session = getattr(boto3, "session", None)
+    if session is not None and hasattr(session, "Session"):
+        try:
+            client = session.Session(**session_kwargs).client(
+                "secretsmanager", region_name=region_name
+            )
+        except Exception:  # pragma: no cover - defensive
+            logger.debug("Failed to establish boto3 session", exc_info=True)
+            client = None
+    if client is None:
+        client_factory = getattr(boto3, "client", None)
+        if callable(client_factory):
+            client = client_factory("secretsmanager", region_name=region_name)
+    if client is None:
+        return {}
+
+    try:
+        response = client.get_secret_value(SecretId=secret_id)
+    except Exception:  # pragma: no cover - runtime dependency failure
+        logger.debug("Failed to retrieve secret %s from AWS Secrets Manager", secret_id, exc_info=True)
+        return {}
+
+    secret_string = response.get("SecretString")
+    if secret_string is None:
+        secret_binary = response.get("SecretBinary")
+        if secret_binary is None:
+            return {}
+        if isinstance(secret_binary, str):
+            secret_bytes = base64.b64decode(secret_binary.encode("utf-8"))
+        else:
+            secret_bytes = base64.b64decode(secret_binary)
+        secret_string = secret_bytes.decode("utf-8", errors="ignore")
+
+    parsed_payload: object | None
+    try:
+        parsed_payload = json.loads(secret_string)
+    except json.JSONDecodeError:
+        parsed_payload = None
+
+    payload = _normalise_secret_payload(parsed_payload if parsed_payload is not None else secret_string)
+
+    selector = mapping.get("LIVE_BROKER_SECRET_FIELD") or mapping.get("LIVE_BROKER_SECRET_JSON_PATH")
+    environment = mapping.get("LIVE_BROKER_SECRET_ENVIRONMENT")
+    nested = _select_secret_payload(
+        parsed_payload if isinstance(parsed_payload, Mapping) else None,
+        selector=selector,
+        environment=environment,
+    )
+    if nested:
+        payload = _normalise_secret_payload(nested)
+
+    if secret_id and "LIVE_BROKER_SECRET_REFERENCE" not in payload:
+        payload["LIVE_BROKER_SECRET_REFERENCE"] = secret_id
+    return payload
+
+
+def _load_from_vault(mapping: Mapping[str, str]) -> dict[str, str]:
+    path = mapping.get("LIVE_BROKER_VAULT_PATH") or mapping.get("LIVE_BROKER_SECRET_PATH")
+    if not path:
+        return {}
+
+    try:
+        hvac = import_module("hvac")
+    except ModuleNotFoundError:  # pragma: no cover - optional dependency
+        logger.debug("hvac is not available; skipping Vault secrets lookup")
+        return {}
+
+    client_kwargs: MutableMapping[str, object] = {}
+    url = mapping.get("LIVE_BROKER_VAULT_ADDR") or mapping.get("VAULT_ADDR")
+    if url:
+        client_kwargs["url"] = url
+    token = mapping.get("LIVE_BROKER_VAULT_TOKEN") or mapping.get("VAULT_TOKEN")
+    if token:
+        client_kwargs["token"] = token
+
+    try:
+        client = hvac.Client(**client_kwargs)
+    except Exception:  # pragma: no cover - runtime dependency failure
+        logger.debug("Failed to initialise Vault client", exc_info=True)
+        return {}
+
+    mount_point = mapping.get("LIVE_BROKER_VAULT_MOUNT") or "secret"
+    version_raw = mapping.get("LIVE_BROKER_VAULT_VERSION")
+    kwargs: MutableMapping[str, object] = {"path": path, "mount_point": mount_point}
+    if version_raw is not None:
+        try:
+            kwargs["version"] = int(str(version_raw).strip())
+        except ValueError:
+            logger.debug("Invalid Vault secret version %r", version_raw)
+
+    try:
+        response = client.secrets.kv.v2.read_secret_version(**kwargs)
+    except Exception:  # pragma: no cover - runtime dependency failure
+        logger.debug("Failed to read secret %s from Vault", path, exc_info=True)
+        return {}
+
+    data = response.get("data") if isinstance(response, Mapping) else None
+    if isinstance(data, Mapping):
+        if isinstance(data.get("data"), Mapping):
+            payload_raw = data["data"]
+        else:
+            payload_raw = data
+    else:
+        payload_raw = {}
+
+    selector = mapping.get("LIVE_BROKER_SECRET_FIELD") or mapping.get("LIVE_BROKER_SECRET_JSON_PATH")
+    environment = mapping.get("LIVE_BROKER_SECRET_ENVIRONMENT")
+    nested = _select_secret_payload(payload_raw, selector=selector, environment=environment)
+    selected_payload = payload_raw if nested is None else nested
+
+    payload = _normalise_secret_payload(selected_payload)
+    if path and "LIVE_BROKER_SECRET_REFERENCE" not in payload:
+        payload["LIVE_BROKER_SECRET_REFERENCE"] = path
+    return payload
+
+
+def _load_secret_manager_payload(mapping: Mapping[str, str]) -> dict[str, str]:
+    provider_raw = _first_value(
+        mapping,
+        (
+            "LIVE_BROKER_SECRET_MANAGER",
+            "LIVE_BROKER_SECRET_MANAGER_PROVIDER",
+            "LIVE_BROKER_SECRET_PROVIDER",
+        ),
+    )
+    if not provider_raw:
+        return {}
+
+    provider = _canonical_provider_name(provider_raw)
+    loader = {
+        "aws": _load_from_aws_secrets_manager,
+        "vault": _load_from_vault,
+    }.get(provider)
+    if loader is None:
+        logger.debug("Unsupported secrets manager provider %s", provider_raw)
+        return {}
+
+    try:
+        payload = loader(mapping)
+    except Exception:  # pragma: no cover - defensive guard around optional integrations
+        logger.debug("Secrets manager lookup failed for provider %s", provider, exc_info=True)
+        return {}
+    return payload
 
 
 @dataclass(frozen=True)
@@ -271,9 +526,19 @@ def load_live_broker_secrets(
 ) -> LiveBrokerSecrets:
     """Return resolved live broker credentials for the requested environment."""
 
+    fallback_mapping = _normalise_mapping(fallback)
+    explicit_mapping = _normalise_mapping(mapping)
+
+    lookup_mapping: dict[str, str] = dict(fallback_mapping)
+    lookup_mapping.update(explicit_mapping)
+
+    secret_manager_payload = _load_secret_manager_payload(lookup_mapping)
+
     normalised: dict[str, str] = {}
-    normalised.update(_normalise_mapping(fallback))
-    normalised.update(_normalise_mapping(mapping))
+    normalised.update(fallback_mapping)
+    if secret_manager_payload:
+        normalised.update(_normalise_mapping(secret_manager_payload))
+    normalised.update(explicit_mapping)
 
     active_key = _classify_environment(environment)
 

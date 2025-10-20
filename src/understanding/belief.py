@@ -24,6 +24,10 @@ from src.core.event_bus import Event, EventBus, TopicBus
 from src.sensory.lineage import SensorLineageRecord, build_lineage_record
 from src.thinking.adaptation.policy_router import RegimeState
 from src.observability.immutable_audit import compute_audit_signature
+from src.data_foundation.duckdb_security import (
+    resolve_encrypted_duckdb_path,
+    verify_encrypted_duckdb_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -908,9 +912,11 @@ class BeliefSnapshotPersister:
         if duckdb_path is None and parquet_path is None:
             raise ValueError("BeliefSnapshotPersister requires a DuckDB or Parquet destination")
 
-        self._duckdb_path = Path(duckdb_path).expanduser() if duckdb_path else None
-        if self._duckdb_path is not None:
-            self._duckdb_path.parent.mkdir(parents=True, exist_ok=True)
+        secure_duckdb: Path | None = None
+        if duckdb_path:
+            secure_duckdb = resolve_encrypted_duckdb_path(duckdb_path)
+            verify_encrypted_duckdb_path(secure_duckdb)
+        self._duckdb_path = secure_duckdb
 
         parquet_destination: Path | None = None
         if parquet_path is not None:

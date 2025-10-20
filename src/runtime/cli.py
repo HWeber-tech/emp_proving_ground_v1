@@ -22,6 +22,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
+from src.data_foundation.duckdb_security import (
+    resolve_encrypted_duckdb_path,
+    verify_encrypted_duckdb_path,
+)
 from src.governance.system_config import ConnectionProtocol, RunMode, SystemConfig
 from src.runtime.paper_run_guardian import (
     DEFAULT_MINIMUM_RUNTIME_SECONDS,
@@ -273,11 +277,13 @@ async def _build_runtime(
     config = SystemConfig.from_env()
     config = _apply_mode_overrides(args, config)
     app = await build_professional_predator_app(config=config)
+    duckdb_destination = resolve_encrypted_duckdb_path(args.duckdb_path)
+    verify_encrypted_duckdb_path(duckdb_destination)
     runtime_app = build_professional_runtime_application(
         app,
         skip_ingest=args.skip_ingest,
         symbols_csv=args.symbols,
-        duckdb_path=args.duckdb_path,
+        duckdb_path=str(duckdb_destination),
     )
     return app, runtime_app, config
 

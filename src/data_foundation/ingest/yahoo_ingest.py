@@ -15,6 +15,10 @@ import pandas as pd
 import yfinance as yf
 
 from src.core.types import JSONObject
+from src.data_foundation.duckdb_security import (
+    resolve_encrypted_duckdb_path,
+    verify_encrypted_duckdb_path,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -333,18 +337,21 @@ def fetch_price_history(
 
 
 def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> None:
+    secure_path = resolve_encrypted_duckdb_path(db_path)
+    verify_encrypted_duckdb_path(secure_path)
+
     try:
         import duckdb
     except ModuleNotFoundError:
         # Fallback to CSV if duckdb not available
-        csv_path = db_path.with_suffix(".csv")
+        csv_path = secure_path.with_suffix(".csv")
         df.to_csv(csv_path, index=False)
         logger.warning(
             "duckdb unavailable; wrote %s rows to CSV fallback at %s", len(df), csv_path
         )
         return
     except ImportError as exc:
-        csv_path = db_path.with_suffix(".csv")
+        csv_path = secure_path.with_suffix(".csv")
         df.to_csv(csv_path, index=False)
         logger.warning(
             "duckdb import failed (%s); wrote %s rows to CSV fallback at %s",
@@ -357,7 +364,7 @@ def store_duckdb(df: pd.DataFrame, db_path: Path, table: str = "daily_bars") -> 
 
     table_def = _resolve_duckdb_table(table)
 
-    connection = cast(Any, duckdb.connect(str(db_path)))
+    connection = cast(Any, duckdb.connect(str(secure_path)))
     try:
         connection.execute(table_def.ddl)
 

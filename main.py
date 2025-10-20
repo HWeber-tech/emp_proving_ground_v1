@@ -11,6 +11,10 @@ import sys
 from types import TracebackType
 from typing import Mapping, cast
 
+from src.data_foundation.duckdb_security import (
+    resolve_encrypted_duckdb_path,
+    verify_encrypted_duckdb_path,
+)
 from src.governance.system_config import (
     ConnectionProtocol,
     EmpTier,
@@ -319,11 +323,13 @@ async def main() -> None:
             if tier is EmpTier.tier_2:
                 raise NotImplementedError("Tier-2 evolutionary mode is not yet supported")
 
+            duckdb_destination = resolve_encrypted_duckdb_path(args.db)
+            verify_encrypted_duckdb_path(duckdb_destination)
             runtime_app = build_professional_runtime_application(
                 app,
                 skip_ingest=args.skip_ingest,
                 symbols_csv=args.symbols,
-                duckdb_path=args.db,
+                duckdb_path=str(duckdb_destination),
             )
 
             plan_summary = runtime_app.summary()

@@ -35,6 +35,10 @@ from src.data_foundation.batch.spark_export import (
     SparkExportStatus,
     execute_spark_export_plan,
 )
+from src.data_foundation.duckdb_security import (
+    resolve_encrypted_duckdb_path,
+    verify_encrypted_duckdb_path,
+)
 from src.data_foundation.cache.redis_cache import (
     InMemoryRedis,
     ManagedRedisCache,
@@ -3888,6 +3892,10 @@ def build_professional_runtime_application(
     duckdb_path: str,
 ) -> RuntimeApplication:
     """Build a runtime application that coordinates ingest and trading workloads."""
+
+    secure_duckdb = resolve_encrypted_duckdb_path(duckdb_path)
+    verify_encrypted_duckdb_path(secure_duckdb)
+    duckdb_path = str(secure_duckdb)
 
     extras_mapping = app.config.extras or {}
     _configure_runtime_logging(app.config)

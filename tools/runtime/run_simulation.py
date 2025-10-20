@@ -18,6 +18,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.data_foundation.duckdb_security import (
+    resolve_encrypted_duckdb_path,
+    verify_encrypted_duckdb_path,
+)
 from src.governance.system_config import SystemConfig
 from src.runtime.predator_app import build_professional_predator_app
 from src.runtime.runtime_builder import build_professional_runtime_application
@@ -156,11 +160,14 @@ def _apply_environment(args: argparse.Namespace) -> Mapping[str, str]:
 async def _run_simulation(args: argparse.Namespace) -> Mapping[str, Any]:
     config = SystemConfig.from_env()
     app = await build_professional_predator_app(config=config)
+    duckdb_destination = resolve_encrypted_duckdb_path(args.duckdb_path)
+    verify_encrypted_duckdb_path(duckdb_destination)
+    setattr(args, "sanitized_duckdb_path", duckdb_destination)
     runtime_app = build_professional_runtime_application(
         app,
         skip_ingest=args.skip_ingest,
         symbols_csv=args.symbols,
-        duckdb_path=str(args.duckdb_path),
+        duckdb_path=str(duckdb_destination),
     )
 
     summary: Mapping[str, Any] | None = None
@@ -222,7 +229,7 @@ def _write_summary(
             "symbols": args.symbols,
             "skip_ingest": args.skip_ingest,
             "trading_enabled": args.enable_trading,
-            "duckdb_path": str(args.duckdb_path),
+            "duckdb_path": str(getattr(args, "sanitized_duckdb_path", args.duckdb_path)),
         },
         "environment_applied": dict(applied_env),
         "diary": diary_info,

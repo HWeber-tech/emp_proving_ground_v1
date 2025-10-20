@@ -82,12 +82,24 @@ def _build_dimensions(
     anomaly_flag = anomaly_strength > 0.15
     anomaly_z_score = anomaly_strength * 4.0
     abs_strength = abs(strength)
+    order_book_metrics = {
+        "order_book_imbalance": 0.0,
+        "order_book_spread": 0.0,
+        "order_book_mid_price": 0.0,
+        "order_book_value_area_low": 0.0,
+        "order_book_value_area_high": 0.0,
+        "order_book_total_bid_volume": 0.0,
+        "order_book_total_ask_volume": 0.0,
+        "order_book_participation_ratio": 0.0,
+    }
     how_value = {
         "liquidity": float(0.55 + 0.25 * strength),
         "participation": float(0.45 + 0.2 * strength),
         "imbalance": float(0.15 * strength),
         "volatility_drag": float(0.08 * abs_strength),
         "volatility": float(0.35 * abs_strength),
+        "has_depth": 0.0,
+        **order_book_metrics,
     }
     quality_timestamp = timestamp.isoformat().replace("+00:00", "Z")
 

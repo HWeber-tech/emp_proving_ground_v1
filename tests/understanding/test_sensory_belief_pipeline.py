@@ -141,6 +141,8 @@ def test_sensory_pipeline_emits_belief_and_detects_drift() -> None:
     assert "WHEN_session" in feature_means
     assert "WHEN_news" in feature_means
     assert "WHEN_gamma" in feature_means
+    assert feature_means.get("HOW_has_depth", -1.0) == 0.0
+    assert feature_means.get("HOW_order_book_imbalance", -1.0) == 0.0
 
     drift_summary = organ.status()["drift_summary"]
     assert drift_summary is not None

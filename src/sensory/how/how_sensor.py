@@ -117,12 +117,21 @@ class HowSensor:
         order_snapshot: OrderBookSnapshot | None = None
         if order_book is not None:
             order_snapshot = self._order_book_analytics.describe(order_book)
-            if order_snapshot is not None:
-                order_metrics = {
+
+        order_metrics = {
+            f"order_book_{name}": 0.0 for name in OrderBookSnapshot.__dataclass_fields__
+        }
+        has_depth = False
+        if order_snapshot is not None:
+            has_depth = True
+            order_metrics.update(
+                {
                     f"order_book_{name}": float(value)
                     for name, value in order_snapshot.as_dict().items()
                 }
-                telemetry.update(order_metrics)
+            )
+        telemetry.update(order_metrics)
+        telemetry["has_depth"] = 1.0 if has_depth else 0.0
 
         audit: dict[str, object] = {
             "signal": signal_strength,
@@ -162,7 +171,10 @@ class HowSensor:
             "threshold_assessment": assessment.as_dict(),
         }
         if order_snapshot is not None:
-            metadata["order_book"] = order_snapshot.as_dict()
+            metadata["order_book"] = {
+                **order_snapshot.as_dict(),
+                "has_depth": True,
+            }
 
         quality: dict[str, object] = {
             "source": "sensory.how",

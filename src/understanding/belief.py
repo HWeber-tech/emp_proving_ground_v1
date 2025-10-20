@@ -193,7 +193,14 @@ def _coerce_float(value: object, default: float = 0.0) -> float:
 _DIMENSION_EXTRA_VALUE_KEYS: dict[str, tuple[str, ...]] = {
     "WHAT": ("last_close",),
     "WHEN": ("session", "news", "gamma"),
-    "HOW": ("liquidity", "participation", "imbalance", "volatility_drag", "volatility"),
+    "HOW": (
+        "liquidity",
+        "participation",
+        "imbalance",
+        "volatility_drag",
+        "volatility",
+        "has_depth",
+    ),
     "WHY": ("narrative_sentiment",),
 }
 
@@ -207,6 +214,11 @@ def _populate_dimension_features(
     for key in extras:
         raw_value = value_payload.get(key) if value_payload is not None else None
         accumulator[f"{dimension}_{key}"] = _coerce_float(raw_value)
+
+    if dimension == "HOW" and value_payload is not None:
+        for key, raw_value in value_payload.items():
+            if key.startswith("order_book_"):
+                accumulator[f"{dimension}_{key}"] = _coerce_float(raw_value)
 
 
 def _populate_quality_features(

@@ -7,6 +7,7 @@ import pandas as pd
 from src.sensory.how.order_book_analytics import (
     OrderBookAnalytics,
     OrderBookAnalyticsConfig,
+    OrderBookSnapshot,
 )
 from src.sensory.how.how_sensor import HowSensor
 
@@ -60,5 +61,40 @@ def test_how_sensor_incorporates_order_book_metrics() -> None:
     order_book_meta = metadata.get("order_book")
     assert isinstance(order_book_meta, dict)
     assert {"imbalance", "value_area_low", "value_area_high"} <= set(order_book_meta)
+    assert order_book_meta.get("has_depth") is True
     assert signal.value.get("order_book_participation_ratio") is not None
     assert "participation_ratio" not in signal.value
+    assert signal.value.get("has_depth") == 1.0
+
+
+def test_how_sensor_zero_masks_order_book_metrics_without_depth() -> None:
+    sensor = HowSensor()
+    market_frame = pd.DataFrame(
+        {
+            "timestamp": [datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)],
+            "symbol": ["EURUSD"],
+            "open": [1.10],
+            "high": [1.1005],
+            "low": [1.0995],
+            "close": [1.10],
+            "volume": [2500],
+            "volatility": [0.0004],
+            "spread": [0.0002],
+            "depth": [12000],
+            "order_imbalance": [0.12],
+            "data_quality": [0.9],
+        }
+    )
+
+    signal = sensor.process(market_frame)[0]
+    assert signal.value.get("has_depth") == 0.0
+
+    expected_keys = {
+        f"order_book_{name}" for name in OrderBookSnapshot.__dataclass_fields__
+    }
+    for key in expected_keys:
+        assert key in signal.value
+        assert signal.value[key] == 0.0
+
+    metadata = signal.metadata or {}
+    assert "order_book" not in metadata

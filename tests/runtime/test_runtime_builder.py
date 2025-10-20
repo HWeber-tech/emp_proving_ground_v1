@@ -16,8 +16,15 @@ import pandas as pd
 import src.runtime.runtime_builder as runtime_builder_module
 
 from src.config.risk.risk_config import RiskConfig
-from src.governance.system_config import ConnectionProtocol, DataBackboneMode, EmpTier, SystemConfig
+from src.governance.system_config import (
+    ConnectionProtocol,
+    DataBackboneMode,
+    EmpTier,
+    RunMode,
+    SystemConfig,
+)
 from src.operations.backup import BackupReadinessSnapshot, BackupStatus
+from src.operations.security import SecurityPolicy
 from src.operations.data_backbone import (
     BackboneComponentSnapshot,
     BackboneStatus,
@@ -71,6 +78,21 @@ from src.runtime.runtime_builder import (
 )
 from src.reflection.trm.config import ModelConfig, RIMRuntimeConfig, RuntimeConfigBundle, TelemetryConfig
 from src.reflection.trm.runner import TRMRunResult
+
+
+def test_adjust_security_policy_for_mock_run_mode_disables_credential_checks() -> None:
+    policy = SecurityPolicy.from_mapping({})
+    adjusted = runtime_builder_module._adjust_security_policy_for_run_mode(policy, RunMode.mock)
+
+    assert adjusted.credential_rotation_days == 0
+    assert adjusted.secrets_rotation_days == 0
+
+
+def test_adjust_security_policy_for_non_mock_run_mode_preserves_thresholds() -> None:
+    policy = SecurityPolicy.from_mapping({})
+    adjusted = runtime_builder_module._adjust_security_policy_for_run_mode(policy, RunMode.paper)
+
+    assert adjusted is policy
 
 
 @pytest.mark.asyncio()

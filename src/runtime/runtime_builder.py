@@ -115,7 +115,7 @@ from src.data_foundation.streaming.kafka_stream import (
     should_auto_create_topics,
 )
 from src.data_integration.real_data_integration import RealDataManager
-from src.governance.system_config import DataBackboneMode, EmpTier, SystemConfig
+from src.governance.system_config import DataBackboneMode, EmpTier, RunMode, SystemConfig
 from src.operations.backup import (
     BackupPolicy,
     BackupReadinessSnapshot,
@@ -3201,6 +3201,14 @@ def _configure_runtime_logging(config: SystemConfig) -> None:
         )
 
 
+def _adjust_security_policy_for_run_mode(
+    policy: SecurityPolicy, run_mode: RunMode
+) -> SecurityPolicy:
+    if run_mode is RunMode.mock:
+        return replace(policy, credential_rotation_days=0, secrets_rotation_days=0)
+    return policy
+
+
 def _configure_drift_monitor(
     runtime_app: RuntimeApplication,
     app: ProfessionalPredatorApp,
@@ -4428,6 +4436,10 @@ def build_professional_runtime_application(
                                 )
 
                     security_policy = SecurityPolicy.from_mapping(extras_mapping)
+                    security_policy = _adjust_security_policy_for_run_mode(
+                        security_policy,
+                        app.config.run_mode,
+                    )
                     security_state = SecurityState.from_mapping(extras_mapping)
                     security_metadata: dict[str, object] = {
                         "ingest_success": success,

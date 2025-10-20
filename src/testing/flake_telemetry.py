@@ -77,6 +77,11 @@ def _normalize_candidate(candidate: _PathCandidate | None) -> str | None:
         text = os.fspath(candidate)
     except TypeError:
         return None
+    if isinstance(text, bytes):
+        try:
+            text = text.decode()
+        except UnicodeDecodeError:
+            return None
     stripped = text.strip()
     return stripped or None
 
@@ -91,20 +96,8 @@ def resolve_output_path(
 
     candidate: str | None = None
     for raw_value in (explicit, env_value, ini_value):
-        if raw_value is None:
-            continue
-        try:
-            normalized_value = os.fspath(raw_value)
-        except TypeError:
-            continue
-        if isinstance(normalized_value, bytes):
-            try:
-                normalized_value = normalized_value.decode()
-            except UnicodeDecodeError:
-                continue
-        stripped = normalized_value.strip()
-        if stripped:
-            candidate = stripped
+        candidate = _normalize_candidate(raw_value)
+        if candidate is not None:
             break
 
     if candidate is None:
@@ -112,10 +105,21 @@ def resolve_output_path(
 
     expanded = os.path.expandvars(candidate)
     path = Path(expanded).expanduser()
-    if not path.is_absolute():
-        path = root / path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+    root_path = Path(root).expanduser().resolve()
+
+    if path.is_absolute():
+        resolved = path.resolve()
+    else:
+        combined = (root_path / path).resolve()
+        try:
+            combined.relative_to(root_path)
+        except ValueError:
+            resolved = (root_path / DEFAULT_RELATIVE_PATH).resolve()
+        else:
+            resolved = combined
+
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    return resolved
 
 
 def should_record_event(outcome: object, was_xfail: bool) -> bool:

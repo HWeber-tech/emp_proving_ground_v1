@@ -53,6 +53,19 @@ def test_resolve_output_path_accepts_pathlike_values(tmp_path):
     assert resolved.parent.is_dir()
 
 
+def test_resolve_output_path_prevents_root_escape(tmp_path):
+    path = resolve_output_path(
+        tmp_path,
+        explicit=None,
+        ini_value="../outside.json",
+        env_value=None,
+    )
+
+    expected = (tmp_path / DEFAULT_RELATIVE_PATH).resolve()
+    assert path == expected
+    assert expected.parent.is_dir()
+
+
 def test_clip_longrepr_without_limit_returns_full_text() -> None:
     text = "x" * (MAX_LONGREPR_LENGTH + 5)
     assert clip_longrepr(text, limit=None) == text

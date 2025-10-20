@@ -328,8 +328,39 @@ class RiskGateway:
 
             adjusted_quantity = self._apply_position_sizing(intent, portfolio_state, decision)
 
+            symbol_value = str(decision.get("symbol") or "")
+            side_value = str(_extract_attr(intent, "side", "direction", default="BUY"))
             market_price = self._extract_price(intent, portfolio_state)
+            trade_price = self._resolve_trade_price(
+                market_price,
+                portfolio_state,
+                symbol_value,
+            )
             stop_loss_pct = self._extract_stop_loss_pct(intent, portfolio_state, market_price)
+
+            liquidity_summary: Mapping[str, Any] | None = None
+            liquidity_score: float | None = None
+            if self.liquidity_prober and adjusted_quantity >= self.liquidity_probe_threshold:
+                liquidity_score, liquidity_summary = await self._run_liquidity_probe(
+                    intent,
+                    adjusted_quantity,
+                    decision,
+                    market_price=market_price,
+                    portfolio_state=portfolio_state,
+                    entry_price=trade_price if trade_price > 0 else market_price,
+                    entry_side=side_value,
+                    fallback_stop=stop_loss_pct,
+                )
+                if liquidity_score is not None and liquidity_score < self.min_liquidity_confidence:
+                    decision.update(status="rejected", reason="insufficient_liquidity")
+                    await self._reject_and_maybe_publish(decision)
+                    return None
+                if liquidity_summary:
+                    plan_payload = liquidity_summary.get("structural_exit")
+                    if isinstance(plan_payload, Mapping):
+                        plan_stop = _as_float(plan_payload.get("effective_stop_loss_pct"), default=0.0)
+                        if plan_stop > 0:
+                            stop_loss_pct = plan_stop
 
             policy_metadata: Mapping[str, Any] | None = None
             if self.risk_policy is not None:
@@ -364,14 +395,7 @@ class RiskGateway:
                     await self._reject_and_maybe_publish(decision)
                     return None
 
-            symbol_value = str(decision.get("symbol") or "")
             equity = self._resolve_equity_for_risk(portfolio_state)
-            trade_price = self._resolve_trade_price(
-                market_price,
-                portfolio_state,
-                symbol_value,
-            )
-            side_value = str(_extract_attr(intent, "side", "direction", default="BUY"))
 
             if not self._enforce_confidence_limit(
                 decision,
@@ -439,21 +463,6 @@ class RiskGateway:
                 await self._reject_and_maybe_publish(decision)
                 return None
 
-            liquidity_summary: Mapping[str, Any] | None = None
-            liquidity_score: float | None = None
-            if self.liquidity_prober and adjusted_quantity >= self.liquidity_probe_threshold:
-                liquidity_score, liquidity_summary = await self._run_liquidity_probe(
-                    intent,
-                    adjusted_quantity,
-                    decision,
-                    market_price=market_price,
-                    portfolio_state=portfolio_state,
-                )
-                if liquidity_score is not None and liquidity_score < self.min_liquidity_confidence:
-                    decision.update(status="rejected", reason="insufficient_liquidity")
-                    await self._reject_and_maybe_publish(decision)
-                    return None
-
             adjusted_quantity = self._apply_liquidity_capacity_guard(
                 intent,
                 adjusted_quantity,
@@ -467,6 +476,8 @@ class RiskGateway:
                 liquidity_score,
                 decision,
                 policy_metadata=policy_metadata,
+                liquidity_summary=liquidity_summary,
+                stop_loss_pct=stop_loss_pct,
             )
 
             if liquidity_summary:
@@ -1186,6 +1197,109 @@ class RiskGateway:
 
         return adjusted
 
+    def _build_structural_exit_plan(
+        self,
+        *,
+        probe_results: Mapping[float, float],
+        quantity: Decimal,
+        market_price: float,
+        entry_price: float,
+        entry_side: str,
+        fallback_stop: float,
+    ) -> dict[str, Any] | None:
+        abs_quantity = abs(float(quantity))
+        if abs_quantity <= _EPSILON:
+            return None
+
+        levels: list[tuple[float, float]] = []
+        for level_price, available in probe_results.items():
+            price_value = _as_float(level_price, default=0.0)
+            liquidity_value = max(0.0, _as_float(available, default=0.0))
+            if price_value <= 0.0 or liquidity_value <= 0.0:
+                continue
+            levels.append((price_value, liquidity_value))
+
+        if not levels:
+            return None
+
+        anchor = market_price if market_price > 0 else entry_price
+        if anchor <= 0 and levels:
+            anchor = sum(price for price, _ in levels) / len(levels)
+        tolerance = max(anchor * 1e-4, 1e-6) if anchor > 0 else 1e-6
+
+        side_key = (entry_side or "").lower()
+        exit_side = "sell"
+        if side_key.startswith("sell"):
+            exit_side = "buy"
+
+        if exit_side == "sell":
+            relevant = [lvl for lvl in levels if lvl[0] <= anchor + tolerance]
+            relevant.sort(key=lambda item: item[0], reverse=True)
+        else:
+            relevant = [lvl for lvl in levels if lvl[0] >= anchor - tolerance]
+            relevant.sort(key=lambda item: item[0])
+
+        if not relevant:
+            relevant = sorted(levels, key=lambda item: abs(item[0] - anchor))
+
+        path: list[dict[str, float]] = []
+        remaining = abs_quantity
+        allocated = 0.0
+
+        for price, available in relevant:
+            if remaining <= _EPSILON:
+                break
+            available_pos = max(0.0, available)
+            if available_pos <= 0.0:
+                continue
+            fill = min(available_pos, remaining)
+            if fill <= _EPSILON:
+                continue
+            path.append(
+                {
+                    "price": price,
+                    "available_liquidity": available_pos,
+                    "allocated": fill,
+                    "fraction": fill / abs_quantity,
+                }
+            )
+            allocated += fill
+            remaining -= fill
+
+        if allocated <= _EPSILON:
+            return None
+
+        coverage = min(1.0, allocated / abs_quantity)
+        expected_price = sum(step["price"] * step["allocated"] for step in path) / allocated
+
+        reference_price = entry_price if entry_price > 0 else (anchor if anchor > 0 else None)
+        if reference_price and reference_price > 0:
+            if exit_side == "sell":
+                loss_pct = max(0.0, (reference_price - expected_price) / reference_price)
+            else:
+                loss_pct = max(0.0, (expected_price - reference_price) / reference_price)
+        else:
+            loss_pct = 0.0
+
+        adjusted_loss = loss_pct / max(coverage, 1e-6) if coverage < 1.0 else loss_pct
+        effective_stop = max(adjusted_loss, self.stop_loss_floor, self._risk_per_trade_float)
+
+        residual_quantity = max(remaining, 0.0)
+
+        return {
+            "mode": "liquidity_weighted",
+            "exit_side": exit_side,
+            "planned_quantity": abs_quantity,
+            "path": path,
+            "expected_exit_price": expected_price,
+            "planned_loss_pct": loss_pct,
+            "effective_stop_loss_pct": effective_stop,
+            "covered_fraction": coverage,
+            "residual_quantity": residual_quantity,
+            "anchor_price": anchor,
+            "baseline_stop_loss_pct": max(self.stop_loss_floor, _as_float(fallback_stop, 0.0)),
+        }
+
     async def _run_liquidity_probe(
         self,
         intent: Any,
@@ -1194,6 +1308,9 @@ class RiskGateway:
         *,
         market_price: float,
         portfolio_state: Mapping[str, Any],
+        entry_price: float,
+        entry_side: str,
+        fallback_stop: float,
     ) -> tuple[float | None, Mapping[str, Any] | None]:
         if not self.liquidity_prober:
             return None, None
@@ -1223,7 +1340,18 @@ class RiskGateway:
         score = self.liquidity_prober.calculate_liquidity_confidence_score(
             probe_results, float(quantity)
         )
-        summary = self.liquidity_prober.get_probe_summary(probe_results)
+        summary_payload = dict(self.liquidity_prober.get_probe_summary(probe_results))
+
+        structural_exit = self._build_structural_exit_plan(
+            probe_results=probe_results,
+            quantity=quantity,
+            market_price=market_price,
+            entry_price=entry_price,
+            entry_side=entry_side,
+            fallback_stop=fallback_stop,
+        )
+        if structural_exit is not None:
+            summary_payload["structural_exit"] = structural_exit
 
         decision["checks"].append(
             {
@@ -1232,7 +1360,7 @@ class RiskGateway:
                 "threshold": self.min_liquidity_confidence,
             }
         )
-        return score, summary
+        return score, summary_payload
 
     def _enrich_intent(
         self,
@@ -1242,6 +1370,8 @@ class RiskGateway:
         decision: Mapping[str, Any],
         *,
         policy_metadata: Mapping[str, Any] | None = None,
+        liquidity_summary: Mapping[str, Any] | None = None,
+        stop_loss_pct: float | None = None,
     ) -> None:
         _set_attr(intent, quantity, "quantity", "size", "volume")
 
@@ -1258,6 +1388,11 @@ class RiskGateway:
                 "final_quantity": float(quantity),
             }
         )
+        if stop_loss_pct is not None:
+            stop_value = float(stop_loss_pct)
+            metadata["stop_loss_pct"] = stop_value
+            assessment["stop_loss_pct"] = stop_value
+
         if policy_metadata:
             policy_section = assessment.get("policy")
             if isinstance(policy_section, Mapping):
@@ -1268,6 +1403,25 @@ class RiskGateway:
                 assessment["policy"] = dict(policy_metadata)
         if liquidity_score is not None:
             assessment["liquidity_confidence"] = float(liquidity_score)
+        if liquidity_summary:
+            summary_copy = dict(liquidity_summary)
+            structural_payload = summary_copy.get("structural_exit")
+            structural_copy: dict[str, Any] | None = None
+            if isinstance(structural_payload, Mapping):
+                structural_copy = dict(structural_payload)
+                path_payload = structural_copy.get("path")
+                if isinstance(path_payload, Sequence):
+                    structural_copy["path"] = [
+                        dict(step) for step in path_payload if isinstance(step, Mapping)
+                    ]
+                summary_copy["structural_exit"] = structural_copy
+                assessment["structural_exit"] = structural_copy
+                if structural_copy and "mode" in structural_copy:
+                    assessment.setdefault("exit_mode", structural_copy.get("mode"))
+                else:
+                    assessment.setdefault("exit_mode", "liquidity_weighted")
+            assessment["liquidity_probe"] = summary_copy
+
         risk_summary = decision.get("risk_manager")
         if isinstance(risk_summary, Mapping):
             assessment["portfolio_risk"] = dict(risk_summary)

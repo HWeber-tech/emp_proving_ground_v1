@@ -302,9 +302,30 @@ async def test_risk_gateway_clips_position_and_adds_liquidity_metadata(
     assert intent.quantity == Decimal("2")
     assessment = intent.metadata.get("risk_assessment", {})
     assert assessment.get("liquidity_confidence") == pytest.approx(0.9)
+    assert intent.metadata.get("stop_loss_pct") == pytest.approx(0.005)
+    assert assessment.get("stop_loss_pct") == pytest.approx(0.005)
+    assert assessment.get("exit_mode") == "liquidity_weighted"
+    structural = assessment.get("structural_exit")
+    assert isinstance(structural, Mapping)
+    assert structural.get("mode") == "liquidity_weighted"
+    assert structural.get("exit_side") == "sell"
+    assert structural.get("effective_stop_loss_pct") == pytest.approx(0.005)
+    path = structural.get("path")
+    assert isinstance(path, list) and path
+    probe_summary = assessment.get("liquidity_probe")
+    assert isinstance(probe_summary, Mapping)
+    assert "structural_exit" in probe_summary
     last_decision = gateway.get_last_decision()
     assert last_decision is not None
     assert last_decision.get("status") == "approved"
+    liquidity_check = next(
+        (entry for entry in last_decision.get("checks", []) if entry.get("name") == "liquidity_probe"),
+        None,
+    )
+    assert liquidity_check is not None
+    summary = liquidity_check.get("summary", {})
+    assert isinstance(summary, Mapping)
+    assert "structural_exit" in summary
     reference = last_decision.get("risk_reference")
     assert isinstance(reference, Mapping)
     assert reference["risk_api_runbook"] == RISK_API_RUNBOOK
@@ -353,6 +374,8 @@ async def test_risk_gateway_liquidity_probe_uses_portfolio_price(
     assert len(price_levels) == 5
     assert any(level != 0.0 for level in price_levels)
     assert price_levels[2] == pytest.approx(1.2345, rel=1e-6)
+    assessment = intent["metadata"].get("risk_assessment", {})
+    assert "structural_exit" in assessment
 
 
 @pytest.mark.asyncio()

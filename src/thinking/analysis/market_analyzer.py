@@ -8,7 +8,11 @@ Combines multiple analysis components into unified market insights.
 from __future__ import annotations
 
 import logging
+import math
+import random
+from dataclasses import dataclass, field
 from datetime import datetime
+from time import perf_counter
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Protocol, TypeAlias, cast
 
 import numpy as np
@@ -35,6 +39,242 @@ class _SignalProto(Protocol):
     confidence: float
 
 
+@dataclass(slots=True)
+class _PlannerState:
+    """Compact planning state for the shallow MCTS controller."""
+
+    opportunity: float
+    sentiment: float
+    risk: float
+    var_95: float
+    drawdown: float
+    signal_quality: float
+    reward_hint: float
+
+
+@dataclass(slots=True)
+class _MCTSNode:
+    """Single node within the execution-style MCTS search tree."""
+
+    state: _PlannerState
+    parent: "_MCTSNode | None"
+    action: Optional[str]
+    depth: int
+    incoming_reward: float
+    visits: int = 0
+    total_reward: float = 0.0
+    children: Dict[str, "_MCTSNode"] = field(default_factory=dict)
+
+    @property
+    def average_reward(self) -> float:
+        return self.total_reward / self.visits if self.visits else 0.0
+
+    def ucb_score(self, parent_visits: int, exploration: float) -> float:
+        if self.visits == 0:
+            return float("inf")
+        exploitation = self.average_reward
+        exploration_bonus = exploration * math.sqrt(math.log(parent_visits) / self.visits)
+        return exploitation + exploration_bonus
+
+
+class _ExecutionMCTS:
+    """Depth-limited Monte Carlo Tree Search for execution action selection."""
+
+    ACTIONS: tuple[str, ...] = ("cross", "post", "hold")
+
+    def __init__(
+        self,
+        *,
+        budget_seconds: float,
+        max_depth: int = 3,
+        exploration: float = 0.9,
+        discount: float = 0.85,
+        sla_grace: int = 1,
+    ) -> None:
+        self._budget_seconds = max(1e-4, float(budget_seconds))
+        self._max_depth = max(1, int(max_depth))
+        self._exploration = float(exploration)
+        self._discount = float(discount)
+        self._sla_grace = max(0, int(sla_grace))
+        self._enabled = True
+        self._breaches = 0
+        self._disabled_reason: str | None = None
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
+    @property
+    def disabled_reason(self) -> str | None:
+        return self._disabled_reason
+
+    def plan(self, state: _PlannerState) -> Optional[str]:
+        if not self._enabled:
+            return None
+
+        root = _MCTSNode(state=state, parent=None, action=None, depth=0, incoming_reward=0.0)
+        start = perf_counter()
+        iterations = 0
+
+        while True:
+            now = perf_counter()
+            if now - start >= self._budget_seconds:
+                break
+            node = self._select(root)
+            reward = self._simulate(node)
+            self._backpropagate(node, reward)
+            iterations += 1
+            if iterations >= 12 and root.visits >= 9:
+                break
+
+        elapsed = perf_counter() - start
+        if elapsed > self._budget_seconds:
+            self._breaches += 1
+        else:
+            self._breaches = 0
+
+        if self._breaches > self._sla_grace:
+            self._enabled = False
+            self._disabled_reason = (
+                f"mcts planner disabled: {elapsed * 1000.0:.3f}ms > {self._budget_seconds * 1000.0:.3f}ms"
+            )
+
+        if not root.children:
+            return None
+
+        best_child = max(root.children.values(), key=lambda child: child.average_reward)
+        return best_child.action
+
+    # MCTS internals -------------------------------------------------
+    def _select(self, node: _MCTSNode) -> _MCTSNode:
+        current = node
+        while current.depth < self._max_depth and current.children:
+            if len(current.children) < len(self.ACTIONS):
+                break
+            current = max(
+                current.children.values(),
+                key=lambda child: child.ucb_score(current.visits or 1, self._exploration),
+            )
+        if current.depth < self._max_depth and len(current.children) < len(self.ACTIONS):
+            return self._expand(current)
+        return current
+
+    def _expand(self, node: _MCTSNode) -> _MCTSNode:
+        untried = [action for action in self.ACTIONS if action not in node.children]
+        action = random.choice(untried)
+        next_state, reward = self._transition(node.state, action)
+        child = _MCTSNode(
+            state=next_state,
+            parent=node,
+            action=action,
+            depth=node.depth + 1,
+            incoming_reward=reward,
+        )
+        node.children[action] = child
+        return child
+
+    def _simulate(self, node: _MCTSNode) -> float:
+        total_reward = node.incoming_reward
+        depth = node.depth
+        state = node.state
+        discount = self._discount
+        current_discount = discount
+
+        while depth < self._max_depth:
+            depth += 1
+            action = random.choice(self.ACTIONS)
+            state, reward = self._transition(state, action)
+            total_reward += reward * current_discount
+            current_discount *= discount
+
+        eval_score = self._evaluate_state(state)
+        total_reward += eval_score * current_discount
+        return total_reward
+
+    def _backpropagate(self, node: _MCTSNode, reward: float) -> None:
+        current = node
+        value = reward
+        while current is not None:
+            current.visits += 1
+            current.total_reward += value
+            value = current.incoming_reward + self._discount * value
+            current = current.parent
+
+    def _transition(self, state: _PlannerState, action: str) -> tuple[_PlannerState, float]:
+        opportunity = state.opportunity
+        sentiment = state.sentiment
+        risk = state.risk
+        var_95 = state.var_95
+        drawdown = state.drawdown
+        signal_quality = state.signal_quality
+        reward_hint = state.reward_hint
+
+        noise = random.uniform(-0.02, 0.02)
+
+        if action == "cross":
+            reward = (
+                reward_hint
+                + 0.8 * opportunity
+                + 0.4 * sentiment
+                - 0.6 * risk
+                - 0.2 * var_95
+                - 0.1 * drawdown
+            )
+            opportunity = max(0.0, opportunity - 0.2 + noise)
+            sentiment = max(0.0, min(1.0, sentiment + 0.04 + noise))
+            risk = min(1.0, max(0.0, risk + 0.12 + abs(noise)))
+        elif action == "post":
+            reward = (
+                reward_hint
+                + 0.5 * opportunity
+                + 0.3 * sentiment
+                + 0.15 * signal_quality
+                - 0.35 * risk
+                - 0.15 * var_95
+                - 0.05 * drawdown
+            )
+            opportunity = max(0.0, min(1.0, opportunity - 0.08 + noise))
+            sentiment = max(0.0, min(1.0, sentiment + 0.02 + noise * 0.5))
+            risk = max(0.0, min(1.0, risk + 0.05 + max(noise, 0.0)))
+        else:  # hold
+            reward = (
+                reward_hint
+                + 0.15 * (1.0 - risk)
+                + 0.1 * signal_quality
+                - 0.25 * opportunity
+                - 0.05 * sentiment
+            )
+            opportunity = max(0.0, min(1.0, opportunity * (0.85 + noise)))
+            sentiment = max(0.0, min(1.0, sentiment * (0.92 + noise * 0.5)))
+            risk = max(0.0, risk - 0.08 + abs(noise) * 0.5)
+
+        var_95 = max(0.0, min(1.0, var_95 * (0.9 if action != "cross" else 1.05) + abs(noise) * 0.1))
+        drawdown = max(0.0, min(1.0, drawdown * (0.85 if action == "hold" else 0.95) + abs(noise) * 0.08))
+        signal_quality = max(0.0, min(1.0, signal_quality * (0.95 + noise)))
+
+        next_state = _PlannerState(
+            opportunity=opportunity,
+            sentiment=sentiment,
+            risk=risk,
+            var_95=var_95,
+            drawdown=drawdown,
+            signal_quality=signal_quality,
+            reward_hint=reward_hint * 0.7 + reward * 0.3,
+        )
+        return next_state, reward
+
+    def _evaluate_state(self, state: _PlannerState) -> float:
+        return (
+            0.6 * state.opportunity
+            + 0.4 * state.sentiment
+            + 0.2 * state.signal_quality
+            - 0.5 * state.risk
+            - 0.2 * state.var_95
+            - 0.1 * state.drawdown
+        )
+
+
+
 class MarketAnalyzer(ThinkingPattern):
     """Comprehensive market analyzer combining multiple analysis components."""
 
@@ -42,6 +282,16 @@ class MarketAnalyzer(ThinkingPattern):
         self.config = config or {}
         self.performance_analyzer = PerformanceAnalyzer()
         self.risk_analyzer = RiskAnalyzer()
+        budget_ms = float(self.config.get("mcts_budget_ms", 0.4))
+        sla_grace = int(self.config.get("mcts_sla_grace", 1))
+        self._planner = _ExecutionMCTS(
+            budget_seconds=max(0.0003, min(0.0005, budget_ms / 1000.0)),
+            max_depth=3,
+            exploration=float(self.config.get("mcts_exploration", 0.9)),
+            discount=float(self.config.get("mcts_discount", 0.85)),
+            sla_grace=sla_grace,
+        )
+        self._planner_disabled_reason: str | None = None
 
     def analyze(self, signals: list[SensorySignal]) -> AnalysisResult:
         """Analyze market using multiple analysis components."""
@@ -109,6 +359,7 @@ class MarketAnalyzer(ThinkingPattern):
         # Extract key metrics
         performance_metrics = cast(Any, performance_result).result.get("performance_metrics", {})
         risk_metrics = cast(Any, risk_result).result.get("risk_metrics", {})
+        signal_quality = self._assess_signal_quality(signals)
 
         # Calculate market sentiment from signals
         market_sentiment = self._calculate_market_sentiment(signals)
@@ -120,10 +371,13 @@ class MarketAnalyzer(ThinkingPattern):
             "risk_metrics": risk_metrics,
             "market_health": self._calculate_market_health(performance_metrics, risk_metrics),
             "trading_opportunity": self._assess_trading_opportunity(
-                performance_metrics, risk_metrics, market_sentiment
+                performance_metrics,
+                risk_metrics,
+                market_sentiment,
+                signal_quality,
             ),
             "risk_level": self._assess_risk_level(risk_metrics),
-            "signal_quality": self._assess_signal_quality(signals),
+            "signal_quality": signal_quality,
         }
 
         return combined_analysis
@@ -189,6 +443,7 @@ class MarketAnalyzer(ThinkingPattern):
         performance_metrics: dict[str, object],
         risk_metrics: dict[str, object],
         market_sentiment: dict[str, object],
+        signal_quality: dict[str, object],
     ) -> dict[str, object]:
         """Assess trading opportunity based on analysis."""
 
@@ -196,6 +451,9 @@ class MarketAnalyzer(ThinkingPattern):
         sharpe_ratio = float(cast(Any, performance_metrics.get("sharpe_ratio", 0.0)))
         risk_score = float(cast(Any, risk_metrics.get("risk_score", 0.5)))
         sentiment = float(cast(Any, market_sentiment.get("overall_sentiment", 0.5)))
+        var_95 = float(cast(Any, risk_metrics.get("var_95", 0.0)))
+        current_drawdown = float(cast(Any, risk_metrics.get("current_drawdown", 0.0)))
+        signal_quality_score = float(cast(Any, signal_quality.get("quality_score", 0.0)))
 
         # Calculate opportunity score
         opportunity_score = 0.0
@@ -224,7 +482,12 @@ class MarketAnalyzer(ThinkingPattern):
             "opportunity_score": opportunity_score,
             "opportunity_level": self._classify_opportunity_level(opportunity_score),
             "recommended_action": self._recommend_action(
-                float(opportunity_score), float(sentiment)
+                float(opportunity_score),
+                float(sentiment),
+                risk_score=float(risk_score),
+                var_95=var_95,
+                drawdown=current_drawdown,
+                signal_quality=signal_quality_score,
             ),
         }
 
@@ -315,23 +578,51 @@ class MarketAnalyzer(ThinkingPattern):
         else:
             return "none"
 
-    def _recommend_action(self, opportunity_score: float, sentiment: float) -> str:
+    def _recommend_action(
+        self,
+        opportunity_score: float,
+        sentiment: float,
+        *,
+        risk_score: float,
+        var_95: float,
+        drawdown: float,
+        signal_quality: float,
+    ) -> str:
         """Recommend execution style for the opportunity window."""
 
-        # Treat the lowest signal as the gating alignment score; if either side is
-        # weak we prefer to stand down instead of forcing an execution style.
+        planner_state = _PlannerState(
+            opportunity=max(0.0, min(1.0, opportunity_score)),
+            sentiment=max(0.0, min(1.0, sentiment)),
+            risk=max(0.0, min(1.0, risk_score)),
+            var_95=max(0.0, min(1.0, var_95)),
+            drawdown=max(0.0, min(1.0, drawdown)),
+            signal_quality=max(0.0, min(1.0, signal_quality)),
+            reward_hint=(opportunity_score * 0.6 + sentiment * 0.4) - (risk_score * 0.5),
+        )
+
+        planner_action: Optional[str] = None
+        if self._planner.enabled:
+            planner_action = self._planner.plan(planner_state)
+        if not self._planner.enabled and self._planner.disabled_reason:
+            self._planner_disabled_reason = self._planner.disabled_reason
+
+        if planner_action:
+            return planner_action
+
+        return self._fallback_action(opportunity_score, sentiment)
+
+    def _fallback_action(self, opportunity_score: float, sentiment: float) -> str:
+        """Deterministic fallback policy when MCTS planner is unavailable."""
+
         alignment = min(float(opportunity_score), float(sentiment))
         urgency = max(float(opportunity_score), float(sentiment))
 
         if alignment <= 0.25:
             return "hold"
-
         if opportunity_score >= 0.75 and sentiment >= 0.65:
             return "cross"
-
         if alignment >= 0.4 and urgency >= 0.45:
-            return "post_and_chase"
-
+            return "post"
         return "hold"
 
     def _generate_risk_warnings(self, risk_metrics: dict[str, object]) -> list[str]:

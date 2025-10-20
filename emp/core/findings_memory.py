@@ -403,16 +403,18 @@ def time_to_candidate_stats(
     """Compute turnaround statistics between idea ingestion and replay scoring."""
 
     sql = (
-        "SELECT id, stage, created_at, tested_at, "
-        "((julianday(tested_at) - julianday(created_at)) * 24.0) AS hours "
+        "SELECT id, stage, created_at, tested_at, progress_at, "
+        "((julianday(COALESCE(tested_at, progress_at)) - julianday(created_at)) * 24.0) AS hours "
         "FROM findings "
-        "WHERE tested_at IS NOT NULL "
+        "WHERE COALESCE(tested_at, progress_at) IS NOT NULL "
     )
     params: List[object] = []
     if window_hours is not None:
-        sql += "AND julianday(tested_at) >= julianday('now') - (? / 24.0) "
+        sql += (
+            "AND julianday(COALESCE(tested_at, progress_at)) >= julianday('now') - (? / 24.0) "
+        )
         params.append(float(window_hours))
-    sql += "ORDER BY tested_at ASC"
+    sql += "ORDER BY COALESCE(tested_at, progress_at) ASC"
 
     cursor = conn.execute(sql, params)
     durations: List[float] = []
@@ -427,13 +429,14 @@ def time_to_candidate_stats(
         if hours < 0.0:
             continue
         durations.append(hours)
+        completion_ts = row["tested_at"] or row["progress_at"]
         if hours > sla_threshold:
             breaches.append(
                 TimeToCandidateBreach(
                     id=int(row["id"]),
                     stage=str(row["stage"]),
                     created_at=str(row["created_at"]),
-                    tested_at=str(row["tested_at"]),
+                    tested_at=str(completion_ts),
                     hours=hours,
                 )
             )

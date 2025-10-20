@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 from src.testing.flake_telemetry import (
+    DEFAULT_RELATIVE_PATH,
     MAX_LONGREPR_LENGTH,
     clip_longrepr,
     resolve_output_path,
@@ -24,6 +25,19 @@ def test_resolve_output_path_expands_environment_variables(tmp_path, monkeypatch
     assert path == target_dir / "session.json"
     assert path.parent == target_dir
     assert target_dir.is_dir()
+
+
+def test_resolve_output_path_ignores_blank_candidates(tmp_path):
+    path = resolve_output_path(
+        tmp_path,
+        explicit="  ",
+        ini_value="",
+        env_value=" \t ",
+    )
+
+    expected = tmp_path / DEFAULT_RELATIVE_PATH
+    assert path == expected
+    assert expected.parent.is_dir()
 
 
 def test_clip_longrepr_without_limit_returns_full_text() -> None:

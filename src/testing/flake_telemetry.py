@@ -76,7 +76,18 @@ def resolve_output_path(
 ) -> Path:
     """Resolve the telemetry output path to an absolute location and ensure parent exists."""
 
-    candidate = explicit or env_value or ini_value or str(DEFAULT_RELATIVE_PATH)
+    candidate: str | None = None
+    for raw_value in (explicit, env_value, ini_value):
+        if raw_value is None:
+            continue
+        stripped = raw_value.strip()
+        if stripped:
+            candidate = stripped
+            break
+
+    if candidate is None:
+        candidate = str(DEFAULT_RELATIVE_PATH)
+
     expanded = os.path.expandvars(candidate)
     path = Path(expanded).expanduser()
     if not path.is_absolute():

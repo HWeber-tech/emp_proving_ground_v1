@@ -60,6 +60,15 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
             return default
     if isinstance(value, str):
         candidate = value.strip()
+        if candidate.startswith("(") and candidate.endswith(")"):
+            inner = candidate[1:-1].strip()
+            if inner:
+                if inner[0] in "+-":
+                    inner = inner[1:].lstrip()
+                if inner:
+                    candidate = f"-{inner}"
+                else:
+                    candidate = ""
         if not candidate:
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
@@ -112,6 +121,15 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
             return default
     if isinstance(value, str):
         candidate = value.strip()
+        if candidate.startswith("(") and candidate.endswith(")"):
+            inner = candidate[1:-1].strip()
+            if inner:
+                if inner[0] in "+-":
+                    inner = inner[1:].lstrip()
+                if inner:
+                    candidate = f"-{inner}"
+                else:
+                    candidate = ""
         if not candidate:
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)

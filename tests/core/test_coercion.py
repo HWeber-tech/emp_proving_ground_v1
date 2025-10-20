@@ -43,3 +43,8 @@ def test_coerce_helpers_accept_space_grouped_numbers() -> None:
 def test_coerce_helpers_accept_apostrophe_grouped_numbers() -> None:
     assert coerce_float("1'234.5") == 1234.5
     assert coerce_int("7'654") == 7654
+
+
+def test_coerce_helpers_accept_parenthesized_negatives() -> None:
+    assert coerce_float("(1,234.5)") == -1234.5
+    assert coerce_int("(2,000)") == -2000

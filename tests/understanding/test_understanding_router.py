@@ -278,6 +278,10 @@ def test_understanding_router_live_mode_disables_exploration() -> None:
         extras={"EXPLORATION_MAX_FRACTION": "0.6", "EXPLORATION_MUTATE_EVERY": "3"},
     )
     router = UnderstandingRouter.from_system_config(config)
+    assert router.exploration_freeze_active() is True
+    freeze_state = router.exploration_freeze_state()
+    assert freeze_state["reason"] == "live_mode"
+    assert freeze_state["metadata"]["run_mode"] == "live"
     router.register_tactic(
         PolicyTactic(
             tactic_id="core",
@@ -302,7 +306,9 @@ def test_understanding_router_live_mode_disables_exploration() -> None:
     assert metadata.get("selected_is_exploration") is False
     blocked = metadata.get("blocked_candidates", [])
     assert blocked and blocked[0]["tactic_id"] == "probe"
-    assert blocked[0]["reason"] == "budget_exhausted"
+    assert blocked[0]["reason"] == "frozen"
+    assert blocked[0]["score"] > 0.0
+    assert metadata["freeze_state"]["reason"] == "live_mode"
     assert metadata["budget_after"]["exploration_decisions"] == 0
 
 

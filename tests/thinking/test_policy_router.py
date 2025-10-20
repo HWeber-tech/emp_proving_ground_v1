@@ -570,7 +570,10 @@ def test_exploration_budget_enforces_flow_limit() -> None:
 
 def test_exploration_forced_selection_disallowed_when_flagged() -> None:
     router = PolicyRouter(exploration_max_fraction=0.0)
-    router.allow_forced_exploration = False
+    router.allow_forced_exploration = 1
+    assert router.allow_forced_exploration is True
+    router.allow_forced_exploration = []
+    assert router.allow_forced_exploration is False
     router.register_tactic(
         PolicyTactic(
             tactic_id="explore",

@@ -261,6 +261,12 @@ class UnderstandingRouter:
             exploration_mutate_every=exploration_cadence,
         )
         policy_router.allow_forced_exploration = allow_forced_exploration
+        if config.run_mode is RunMode.live:
+            policy_router.freeze_exploration(
+                reason="live_mode",
+                triggered_by="understanding_router",
+                metadata={"run_mode": "live"},
+            )
         return cls(policy_router=policy_router)
 
     @property

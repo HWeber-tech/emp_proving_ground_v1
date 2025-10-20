@@ -2,33 +2,76 @@
   "records": {
     "beta": {
       "approvals": [
+        "compliance",
         "risk"
       ],
-      "created_at": "2025-10-20T10:58:27.314224+00:00",
-      "evidence_id": "diary-beta",
+      "created_at": "2025-10-20T15:15:36.751103+00:00",
+      "evidence_id": "dd-beta",
       "history": [
         {
-          "applied_at": "2025-10-20T10:58:27.314224+00:00",
+          "applied_at": "2025-10-20T15:15:36.751103+00:00",
           "approvals": [
+            "compliance",
             "risk"
           ],
-          "evidence_id": "diary-beta",
-          "next_stage": "limited_live",
+          "evidence_id": "dd-beta",
+          "next_stage": "pilot",
           "prior_stage": null
         }
       ],
       "metadata": {
-        "promotion_checklist": {
-          "leakage_checks": true,
-          "oos_regime_grid": true,
-          "risk_audit": true
+        "traceability": {
+          "code_hash": "aaae94405cd9c367d72916a0e0286a73ba659e4a",
+          "config_hash": "79b5d31b7324088321a2bbd7e796ff305c273ebf0ee8060ad36e71b84bcd484b",
+          "diary_slice": {
+            "diary_path": "/tmp/pytest-of-codex/pytest-1328/test_promote_policy_cli_writes0/diary.json",
+            "entry": {
+              "decision": {
+                "decision_timestamp": null,
+                "experiments_applied": [],
+                "guardrails": {},
+                "parameters": {},
+                "rationale": "summary",
+                "reflection_summary": {},
+                "selected_weight": 1.0,
+                "tactic_id": "beta",
+                "weight_breakdown": {}
+              },
+              "entry_id": "dd-beta",
+              "metadata": {
+                "release_stage": "paper"
+              },
+              "notes": [],
+              "outcomes": {
+                "paper_pnl": 5.0
+              },
+              "policy_id": "beta",
+              "probes": [],
+              "recorded_at": "2024-02-01T00:00:00+00:00",
+              "regime_state": {
+                "confidence": 0.77,
+                "features": {},
+                "regime": "balanced"
+              },
+              "signature": "0efbbd827b80e63f31bad71a6fffacd23d7878ad78b17a0208f69b6856eda8a8"
+            },
+            "entry_id": "dd-beta",
+            "stage": "pilot",
+            "status": "ok"
+          },
+          "evidence_id": "dd-beta",
+          "generated_at": "2025-10-20T15:15:36.751074+00:00",
+          "policy_id": "beta",
+          "stage": "pilot",
+          "tactic_id": "beta"
         }
       },
       "policy_id": "beta",
-      "stage": "limited_live",
+      "signature": "38d29b0aab515d1b08f6d673fcafb618c894d68653e3b1b1608d0ca2b8f12640",
+      "stage": "pilot",
       "tactic_id": "beta",
-      "updated_at": "2025-10-20T10:58:27.314224+00:00"
+      "updated_at": "2025-10-20T15:15:36.751103+00:00"
     }
   },
-  "updated_at": "2025-10-20T10:58:27.314391+00:00"
+  "updated_at": "2025-10-20T15:15:36.751402+00:00"
 }

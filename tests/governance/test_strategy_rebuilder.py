@@ -71,11 +71,25 @@ def test_rebuild_strategy_returns_deterministic_payload(tmp_path: Path) -> None:
 
     assert first.json_bytes == second.json_bytes == first.json().encode("utf-8")
     assert first.digest == second.digest
+    assert first.docker_image_tags == second.docker_image_tags
 
     payload = json.loads(first.json())
     assert payload["policy_hash"] == policy_hash
     assert payload["stage"] == PolicyLedgerStage.PAPER.value
     assert payload["risk_config"]["max_leverage"] == pytest.approx(7.0)
+
+    tags = first.docker_image_tags
+    assert set(tags) == {"policy_hash", "config_fingerprint", "release"}
+    assert tags["policy_hash"].startswith("policy-")
+    assert policy_hash.lower() in tags["policy_hash"]
+    assert tags["config_fingerprint"].startswith("config-")
+    assert first.runtime_digest.lower() in tags["config_fingerprint"]
+    assert tags["release"].startswith("release-")
+    assert policy_hash[:12].lower() in tags["release"]
+    assert first.runtime_digest[:12].lower() in tags["release"]
+
+    payload_tags = payload["docker_image_tags"]
+    assert payload_tags == dict(tags)
 
 
 def test_rebuild_strategy_honours_base_config_and_guardrails(tmp_path: Path) -> None:

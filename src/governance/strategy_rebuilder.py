@@ -25,6 +25,7 @@ import json
 import math
 import numbers
 from pathlib import Path
+import re
 from typing import Any, Mapping, MutableMapping, Sequence, cast
 
 from src.config.risk.risk_config import RiskConfig
@@ -42,6 +43,36 @@ __all__ = [
 
 
 _DEFAULT_LEDGER_PATH = Path("artifacts/governance/policy_ledger.json")
+
+
+_DOCKER_TAG_MAX_LENGTH = 128
+_DOCKER_TAG_SANITISE_PATTERN = re.compile(r"[^a-z0-9_.-]")
+
+
+def _sanitise_tag(value: str) -> str:
+    """Normalise arbitrary text into a Docker tag-safe token."""
+
+    lowered = value.strip().lower()
+    if not lowered:
+        return "unknown"
+    sanitised = _DOCKER_TAG_SANITISE_PATTERN.sub("-", lowered)
+    trimmed = sanitised[:_DOCKER_TAG_MAX_LENGTH]
+    return trimmed or "unknown"
+
+
+def _build_docker_image_tags(policy_hash: str, config_fingerprint: str) -> Mapping[str, str]:
+    """Return reproducible Docker tags derived from governance artifacts."""
+
+    policy_token = _sanitise_tag(policy_hash)
+    fingerprint_token = _sanitise_tag(config_fingerprint)
+    short_policy = policy_token[:12] or policy_token
+    short_fingerprint = fingerprint_token[:12] or fingerprint_token
+
+    return {
+        "policy_hash": f"policy-{policy_token}",
+        "config_fingerprint": f"config-{fingerprint_token}",
+        "release": f"release-{short_policy}-{short_fingerprint}",
+    }
 
 
 def _coerce_risk_config(value: RiskConfig | Mapping[str, Any] | None) -> RiskConfig | None:
@@ -177,6 +208,7 @@ class StrategyRuntimeConfig:
     runtime_json_bytes: bytes
     runtime_digest: str
     runtime_config_path: str
+    docker_image_tags: Mapping[str, str]
     payload: Mapping[str, Any]
     json_bytes: bytes
     digest: str
@@ -271,6 +303,10 @@ def rebuild_strategy(
     enriched_payload["runtime_config"] = runtime_payload
     enriched_payload["runtime_digest"] = runtime_digest
     enriched_payload["runtime_config_path"] = str(runtime_output)
+    enriched_payload["docker_image_tags"] = _build_docker_image_tags(
+        phenotype.policy_hash,
+        runtime_digest,
+    )
 
     json_bytes = _canonical_json_bytes(enriched_payload)
     digest = sha256(json_bytes).hexdigest()
@@ -306,6 +342,7 @@ def rebuild_strategy(
         runtime_json_bytes=runtime_json_bytes,
         runtime_digest=runtime_digest,
         runtime_config_path=str(runtime_output),
+        docker_image_tags=enriched_payload["docker_image_tags"],
         payload=dict(enriched_payload),
         json_bytes=json_bytes,
         digest=digest,

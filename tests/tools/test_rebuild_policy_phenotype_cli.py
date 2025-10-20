@@ -76,6 +76,13 @@ def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
     runtime_payload = json.loads(runtime_bytes.decode("utf-8"))
     assert runtime_payload == payload["runtime_config"]
 
+    tags = payload["docker_image_tags"]
+    assert tags == dict(expected_config.docker_image_tags)
+    assert tags["policy_hash"].endswith(payload["policy_hash"].lower())
+    assert tags["config_fingerprint"].endswith(payload["runtime_digest"].lower())
+    assert payload["policy_hash"][:12].lower() in tags["release"]
+    assert payload["runtime_digest"][:12].lower() in tags["release"]
+
     hash_output = tmp_path / "phenotype_by_hash.json"
     exit_code = main(
         [

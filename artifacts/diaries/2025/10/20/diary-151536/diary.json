@@ -1,0 +1,39 @@
+{
+  "entries": [
+    {
+      "decision": {
+        "decision_timestamp": null,
+        "experiments_applied": [],
+        "guardrails": {},
+        "parameters": {},
+        "rationale": "summary",
+        "reflection_summary": {},
+        "selected_weight": 1.0,
+        "tactic_id": "beta",
+        "weight_breakdown": {}
+      },
+      "entry_id": "dd-beta",
+      "metadata": {
+        "release_stage": "paper"
+      },
+      "notes": [],
+      "outcomes": {
+        "paper_pnl": 5.0
+      },
+      "policy_id": "beta",
+      "probes": [],
+      "recorded_at": "2024-02-01T00:00:00+00:00",
+      "regime_state": {
+        "confidence": 0.77,
+        "features": {},
+        "regime": "balanced"
+      },
+      "signature": "0efbbd827b80e63f31bad71a6fffacd23d7878ad78b17a0208f69b6856eda8a8"
+    }
+  ],
+  "generated_at": "2025-10-20T15:15:36.748681+00:00",
+  "probe_registry": {
+    "generated_at": "2025-10-20T15:15:36.748266+00:00",
+    "probes": {}
+  }
+}

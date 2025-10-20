@@ -27,6 +27,8 @@ def ensure_market_data(payload: object | None) -> MarketData:
 
 def clamp(value: float, lower: float, upper: float) -> float:
     """Clamp *value* to the inclusive ``[lower, upper]`` interval."""
+    if lower > upper:
+        lower, upper = upper, lower
     if value < lower:
         return lower
     if value > upper:

@@ -328,12 +328,24 @@ def _evaluate_rotation(
             summary=f"rotation age {age_days:.0f}d approaching {threshold_days}d limit",
             metadata=metadata,
         )
-    return SecurityControlEvaluation(
+    evaluation = SecurityControlEvaluation(
         control=name,
         status=SecurityStatus.fail,
         summary=f"rotation age {age_days:.0f}d exceeds {threshold_days}d limit",
         metadata=metadata,
     )
+    if name == "secrets_rotation":
+        logger.warning(
+            "Secrets rotation age %.0fd exceeds %dd policy limit",
+            age_days,
+            threshold_days,
+            extra={
+                "security_control": name,
+                "secrets_age_days": age_days,
+                "secrets_threshold_days": threshold_days,
+            },
+        )
+    return evaluation
 
 
 def _evaluate_incident_response(

@@ -100,6 +100,41 @@ def test_evaluate_security_posture_escalates() -> None:
     assert snapshot.metadata["open_critical_alerts"] == ["alert-1"]
 
 
+def test_evaluate_security_posture_logs_secret_age_breach(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    policy = SecurityPolicy(
+        minimum_mfa_coverage=0.5,
+        credential_rotation_days=180,
+        secrets_rotation_days=10,
+        incident_drill_interval_days=120,
+        vulnerability_scan_interval_days=60,
+        required_tls_versions=("TLS1.2", "TLS1.3"),
+        require_intrusion_detection=True,
+    )
+    state = SecurityState(
+        total_users=5,
+        mfa_enabled_users=5,
+        credential_age_days=5,
+        secrets_age_days=25,
+        incident_drill_age_days=10,
+        vulnerability_scan_age_days=5,
+        intrusion_detection_enabled=True,
+        open_critical_alerts=tuple(),
+        tls_versions=("TLS1.2", "TLS1.3"),
+        secrets_manager_healthy=True,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        evaluate_security_posture(policy, state, service="emp")
+
+    messages = [record for record in caplog.records if record.security_control == "secrets_rotation"]
+    assert messages, "expected secrets rotation breach log entry"
+    assert "Secrets rotation age" in messages[0].message
+    assert messages[0].secrets_age_days == pytest.approx(25.0)
+    assert messages[0].secrets_threshold_days == 10
+
+
 def test_policy_and_state_from_mapping_parsing() -> None:
     mapping = {
         "SECURITY_MFA_MIN_COVERAGE": "0.85",

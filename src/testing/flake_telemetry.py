@@ -95,13 +95,18 @@ def should_record_event(outcome: object, was_xfail: bool) -> bool:
     return outcome.lower() in {"failed", "error"}
 
 
-def clip_longrepr(text: str | None, limit: int = MAX_LONGREPR_LENGTH) -> str | None:
+def clip_longrepr(
+    text: str | None,
+    limit: int | None = MAX_LONGREPR_LENGTH,
+) -> str | None:
     """Trim long representations so the telemetry payload stays small."""
 
     if text is None:
         return None
 
     normalized = text.rstrip("\n")
+    if limit is None:
+        return normalized
     if limit < 0:
         limit = 0
     if len(normalized) <= limit:

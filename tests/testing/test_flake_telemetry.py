@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 
-from src.testing.flake_telemetry import resolve_output_path
+from src.testing.flake_telemetry import (
+    MAX_LONGREPR_LENGTH,
+    clip_longrepr,
+    resolve_output_path,
+)
 
 
 def test_resolve_output_path_expands_environment_variables(tmp_path, monkeypatch):
@@ -20,3 +24,8 @@ def test_resolve_output_path_expands_environment_variables(tmp_path, monkeypatch
     assert path == target_dir / "session.json"
     assert path.parent == target_dir
     assert target_dir.is_dir()
+
+
+def test_clip_longrepr_without_limit_returns_full_text() -> None:
+    text = "x" * (MAX_LONGREPR_LENGTH + 5)
+    assert clip_longrepr(text, limit=None) == text

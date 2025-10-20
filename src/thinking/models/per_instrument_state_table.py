@@ -1,8 +1,20 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, is_dataclass, replace
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Mapping
+from typing import Any, Callable, Dict, Iterable, Mapping
+import copy
+from collections.abc import Mapping as MappingABC
+
+try:  # Optional runtime dependency for tensor states
+    import numpy as np
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    np = None  # type: ignore[assignment]
+
+try:  # Optional runtime dependency for tensor states
+    import torch
+except ModuleNotFoundError:  # pragma: no cover - optional dependency
+    torch = None  # type: ignore[assignment]
 
 __all__ = [
     "InstrumentStateReset",
@@ -34,6 +46,58 @@ class _Entry:
 
     def expired(self, now: datetime) -> bool:
         return self.expires_at is not None and self.expires_at <= now
+
+
+def _clone_state_value(value: object) -> object:
+    """Return a detached clone suitable for planner what-if simulations."""
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float, bool, str, bytes, complex)):
+        return value
+    if torch is not None and isinstance(value, torch.Tensor):
+        return value.detach().clone()
+    if np is not None and isinstance(value, np.ndarray):
+        return np.array(value, copy=True)
+    clone_method = getattr(value, "clone", None)
+    if callable(clone_method):
+        try:
+            candidate = clone_method()  # type: ignore[call-arg]
+        except TypeError:
+            candidate = None
+        else:
+            if candidate is not value:
+                return candidate
+    if isinstance(value, MappingABC):
+        try:
+            return value.__class__((key, _clone_state_value(item)) for key, item in value.items())
+        except TypeError:
+            return {key: _clone_state_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_clone_state_value(item) for item in value]
+    if isinstance(value, tuple):
+        items = tuple(_clone_state_value(item) for item in value)
+        if hasattr(value, "_fields"):
+            return type(value)(*items)
+        return items
+    if isinstance(value, set):
+        return {_clone_state_value(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(_clone_state_value(item) for item in value)
+    if is_dataclass(value):
+        return replace(value)
+    copy_method = getattr(value, "copy", None)
+    if callable(copy_method):
+        try:
+            duplicated = copy_method()  # type: ignore[call-arg]
+        except TypeError:
+            duplicated = None
+        else:
+            return duplicated
+    try:
+        return copy.deepcopy(value)
+    except Exception as exc:  # pragma: no cover - defensive path for exotic types
+        raise TypeError(f"Unsupported state value type for cloning: {type(value)!r}") from exc
 
 
 class PerInstrumentStateTable:
@@ -131,6 +195,52 @@ class PerInstrumentStateTable:
         now = self._now()
         entry = self._get_entry(instrument, now, self._resolve_model_hash(model_hash))
         return entry.state if entry is not None else None
+
+    def clone_state(
+        self,
+        instrument: str,
+        *,
+        model_hash: str | None = None,
+        cloner: Callable[[object], object] | None = None,
+    ) -> object | None:
+        """Return a detached clone of the state for ``instrument``."""
+
+        now = self._now()
+        entry = self._get_entry(instrument, now, self._resolve_model_hash(model_hash))
+        if entry is None:
+            return None
+        state = entry.state
+        if state is None:
+            return None
+        clone_fn = cloner or _clone_state_value
+        return clone_fn(state)
+
+    def clone_states(
+        self,
+        instruments: Iterable[str] | None = None,
+        *,
+        model_hash: str | None = None,
+        cloner: Callable[[object], object] | None = None,
+    ) -> dict[str, object]:
+        """Return detached clones for the provided instrument subset."""
+
+        now = self._now()
+        expected_version = self._resolve_model_hash(model_hash)
+        clone_fn = cloner or _clone_state_value
+        result: dict[str, object] = {}
+        if instruments is None:
+            candidates = list(self._entries.keys())
+        else:
+            candidates = list(instruments)
+        for instrument in candidates:
+            entry = self._get_entry(instrument, now, expected_version)
+            if entry is None:
+                continue
+            state = entry.state
+            if state is None:
+                continue
+            result[instrument] = clone_fn(state)
+        return result
 
     def apply_market_event(
         self,

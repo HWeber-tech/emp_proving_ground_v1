@@ -153,3 +153,54 @@ def test_hot_reload_invalidation_updates_model_hash(clock: _FrozenClock) -> None
     assert reset.reason == "hot_reload"
     assert reset.details["previous_version"] == "hash-a"
     assert reset.details["next_version"] == "hash-b"
+
+
+def test_clone_state_returns_detached_copy(clock: _FrozenClock) -> None:
+    table = PerInstrumentStateTable(clock=clock.now)
+    state = table.pin("AAPL")
+    state["nested"] = {"values": [1, 2]}
+
+    clone = table.clone_state("AAPL")
+    assert clone is not None
+    assert clone is not state
+    assert clone["nested"] is not state["nested"]
+
+    clone["nested"]["values"].append(3)
+    assert state["nested"]["values"] == [1, 2]
+
+
+def test_clone_states_subset_and_custom_cloner(clock: _FrozenClock) -> None:
+    table = PerInstrumentStateTable(clock=clock.now)
+    aapl = table.pin("AAPL")
+    aapl["value"] = 1
+    msft = table.pin("MSFT")
+    msft["value"] = 2
+
+    subset = table.clone_states(["MSFT"])
+    assert subset == {"MSFT": {"value": 2}}
+    subset["MSFT"]["value"] = 42
+    assert table.get("MSFT")["value"] == 2
+
+    calls: list[dict[str, int]] = []
+
+    def cloner(payload: object) -> object:
+        assert isinstance(payload, dict)
+        calls.append(payload)
+        return {"shadow": payload["value"]}
+
+    custom = table.clone_states(["AAPL"], cloner=cloner)
+    assert custom == {"AAPL": {"shadow": 1}}
+    assert calls and calls[0] is aapl
+
+
+def test_clone_state_respects_model_hash(clock: _FrozenClock) -> None:
+    table = PerInstrumentStateTable(clock=clock.now)
+    table.pin("EURUSD", model_hash="hash-a")
+
+    clone = table.clone_state("EURUSD", model_hash="hash-b")
+    assert clone is None
+    assert table.get("EURUSD") is None
+    reset = table.last_reset("EURUSD")
+    assert reset is not None
+    assert reset.reason == "version_mismatch"
+

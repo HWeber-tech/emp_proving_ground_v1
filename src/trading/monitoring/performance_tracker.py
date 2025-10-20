@@ -5,7 +5,7 @@ import logging
 import math
 from dataclasses import asdict
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, Mapping, Optional, cast
 
 import pandas as pd
 
@@ -69,7 +69,12 @@ class PerformanceTracker:
 
     def record_trade(self, trade_data: dict[str, object]) -> None:
         """Record a completed trade"""
-        trade_data["timestamp"] = datetime.now()
+        timestamp = trade_data.get("timestamp")
+        if isinstance(timestamp, datetime):
+            trade_timestamp = timestamp
+        else:
+            trade_timestamp = datetime.now()
+        trade_data["timestamp"] = trade_timestamp
         trade_data["trade_id"] = len(self.trades_history) + 1
 
         # Calculate trade metrics
@@ -80,6 +85,10 @@ class PerformanceTracker:
             pnl = (xp - ep) * sz
             trade_data["pnl"] = pnl
             trade_data["return"] = pnl / (ep * sz)
+
+        baseline_pnl = self._estimate_baseline_pnl(trade_data)
+        if baseline_pnl is not None:
+            trade_data["baseline_pnl"] = baseline_pnl
 
         self.trades_history.append(trade_data)
 
@@ -408,4 +417,142 @@ class PerformanceTracker:
                         }
                     )
 
+        baseline_stats = self._evaluate_baseline_underperformance()
+        if baseline_stats and baseline_stats.get("sustained"):
+            ratio_value = self._as_float(baseline_stats.get("ratio")) or 0.0
+            gap_value = self._as_float(baseline_stats.get("gap")) or 0.0
+            baseline_total = self._as_float(baseline_stats.get("baseline_total")) or 0.0
+            actual_total = self._as_float(baseline_stats.get("actual_total")) or 0.0
+            streak = int(baseline_stats.get("streak", 0))
+            window = int(baseline_stats.get("window", 0))
+            last_timestamp = baseline_stats.get("last_timestamp")
+            details = {
+                "streak": streak,
+                "window": window,
+                "baseline_total": baseline_total,
+                "actual_total": actual_total,
+                "gap": gap_value,
+            }
+            if isinstance(last_timestamp, datetime):
+                details["last_timestamp"] = last_timestamp.isoformat()
+
+            alerts.append(
+                {
+                    "type": "baseline",
+                    "severity": "high" if ratio_value <= 0.0 else "medium",
+                    "message": (
+                        "Sustained underperformance vs baseline: "
+                        f"ratio {ratio_value:.2f}, gap {gap_value:.2f} over {window} trades"
+                    ),
+                    "metric": "baseline_performance_ratio",
+                    "value": ratio_value,
+                    "details": details,
+                }
+            )
+
         return alerts
+
+    @staticmethod
+    def _as_float(value: object) -> float | None:
+        try:
+            result = float(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(result):
+            return None
+        return result
+
+    def _estimate_baseline_pnl(self, trade_data: Mapping[str, object]) -> float | None:
+        """Estimate baseline PnL for a trade using a 1× spread mean reversion assumption."""
+
+        size = self._as_float(trade_data.get("size"))
+        if size is None:
+            return None
+        spread = self._as_float(trade_data.get("spread"))
+        if spread is None:
+            return None
+        spread_abs = abs(spread)
+        notional = abs(size)
+        baseline = spread_abs * notional
+        if baseline <= 0.0:
+            return None
+        return baseline
+
+    def _evaluate_baseline_underperformance(
+        self,
+        *,
+        window: int = 20,
+        streak: int = 5,
+        tolerance: float = 0.1,
+    ) -> Optional[dict[str, object]]:
+        """Return diagnostics when performance trails the baseline persistently."""
+
+        eligible: list[Mapping[str, object]] = [
+            trade
+            for trade in self.trades_history
+            if isinstance(trade, Mapping)
+            and self._as_float(trade.get("baseline_pnl"))
+            and self._as_float(trade.get("pnl")) is not None
+        ]
+
+        if len(eligible) < streak:
+            return None
+
+        window_trades = eligible[-window:]
+
+        baseline_total = 0.0
+        actual_total = 0.0
+        for trade in window_trades:
+            baseline_value = self._as_float(trade.get("baseline_pnl")) or 0.0
+            actual_value = self._as_float(trade.get("pnl")) or 0.0
+            baseline_total += baseline_value
+            actual_total += actual_value
+
+        if baseline_total <= 0.0:
+            return None
+
+        ratio = actual_total / baseline_total
+        if not math.isfinite(ratio):
+            return None
+
+        sustained = False
+        sustained_streak = 0
+        observation_count = len(window_trades)
+        last_timestamp: datetime | None = None
+
+        for trade in reversed(eligible):
+            baseline_value = self._as_float(trade.get("baseline_pnl"))
+            actual_value = self._as_float(trade.get("pnl"))
+            if baseline_value is None or baseline_value <= 0.0 or actual_value is None:
+                continue
+            threshold = baseline_value * (1.0 - tolerance)
+            if actual_value <= threshold:
+                sustained_streak += 1
+                timestamp = trade.get("timestamp")
+                if isinstance(timestamp, datetime):
+                    last_timestamp = timestamp
+                if sustained_streak >= streak:
+                    sustained = True
+                    break
+            else:
+                break
+
+        diagnostics: dict[str, object] = {
+            "ratio": ratio,
+            "baseline_total": baseline_total,
+            "actual_total": actual_total,
+            "gap": baseline_total - actual_total,
+            "streak": sustained_streak,
+            "window": observation_count,
+            "eligible": len(eligible),
+        }
+
+        if last_timestamp is not None:
+            diagnostics["last_timestamp"] = last_timestamp
+
+        if sustained and ratio < 1.0 - tolerance:
+            diagnostics["sustained"] = True
+            return diagnostics
+
+        diagnostics["sustained"] = False
+        return diagnostics

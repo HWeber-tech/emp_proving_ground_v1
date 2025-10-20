@@ -141,3 +141,59 @@ def test_performance_tracker_integration_uses_shared_helpers() -> None:
 
     cached = tracker.calculate_metrics()
     assert cached is metrics
+
+
+def _seed_equity_curve(tracker: PerformanceTracker, start: datetime) -> None:
+    tracker.update_daily_equity(100_000.0, date=start)
+    tracker.update_daily_equity(100_060.0, date=start + timedelta(days=1))
+    tracker.update_daily_equity(100_130.0, date=start + timedelta(days=2))
+
+
+def test_baseline_alert_requires_sustained_series() -> None:
+    tracker = PerformanceTracker(initial_balance=100_000.0)
+    start = datetime(2024, 1, 1)
+    _seed_equity_curve(tracker, start)
+
+    for idx in range(3):
+        tracker.record_trade(
+            {
+                "entry_price": 100.0,
+                "exit_price": 100.01,
+                "size": 1.0,
+                "strategy": "alpha",
+                "spread": 0.02,
+                "timestamp": start + timedelta(minutes=idx),
+            }
+        )
+
+    alerts = tracker.get_performance_alerts()
+    baseline_alerts = [alert for alert in alerts if alert["type"] == "baseline"]
+
+    assert baseline_alerts == []
+
+
+def test_baseline_alert_triggers_on_sustained_underperformance() -> None:
+    tracker = PerformanceTracker(initial_balance=100_000.0)
+    start = datetime(2024, 1, 1)
+    _seed_equity_curve(tracker, start)
+
+    for idx in range(5):
+        tracker.record_trade(
+            {
+                "entry_price": 100.0,
+                "exit_price": 100.005,
+                "size": 1.0,
+                "strategy": "alpha",
+                "spread": 0.02,
+                "timestamp": start + timedelta(minutes=idx),
+            }
+        )
+
+    alerts = tracker.get_performance_alerts()
+    baseline_alerts = [alert for alert in alerts if alert["type"] == "baseline"]
+
+    assert len(baseline_alerts) == 1
+    baseline_alert = baseline_alerts[0]
+    assert baseline_alert["metric"] == "baseline_performance_ratio"
+    assert baseline_alert["value"] < 1.0
+    assert baseline_alert["details"]["streak"] >= 5

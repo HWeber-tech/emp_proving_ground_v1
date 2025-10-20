@@ -277,6 +277,13 @@ def _normalise_config(
     else:
         payload = {}
 
+    raw_connection_protocol = payload.get("connection_protocol")
+    if raw_connection_protocol is None:
+        raw_connection_protocol = payload.get("CONNECTION_PROTOCOL")
+    if raw_connection_protocol is None:
+        raw_connection_protocol = baseline_copy.get("connection_protocol") or "bootstrap"
+    normalised_connection_protocol = str(raw_connection_protocol).lower().strip() or "bootstrap"
+
     result = {
         "run_mode": str(payload.get("run_mode") or baseline_copy.get("run_mode") or "mock"),
         "environment": str(
@@ -286,11 +293,7 @@ def _normalise_config(
         "confirm_live": _coerce_bool(
             payload.get("confirm_live", baseline_copy.get("confirm_live"))
         ),
-        "connection_protocol": str(
-            payload.get("connection_protocol")
-            or baseline_copy.get("connection_protocol")
-            or "bootstrap"
-        ),
+        "connection_protocol": normalised_connection_protocol,
         "data_backbone_mode": str(
             payload.get("data_backbone_mode")
             or baseline_copy.get("data_backbone_mode")

@@ -7,11 +7,13 @@ import logging
 import math
 import random
 from collections import defaultdict, deque
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Callable, Coroutine, Deque, Mapping, Sequence
 
 import pandas as pd
+import numpy as np
 
 from src.config.risk.risk_config import RiskConfig
 from src.core.base import MarketData
@@ -58,6 +60,33 @@ _REPLAY_RARE_WEIGHT = 0.2
 _REPLAY_TEMPERATURE_START = 1.2
 _REPLAY_TEMPERATURE_MIN = 0.8
 _REPLAY_TEMPERATURE_DECAY = 0.995
+
+_ADAPTIVE_MIN_HISTORY = 16
+_ADAPTIVE_CALM_QUANTILE = 0.25
+_ADAPTIVE_VOLATILE_QUANTILE = 0.65
+_ADAPTIVE_CHAOS_QUANTILE = 0.9
+_ADAPTIVE_INTERVALS = {
+    "chaos": 1,
+    "volatile": 1,
+    "normal": 2,
+    "calm": 4,
+}
+
+
+@dataclass(slots=True)
+class _AdaptiveSamplingState:
+    """Track adaptive sampling metadata for a single symbol."""
+
+    current_state: str = "normal"
+    interval: int = 1
+    remaining: int = 0
+    last_sample_tick: int = -1
+    last_sample_timestamp: datetime | None = None
+    last_volatility: float = 0.0
+    thresholds: dict[str, float] = field(default_factory=dict)
+    last_update_tick: int = -1
+    last_state_change_tick: int = -1
+    last_skip_tick: int = -1
 
 
 def _temperature_mix(
@@ -417,6 +446,7 @@ class BootstrapRuntime:
             lambda: deque(maxlen=self._sensory_history_window)
         )
         self._latest_sensory_metrics: Mapping[str, Any] | None = None
+        self._adaptive_sampling_states: dict[str, _AdaptiveSamplingState] = {}
 
     @property
     def decisions(self) -> list[dict[str, Any]]:
@@ -446,11 +476,144 @@ class BootstrapRuntime:
 
         return record
 
+    def _extract_volatility_series(
+        self,
+        history: Sequence[Mapping[str, Any]],
+    ) -> list[float]:
+        values: list[float] = []
+        for entry in history:
+            raw_value = entry.get("volatility")
+            try:
+                numeric_value = float(raw_value)
+            except (TypeError, ValueError):
+                values = []
+                break
+            if not math.isfinite(numeric_value):
+                values = []
+                break
+            values.append(abs(numeric_value))
+
+        if values:
+            return values
+
+        derived: list[float] = []
+        previous_close: float | None = None
+        for entry in history:
+            try:
+                close_value = float(entry.get("close", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                close_value = 0.0
+            if previous_close is None:
+                derived.append(0.0)
+            else:
+                denominator = max(abs(previous_close), 1e-6)
+                derived.append(abs(close_value - previous_close) / denominator)
+            previous_close = close_value
+        return derived
+
+    def _classify_volatility_state(
+        self,
+        history: Sequence[Mapping[str, Any]],
+    ) -> tuple[str, float, dict[str, float]]:
+        series = self._extract_volatility_series(history)
+        if not series:
+            return "normal", 0.0, {"sample_size": 0, "insufficient": True}
+
+        latest = float(series[-1])
+        arr = np.asarray(series, dtype=float)
+        arr = arr[np.isfinite(arr)]
+        sample_size = int(arr.size)
+        thresholds: dict[str, float] = {"sample_size": float(sample_size)}
+
+        if sample_size < _ADAPTIVE_MIN_HISTORY:
+            thresholds["insufficient"] = True
+            thresholds["baseline"] = float(arr[-1]) if sample_size else 0.0
+            return "normal", latest, thresholds
+
+        spread = float(np.ptp(arr)) if sample_size else 0.0
+        thresholds["spread"] = spread
+        if spread < 1e-9:
+            thresholds["degenerate"] = True
+            thresholds["baseline"] = float(float(np.median(arr))) if sample_size else 0.0
+            return "normal", latest, thresholds
+
+        calm_cutoff = float(np.quantile(arr, _ADAPTIVE_CALM_QUANTILE))
+        volatile_cutoff = float(np.quantile(arr, _ADAPTIVE_VOLATILE_QUANTILE))
+        chaos_cutoff = float(np.quantile(arr, _ADAPTIVE_CHAOS_QUANTILE))
+        thresholds["calm"] = calm_cutoff
+        thresholds["volatile"] = volatile_cutoff
+        thresholds["chaos"] = chaos_cutoff
+
+        if chaos_cutoff <= calm_cutoff:
+            thresholds["degenerate"] = True
+            return "normal", latest, thresholds
+
+        if latest >= chaos_cutoff:
+            state = "chaos"
+        elif latest >= volatile_cutoff:
+            state = "volatile"
+        elif latest <= calm_cutoff:
+            state = "calm"
+        else:
+            state = "normal"
+
+        return state, latest, thresholds
+
+    def _sampling_interval_for_state(self, state: str, thresholds: Mapping[str, Any]) -> int:
+        if thresholds.get("insufficient"):
+            return 1
+        interval = _ADAPTIVE_INTERVALS.get(state, 1)
+        return interval if interval >= 1 else 1
+
+    def _should_capture_sensory_snapshot(
+        self,
+        symbol: str,
+        history: Sequence[Mapping[str, Any]],
+    ) -> tuple[bool, _AdaptiveSamplingState]:
+        state = self._adaptive_sampling_states.setdefault(symbol, _AdaptiveSamplingState())
+        volatility_state, latest_volatility, thresholds = self._classify_volatility_state(history)
+        target_interval = self._sampling_interval_for_state(volatility_state, thresholds)
+
+        state.last_update_tick = self._tick_counter
+        state.last_volatility = latest_volatility
+        state.thresholds = dict(thresholds)
+
+        state_changed = volatility_state != state.current_state
+        interval_changed = target_interval != state.interval
+
+        if state_changed:
+            state.current_state = volatility_state
+            state.interval = target_interval
+            state.remaining = 0
+            state.last_state_change_tick = self._tick_counter
+        elif interval_changed:
+            previous_interval = state.interval
+            state.interval = target_interval
+            if target_interval < previous_interval:
+                state.remaining = 0
+            else:
+                state.remaining = min(state.remaining, max(target_interval - 1, 0))
+
+        if state.remaining > 0:
+            state.remaining -= 1
+            state.last_skip_tick = self._tick_counter
+            return False, state
+
+        state.remaining = max(state.interval - 1, 0)
+        return True, state
+
     def _update_sensory_observation(self, snapshot: "SensorySnapshot") -> None:
         try:
             record = self._market_data_to_record(snapshot.market_data)
             history = self._sensory_history[snapshot.symbol]
             history.append(record)
+            should_capture, sampling_state = self._should_capture_sensory_snapshot(
+                snapshot.symbol,
+                history,
+            )
+            if not should_capture:
+                return
+
             frame = pd.DataFrame(list(history))
             metadata = {
                 "runtime": "bootstrap",
@@ -463,6 +626,8 @@ class BootstrapRuntime:
                 as_of=record["timestamp"],
                 metadata=metadata,
             )
+            sampling_state.last_sample_tick = self._tick_counter
+            sampling_state.last_sample_timestamp = record["timestamp"]
             self._publish_sensory_outputs(snapshot)
         except Exception:  # pragma: no cover - defensive guard for telemetry path
             logger.debug("Failed to update sensory cortex observation", exc_info=True)
@@ -602,6 +767,31 @@ class BootstrapRuntime:
                 "count": supervisor.active_count,
                 "tasks": self.describe_background_tasks(),
             }
+
+        if self._adaptive_sampling_states:
+            adaptive_snapshot: dict[str, Mapping[str, Any]] = {}
+            for symbol, sampling_state in self._adaptive_sampling_states.items():
+                interval_seconds = (
+                    float(self.tick_interval * sampling_state.interval)
+                    if self.tick_interval > 0
+                    else 0.0
+                )
+                adaptive_snapshot[symbol] = {
+                    "state": sampling_state.current_state,
+                    "interval": sampling_state.interval,
+                    "remaining": sampling_state.remaining,
+                    "interval_seconds": interval_seconds,
+                    "last_sample_tick": sampling_state.last_sample_tick,
+                    "last_sample_timestamp": sampling_state.last_sample_timestamp.isoformat()
+                    if isinstance(sampling_state.last_sample_timestamp, datetime)
+                    else None,
+                    "last_volatility": sampling_state.last_volatility,
+                    "thresholds": dict(sampling_state.thresholds),
+                    "last_state_change_tick": sampling_state.last_state_change_tick,
+                    "last_skip_tick": sampling_state.last_skip_tick,
+                    "last_update_tick": sampling_state.last_update_tick,
+                }
+            status["adaptive_sampling"] = adaptive_snapshot
         return status
 
     def describe_paper_broker(self) -> Mapping[str, Any] | None:

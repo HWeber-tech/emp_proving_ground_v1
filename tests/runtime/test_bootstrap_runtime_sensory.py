@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import sys
@@ -216,6 +217,129 @@ async def test_bootstrap_runtime_invokes_evolution_orchestrator() -> None:
     assert adaptive_runs.get("enabled") is False
     assert isinstance(readiness, Mapping)
     assert readiness.get("status") in {"review", "blocked", "ready"}
+
+
+def _make_record(symbol: str, volatility: float, close: float = 1.0) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    return {
+        "timestamp": now,
+        "symbol": symbol,
+        "open": close,
+        "high": close,
+        "low": close,
+        "close": close,
+        "volume": 1_000.0,
+        "volatility": volatility,
+        "spread": 0.0001,
+        "depth": 50.0,
+        "order_imbalance": 0.0,
+        "data_quality": 0.95,
+        "macro_bias": 0.0,
+    }
+
+
+def test_adaptive_sampling_detects_chaos_and_uses_high_resolution() -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.2, max_ticks=0)
+
+    symbol = "CHAOS"
+    history = runtime._sensory_history[symbol]
+    baseline = [
+        0.011,
+        0.012,
+        0.013,
+        0.012,
+        0.014,
+        0.013,
+        0.012,
+        0.015,
+        0.014,
+        0.013,
+        0.012,
+        0.016,
+        0.014,
+        0.013,
+        0.012,
+    ]
+    for value in baseline:
+        history.append(_make_record(symbol, value, close=1.0 + value))
+    history.append(_make_record(symbol, 0.065, close=1.065))
+
+    runtime._tick_counter = 42
+    should_sample, sampling_state = runtime._should_capture_sensory_snapshot(symbol, history)
+    assert should_sample is True
+    assert sampling_state.current_state == "chaos"
+    assert sampling_state.interval == 1
+
+    runtime._tick_counter += 1
+    history.append(_make_record(symbol, 0.07, close=1.07))
+    follow_up, _ = runtime._should_capture_sensory_snapshot(symbol, history)
+    assert follow_up is True, "chaos state must remain high resolution"
+
+
+def test_adaptive_sampling_skips_ticks_when_calm() -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.5, max_ticks=0)
+
+    symbol = "CALM"
+    history = runtime._sensory_history[symbol]
+    baseline = [
+        0.041,
+        0.039,
+        0.042,
+        0.04,
+        0.038,
+        0.043,
+        0.041,
+        0.039,
+        0.044,
+        0.04,
+        0.039,
+        0.042,
+        0.041,
+        0.039,
+        0.043,
+    ]
+    for value in baseline:
+        history.append(_make_record(symbol, value, close=1.0 + value))
+    history.append(_make_record(symbol, 0.004, close=0.99))
+
+    runtime._tick_counter = 10
+    should_sample, sampling_state = runtime._should_capture_sensory_snapshot(symbol, history)
+    assert should_sample is True
+    assert sampling_state.current_state == "calm"
+    assert sampling_state.interval > 1
+
+    runtime._tick_counter += 1
+    history.append(_make_record(symbol, 0.0035, close=0.989))
+    follow_up, follow_state = runtime._should_capture_sensory_snapshot(symbol, history)
+    assert follow_state.current_state == "calm"
+    assert follow_state.interval > 1
+    assert follow_up is False, "calm regime should permit skipped ticks"
+
+
+def test_status_reports_adaptive_sampling_snapshot() -> None:
+    event_bus = EventBus()
+    runtime = BootstrapRuntime(event_bus=event_bus, tick_interval=0.25, max_ticks=0)
+
+    symbol = "STATUS"
+    history = runtime._sensory_history[symbol]
+    for idx in range(18):
+        vol = 0.01 + 0.001 * idx
+        history.append(_make_record(symbol, vol, close=1.0 + vol))
+
+    runtime._tick_counter = 8
+    runtime._should_capture_sensory_snapshot(symbol, history)
+
+    status = runtime.status()
+    adaptive = status.get("adaptive_sampling")
+    assert isinstance(adaptive, Mapping)
+    assert symbol in adaptive
+    snapshot = adaptive[symbol]
+    state = runtime._adaptive_sampling_states[symbol]
+    assert snapshot["state"] == state.current_state
+    assert snapshot["interval"] == state.interval
+    assert snapshot["last_volatility"] == pytest.approx(state.last_volatility)
 
 
 @pytest.mark.asyncio()

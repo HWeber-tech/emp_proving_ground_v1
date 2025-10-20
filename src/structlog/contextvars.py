@@ -38,6 +38,12 @@ def get_contextvars() -> MutableMapping[str, object]:
     return dict(_CONTEXT.get())
 
 
+def clear_contextvars() -> None:
+    """Remove all key/value pairs from the current logging context."""
+
+    _CONTEXT.set({})
+
+
 def merge_contextvars(
     _logger: object,
     _method_name: str,
@@ -57,5 +63,6 @@ __all__ = [
     "bind_contextvars",
     "unbind_contextvars",
     "get_contextvars",
+    "clear_contextvars",
     "merge_contextvars",
 ]

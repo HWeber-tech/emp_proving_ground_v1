@@ -270,10 +270,14 @@ def promote_tested(
                    progress_at = CASE
                                      WHEN ? = 'progress' THEN COALESCE(progress_at, CURRENT_TIMESTAMP)
                                      ELSE progress_at
-                                 END
+                                 END,
+                   completed_at = CASE
+                                      WHEN ? = 'progress' THEN COALESCE(completed_at, progress_at, tested_at, CURRENT_TIMESTAMP)
+                                      ELSE COALESCE(completed_at, tested_at, CURRENT_TIMESTAMP)
+                                  END
              WHERE id = ?
             """,
-            (metrics_json, stage, stage, int(fid)),
+            (metrics_json, stage, stage, stage, int(fid)),
         )
         conn.execute(
             """

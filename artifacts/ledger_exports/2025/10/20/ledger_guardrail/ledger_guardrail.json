@@ -5,11 +5,11 @@
         "ops",
         "risk"
       ],
-      "created_at": "2025-10-20T03:45:09.328819+00:00",
+      "created_at": "2025-10-20T04:20:33.394168+00:00",
       "evidence_id": "dd-alpha-guard",
       "history": [
         {
-          "applied_at": "2025-10-20T03:45:09.328819+00:00",
+          "applied_at": "2025-10-20T04:20:33.394168+00:00",
           "approvals": [
             "ops",
             "risk"
@@ -29,8 +29,8 @@
       "policy_id": "alpha_guard",
       "stage": "limited_live",
       "tactic_id": "alpha_guard",
-      "updated_at": "2025-10-20T03:45:09.328819+00:00"
+      "updated_at": "2025-10-20T04:20:33.394168+00:00"
     }
   },
-  "updated_at": "2025-10-20T03:45:09.328958+00:00"
+  "updated_at": "2025-10-20T04:20:33.394350+00:00"
 }

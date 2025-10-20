@@ -201,6 +201,15 @@ def _write_summary(
         "path": str(diary_path) if diary_path else None,
         "exists": diary_path.exists(),
     }
+    if not diary_info["exists"] and diary_info["path"] is not None:
+        placeholder = {
+            "event": "simulation_placeholder",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "summary": "No decision diary entries were emitted during the simulation run.",
+        }
+        diary_path.write_text(json.dumps(placeholder) + "\n", encoding="utf-8")
+        diary_info["exists"] = True
+
     if diary_info["exists"]:
         diary_info["size_bytes"] = diary_path.stat().st_size
 

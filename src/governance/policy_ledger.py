@@ -838,6 +838,12 @@ class PolicyLedgerStore:
     def iter_records(self) -> tuple[PolicyLedgerRecord, ...]:
         return tuple(self._records.values())
 
+    @property
+    def path(self) -> Path:
+        """Return the filesystem path backing the ledger store."""
+
+        return self._path
+
     def upsert(
         self,
         *,

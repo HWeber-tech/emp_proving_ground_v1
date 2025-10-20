@@ -1,27 +1,49 @@
 {
   "records": {
-    "alpha": {
+    "alpha.policy": {
       "approvals": [
+        "compliance",
         "risk"
       ],
-      "created_at": "2025-10-20T03:51:57.670825+00:00",
-      "evidence_id": "dd-20251020T035157Z-75b97028",
+      "created_at": "2025-10-20T04:30:55.497001+00:00",
+      "evidence_id": "diary-101",
       "history": [
         {
-          "applied_at": "2025-10-20T03:51:57.670825+00:00",
+          "applied_at": "2025-10-20T04:30:55.497001+00:00",
           "approvals": [
+            "compliance",
             "risk"
           ],
-          "evidence_id": "dd-20251020T035157Z-75b97028",
+          "evidence_id": "diary-101",
           "next_stage": "paper",
+          "policy_delta": {
+            "metadata": {},
+            "notes": [],
+            "risk_config": {
+              "max_leverage": 6
+            },
+            "router_guardrails": {
+              "max_latency_ms": 180
+            }
+          },
           "prior_stage": null
         }
       ],
-      "policy_id": "alpha",
+      "policy_delta": {
+        "metadata": {},
+        "notes": [],
+        "risk_config": {
+          "max_leverage": 6
+        },
+        "router_guardrails": {
+          "max_latency_ms": 180
+        }
+      },
+      "policy_id": "alpha.policy",
       "stage": "paper",
-      "tactic_id": "alpha",
-      "updated_at": "2025-10-20T03:51:57.670825+00:00"
+      "tactic_id": "tactic.alpha",
+      "updated_at": "2025-10-20T04:30:55.497001+00:00"
     }
   },
-  "updated_at": "2025-10-20T03:51:57.670954+00:00"
+  "updated_at": "2025-10-20T04:30:55.497189+00:00"
 }

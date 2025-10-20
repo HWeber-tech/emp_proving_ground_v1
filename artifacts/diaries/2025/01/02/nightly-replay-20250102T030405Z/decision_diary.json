@@ -2,7 +2,7 @@
   "entries": [
     {
       "decision": {
-        "decision_timestamp": "2025-10-19T16:02:38.008189+00:00",
+        "decision_timestamp": "2025-10-20T04:30:54.762606+00:00",
         "experiments_applied": [
           "nightly-replay-20250102T030405Z"
         ],
@@ -48,7 +48,7 @@
           "base_weight": 1.0
         }
       },
-      "entry_id": "dd-20251019T160238Z-430781aa",
+      "entry_id": "dd-20251020T043054Z-0f8d69fb",
       "metadata": {
         "evaluation_id": "nightly-replay-20250102T030405Z",
         "policy": "momentum_long_short",
@@ -73,7 +73,7 @@
       },
       "policy_id": "momentum_long_short",
       "probes": [],
-      "recorded_at": "2025-10-19T16:02:38.008662+00:00",
+      "recorded_at": "2025-10-20T04:30:54.763134+00:00",
       "regime_state": {
         "confidence": 0.65,
         "features": {
@@ -82,12 +82,12 @@
           "win_rate": 0.6
         },
         "regime": "balanced",
-        "timestamp": "2025-10-19T16:02:38.008189+00:00"
+        "timestamp": "2025-10-20T04:30:54.762606+00:00"
       }
     },
     {
       "decision": {
-        "decision_timestamp": "2025-10-19T16:02:38.008561+00:00",
+        "decision_timestamp": "2025-10-20T04:30:54.762989+00:00",
         "experiments_applied": [
           "nightly-replay-20250102T030405Z"
         ],
@@ -133,7 +133,7 @@
           "base_weight": 0.8
         }
       },
-      "entry_id": "dd-20251019T160238Z-af472eea",
+      "entry_id": "dd-20251020T043054Z-2f8a7712",
       "metadata": {
         "evaluation_id": "nightly-replay-20250102T030405Z",
         "policy": "mean_reversion_guard",
@@ -158,7 +158,7 @@
       },
       "policy_id": "mean_reversion_guard",
       "probes": [],
-      "recorded_at": "2025-10-19T16:02:38.010336+00:00",
+      "recorded_at": "2025-10-20T04:30:54.764406+00:00",
       "regime_state": {
         "confidence": 0.65,
         "features": {
@@ -167,13 +167,13 @@
           "win_rate": 0.6
         },
         "regime": "balanced",
-        "timestamp": "2025-10-19T16:02:38.008561+00:00"
+        "timestamp": "2025-10-20T04:30:54.762989+00:00"
       }
     }
   ],
-  "generated_at": "2025-10-19T16:02:38.010370+00:00",
+  "generated_at": "2025-10-20T04:30:54.764436+00:00",
   "probe_registry": {
-    "generated_at": "2025-10-19T16:02:38.007566+00:00",
+    "generated_at": "2025-10-20T04:30:54.761998+00:00",
     "probes": {}
   }
 }

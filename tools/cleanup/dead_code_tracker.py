@@ -143,7 +143,9 @@ def summarise_candidates(
         path = repo_root / candidate
         if path.exists():
             if path.is_file() and path.suffix == ".py" and _is_removed_stub(path):
+                status = DeadCodeStatus.MODULE_NOT_FOUND_STUB
                 missing.append(candidate)
+                status_by_path[candidate] = status
                 continue
 
             present.append(candidate)

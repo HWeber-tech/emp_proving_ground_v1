@@ -167,11 +167,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("Either --policy-hash or --policy-id must be provided")
         return 1
 
+    runtime_output = args.runtime_output
+    if runtime_output is None:
+        if args.output is not None:
+            runtime_output = args.output.with_name("runtime_config.json")
+        else:
+            runtime_output = args.ledger.with_name("runtime_config.json")
+    runtime_output = runtime_output.expanduser().resolve()
+
     try:
         runtime_config = rebuild_strategy(
             target_hash,
             store=store,
             base_config=base_config,
+            runtime_output_path=runtime_output,
         )
     except Exception as exc:
         logger.error("Failed to rebuild runtime config: %s", exc)
@@ -184,11 +193,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     if args.output is None:
+        runtime_output.parent.mkdir(parents=True, exist_ok=True)
+        runtime_output.write_bytes(runtime_config.runtime_json_bytes)
         return 0
+
+    runtime_output.parent.mkdir(parents=True, exist_ok=True)
+    runtime_output.write_bytes(runtime_config.runtime_json_bytes)
 
     logger.info(
         "Runtime payload digest %s for policy %s",
-        runtime_config.digest,
+        runtime_config.runtime_digest,
         runtime_config.policy_hash,
     )
 

@@ -1,64 +1,36 @@
 {
   "records": {
-    "momentum_long_short": {
-      "approvals": [],
-      "created_at": "2025-10-20T04:03:16.188246+00:00",
-      "evidence_id": "replay:momentum_long_short:demotion-run",
+    "alpha": {
+      "approvals": [
+        "ops",
+        "risk"
+      ],
+      "created_at": "2025-10-20T04:20:35.220605+00:00",
+      "evidence_id": "diary-alpha",
       "history": [
         {
-          "applied_at": "2025-10-20T04:03:16.188246+00:00",
+          "applied_at": "2025-10-20T04:20:35.220605+00:00",
           "approvals": [
-            "qa"
+            "ops",
+            "risk"
           ],
-          "evidence_id": "dd-1",
-          "next_stage": "paper",
+          "evidence_id": "diary-alpha",
+          "next_stage": "limited_live",
           "prior_stage": null
-        },
-        {
-          "applied_at": "2025-10-20T04:03:16.191205+00:00",
-          "approvals": [],
-          "evidence_id": "replay:momentum_long_short:demotion-run",
-          "next_stage": "experiment",
-          "prior_stage": "paper"
         }
       ],
       "metadata": {
-        "current_stage": "paper",
-        "decision": "demote",
-        "evaluated_at": "2025-10-20T04:03:16.191140+00:00",
-        "evaluation_id": "demotion-run",
-        "metrics": {
-          "losses": 1.0,
-          "max_drawdown": 0.002051282051282022,
-          "sharpe_ratio": -0.5,
-          "total_return": -0.002051282051282022,
-          "trades": 1.0,
-          "volatility": 0.0010256410256410256,
-          "win_rate": 0.0,
-          "wins": 0.0
-        },
-        "reason": "performance breached demotion thresholds",
-        "recorded_at": "2025-10-20T04:03:16.191187+00:00",
-        "snapshot_count": 5,
-        "target_stage": "experiment",
-        "thresholds": {
-          "demote_max_drawdown": 0.2,
-          "demote_sharpe": 0.05,
-          "demote_total_return": -0.01,
-          "demote_win_rate": 0.48,
-          "min_confidence": 0.55,
-          "min_trades": 1.0,
-          "promote_max_drawdown": 0.25,
-          "promote_sharpe": 0.4,
-          "promote_total_return": 0.05,
-          "promote_win_rate": 0.55
+        "promotion_checklist": {
+          "leakage_checks": true,
+          "oos_regime_grid": true,
+          "risk_audit": true
         }
       },
-      "policy_id": "momentum_long_short",
-      "stage": "experiment",
-      "tactic_id": "momentum_long_short",
-      "updated_at": "2025-10-20T04:03:16.191205+00:00"
+      "policy_id": "alpha",
+      "stage": "limited_live",
+      "tactic_id": "alpha",
+      "updated_at": "2025-10-20T04:20:35.220605+00:00"
     }
   },
-  "updated_at": "2025-10-20T04:03:16.191456+00:00"
+  "updated_at": "2025-10-20T04:20:35.220818+00:00"
 }

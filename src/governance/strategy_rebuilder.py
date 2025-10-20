@@ -173,6 +173,10 @@ class StrategyRuntimeConfig:
     history: tuple[Mapping[str, Any], ...]
     updated_at: datetime
     evidence_id: str | None
+    runtime_config: Mapping[str, Any]
+    runtime_json_bytes: bytes
+    runtime_digest: str
+    runtime_config_path: str
     payload: Mapping[str, Any]
     json_bytes: bytes
     digest: str
@@ -205,6 +209,7 @@ def rebuild_strategy(
     ledger_path: str | Path | None = None,
     base_config: RiskConfig | Mapping[str, Any] | None = None,
     default_guardrails: Mapping[str, Any] | None = None,
+    runtime_output_path: str | Path | None = None,
 ) -> StrategyRuntimeConfig:
     """Rebuild a strategy's runtime configuration from the governance ledger.
 
@@ -240,6 +245,9 @@ def rebuild_strategy(
     if ledger_store is None:
         path = Path(ledger_path) if ledger_path is not None else _DEFAULT_LEDGER_PATH
         ledger_store = PolicyLedgerStore(path)
+        ledger_source_path = path
+    else:
+        ledger_source_path = ledger_store.path
 
     phenotypes = build_policy_phenotypes(
         ledger_store,
@@ -248,16 +256,31 @@ def rebuild_strategy(
     )
     phenotype = select_policy_phenotype(phenotypes, policy_hash=policy_hash)
 
-    payload = _canonical_payload(phenotype)
-    json_bytes = _canonical_json_bytes(payload)
+    runtime_output = (
+        Path(runtime_output_path)
+        if runtime_output_path is not None
+        else ledger_source_path.with_name("runtime_config.json")
+    ).expanduser().resolve()
+
+    runtime_payload_raw = _canonical_payload(phenotype)
+    runtime_json_bytes = _canonical_json_bytes(runtime_payload_raw)
+    runtime_payload = cast(Mapping[str, Any], json.loads(runtime_json_bytes.decode("utf-8")))
+    runtime_digest = sha256(runtime_json_bytes).hexdigest()
+
+    enriched_payload: MutableMapping[str, Any] = dict(runtime_payload)
+    enriched_payload["runtime_config"] = runtime_payload
+    enriched_payload["runtime_digest"] = runtime_digest
+    enriched_payload["runtime_config_path"] = str(runtime_output)
+
+    json_bytes = _canonical_json_bytes(enriched_payload)
     digest = sha256(json_bytes).hexdigest()
 
-    approvals_payload = cast(Sequence[Any], payload["approvals"])
-    risk_config_payload = cast(Mapping[str, Any], payload["risk_config"])
-    guardrails_payload = cast(Mapping[str, Any], payload["router_guardrails"])
-    thresholds_payload = cast(Mapping[str, Any], payload["thresholds"])
-    metadata_payload = cast(Mapping[str, Any], payload["metadata"])
-    history_payload = cast(Sequence[Any], payload["history"])
+    approvals_payload = cast(Sequence[Any], runtime_payload["approvals"])
+    risk_config_payload = cast(Mapping[str, Any], runtime_payload["risk_config"])
+    guardrails_payload = cast(Mapping[str, Any], runtime_payload["router_guardrails"])
+    thresholds_payload = cast(Mapping[str, Any], runtime_payload["thresholds"])
+    metadata_payload = cast(Mapping[str, Any], runtime_payload["metadata"])
+    history_payload = cast(Sequence[Any], runtime_payload["history"])
 
     approvals = tuple(str(item) for item in approvals_payload)
     risk_config = dict(risk_config_payload)
@@ -279,7 +302,11 @@ def rebuild_strategy(
         history=history,
         updated_at=phenotype.updated_at,
         evidence_id=phenotype.evidence_id,
-        payload=payload,
+        runtime_config=dict(runtime_payload),
+        runtime_json_bytes=runtime_json_bytes,
+        runtime_digest=runtime_digest,
+        runtime_config_path=str(runtime_output),
+        payload=dict(enriched_payload),
         json_bytes=json_bytes,
         digest=digest,
     )

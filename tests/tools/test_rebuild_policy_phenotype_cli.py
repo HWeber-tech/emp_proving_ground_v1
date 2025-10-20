@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from hashlib import sha256
 from pathlib import Path
@@ -66,7 +67,7 @@ def test_rebuild_policy_phenotype_cli_outputs_payload(tmp_path: Path) -> None:
     assert sha256(output_bytes).hexdigest() == expected_config.digest
 
     assert payload["runtime_digest"]
-    assert payload["runtime_config"]["policy_hash"] == phenotype["policy_hash"]
+    assert payload["runtime_config"]["policy_hash"] == phenotype.policy_hash
     assert payload["runtime_config"]["risk_config"]["max_leverage"] == 6.0
     assert payload["runtime_config_path"] == str(runtime_output)
 

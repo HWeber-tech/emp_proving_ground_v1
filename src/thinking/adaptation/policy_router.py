@@ -678,6 +678,9 @@ class PolicyRouter:
         allow_forced_exploration: bool = True,
         linear_attention_router: "LinearAttentionRouter" | None = None,
         entropy_governor: "EntropyGovernor" | None = None,
+        context_recall_strength: float = 0.03,
+        context_recall_half_life: float = 3600.0,
+        context_recall_match_threshold: float = 5.0,
     ) -> None:
         self._tactics: dict[str, PolicyTactic] = {}
         self._experiments: dict[str, FastWeightExperiment] = {}
@@ -709,6 +712,9 @@ class PolicyRouter:
         self.allow_forced_exploration = allow_forced_exploration
         self._linear_attention_router: LinearAttentionRouter | None = linear_attention_router
         self._entropy_governor: EntropyGovernor | None = entropy_governor
+        self._context_recall_strength = max(0.0, float(context_recall_strength))
+        self._context_recall_half_life = max(0.0, float(context_recall_half_life))
+        self._context_recall_match_threshold = max(0.0, float(context_recall_match_threshold))
 
     def exploration_freeze_active(self) -> bool:
         """Return ``True`` when exploration is currently frozen."""
@@ -774,6 +780,121 @@ class PolicyRouter:
             return dict(_DEFAULT_TOURNAMENT_WEIGHTS)
 
         return {key: value / total for key, value in cleaned.items()}
+
+    @staticmethod
+    def _extract_numeric_features(
+        features: Mapping[str, object] | None,
+    ) -> dict[str, float]:
+        numeric: dict[str, float] = {}
+        if not isinstance(features, Mapping):
+            return numeric
+        for key, value in features.items():
+            try:
+                numeric[str(key)] = float(value)
+            except (TypeError, ValueError):
+                continue
+        return numeric
+
+    def _context_recall_similarity(
+        self,
+        current_features: Mapping[str, float],
+        previous_features: Mapping[str, object] | None,
+    ) -> float:
+        if not current_features or not isinstance(previous_features, Mapping):
+            return 0.0
+        previous_numeric = self._extract_numeric_features(previous_features)
+        if not previous_numeric:
+            return 0.0
+
+        overlap = set(current_features) & set(previous_numeric)
+        if not overlap:
+            return 0.0
+
+        dot = sum(current_features[key] * previous_numeric[key] for key in overlap)
+        norm_current = math.sqrt(sum(current_features[key] ** 2 for key in overlap))
+        norm_previous = math.sqrt(sum(previous_numeric[key] ** 2 for key in overlap))
+        if norm_current == 0.0 or norm_previous == 0.0:
+            return 0.0
+
+        similarity = dot / (norm_current * norm_previous)
+        if not math.isfinite(similarity):
+            return 0.0
+        return max(0.0, min(1.0, float(similarity)))
+
+    def _context_recall_multiplier(
+        self,
+        *,
+        tactic: PolicyTactic,
+        regime_state: RegimeState,
+    ) -> tuple[float, Mapping[str, object]]:
+        if self._context_recall_strength <= 0.0 or not self._history:
+            return 1.0, {"matched": 0, "weighted_similarity": None, "multiplier": 1.0}
+
+        current_numeric = self._extract_numeric_features(regime_state.features)
+        if not current_numeric:
+            return 1.0, {"matched": 0, "weighted_similarity": None, "multiplier": 1.0}
+
+        timestamp = regime_state.timestamp
+        if timestamp.tzinfo is None:
+            current_timestamp = timestamp.replace(tzinfo=timezone.utc)
+        else:
+            current_timestamp = timestamp.astimezone(timezone.utc)
+
+        matched = 0
+        contributions: list[tuple[float, float]] = []
+        latest_match: datetime | None = None
+
+        for entry in reversed(self._history):
+            if entry.get("tactic_id") != tactic.tactic_id:
+                continue
+
+            similarity = self._context_recall_similarity(current_numeric, entry.get("regime_features"))
+            if similarity <= 0.0:
+                continue
+
+            matched += 1
+            entry_timestamp = self._parse_timestamp(entry.get("timestamp"))
+            weight = 1.0
+            if (
+                entry_timestamp is not None
+                and current_timestamp is not None
+                and self._context_recall_half_life > 0.0
+            ):
+                age_seconds = max(0.0, (current_timestamp - entry_timestamp).total_seconds())
+                weight = math.exp(-age_seconds / self._context_recall_half_life)
+            if entry_timestamp is not None:
+                if latest_match is None or entry_timestamp > latest_match:
+                    latest_match = entry_timestamp
+            contributions.append((similarity, weight))
+
+        if not contributions:
+            return 1.0, {"matched": 0, "weighted_similarity": None, "multiplier": 1.0}
+
+        total_weight = sum(weight for _, weight in contributions)
+        if total_weight <= 0.0:
+            weighted_similarity = 0.0
+        else:
+            weighted_similarity = sum(sim * weight for sim, weight in contributions) / total_weight
+        weighted_similarity = max(0.0, min(1.0, weighted_similarity))
+
+        if self._context_recall_match_threshold > 0.0:
+            match_factor = min(1.0, matched / self._context_recall_match_threshold)
+        else:
+            match_factor = 1.0
+        effective_strength = self._context_recall_strength * match_factor
+        multiplier = 1.0 + effective_strength * weighted_similarity
+        context: dict[str, object] = {
+            "matched": matched,
+            "weighted_similarity": weighted_similarity,
+            "multiplier": multiplier,
+        }
+        context["match_factor"] = match_factor
+        context["effective_strength"] = effective_strength
+        if latest_match is not None:
+            context["latest_timestamp"] = latest_match.isoformat()
+        if matched:
+            context["average_weight"] = total_weight / matched
+        return multiplier, context
 
     def exploration_freeze_state(self) -> Mapping[str, object]:
         """Expose the current freeze state for observability surfaces."""
@@ -1137,6 +1258,13 @@ class PolicyRouter:
                 applied_experiments.append(experiment)
                 multiplier *= experiment.multiplier
 
+            recall_multiplier, recall_context = self._context_recall_multiplier(
+                tactic=tactic,
+                regime_state=regime_state,
+            )
+            multiplier *= recall_multiplier
+            breakdown["context_recall_multiplier"] = float(recall_multiplier)
+
             score = base_score * multiplier
             scoreboard.append(
                 {
@@ -1146,6 +1274,7 @@ class PolicyRouter:
                     "experiments": tuple(applied_experiments),
                     "multiplier": multiplier,
                     "base_score": base_score,
+                    "context_recall": recall_context,
                     "fast_weight_metrics": (
                         dict(fast_weight_metrics_payload)
                         if fast_weight_metrics_payload
@@ -2173,6 +2302,9 @@ class PolicyRouter:
                     "base_score": float(entry.get("base_score", 0.0)),
                 }
             )
+            context_recall_summary = entry.get("context_recall")
+            if isinstance(context_recall_summary, Mapping):
+                top_candidates[-1]["context_recall"] = dict(context_recall_summary)
 
         winning_tactic: PolicyTactic = winner["tactic"]  # type: ignore[assignment]
         winning_experiments: Iterable[FastWeightExperiment] = winner["experiments"]  # type: ignore[assignment]
@@ -2202,6 +2334,15 @@ class PolicyRouter:
                 else {}
             ),
         }
+        context_recall = winner.get("context_recall")
+        if isinstance(context_recall, Mapping):
+            summary["context_recall"] = dict(context_recall)
+        else:
+            summary["context_recall"] = {
+                "matched": 0,
+                "weighted_similarity": None,
+                "multiplier": float(winner.get("multiplier", 1.0)),
+            }
         if exploration_context:
             summary["exploration"] = {
                 "selected": bool(exploration_context.get("selected_is_exploration", False)),
@@ -2430,6 +2571,21 @@ class PolicyRouter:
             "base_score": base_score,
             "final_score": float(summary.get("score", base_score * total_multiplier)),
         }
+        context_recall = summary.get("context_recall")
+        if isinstance(context_recall, Mapping):
+            payload["context_recall_multiplier"] = float(context_recall.get("multiplier", 1.0))
+            similarity = context_recall.get("weighted_similarity")
+            payload["context_recall_similarity"] = (
+                float(similarity)
+                if isinstance(similarity, (int, float))
+                else None
+            )
+            matches = context_recall.get("matched")
+            payload["context_recall_matches"] = int(matches) if isinstance(matches, (int, float)) else 0
+        else:
+            payload["context_recall_multiplier"] = 1.0
+            payload["context_recall_similarity"] = None
+            payload["context_recall_matches"] = 0
         metrics = summary.get("fast_weight_metrics")
         if isinstance(metrics, Mapping):
             active_percentage = metrics.get("active_percentage")

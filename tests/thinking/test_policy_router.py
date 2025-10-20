@@ -73,6 +73,59 @@ def test_route_selects_highest_weight_with_regime_bias() -> None:
     assert metrics["total"] == 2
 
 
+def test_context_recall_boosts_similar_tactic() -> None:
+    router = PolicyRouter(
+        context_recall_strength=0.4,
+        context_recall_half_life=1e9,
+        context_recall_match_threshold=1.0,
+    )
+    router.register_tactics(
+        (
+            PolicyTactic(
+                tactic_id="familiar",
+                base_weight=1.0,
+                regime_bias={"prime": 1.0},
+            ),
+            PolicyTactic(
+                tactic_id="novel",
+                base_weight=1.05,
+                regime_bias={"prime": 1.0},
+            ),
+        )
+    )
+
+    base_time = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)
+    features = {"volume_z": 0.25, "volatility": 0.15}
+    first_decision = router.route(
+        RegimeState(
+            regime="prime",
+            confidence=0.8,
+            features=features,
+            timestamp=base_time,
+        ),
+        fast_weights={"familiar": 1.3},
+    )
+
+    assert first_decision.tactic_id == "familiar"
+
+    second_decision = router.route(
+        RegimeState(
+            regime="prime",
+            confidence=0.8,
+            features=dict(features),
+            timestamp=base_time + timedelta(minutes=5),
+        )
+    )
+
+    assert second_decision.tactic_id == "familiar"
+    breakdown = second_decision.weight_breakdown
+    assert breakdown["context_recall_multiplier"] == pytest.approx(1.4, rel=1e-6)
+    context_recall = second_decision.reflection_summary["context_recall"]
+    assert context_recall["matched"] == 1
+    assert context_recall["weighted_similarity"] == pytest.approx(1.0, rel=1e-6)
+    assert context_recall["effective_strength"] == pytest.approx(0.4, rel=1e-6)
+
+
 def test_regime_flip_forces_topology_switch_and_records_transition() -> None:
     router = PolicyRouter(regime_switch_deadline_ms=50)
     base = datetime(2024, 3, 15, 12, 0, tzinfo=timezone.utc)

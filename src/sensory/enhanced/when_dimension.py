@@ -63,7 +63,7 @@ class ChronalUnderstandingEngine:
         regime = MarketRegime.UNKNOWN
         if active_count >= 2 and signal_strength > 0.2:
             regime = MarketRegime.BREAKOUT
-        elif session_bias > 0.1:
+        elif session_bias > 0.1 and not halted_flag:
             regime = MarketRegime.TRENDING_WEAK
         elif active_count == 0 and session_token != "auction_open":
             regime = MarketRegime.CONSOLIDATING
@@ -75,6 +75,10 @@ class ChronalUnderstandingEngine:
             "weekday": weekday,
             "is_weekend": is_weekend,
         }
+        if session_snapshot.minutes_to_next_session is not None:
+            context["minutes_to_next_session"] = session_snapshot.minutes_to_next_session
+        if session_snapshot.minutes_to_session_close is not None:
+            context["minutes_to_session_close"] = session_snapshot.minutes_to_session_close
 
         reading = DimensionalReading(
             dimension="WHEN",

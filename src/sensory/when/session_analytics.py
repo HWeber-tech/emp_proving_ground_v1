@@ -4,11 +4,136 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
-from typing import Iterable
+from math import isfinite
+from numbers import Real
+from typing import Iterable, Mapping
 
 import pandas as pd
 
-__all__ = ["TradingSession", "SessionAnalyticsConfig", "SessionSnapshot", "SessionAnalytics"]
+__all__ = [
+    "TradingSession",
+    "SessionAnalyticsConfig",
+    "SessionSnapshot",
+    "SessionAnalytics",
+    "normalise_session_tokens",
+    "primary_session_token",
+    "extract_session_event_flags",
+]
+
+
+_SESSION_NAME_TOKENS = {
+    "asia": "Asia",
+    "london": "London",
+    "new_york": "NY",
+}
+
+_SESSION_TOKEN_ORDER: tuple[str, ...] = (
+    "Asia",
+    "London",
+    "NY",
+    "auction_open",
+    "auction_close",
+    "halt",
+    "resume",
+)
+
+_PRIMARY_SESSION_PRIORITY: tuple[str, ...] = ("London", "NY", "Asia")
+
+_HALT_FLAG_KEYS: tuple[str, ...] = (
+    "halted",
+    "halt",
+    "halt_active",
+    "trading_halt",
+    "market_halt",
+)
+
+_RESUME_FLAG_KEYS: tuple[str, ...] = (
+    "halt_resumed",
+    "resume",
+    "resumed",
+    "trading_resume",
+)
+
+_HALT_KEYWORDS: frozenset[str] = frozenset(
+    {"halt", "halted", "trade_halt", "trading_halt", "halt_active", "market_halt"}
+)
+_RESUME_KEYWORDS: frozenset[str] = frozenset(
+    {"resume", "resumed", "trading_resume", "halt_resumed"}
+)
+
+
+def normalise_session_tokens(candidates: Iterable[str]) -> tuple[str, ...]:
+    """Return session tokens in canonical order without duplicates."""
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+
+    for token in candidates:
+        canonical = str(token)
+        if not canonical:
+            continue
+        if canonical not in seen:
+            seen.add(canonical)
+            ordered.append(canonical)
+
+    prioritised: list[str] = []
+    for token in _SESSION_TOKEN_ORDER:
+        if token in seen:
+            prioritised.append(token)
+            seen.remove(token)
+
+    for token in ordered:
+        if token in seen:
+            prioritised.append(token)
+            seen.remove(token)
+
+    return tuple(prioritised)
+
+
+def primary_session_token(tokens: Iterable[str]) -> str | None:
+    """Return the dominant session token when available."""
+
+    collected = tuple(tokens)
+    for candidate in _PRIMARY_SESSION_PRIORITY:
+        if candidate in collected:
+            return candidate
+    return None
+
+
+def _flag_truthy(value: object, *, keywords: frozenset[str]) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, Real):
+        numeric = float(value)
+        if not isfinite(numeric):
+            return False
+        return numeric != 0.0
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if not lowered:
+            return False
+        if lowered in keywords:
+            return True
+        return lowered in {"1", "true", "yes", "y", "on"}
+    return False
+
+
+def extract_session_event_flags(payload: Mapping[str, object]) -> tuple[bool, bool]:
+    """Detect halt/resume flags from heterogeneous payloads."""
+
+    halted = any(
+        _flag_truthy(payload.get(key), keywords=_HALT_KEYWORDS)
+        for key in _HALT_FLAG_KEYS
+    )
+    resumed = any(
+        _flag_truthy(payload.get(key), keywords=_RESUME_KEYWORDS)
+        for key in _RESUME_FLAG_KEYS
+    )
+    return halted, resumed
 
 
 @dataclass(slots=True, frozen=True)

@@ -11,7 +11,11 @@ import pandas as pd
 
 from src.sensory.signals import SensorSignal
 from src.sensory.lineage import build_lineage_record
-from src.sensory.when.session_analytics import SessionAnalytics
+from src.sensory.when.session_analytics import (
+    SessionAnalytics,
+    extract_session_event_flags,
+    normalise_session_tokens,
+)
 from src.sensory.when.gamma_exposure import (
     GammaExposureAnalyzer,
     GammaExposureAnalyzerConfig,
@@ -92,6 +96,15 @@ class WhenSensor:
 
         session_snapshot = self._session_analytics.analyse(timestamp)
         session_intensity = session_snapshot.intensity
+        halted_flag, resumed_flag = extract_session_event_flags(row.to_dict())
+        combined_tokens = list(session_snapshot.tokens)
+        if halted_flag:
+            combined_tokens.append("halt")
+        if resumed_flag:
+            combined_tokens.append("resume")
+        session_tokens = normalise_session_tokens(combined_tokens)
+        primary_session = session_snapshot.primary_session
+
         news_proximity = self._calculate_news_proximity(timestamp, macro_events or [])
         gamma_summary = self._summarise_gamma(
             symbol=symbol,
@@ -139,13 +152,20 @@ class WhenSensor:
             "total_abs_gamma": float(gamma_summary.total_abs_gamma),
             "near_gamma": float(gamma_summary.near_gamma),
         }
+        session_details = session_snapshot.as_dict()
+        session_details["tokens"] = list(session_tokens)
+        session_details["primary_session"] = primary_session
+
         metadata: dict[str, object] = {
             "source": "sensory.when",
             "components": components,
             "gamma_snapshot": gamma_snapshot,
             "gamma_dominant_strikes": dominant_profiles,
         }
-        metadata["session"] = session_snapshot.as_dict()
+        metadata["session"] = session_details
+        metadata["session_primary"] = primary_session
+        metadata["halted"] = bool(halted_flag)
+        metadata["resumed"] = bool(resumed_flag)
 
         timestamp_dt = timestamp.to_pydatetime()
         quality = {
@@ -184,6 +204,10 @@ class WhenSensor:
                 "active_sessions": list(session_snapshot.active_sessions),
                 "upcoming_session": session_snapshot.upcoming_session,
                 "minutes_to_close": session_snapshot.minutes_to_session_close,
+                "session_tokens": list(session_tokens),
+                "session_primary": primary_session,
+                "halted": bool(halted_flag),
+                "resumed": bool(resumed_flag),
             },
         )
         metadata["quality"] = quality

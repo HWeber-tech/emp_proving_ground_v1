@@ -269,6 +269,11 @@ def test_when_sensor_macro_events_increase_urgency() -> None:
     with_event_signal = sensor.process(frame, macro_events=[imminent_event])[0]
 
     assert with_event_signal.value["strength"] > baseline_signal.value["strength"]
+    session_meta = with_event_signal.metadata.get("session")
+    assert isinstance(session_meta, dict)
+    assert "tokens" in session_meta
+    assert "London" in session_meta["tokens"]
+    assert session_meta.get("primary_session") == "London"
 
 
 def test_why_sensor_yield_curve_modulates_strength() -> None:

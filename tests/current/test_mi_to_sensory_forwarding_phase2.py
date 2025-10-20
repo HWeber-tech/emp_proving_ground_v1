@@ -42,6 +42,8 @@ def test_when_engine_behavior_and_meta_tag() -> None:
         assert meta.get("source") == "sensory.when"
     else:
         assert reading.context.get("source") == "sensory.when"
+    session_tokens = reading.context.get("session")
+    assert isinstance(session_tokens, list)
 
 
 def test_how_engine_behavior_and_meta_tag() -> None:

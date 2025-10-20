@@ -179,6 +179,9 @@ class TestDimensionalEngines:
         assert -1.0 <= reading.value <= 1.0
         assert 0.0 <= reading.confidence <= 1.0
         assert isinstance(reading.context, dict)
+        session_ctx = reading.context.get("session")
+        assert isinstance(session_ctx, list)
+        assert session_ctx, "session tokens should not be empty"
 
     @pytest.mark.asyncio
     async def test_anomaly_engine_basic_functionality(self, sample_market_data):

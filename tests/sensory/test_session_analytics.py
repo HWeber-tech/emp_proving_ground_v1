@@ -4,7 +4,11 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
-from src.sensory.when.session_analytics import SessionAnalytics, SessionAnalyticsConfig
+from src.sensory.when.session_analytics import (
+    SessionAnalytics,
+    SessionAnalyticsConfig,
+    extract_session_event_flags,
+)
 
 
 def test_session_analytics_identifies_overlap() -> None:
@@ -17,6 +21,8 @@ def test_session_analytics_identifies_overlap() -> None:
     assert set(snapshot.active_sessions) == {"London", "NY"}
     assert snapshot.session_token in {"London", "NY"}
     assert snapshot.minutes_to_session_close is not None
+    assert {"London", "NY"}.issubset(snapshot.tokens)
+    assert "auction_close" not in snapshot.tokens
 
 
 def test_session_analytics_tracks_upcoming_session() -> None:

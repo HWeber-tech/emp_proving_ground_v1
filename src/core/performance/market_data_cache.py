@@ -74,7 +74,10 @@ class MarketDataCache:
             return None
         if not math.isfinite(bid) or not math.isfinite(ask):
             return None
-        return (bid + ask) / 2.0
+        mid = (bid + ask) / 2.0
+        if not math.isfinite(mid):
+            return None
+        return mid
 
     # Legacy KV API (backward-compatible with _InMemoryCache)
     def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:

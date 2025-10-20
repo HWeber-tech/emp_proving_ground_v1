@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import time
 
 import pytest
@@ -67,3 +68,11 @@ def test_market_data_cache_rejects_nan_ttl() -> None:
 
     with pytest.raises(ValueError, match="ttl_seconds"):
         cache.set("key", "value", ttl_seconds=float("nan"))
+
+
+def test_market_data_cache_mid_overflow_is_none() -> None:
+    cache = MarketDataCache()
+    huge = sys.float_info.max
+    cache.put_snapshot("BIG", bid=huge, ask=huge, ts=0.0)
+
+    assert cache.maybe_get_mid("BIG") is None

@@ -25,7 +25,8 @@ _DB_SCHEMA = (
       params_vec TEXT,
       screened_at TEXT,
       tested_at TEXT,
-      progress_at TEXT
+      progress_at TEXT,
+      completed_at TEXT
     );
     """,
     "CREATE INDEX IF NOT EXISTS idx_stage ON findings(stage);",
@@ -85,6 +86,8 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
             conn.execute("ALTER TABLE findings ADD COLUMN tested_at TEXT")
         if "progress_at" not in columns:
             conn.execute("ALTER TABLE findings ADD COLUMN progress_at TEXT")
+        if "completed_at" not in columns:
+            conn.execute("ALTER TABLE findings ADD COLUMN completed_at TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_params_hash ON findings(params_hash)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON findings(created_at)")
 
@@ -256,6 +259,7 @@ def promote_tested(
                SET full_metrics_json = ?,
                    stage = ?,
                    tested_at = COALESCE(tested_at, CURRENT_TIMESTAMP),
+                   completed_at = COALESCE(completed_at, tested_at, CURRENT_TIMESTAMP),
                    progress_at = CASE
                                      WHEN ? = 'progress' THEN COALESCE(progress_at, CURRENT_TIMESTAMP)
                                      ELSE progress_at
@@ -402,19 +406,20 @@ def time_to_candidate_stats(
 ) -> TimeToCandidateStats:
     """Compute turnaround statistics between idea ingestion and replay scoring."""
 
+    completion_expr = "COALESCE(completed_at, progress_at, tested_at)"
     sql = (
-        "SELECT id, stage, created_at, tested_at, progress_at, "
-        "((julianday(COALESCE(tested_at, progress_at)) - julianday(created_at)) * 24.0) AS hours "
+        "SELECT id, stage, created_at, tested_at, progress_at, completed_at, "
+        f"((julianday({completion_expr}) - julianday(created_at)) * 24.0) AS hours "
         "FROM findings "
-        "WHERE COALESCE(tested_at, progress_at) IS NOT NULL "
+        f"WHERE {completion_expr} IS NOT NULL "
     )
     params: List[object] = []
     if window_hours is not None:
         sql += (
-            "AND julianday(COALESCE(tested_at, progress_at)) >= julianday('now') - (? / 24.0) "
+            f"AND julianday({completion_expr}) >= julianday('now') - (? / 24.0) "
         )
         params.append(float(window_hours))
-    sql += "ORDER BY COALESCE(tested_at, progress_at) ASC"
+    sql += f"ORDER BY {completion_expr} ASC"
 
     cursor = conn.execute(sql, params)
     durations: List[float] = []
@@ -429,7 +434,11 @@ def time_to_candidate_stats(
         if hours < 0.0:
             continue
         durations.append(hours)
-        completion_ts = row["tested_at"] or row["progress_at"]
+        completion_ts = (
+            row["completed_at"]
+            or row["progress_at"]
+            or row["tested_at"]
+        )
         if hours > sla_threshold:
             breaches.append(
                 TimeToCandidateBreach(

@@ -29,8 +29,13 @@ def test_time_to_candidate_stats(tmp_path):
 
     with conn:
         conn.execute(
-            "UPDATE findings SET tested_at = ?, progress_at = ? WHERE id = ?",
-            ("2024-01-01 12:00:00", "2024-01-01 12:00:00", fid_fast),
+            "UPDATE findings SET tested_at = ?, progress_at = ?, completed_at = ? WHERE id = ?",
+            (
+                "2024-01-01 12:00:00",
+                "2024-01-01 12:00:00",
+                "2024-01-01 12:00:00",
+                fid_fast,
+            ),
         )
 
     idea_slow = {"alpha": 2}
@@ -49,8 +54,8 @@ def test_time_to_candidate_stats(tmp_path):
 
     with conn:
         conn.execute(
-            "UPDATE findings SET tested_at = ? WHERE id = ?",
-            ("2024-01-02 18:00:00", fid_slow),
+            "UPDATE findings SET tested_at = ?, completed_at = ? WHERE id = ?",
+            ("2024-01-02 18:00:00", "2024-01-02 18:00:00", fid_slow),
         )
 
     stats = findings_memory.time_to_candidate_stats(conn)
@@ -113,8 +118,8 @@ def test_metrics_cli_exit_code_on_sla_breach(tmp_path):
 
     with conn:
         conn.execute(
-            "UPDATE findings SET tested_at = ? WHERE id = ?",
-            ("2024-01-03 01:00:00", fid),
+            "UPDATE findings SET tested_at = ?, completed_at = ? WHERE id = ?",
+            ("2024-01-03 01:00:00", "2024-01-03 01:00:00", fid),
         )
 
     exit_code = emp_cycle_metrics.main(["--db-path", str(db_path), "--threshold-hours", "24"])

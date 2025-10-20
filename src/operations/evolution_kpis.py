@@ -255,12 +255,23 @@ def _coerce_time_to_candidate(
             except (TypeError, ValueError):
                 return None
 
+        def _normalise_breach(entry: Mapping[str, Any]) -> Mapping[str, Any]:
+            payload = dict(entry)
+            completed = payload.get("completed_at")
+            if completed in (None, ""):
+                fallback = payload.get("progress_at") or payload.get("tested_at")
+                if fallback not in (None, ""):
+                    payload["completed_at"] = fallback
+            return payload
+
         count = int(stats.get("count", 0) or 0)
         breaches_raw = stats.get("breaches")
         breaches: tuple[Mapping[str, Any], ...]
         if isinstance(breaches_raw, Sequence):
             breaches = tuple(
-                dict(entry) for entry in breaches_raw if isinstance(entry, Mapping)
+                _normalise_breach(entry)
+                for entry in breaches_raw
+                if isinstance(entry, Mapping)
             )
         else:
             breaches = tuple()

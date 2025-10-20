@@ -110,12 +110,23 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
             return default
         candidate = _strip_currency_symbols(candidate)
         candidate = _normalize_sign_characters(candidate)
+        trailing_sign: str | None = None
+        if candidate and candidate[-1] in "+-":
+            core = candidate[:-1].strip()
+            if core and core[0] not in "+-":
+                trailing_sign = candidate[-1]
+                candidate = core
         percent = False
         if candidate.endswith("%"):
             percent = True
             candidate = candidate[:-1].strip()
             candidate = _strip_currency_symbols(candidate)
             candidate = _normalize_sign_characters(candidate)
+        if candidate and candidate[-1] in "+-":
+            core = candidate[:-1].strip()
+            if core and core[0] not in "+-" and trailing_sign is None:
+                trailing_sign = candidate[-1]
+                candidate = core
         if not candidate or candidate in "+-":
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
@@ -128,6 +139,8 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
             return default
         if percent:
             result /= 100.0
+        if trailing_sign == "-":
+            result = -result
         return result
     try:
         result = float(cast(Any, value))

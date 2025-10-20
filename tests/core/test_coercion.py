@@ -65,3 +65,9 @@ def test_coerce_helpers_accept_unicode_minus_signs() -> None:
 def test_coerce_float_handles_percentages() -> None:
     assert coerce_float("12%") == 0.12
     assert coerce_float("(3.4%)") == -0.034
+
+
+def test_coerce_float_handles_trailing_signs() -> None:
+    assert coerce_float("125-") == -125.0
+    assert coerce_float("12-%") == -0.12
+    assert coerce_float("8.5%+") == 0.085

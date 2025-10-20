@@ -290,6 +290,12 @@ def _dataframe_to_ticks(frame: pd.DataFrame) -> list[Tick]:
             volume_column = candidate
             break
 
+    seqno_column = None
+    for candidate in ("seqno", "sequence", "sequence_number"):
+        if candidate in frame.columns:
+            seqno_column = candidate
+            break
+
     ticks: list[Tick] = []
     for row in frame.itertuples(index=False):
         timestamp_value = getattr(row, "timestamp", None)
@@ -316,7 +322,16 @@ def _dataframe_to_ticks(frame: pd.DataFrame) -> list[Tick]:
                 except (TypeError, ValueError):
                     volume = None
 
-        ticks.append(Tick(timestamp=timestamp, price=price, volume=volume))
+        seqno: int | None = None
+        if seqno_column is not None:
+            seq_value = getattr(row, seqno_column)
+            if seq_value is not None and not pd.isna(seq_value):
+                try:
+                    seqno = int(seq_value)
+                except (TypeError, ValueError):
+                    seqno = None
+
+        ticks.append(Tick(timestamp=timestamp, price=price, volume=volume, seqno=seqno))
 
     ticks.sort(key=lambda tick: tick.timestamp)
     return ticks

@@ -18,6 +18,7 @@ __all__ = [
     "Tick",
     "FeedGap",
     "FalseTick",
+    "DroppedTick",
     "FeedHealthStatus",
     "FeedAnomalyConfig",
     "FeedAnomalyReport",
@@ -32,10 +33,13 @@ class Tick:
     timestamp: datetime
     price: float
     volume: float | None = None
+    seqno: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.timestamp, datetime):  # pragma: no cover - defensive
             raise TypeError("timestamp must be a datetime instance")
+        if self.seqno is not None and not isinstance(self.seqno, int):  # pragma: no cover - defensive
+            raise TypeError("seqno must be an int when provided")
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +78,26 @@ class FalseTick:
             "deviation_pct": self.deviation_pct,
             "volume": self.volume,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class DroppedTick:
+    """Captured metadata for ticks removed during normalisation."""
+
+    timestamp: datetime
+    seqno: int | None
+    reason_code: str
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    def as_dict(self) -> Mapping[str, object]:
+        payload: dict[str, object] = {
+            "timestamp": self.timestamp.astimezone(UTC).isoformat(),
+            "seqno": self.seqno,
+            "reason_code": self.reason_code,
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
 
 
 class FeedHealthStatus(StrEnum):
@@ -130,6 +154,7 @@ class FeedAnomalyReport:
     stale: bool
     gaps: tuple[FeedGap, ...] = ()
     false_ticks: tuple[FalseTick, ...] = ()
+    dropped_ticks: tuple[DroppedTick, ...] = ()
     issues: tuple[str, ...] = ()
     metadata: Mapping[str, object] = field(default_factory=dict)
 
@@ -145,6 +170,7 @@ class FeedAnomalyReport:
             "stale": self.stale,
             "gaps": [gap.as_dict() for gap in self.gaps],
             "false_ticks": [tick.as_dict() for tick in self.false_ticks],
+            "dropped_ticks": [tick.as_dict() for tick in self.dropped_ticks],
             "issues": list(self.issues),
             "metadata": dict(self.metadata),
         }
@@ -188,17 +214,69 @@ class FeedAnomalyReport:
                         prev=tick.previous_price,
                     )
                 )
+        if self.dropped_ticks:
+            lines.append("\n**Dropped ticks:**")
+            for tick in self.dropped_ticks:
+                lines.append(
+                    "- {timestamp} seqno={seqno} reason={reason}".format(
+                        timestamp=tick.timestamp.astimezone(UTC).isoformat(),
+                        seqno=tick.seqno if tick.seqno is not None else "?",
+                        reason=tick.reason_code,
+                    )
+                )
         return "\n".join(lines)
 
 
-def _normalise_ticks(ticks: Sequence[Tick] | Iterable[Tick], limit: int) -> list[Tick]:
+def _normalise_ticks(
+    ticks: Sequence[Tick] | Iterable[Tick], limit: int
+) -> tuple[list[Tick], list[DroppedTick]]:
     if isinstance(ticks, Sequence):
         selected = list(ticks)[-limit:]
     else:
         selected = list(ticks)
         if len(selected) > limit:
             selected = selected[-limit:]
-    return sorted(selected, key=lambda tick: tick.timestamp)
+
+    ordered: list[Tick] = []
+    dropped: list[DroppedTick] = []
+    last_ts: datetime | None = None
+    last_seqno: int | None = None
+
+    for tick in sorted(
+        selected, key=lambda item: (item.timestamp, item.seqno if item.seqno is not None else -1)
+    ):
+        if last_ts is not None and tick.timestamp < last_ts:
+            dropped.append(
+                DroppedTick(
+                    timestamp=tick.timestamp,
+                    seqno=tick.seqno,
+                    reason_code="out_of_order_timestamp",
+                    metadata={"previous_timestamp": last_ts.isoformat()},
+                )
+            )
+            continue
+        if (
+            last_ts is not None
+            and tick.timestamp == last_ts
+            and tick.seqno is not None
+            and last_seqno is not None
+            and tick.seqno <= last_seqno
+        ):
+            dropped.append(
+                DroppedTick(
+                    timestamp=tick.timestamp,
+                    seqno=tick.seqno,
+                    reason_code="out_of_order_seqno",
+                    metadata={"previous_seqno": last_seqno},
+                )
+            )
+            continue
+
+        ordered.append(tick)
+        last_ts = tick.timestamp
+        last_seqno = tick.seqno if tick.seqno is not None else last_seqno
+
+    return ordered, dropped
 
 
 def _estimate_median_interval(ticks: Sequence[Tick]) -> float | None:
@@ -289,7 +367,7 @@ def analyse_feed(
     """Analyse tick history and surface feed anomalies."""
 
     resolved_config = config or FeedAnomalyConfig()
-    sample_ticks = _normalise_ticks(ticks, resolved_config.lookback_limit)
+    sample_ticks, dropped_ticks = _normalise_ticks(ticks, resolved_config.lookback_limit)
     generated_at = now or datetime.now(tz=UTC)
     status = FeedHealthStatus.ok
     issues: list[str] = []
@@ -305,6 +383,7 @@ def analyse_feed(
             median_interval_seconds=None,
             max_gap_seconds=None,
             stale=True,
+            dropped_ticks=tuple(dropped_ticks),
             issues=tuple(issues),
         )
 
@@ -353,6 +432,10 @@ def analyse_feed(
         else:
             _escalate(FeedHealthStatus.warn)
 
+    if dropped_ticks:
+        issues.append(f"Dropped {len(dropped_ticks)} out-of-order ticks")
+        _escalate(FeedHealthStatus.warn)
+
     last_tick = sample_ticks[-1]
     stale_delta = (generated_at - last_tick.timestamp).total_seconds()
     stale = stale_delta > resolved_config.stale_grace_seconds
@@ -366,6 +449,9 @@ def analyse_feed(
     if median_interval is not None:
         metadata["median_interval_seconds"] = median_interval
     metadata["stale_delta_seconds"] = stale_delta
+    if dropped_ticks:
+        metadata["dropped_tick_count"] = len(dropped_ticks)
+        metadata["dropped_reason_codes"] = [tick.reason_code for tick in dropped_ticks]
 
     return FeedAnomalyReport(
         symbol=symbol,
@@ -378,7 +464,7 @@ def analyse_feed(
         stale=stale,
         gaps=tuple(gaps),
         false_ticks=tuple(false_ticks),
+        dropped_ticks=tuple(dropped_ticks),
         issues=tuple(issues),
         metadata=metadata,
     )
-

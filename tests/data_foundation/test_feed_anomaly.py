@@ -73,3 +73,23 @@ def test_analyse_feed_marks_stale_as_failure() -> None:
     assert report.status is FeedHealthStatus.fail
     assert any("stale" in issue for issue in report.issues)
 
+
+def test_analyse_feed_drops_out_of_order_ticks() -> None:
+    start = datetime(2024, 1, 1, tzinfo=UTC)
+    ticks = [
+        Tick(timestamp=start, price=100.0, seqno=1),
+        Tick(timestamp=start, price=100.5, seqno=2),
+        Tick(timestamp=start - timedelta(seconds=30), price=99.0, seqno=0),
+        Tick(timestamp=start + timedelta(seconds=60), price=101.0, seqno=1),
+        Tick(timestamp=start + timedelta(seconds=60), price=101.5, seqno=0),
+    ]
+
+    report = analyse_feed("EURUSD", ticks, now=start + timedelta(minutes=5))
+
+    assert report.sample_count == 3
+    assert len(report.dropped_ticks) == 2
+    reason_codes = {tick.reason_code for tick in report.dropped_ticks}
+    assert reason_codes == {"out_of_order_timestamp", "out_of_order_seqno"}
+    assert report.metadata.get("dropped_tick_count") == 2
+    assert any("Dropped 2" in issue for issue in report.issues)
+    assert report.status is FeedHealthStatus.warn

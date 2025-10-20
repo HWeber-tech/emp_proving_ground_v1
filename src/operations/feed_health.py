@@ -11,6 +11,7 @@ from src.data_foundation.monitoring.feed_anomaly import (
     FeedAnomalyReport,
     FeedHealthStatus,
     Tick,
+    DroppedTick,
     analyse_feed,
 )
 
@@ -19,6 +20,7 @@ __all__ = [
     "FeedAnomalyReport",
     "FeedHealthStatus",
     "Tick",
+    "DroppedTick",
     "evaluate_feed_health",
     "publish_feed_health",
 ]
@@ -47,4 +49,3 @@ def publish_feed_health(
     if hasattr(resolved_bus, "publish_from_sync"):
         return resolved_bus.publish_from_sync(event)
     return resolved_bus.publish(event)
-

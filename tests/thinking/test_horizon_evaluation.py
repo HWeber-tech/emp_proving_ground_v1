@@ -12,51 +12,67 @@ def _sample_observations() -> list[HorizonObservation]:
     return [
         HorizonObservation(
             "ev1",
-            "event",
+            "event-time",
             probability=0.9,
             outcome=1,
             gross_alpha_bps=15,
             fees_bps=5,
         ),
         HorizonObservation(
-            "ev1",
-            "event",
+            1,
+            "event-time",
             probability=0.2,
             outcome=0,
             gross_alpha_bps=-5,
             fees_bps=2,
         ),
         HorizonObservation(
-            "ev5",
-            "event",
+            5,
+            "event-time",
             probability=0.7,
             outcome=1,
             gross_alpha_bps=10,
             fees_bps=1,
         ),
         HorizonObservation(
-            "1h",
-            "time",
+            20,
+            "event-time",
+            probability=0.4,
+            outcome=0,
+            gross_alpha_bps=-3,
+            fees_bps=0.5,
+        ),
+        HorizonObservation(
+            "100ms",
+            "wall-time",
             probability=0.3,
             outcome=0,
             gross_alpha_bps=-2,
             fees_bps=0.5,
         ),
         HorizonObservation(
-            "1h",
-            "time",
+            "0.1s",
+            "wall-time",
             probability=0.6,
             outcome=1,
             gross_alpha_bps=12,
             fees_bps=1,
         ),
         HorizonObservation(
-            "4h",
-            "time",
+            "500ms",
+            "wall-time",
             probability=0.4,
             outcome=0,
             gross_alpha_bps=-1,
             fees_bps=0.2,
+        ),
+        HorizonObservation(
+            "2s",
+            "wall-time",
+            probability=0.8,
+            outcome=1,
+            gross_alpha_bps=6,
+            fees_bps=1.5,
         ),
     ]
 
@@ -64,7 +80,7 @@ def _sample_observations() -> list[HorizonObservation]:
 def test_evaluate_predictions_by_horizon_reports_metrics() -> None:
     report = evaluate_predictions_by_horizon(_sample_observations(), num_bins=10)
 
-    assert len(report.event_horizons) == 2
+    assert len(report.event_horizons) == 3
     ev1 = report.event_horizons[0]
     assert ev1.horizon == "ev1"
     assert ev1.count == 2
@@ -81,28 +97,42 @@ def test_evaluate_predictions_by_horizon_reports_metrics() -> None:
     assert ev5.brier == pytest.approx(0.09, rel=1e-6)
     assert ev5.alpha_after_fees_bps == pytest.approx(9.0, rel=1e-6)
 
-    assert len(report.time_horizons) == 2
-    one_hour = report.time_horizons[0]
-    assert one_hour.horizon == "1h"
-    assert one_hour.count == 2
-    assert one_hour.ece == pytest.approx(0.35, rel=1e-6)
-    assert one_hour.brier == pytest.approx(0.125, rel=1e-6)
-    assert one_hour.alpha_after_fees_bps == pytest.approx(4.25, rel=1e-6)
+    ev20 = report.event_horizons[2]
+    assert ev20.horizon == "ev20"
+    assert ev20.count == 1
+    assert ev20.ece == pytest.approx(0.4, rel=1e-6)
+    assert ev20.brier == pytest.approx(0.16, rel=1e-6)
+    assert ev20.alpha_after_fees_bps == pytest.approx(-3.5, rel=1e-6)
 
-    four_hour = report.time_horizons[1]
-    assert four_hour.horizon == "4h"
-    assert four_hour.count == 1
-    assert four_hour.ece == pytest.approx(0.4, rel=1e-6)
-    assert four_hour.brier == pytest.approx(0.16, rel=1e-6)
-    assert four_hour.alpha_after_fees_bps == pytest.approx(-1.2, rel=1e-6)
+    assert len(report.time_horizons) == 3
+    hundred_ms = report.time_horizons[0]
+    assert hundred_ms.horizon == "100ms"
+    assert hundred_ms.count == 2
+    assert hundred_ms.ece == pytest.approx(0.35, rel=1e-6)
+    assert hundred_ms.brier == pytest.approx(0.125, rel=1e-6)
+    assert hundred_ms.alpha_after_fees_bps == pytest.approx(4.25, rel=1e-6)
+
+    five_hundred_ms = report.time_horizons[1]
+    assert five_hundred_ms.horizon == "500ms"
+    assert five_hundred_ms.count == 1
+    assert five_hundred_ms.ece == pytest.approx(0.4, rel=1e-6)
+    assert five_hundred_ms.brier == pytest.approx(0.16, rel=1e-6)
+    assert five_hundred_ms.alpha_after_fees_bps == pytest.approx(-1.2, rel=1e-6)
+
+    two_seconds = report.time_horizons[2]
+    assert two_seconds.horizon == "2s"
+    assert two_seconds.count == 1
+    assert two_seconds.ece == pytest.approx(0.2, rel=1e-6)
+    assert two_seconds.brier == pytest.approx(0.04, rel=1e-6)
+    assert two_seconds.alpha_after_fees_bps == pytest.approx(4.5, rel=1e-6)
 
     overall = report.overall
     assert overall.horizon == "all"
     assert overall.horizon_type == "all"
-    assert overall.count == 6
-    assert overall.ece == pytest.approx(0.2833333333, rel=1e-6)
-    assert overall.brier == pytest.approx(0.0916666667, rel=1e-6)
-    assert overall.alpha_after_fees_bps == pytest.approx(3.2166666667, rel=1e-6)
+    assert overall.count == 8
+    assert overall.ece == pytest.approx(0.2875, rel=1e-6)
+    assert overall.brier == pytest.approx(0.09375, rel=1e-6)
+    assert overall.alpha_after_fees_bps == pytest.approx(2.5375, rel=1e-6)
 
     payload = report.as_dict()
     assert payload["overall"]["brier"] == pytest.approx(overall.brier, rel=1e-6)
@@ -142,4 +172,3 @@ def test_evaluate_predictions_by_horizon_validates_inputs() -> None:
 
     with pytest.raises(ValueError):
         evaluate_predictions_by_horizon(observations, num_bins=0)
-

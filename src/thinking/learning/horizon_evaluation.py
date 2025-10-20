@@ -14,7 +14,7 @@ CI and during research without relying on pandas/NumPy.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 import math
 
@@ -26,8 +26,36 @@ __all__ = [
 ]
 
 
-_EVENT_ALIASES = {"event", "events"}
-_TIME_ALIASES = {"time", "temporal"}
+_EVENT_ALIASES = {"event", "events", "event-time", "eventtime"}
+_TIME_ALIASES = {"time", "temporal", "wall", "wall-time", "walltime", "wall-clock", "wallclock"}
+
+_CANONICAL_EVENT_HORIZONS: tuple[str, ...] = ("ev1", "ev5", "ev20")
+_CANONICAL_TIME_HORIZONS: tuple[str, ...] = ("100ms", "500ms", "2s")
+
+_EVENT_HORIZON_ALIAS_MAP: dict[str, str] = {
+    "1": "ev1",
+    "ev1": "ev1",
+    "5": "ev5",
+    "ev5": "ev5",
+    "20": "ev20",
+    "ev20": "ev20",
+}
+
+_TIME_HORIZON_ALIAS_MAP: dict[str, str] = {
+    "100ms": "100ms",
+    "0.1s": "100ms",
+    "0.10s": "100ms",
+    "100": "100ms",
+    "0.100s": "100ms",
+    "500ms": "500ms",
+    "0.5s": "500ms",
+    "0.50s": "500ms",
+    "500": "500ms",
+    "2s": "2s",
+    "2.0s": "2s",
+    "2.00s": "2s",
+    "2000ms": "2s",
+}
 
 
 def _normalise_horizon_type(value: str) -> str:
@@ -37,6 +65,40 @@ def _normalise_horizon_type(value: str) -> str:
     if normalised in _TIME_ALIASES:
         return "time"
     raise ValueError(f"unknown horizon_type '{value}'")
+
+
+def _canonicalise_horizon_label(horizon: str | int | float, *, horizon_type: str) -> str:
+    text = str(horizon).strip()
+    if not text:
+        return text
+
+    key = text.lower()
+    if horizon_type == "event":
+        canonical = _EVENT_HORIZON_ALIAS_MAP.get(key)
+        if canonical is not None:
+            return canonical
+        if key.isdigit():
+            return f"ev{key}"
+        return text
+
+    if horizon_type == "time":
+        canonical = _TIME_HORIZON_ALIAS_MAP.get(key)
+        if canonical is not None:
+            return canonical
+        try:
+            numeric_value = float(text)
+        except ValueError:
+            return text
+        if math.isfinite(numeric_value):
+            if math.isclose(numeric_value, 0.1, rel_tol=0.0, abs_tol=1e-12):
+                return "100ms"
+            if math.isclose(numeric_value, 0.5, rel_tol=0.0, abs_tol=1e-12):
+                return "500ms"
+            if math.isclose(numeric_value, 2.0, rel_tol=0.0, abs_tol=1e-12):
+                return "2s"
+        return text
+
+    return text
 
 
 def _coerce_probability(value: float) -> float:
@@ -109,8 +171,11 @@ class HorizonObservation:
         coerced_gross_alpha = _coerce_float(gross_alpha_bps, field="gross_alpha_bps")
         coerced_fees = _coerce_float(fees_bps, field="fees_bps")
         coerced_weight = _coerce_weight(weight)
+        canonical_horizon = _canonicalise_horizon_label(
+            horizon, horizon_type=normalised_type
+        )
 
-        object.__setattr__(self, "horizon", str(horizon))
+        object.__setattr__(self, "horizon", canonical_horizon)
         object.__setattr__(self, "horizon_type", normalised_type)
         object.__setattr__(self, "probability", coerced_probability)
         object.__setattr__(self, "outcome", coerced_outcome)
@@ -284,20 +349,29 @@ def evaluate_predictions_by_horizon(
         grouped.setdefault(key, []).append(observation)
         order.setdefault(key, index)
 
-    metrics: list[HorizonMetrics] = []
+    metrics_by_key: dict[tuple[str, str], HorizonMetrics] = {}
     for key in sorted(grouped, key=lambda item: order[item]):
         horizon_type, horizon = key
-        metrics.append(
-            _compute_horizon_metrics(
-                horizon=horizon,
-                horizon_type=horizon_type,
-                observations=grouped[key],
-                num_bins=num_bins,
-            )
+        metric = _compute_horizon_metrics(
+            horizon=horizon,
+            horizon_type=horizon_type,
+            observations=grouped[key],
+            num_bins=num_bins,
         )
+        metrics_by_key[key] = metric
 
-    event_metrics = tuple(metric for metric in metrics if metric.horizon_type == "event")
-    time_metrics = tuple(metric for metric in metrics if metric.horizon_type == "time")
+    event_metrics = _ordered_metrics_for_type(
+        metrics_by_key,
+        horizon_type="event",
+        canonical_order=_CANONICAL_EVENT_HORIZONS,
+        insertion_order=order,
+    )
+    time_metrics = _ordered_metrics_for_type(
+        metrics_by_key,
+        horizon_type="time",
+        canonical_order=_CANONICAL_TIME_HORIZONS,
+        insertion_order=order,
+    )
 
     overall = _compute_horizon_metrics(
         horizon="all",
@@ -312,3 +386,28 @@ def evaluate_predictions_by_horizon(
         overall=overall,
     )
 
+
+def _ordered_metrics_for_type(
+    metrics_by_key: Mapping[tuple[str, str], HorizonMetrics],
+    *,
+    horizon_type: str,
+    canonical_order: Sequence[str],
+    insertion_order: Mapping[tuple[str, str], int],
+) -> tuple[HorizonMetrics, ...]:
+    typed_keys = [key for key in metrics_by_key if key[0] == horizon_type]
+    if not typed_keys:
+        return tuple()
+
+    ordered: list[HorizonMetrics] = []
+    for label in canonical_order:
+        key = (horizon_type, label)
+        metric = metrics_by_key.get(key)
+        if metric is not None:
+            ordered.append(metric)
+
+    fallback_keys = [
+        key for key in typed_keys if key[1] not in canonical_order
+    ]
+    fallback_keys.sort(key=lambda item: insertion_order[item])
+    ordered.extend(metrics_by_key[key] for key in fallback_keys)
+    return tuple(ordered)

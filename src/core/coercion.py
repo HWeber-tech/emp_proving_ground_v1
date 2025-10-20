@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from numbers import Real
 from typing import Any, overload, cast
 
 __all__ = ["coerce_float", "coerce_int"]
+
+
+_NUMERIC_SEPARATOR_PATTERN = re.compile(r"(?<=\d)_(?=\d)")
 
 
 @overload
@@ -49,8 +53,9 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
         candidate = value.strip()
         if not candidate:
             return default
+        normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
         try:
-            return float(candidate)
+            return float(normalized)
         except ValueError:
             return default
     try:
@@ -97,11 +102,12 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
         candidate = value.strip()
         if not candidate:
             return default
+        normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
         try:
-            return int(candidate)
+            return int(normalized)
         except ValueError:
             try:
-                return int(float(candidate))
+                return int(float(normalized))
             except ValueError:
                 return default
     try:

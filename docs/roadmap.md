@@ -129,7 +129,7 @@
 **Goal:** bilingual skill without forgetting; promotion by hard gates.
 
 ### E.1 LOBSTER pretrain
-- [ ] **E.1.1** Multi?task losses: Huber/quantile + direction + big?move; aux: next?event, masked?depth, queue?depletion.  
+- [x] **E.1.1** Multi?task losses: Huber/quantile + direction + big?move; aux: next?event, masked?depth, queue?depletion.  
 - [ ] **E.1.2** Eval by horizon (events+time); report ECE, Brier, alpha?after?fees.
 
 ### E.2 FX adaptation
@@ -166,7 +166,7 @@
 
 - [ ] **G.1** GraphNet surrogate trained on your event sim; **5–10× faster** rollouts.  
 - [x] **G.2** A/B validator: surrogate vs ground?truth sim **? within 5%**, turnover within 10%; otherwise retrain.  
-- [ ] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
+- [x] **G.3** Capacity sweep: ensure strategy size never exceeds, say, 2% of L1 depth percentile.
 
 **DoD (G):** surrogate gated; capacity curves published per instrument.
 
@@ -216,7 +216,7 @@ actions_on_fail: ["reject", "fallback_previous_model"]
 
 **Goal:** full stack on one server post-training.
 
-- [ ] **J.1** Provision Hetzner: **8+ cores / 32-64 GB / NVMe / Ubuntu  22.04**.  
+- [x] **J.1** Provision Hetzner: **8+ cores / 32-64 GB / NVMe / Ubuntu  22.04**.  
 - [x] **J.2** Install Docker & Compose; deploy **TimescaleDB**, **Redis**, **Kafka**, **engine**.  
 - [ ] **J.3** Secure `.env` for data/broker creds; firewall; optional WireGuard.  
 - [x] **J.4** Paper trading on 1 instrument; monitor CPU, RAM, I/O, p99 latency.  
@@ -291,7 +291,7 @@ body:
 ## Automation updates — 2025-10-20T04:57:36Z
 
 ### Last 4 commits
-- 33ffa7f7 refactor(sensory): tune 4 files (2025-10-20)
-- 187658bc refactor(risk): tune 5 files (2025-10-20)
-- c55c7bf0 feat(examples): add 3 files (2025-10-20)
-- 48d14e58 refactor(thinking): tune 2 files (2025-10-20)
+- 1481ccc8 feat(thinking): add 2 files (2025-10-20)
+- f66cd0a5 refactor(trading): tune 3 files (2025-10-20)
+- 0cb559f9 docs(.gitignore): add 9 files (2025-10-20)
+- 343400df feat(risk): add 8 files (2025-10-20)

@@ -55,3 +55,10 @@ def test_clip_longrepr_respects_limit_with_suffix() -> None:
     assert clipped.endswith("chars]")
     assert clipped.startswith("x")
     assert "… [truncated " in clipped
+
+
+def test_clip_longrepr_retains_prefix_when_suffix_exceeds_limit() -> None:
+    clipped = clip_longrepr("abcdef", limit=2)
+
+    assert clipped.startswith("ab")
+    assert clipped.endswith("… [truncated 4 chars]")

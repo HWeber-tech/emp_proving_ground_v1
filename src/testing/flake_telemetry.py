@@ -118,7 +118,7 @@ def clip_longrepr(
     if text is None:
         return None
 
-    normalized = text.rstrip("\n")
+    normalized = text.rstrip("\r\n")
     if limit is None:
         return normalized
     if limit < 0:
@@ -137,6 +137,9 @@ def clip_longrepr(
         if head_limit + len(suffix) <= limit:
             truncated = normalized[:head_limit]
             return f"{truncated}{suffix}"
+        if limit < len(suffix):
+            truncated = normalized[:head_limit]
+            return f"{truncated}{suffix}" if truncated else suffix
         head_limit -= 1
 
     return f"… [truncated {total_length} chars]"

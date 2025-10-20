@@ -19,6 +19,17 @@ def test_calculate_margin_rejects_non_positive_leverage() -> None:
         instrument.calculate_margin(price=1.0, lot_size=1.0, leverage=-10.0)
 
 
+def test_calculate_margin_uses_price_and_abs_lot_size() -> None:
+    instrument = Instrument.forex("EURUSD")
+    margin = instrument.calculate_margin(price=1.2, lot_size=-0.5, leverage=50.0)
+
+    expected = 0.5 * instrument.contract_size * 1.2 / 50.0
+    assert margin == pytest.approx(expected)
+
+    with pytest.raises(ValueError):
+        instrument.calculate_margin(price=0.0, lot_size=1.0, leverage=50.0)
+
+
 def test_instrument_from_dict_coerces_grouped_numeric_strings() -> None:
     instrument = Instrument.from_dict(
         {

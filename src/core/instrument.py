@@ -99,10 +99,12 @@ class Instrument:
 
     def calculate_margin(self, price: float, lot_size: float, leverage: float = 100.0) -> float:
         """Calculate required margin for position."""
+        if price <= 0:
+            raise ValueError("price must be positive")
         if leverage <= 0:
             raise ValueError("leverage must be positive")
-        position_size = lot_size * self.contract_size
-        return position_size / leverage
+        position_value = abs(lot_size) * self.contract_size * price
+        return position_value / leverage
 
     def to_dict(self) -> InstrumentPayload:
         """Convert instrument to dictionary."""

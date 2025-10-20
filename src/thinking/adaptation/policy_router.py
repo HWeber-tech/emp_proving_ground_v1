@@ -239,13 +239,20 @@ class LinearAttentionRouter:
         *,
         history_window: int = 128,
         projection_bias: float = 0.0,
+        layer_scale: float = 0.1,
         epsilon: float = 1e-6,
     ) -> None:
         if history_window <= 0:
             raise ValueError("history_window must be positive")
         self._history_window = int(history_window)
         self._projection_bias = float(projection_bias)
+        if not math.isfinite(layer_scale):
+            raise ValueError("layer_scale must be finite")
+        if layer_scale <= 0.0:
+            raise ValueError("layer_scale must be positive")
+        self._layer_scale = float(layer_scale)
         self._epsilon = max(float(epsilon), 0.0)
+        self._normalisation = "rmsnorm"
         self._history: Deque[str] = deque()
         self._counts: dict[str, int] = {}
         self._last_context: Mapping[str, object] | None = None
@@ -265,6 +272,14 @@ class LinearAttentionRouter:
             "total": len(self._history),
             "counts": dict(self._counts),
         }
+
+    @property
+    def layer_scale(self) -> float:
+        return self._layer_scale
+
+    @property
+    def normalisation(self) -> str:
+        return self._normalisation
 
     def observe_selection(self, tactic_id: str | None) -> None:
         """Record the tactic that ultimately won arbitration."""
@@ -302,7 +317,8 @@ class LinearAttentionRouter:
         if not ranked:
             raise ValueError("ranked must not be empty")
 
-        query = self._build_query(regime_state)
+        raw_query = self._build_query(regime_state)
+        normalized_query = self._apply_rms_norm(raw_query)
         candidate_records: list[dict[str, object]] = []
         best_entry: Mapping[str, object] | None = None
         best_weight = float("-inf")
@@ -312,17 +328,26 @@ class LinearAttentionRouter:
             tactic: PolicyTactic | None = entry.get("tactic")  # type: ignore[assignment]
             if not isinstance(tactic, PolicyTactic):
                 continue
-            key = self._build_key(entry, tactic, index)
+            raw_key = self._build_key(entry, tactic, index)
+            normalized_key = self._apply_rms_norm(raw_key)
             contributions: list[Mapping[str, float]] = []
             weight = self._projection_bias
-            for dimension, q_value, k_value in zip(self._DIMENSIONS, query, key):
-                contribution = q_value * k_value
+            for dimension, raw_q, norm_q, raw_k, norm_k in zip(
+                self._DIMENSIONS,
+                raw_query,
+                normalized_query,
+                raw_key,
+                normalized_key,
+            ):
+                contribution = norm_q * norm_k * self._layer_scale
                 weight += contribution
                 contributions.append(
                     {
                         "dimension": dimension,
-                        "query": float(q_value),
-                        "key": float(k_value),
+                        "query": float(raw_q),
+                        "key": float(raw_k),
+                        "normalized_query": float(norm_q),
+                        "normalized_key": float(norm_k),
                         "contribution": float(contribution),
                     }
                 )
@@ -342,8 +367,8 @@ class LinearAttentionRouter:
                     "score": score_value,
                     "base_score": base_score_value,
                     "multiplier": multiplier_value,
-                    "novelty_factor": key[4],
-                    "exploration_bias": key[5],
+                    "novelty_factor": raw_key[4],
+                    "exploration_bias": raw_key[5],
                     "components": contributions,
                 }
             )
@@ -375,7 +400,11 @@ class LinearAttentionRouter:
 
         query_payload = {
             dimension: float(value)
-            for dimension, value in zip(self._DIMENSIONS, query)
+            for dimension, value in zip(self._DIMENSIONS, raw_query)
+        }
+        normalized_query_payload = {
+            dimension: float(value)
+            for dimension, value in zip(self._DIMENSIONS, normalized_query)
         }
 
         context: dict[str, object] = {
@@ -383,10 +412,13 @@ class LinearAttentionRouter:
             "projection_bias": self._projection_bias,
             "history_window": self._history_window,
             "query": query_payload,
+            "normalized_query": normalized_query_payload,
             "candidates": candidate_records,
             "recommended_tactic_id": recommended_tactic_id,
             "recommended_rank": recommended_rank,
             "history_before": self.snapshot_history(),
+            "layer_scale": self._layer_scale,
+            "normalisation": self._normalisation,
         }
         if total_weight > 0.0:
             context["normalisation_factor"] = total_weight
@@ -402,6 +434,14 @@ class LinearAttentionRouter:
             return float(value)
         except (TypeError, ValueError):
             return float(default)
+
+    def _apply_rms_norm(self, values: Sequence[float]) -> tuple[float, ...]:
+        floats = [float(v) for v in values]
+        if not floats:
+            return ()
+        mean_square = sum(v * v for v in floats) / len(floats)
+        scale = 1.0 / math.sqrt(mean_square + self._epsilon)
+        return tuple(v * scale for v in floats)
 
     def _build_query(self, regime_state: RegimeState) -> tuple[float, ...]:
         confidence = max(0.0, min(1.0, float(regime_state.confidence)))

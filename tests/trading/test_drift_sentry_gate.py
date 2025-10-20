@@ -153,6 +153,29 @@ def test_warn_notional_limit(notional: float, expected: bool) -> None:
     assert decision.allowed is expected
 
 
+def test_gate_no_snapshot_with_failure_overrides() -> None:
+    gate = DriftSentryGate()
+    overrides = {
+        "warn_confidence_floor": 0.9,
+        "uncertainty_inflation": 0.1,
+        "adaptive_source": "sensor_unavailable",
+    }
+
+    decision = gate.evaluate_trade(
+        symbol="GBPUSD",
+        strategy_id="beta",
+        confidence=None,
+        quantity=None,
+        notional=None,
+        metadata={},
+        threshold_overrides=overrides,
+    )
+
+    assert decision.allowed is True
+    assert decision.reason == "sensor_unavailable"
+    assert decision.requirements["uncertainty_inflation"] == pytest.approx(0.1, rel=1e-6)
+
+
 def test_adaptive_threshold_overrides() -> None:
     gate = DriftSentryGate(warn_confidence_floor=0.6)
     gate.update_snapshot(_make_snapshot(DriftSeverity.warn))

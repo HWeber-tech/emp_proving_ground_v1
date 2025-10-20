@@ -30,13 +30,20 @@ from src.operations.sensory_drift import DriftSeverity, SensoryDimensionDrift, S
 from src.trading.gating.adaptive_release import AdaptiveReleaseThresholds
 
 
-def _snapshot(status: DriftSeverity, dimensions: dict[str, SensoryDimensionDrift]) -> SensoryDriftSnapshot:
+def _snapshot(
+    status: DriftSeverity,
+    dimensions: dict[str, SensoryDimensionDrift],
+    metadata: dict[str, object] | None = None,
+) -> SensoryDriftSnapshot:
+    base_metadata: dict[str, object] = {"source": "test"}
+    if metadata:
+        base_metadata.update(metadata)
     return SensoryDriftSnapshot(
         generated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         status=status,
         dimensions=dimensions,
         sample_window=60,
-        metadata={"source": "test"},
+        metadata=base_metadata,
     )
 
 
@@ -132,7 +139,35 @@ def test_adaptive_thresholds_without_snapshot(tmp_path: Path) -> None:
     resolver = AdaptiveReleaseThresholds(manager)
     thresholds = resolver.resolve(strategy_id="gamma", snapshot=None)
     assert thresholds["stage"] == PolicyLedgerStage.PAPER.value
-    assert thresholds["warn_confidence_floor"] == pytest.approx(0.73, rel=1e-6)
+    assert thresholds["warn_confidence_floor"] == pytest.approx(0.82, rel=1e-6)
     assert thresholds["warn_notional_limit"] == pytest.approx(75_000.0)
     assert thresholds["block_severity"] == DriftSeverity.alert.value
-    assert thresholds["adaptive_source"] == DriftSeverity.normal.value
+    assert thresholds["adaptive_source"] == "sensor_unavailable"
+    assert thresholds["uncertainty_inflation"] == pytest.approx(0.1, rel=1e-6)
+
+
+def test_adaptive_thresholds_with_failure_metadata(tmp_path: Path) -> None:
+    store = PolicyLedgerStore(tmp_path / "ledger.json")
+    manager = LedgerReleaseManager(store)
+    manager.promote(
+        policy_id="delta",
+        tactic_id="delta",
+        stage=PolicyLedgerStage.PAPER,
+        threshold_overrides={
+            "warn_confidence_floor": 0.75,
+            "warn_notional_limit": 40_000.0,
+        },
+        evidence_id="diary-delta",
+    )
+
+    resolver = AdaptiveReleaseThresholds(manager)
+    snapshot = _snapshot(
+        DriftSeverity.normal,
+        {},
+        metadata={"reason": "no_audit_entries", "samples": 0},
+    )
+
+    thresholds = resolver.resolve(strategy_id="delta", snapshot=snapshot)
+    assert thresholds["warn_confidence_floor"] == pytest.approx(0.85, rel=1e-6)
+    assert thresholds["adaptive_source"] == "no_audit_entries"
+    assert thresholds["uncertainty_inflation"] == pytest.approx(0.1, rel=1e-6)

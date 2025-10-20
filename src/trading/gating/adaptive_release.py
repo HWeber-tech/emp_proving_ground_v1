@@ -38,6 +38,7 @@ class _AdaptiveTuning:
     min_confidence_floor: float = 0.5
     max_confidence_floor: float = 0.99
     default_confidence_floor: float = 0.6
+    sensor_failure_confidence_inflation: float = 0.1
 
     def clamp_confidence(self, value: float) -> float:
         return max(self.min_confidence_floor, min(self.max_confidence_floor, value))
@@ -65,6 +66,35 @@ class AdaptiveReleaseThresholds:
         base = self._base_thresholds(strategy_id)
         stage = PolicyLedgerStage.from_value(base.get("stage"))
         severity = snapshot.status if snapshot is not None else DriftSeverity.normal
+
+        failure_source = self._sensor_failure_reason(snapshot)
+
+        if failure_source is not None:
+            base["stage"] = stage.value
+            baseline_floor = self.tuning.clamp_confidence(
+                self._coerce_float(
+                    base.get("warn_confidence_floor"),
+                    self.tuning.default_confidence_floor,
+                )
+            )
+            inflation = max(0.0, float(self.tuning.sensor_failure_confidence_inflation))
+            inflated_floor = self.tuning.clamp_confidence(baseline_floor + inflation)
+            applied_inflation = max(0.0, inflated_floor - baseline_floor)
+            base["warn_confidence_floor"] = inflated_floor
+
+            notional_limit = base.get("warn_notional_limit")
+            if isinstance(notional_limit, (int, float)) and notional_limit > 0:
+                base["warn_notional_limit"] = round(float(notional_limit), 2)
+            else:
+                base.pop("warn_notional_limit", None)
+
+            base["block_severity"] = self._normalize_block_severity(base.get("block_severity"))
+            base["adaptive_source"] = failure_source
+            if applied_inflation > 0.0:
+                base["uncertainty_inflation"] = round(applied_inflation, 6)
+            key = strategy_id or "__default__"
+            self._last_thresholds[key] = dict(base)
+            return base
 
         if snapshot is not None:
             warn_dimensions, alert_dimensions = self._dimension_counts(snapshot)
@@ -209,3 +239,30 @@ class AdaptiveReleaseThresholds:
             return float(value)
         except (TypeError, ValueError):
             return float(default)
+
+    def _sensor_failure_reason(
+        self, snapshot: SensoryDriftSnapshot | None
+    ) -> str | None:
+        if snapshot is None:
+            return "sensor_unavailable"
+
+        metadata = snapshot.metadata if isinstance(snapshot.metadata, Mapping) else {}
+        reason = metadata.get("reason") if isinstance(metadata, Mapping) else None
+        if isinstance(reason, str) and reason.strip():
+            normalised = reason.strip().lower().replace(" ", "_")
+            if normalised in {"sensor_unavailable", "sensor_failure", "sensor_offline"}:
+                return "sensor_unavailable"
+            if normalised == "no_audit_entries":
+                return "no_audit_entries"
+
+        samples = metadata.get("samples") if isinstance(metadata, Mapping) else None
+        try:
+            if samples is not None and float(samples) <= 0:
+                return "sensor_unavailable"
+        except (TypeError, ValueError):
+            pass
+
+        if not snapshot.dimensions:
+            return "sensor_unavailable"
+
+        return None

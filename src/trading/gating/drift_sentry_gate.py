@@ -169,9 +169,28 @@ class DriftSentryGate:
         if metadata:
             requirements.update({f"context.{key}": value for key, value in metadata.items()})
 
+        if threshold_overrides:
+            inflation_override = threshold_overrides.get("uncertainty_inflation")
+            if inflation_override is not None:
+                try:
+                    requirements["uncertainty_inflation"] = float(inflation_override)
+                except (TypeError, ValueError):
+                    requirements["uncertainty_inflation"] = inflation_override
+            adaptive_source = threshold_overrides.get("adaptive_source")
+            if isinstance(adaptive_source, str) and adaptive_source:
+                requirements.setdefault("adaptive_source", adaptive_source)
+
         finalize = self._finalise_decision
 
         if snapshot is None:
+            fallback_reason: str | None = None
+            adaptive_override = None
+            if threshold_overrides:
+                adaptive_override = threshold_overrides.get("adaptive_source")
+            if isinstance(adaptive_override, str):
+                lowered = adaptive_override.strip().lower()
+                if lowered in {"sensor_unavailable", "no_audit_entries"}:
+                    fallback_reason = lowered
             return finalize(
                 allowed=True,
                 severity=severity,
@@ -180,7 +199,7 @@ class DriftSentryGate:
                 blocked_dimensions=blocked_dimensions,
                 snapshot_metadata=snapshot_metadata,
                 applied_stage=applied_stage,
-                reason="no_snapshot",
+                reason=fallback_reason or "no_snapshot",
             )
 
         strategy_key = strategy_id.strip().lower() if strategy_id else None

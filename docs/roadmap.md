@@ -37,7 +37,7 @@
 - [x] **A.4.2** `/health` + `/metrics` (Prometheus): `event_lag_ms`, `queue_depth`, `p50/90/99_infer_ms`, `drops`, `risk_halted`.
 
 ### A.5 Tests & validation
-- [ ] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
+- [x] **A.5.1** Unit tests for: MDEntry parsing; bus ordering; config precedence.  
 - [x] **A.5.2** Turn `system_validation_report` into **CI**; build fails if any check red.  
 - [x] **A.5.3** Archive deprecated logs/docs under `archive/` and pin a **truthful README** (mock-paper status).
 
@@ -86,7 +86,7 @@
 - [ ] **C.2.3** Clone-state API for planner (no mutation).
 
 ### C.3 Chunked BPTT
-- [ ] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
+- [x] **C.3.1** Trainer chunker: **burn-in B=512**, **train_len T=2048**; carry state, **detach** at chunk edges.  
 - [ ] **C.3.2** Curriculum seq_len: 4k → 8k → 16k.  
 - [x] **C.3.3** Optimizer: AdamW lr=2e-4 cosine; grad_clip=1.0.
 

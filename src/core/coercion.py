@@ -40,6 +40,11 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
             return float(value)
         except (TypeError, ValueError, OverflowError):
             return default
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            value = value.decode("ascii")
+        except UnicodeDecodeError:
+            return default
     if isinstance(value, str):
         candidate = value.strip()
         if not candidate:

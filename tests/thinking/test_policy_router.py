@@ -574,6 +574,12 @@ def test_exploration_forced_selection_disallowed_when_flagged() -> None:
     assert router.allow_forced_exploration is True
     router.allow_forced_exploration = []
     assert router.allow_forced_exploration is False
+    router.allow_forced_exploration = "false"
+    assert router.allow_forced_exploration is False
+    router.allow_forced_exploration = "TRUE"
+    assert router.allow_forced_exploration is True
+    router.allow_forced_exploration = "off"
+    assert router.allow_forced_exploration is False
     router.register_tactic(
         PolicyTactic(
             tactic_id="explore",

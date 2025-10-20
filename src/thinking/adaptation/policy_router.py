@@ -696,8 +696,23 @@ class PolicyRouter:
         return self._allow_forced_exploration
 
     @allow_forced_exploration.setter
-    def allow_forced_exploration(self, allow: bool) -> None:
-        self._allow_forced_exploration = bool(allow)
+    def allow_forced_exploration(self, allow: object) -> None:
+        self._allow_forced_exploration = self._coerce_allow_forced_exploration_flag(allow)
+
+    @staticmethod
+    def _coerce_allow_forced_exploration_flag(flag: object) -> bool:
+        if isinstance(flag, bool):
+            return flag
+        if flag is None:
+            return False
+        if isinstance(flag, str):
+            normalised = flag.strip().lower()
+            if not normalised or normalised in {"0", "false", "no", "off"}:
+                return False
+            if normalised in {"1", "true", "yes", "on"}:
+                return True
+            return bool(normalised)
+        return bool(flag)
 
     @staticmethod
     def _normalise_tournament_weights(

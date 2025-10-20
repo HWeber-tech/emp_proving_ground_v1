@@ -189,6 +189,64 @@ def _serialise_belief_state(state: BeliefState | Mapping[str, Any] | None) -> Ma
     return dict(state.as_dict())
 
 
+def _compute_feature_hashes(features: Mapping[str, Any] | None) -> tuple[dict[str, str], str]:
+    """Return per-feature hashes and an aggregate lineage signature."""
+
+    hashed: dict[str, str] = {}
+    canonical: dict[str, Mapping[str, Any]] = {}
+
+    if isinstance(features, Mapping) and features:
+        items: list[tuple[str, Any]] = []
+        for key, value in features.items():
+            key_text = str(key)
+            items.append((key_text, value))
+        items.sort(key=lambda item: item[0])
+        for name, value in items:
+            try:
+                feature_hash = compute_audit_signature(
+                    kind="regime_feature",
+                    payload={"feature": name, "value": value},
+                )
+            except Exception as exc:  # pragma: no cover - defensive guard
+                logger.debug(
+                    "Falling back to repr() while hashing feature %s", name, exc_info=exc
+                )
+                feature_hash = compute_audit_signature(
+                    kind="regime_feature",
+                    payload={"feature": name, "value": repr(value)},
+                )
+            hashed[name] = feature_hash
+            canonical[name] = {"hash": feature_hash, "value": value}
+
+    aggregate = compute_audit_signature(
+        kind="regime_feature_set",
+        payload={"features": canonical},
+    )
+    return hashed, aggregate
+
+
+def _attach_feature_hashes(
+    decision_payload: MutableMapping[str, Any],
+    regime_payload: Mapping[str, Any],
+) -> None:
+    """Ensure decision payload references immutable regime feature hashes."""
+
+    features = regime_payload.get("features") if isinstance(regime_payload, Mapping) else None
+    feature_hashes, aggregate = _compute_feature_hashes(features if isinstance(features, Mapping) else None)
+    existing_hashes = decision_payload.get("feature_hashes")
+    if isinstance(existing_hashes, Mapping):
+        merged: dict[str, str] = {
+            str(key): str(value)
+            for key, value in existing_hashes.items()
+            if isinstance(key, str) and isinstance(value, str)
+        }
+        merged.update(feature_hashes)
+        decision_payload["feature_hashes"] = merged
+    else:
+        decision_payload["feature_hashes"] = feature_hashes
+    decision_payload["features_signature"] = aggregate
+
+
 @dataclass(slots=True, frozen=True)
 class ProbeActivation:
     """Runtime metadata tying a diary entry to a probe invocation."""
@@ -410,9 +468,16 @@ class DecisionDiaryEntry:
         decision_payload = payload.get("decision", {})
         if not isinstance(decision_payload, Mapping):
             decision_payload = {}
+        else:
+            decision_payload = dict(decision_payload)
         regime_payload = payload.get("regime_state", {})
         if not isinstance(regime_payload, Mapping):
             regime_payload = {}
+        else:
+            regime_payload = dict(regime_payload)
+            features_payload = regime_payload.get("features")
+            if isinstance(features_payload, Mapping):
+                regime_payload["features"] = dict(features_payload)
         outcomes_payload = payload.get("outcomes", {})
         if not isinstance(outcomes_payload, Mapping):
             outcomes_payload = {}
@@ -444,6 +509,8 @@ class DecisionDiaryEntry:
                     probes.append(ProbeActivation.from_mapping(raw, registry=registry))
                 except Exception as exc:
                     logger.warning("Skipping invalid probe activation for %s: %s", entry_id, exc)
+
+        _attach_feature_hashes(decision_payload, regime_payload)
 
         entry = cls(
             entry_id=entry_id,
@@ -584,8 +651,12 @@ class DecisionDiaryStore:
     ) -> DecisionDiaryEntry:
         entry_identifier = entry_id or f"dd-{self._now().strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
         timestamp = _normalise_timestamp(recorded_at, default=self._now)
-        decision_payload = _serialise_policy_decision(decision)
-        regime_payload = _serialise_regime_state(regime_state)
+        decision_payload = dict(_serialise_policy_decision(decision))
+        regime_payload = dict(_serialise_regime_state(regime_state))
+        features_payload = regime_payload.get("features")
+        if isinstance(features_payload, Mapping):
+            regime_payload["features"] = dict(features_payload)
+        _attach_feature_hashes(decision_payload, regime_payload)
         outcomes_payload = dict(outcomes or {})
         if self._deterministic_snapshots and outcomes_payload:
             outcomes_payload = _canonicalise_outcomes_for_replay(

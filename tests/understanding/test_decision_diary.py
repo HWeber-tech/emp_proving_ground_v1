@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.operations.event_bus_failover import EventPublishError
+from src.observability.immutable_audit import compute_audit_signature
 from src.understanding.decision_diary import DecisionDiaryStore
 from src.understanding.probe_registry import ProbeDefinition, ProbeRegistry
 from src.thinking.adaptation.policy_router import PolicyDecision, RegimeState
@@ -78,15 +79,36 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
         metadata={"session": "alpha-shadow"},
     )
 
+    expected_feature_hashes = {
+        name: compute_audit_signature(
+            kind="regime_feature",
+            payload={"feature": name, "value": regime.features[name]},
+        )
+        for name in sorted(regime.features)
+    }
+    expected_feature_signature = compute_audit_signature(
+        kind="regime_feature_set",
+        payload={
+            "features": {
+                name: {"hash": expected_feature_hashes[name], "value": regime.features[name]}
+                for name in sorted(regime.features)
+            }
+        },
+    )
+
     assert entry.entry_id.startswith("dd-20240101T120000Z-12345678")
     assert entry.probes[0].owner == "governance"
     assert entry.probes[0].contact == "governance@example.com"
     assert entry.probes[0].severity == "warn"
+    assert entry.decision["feature_hashes"] == expected_feature_hashes
+    assert entry.decision["features_signature"] == expected_feature_signature
 
     exported = json.loads(store.export_json())
     assert exported["entries"][0]["policy_id"] == "alpha.policy"
     assert exported["entries"][0]["probes"][0]["owner"] == "governance"
     assert "weight_breakdown" in exported["entries"][0]["decision"]
+    assert exported["entries"][0]["decision"]["feature_hashes"] == expected_feature_hashes
+    assert exported["entries"][0]["decision"]["features_signature"] == expected_feature_signature
 
     markdown = store.export_markdown()
     assert "## Probe ownership" in markdown
@@ -97,6 +119,8 @@ def test_decision_diary_record_and_reload(tmp_path, fixed_uuid) -> None:
     assert reloaded_entry is not None
     assert reloaded_entry.probes[0].runbook.endswith("drift_sentry_response.md")
     assert reloaded.probe_registry.get("drift.sentry").owner == "governance"
+    assert reloaded_entry.decision["feature_hashes"] == expected_feature_hashes
+    assert reloaded_entry.decision["features_signature"] == expected_feature_signature
 
     assert store.exists(entry.entry_id)
 
@@ -195,6 +219,9 @@ def test_decision_diary_publish_event(tmp_path, fixed_uuid, monkeypatch) -> None
     assert entry.entry_id in event.payload["entry"]["entry_id"]
     assert "markdown" in event.payload
     assert "weight_breakdown" in event.payload["entry"]["decision"]
+    assert event.payload["entry"]["decision"]["feature_hashes"] == {}
+    signature = event.payload["entry"]["decision"]["features_signature"]
+    assert isinstance(signature, str) and len(signature) == 64
 
 
 def test_decision_diary_publish_event_failure(tmp_path, fixed_uuid, monkeypatch, caplog) -> None:

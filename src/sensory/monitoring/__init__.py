@@ -9,6 +9,12 @@ from .sensor_drift import (
     SensorDriftSummary,
     evaluate_sensor_drift,
 )
+from .signal_roi import (
+    SignalRoiContribution,
+    SignalRoiMonitor,
+    SignalRoiSummary,
+    evaluate_signal_roi,
+)
 
 __all__ = [
     "LiveSensoryDiagnostics",
@@ -25,6 +31,10 @@ __all__ = [
     "SensorDriftResult",
     "SensorDriftSummary",
     "evaluate_sensor_drift",
+    "SignalRoiContribution",
+    "SignalRoiMonitor",
+    "SignalRoiSummary",
+    "evaluate_signal_roi",
 ]
 
 

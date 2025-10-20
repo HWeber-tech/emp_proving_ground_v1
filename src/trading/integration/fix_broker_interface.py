@@ -18,10 +18,13 @@ from typing import (
     Awaitable,
     Callable,
     Coroutine,
+    Literal,
     Mapping,
     MutableMapping,
     Optional,
     Protocol,
+    TypedDict,
+    cast,
 )
 
 import simplefix
@@ -44,7 +47,66 @@ logger = get_logger(__name__)
 
 
 TaskFactory = Callable[[Coroutine[Any, Any, Any], Optional[str]], asyncio.Task[Any]]
-OrderEventCallback = Callable[[str, dict[str, Any]], None] | Callable[[str, dict[str, Any]], Awaitable[None]]
+
+
+class OrderUpdatePayload(TypedDict, total=False):
+    """Minimal execution update payload shared with listeners and telemetry."""
+
+    order_id: str
+    exec_type: str | None
+    status: str | None
+    filled_qty: float | None
+    avg_px: float | None
+    symbol: str | None
+    side: str | None
+    timestamp: datetime
+    exec_id: str | None
+    last_qty: float | None
+    last_px: float | None
+    cum_qty: float | None
+    leaves_qty: float | None
+
+
+class OrderLifecycleEventPayload(OrderUpdatePayload, total=False):
+    """Structured lifecycle payload emitted on ``trading.order.lifecycle``."""
+
+    event: Literal[
+        "acknowledged",
+        "partial_fill",
+        "filled",
+        "cancelled",
+        "rejected",
+        "cancel_rejected",
+    ]
+    order_quantity: float | None
+    metadata: dict[str, Any]
+    risk_decision: dict[str, Any]
+    policy_snapshot: dict[str, Any]
+    risk_context: dict[str, Any]
+    reason: str | None
+    source: Literal["fix_broker_interface"]
+
+
+class RiskIntentRejectedPayload(TypedDict, total=False):
+    """Telemetry payload describing a risk-blocked manual FIX order."""
+
+    symbol: str
+    side: str
+    quantity: float
+    reason: str
+    timestamp: str
+    source: Literal["fix_broker_interface"]
+    runbook: str
+    decision: Mapping[str, Any]
+    policy_snapshot: Mapping[str, Any]
+    risk_reference: Mapping[str, Any]
+    risk_context: Mapping[str, Any]
+    violations: list[str]
+    policy_violation: bool
+    severity: Literal["critical", "warning"]
+
+
+OrderEventCallback = Callable[[str, Mapping[str, Any]], None | Awaitable[None]]
 
 
 _MANUAL_FIX_RISK_RUNBOOK = "docs/operations/runbooks/manual_fix_order_risk_block.md"
@@ -303,7 +365,7 @@ class FIXBrokerInterface:
         if isinstance(decision, Mapping):
             reason = str(decision.get("reason") or reason)
 
-        payload: dict[str, Any] = {
+        payload: RiskIntentRejectedPayload = {
             "symbol": symbol,
             "side": side.upper(),
             "quantity": float(quantity),
@@ -387,8 +449,22 @@ class FIXBrokerInterface:
         if self._risk_context_available():
             payload["risk_context"] = self.describe_risk_context()
 
+        emit_fn = getattr(self.event_bus, "emit", None)
+        if not callable(emit_fn):
+            return
+
         try:
-            await self.event_bus.emit(self._risk_event_topic, payload)
+            try:
+                result = emit_fn(
+                    self._risk_event_topic,
+                    payload,
+                    source=payload["source"],
+                )
+            except TypeError:
+                result = emit_fn(self._risk_event_topic, payload)
+
+            if inspect.isawaitable(result):
+                await result
         except Exception as exc:
             logger.debug("risk_violation_emit_failed", error=str(exc))
 
@@ -424,13 +500,13 @@ class FIXBrokerInterface:
         order_id: str,
         order_state: Mapping[str, Any] | None,
         update_payload: Mapping[str, Any],
-    ) -> dict[str, Any]:
+    ) -> OrderLifecycleEventPayload:
         merged: dict[str, Any] = {}
         if isinstance(order_state, Mapping):
             merged.update(order_state)
         merged.update(update_payload)
 
-        payload: dict[str, Any] = {
+        payload: OrderLifecycleEventPayload = {
             "order_id": order_id,
             "event": event_type,
             "status": merged.get("status"),
@@ -460,7 +536,8 @@ class FIXBrokerInterface:
                 payload[key] = dict(value)
 
         # Drop keys with ``None`` values to keep payload compact
-        return {key: value for key, value in payload.items() if value is not None}
+        filtered = {key: value for key, value in payload.items() if value is not None}
+        return cast(OrderLifecycleEventPayload, filtered)
 
     async def _emit_topic_event(self, topic: str, payload: Mapping[str, Any]) -> None:
         bus = self.event_bus
@@ -472,34 +549,44 @@ class FIXBrokerInterface:
 
         publish_callable = getattr(bus, "publish", None)
         if callable(publish_callable):
-            try:
-                result = publish_callable(event)
-            except TypeError:
+            publish_attempts = [
+                ((event,), {}),
+                ((topic, event_payload, event.source), {}),
+                ((topic, event_payload), {"source": event.source}),
+                ((topic, event_payload), {}),
+            ]
+            for args, kwargs in publish_attempts:
                 try:
-                    result = publish_callable(topic, event_payload)
+                    result = publish_callable(*args, **kwargs)
+                except TypeError:
+                    continue
                 except Exception as exc:
                     logger.debug("order_event_publish_failed", topic=topic, error=str(exc))
+                    break
                 else:
                     if inspect.isawaitable(result):
                         await result
                     return
-            except Exception as exc:
-                logger.debug("order_event_publish_failed", topic=topic, error=str(exc))
-            else:
-                if inspect.isawaitable(result):
-                    await result
-                return
 
         emit_callable = getattr(bus, "emit", None)
         if callable(emit_callable):
-            try:
-                result = emit_callable(topic, event_payload)
-            except Exception as exc:
-                logger.debug("order_event_emit_failed", topic=topic, error=str(exc))
-            else:
-                if inspect.isawaitable(result):
-                    await result
-                return
+            emit_attempts = [
+                ((topic, event_payload, event.source), {}),
+                ((topic, event_payload), {"source": event.source}),
+                ((topic, event_payload), {}),
+            ]
+            for args, kwargs in emit_attempts:
+                try:
+                    result = emit_callable(*args, **kwargs)
+                except TypeError:
+                    continue
+                except Exception as exc:
+                    logger.debug("order_event_emit_failed", topic=topic, error=str(exc))
+                    break
+                else:
+                    if inspect.isawaitable(result):
+                        await result
+                    return
 
         publish_sync = getattr(bus, "publish_sync", None)
         if callable(publish_sync):
@@ -682,7 +769,7 @@ class FIXBrokerInterface:
 
             self.orders[order_id] = order_state
 
-            update_payload = {
+            update_payload: OrderUpdatePayload = {
                 "order_id": order_id,
                 "exec_type": exec_type,
                 "status": order_state.get("status"),
@@ -1003,7 +1090,7 @@ class FIXBrokerInterface:
         self,
         event_type: str,
         order_id: str,
-        payload: dict[str, Any],
+        payload: Mapping[str, Any],
     ) -> None:
         callbacks = list(self._event_callbacks.get(event_type, ()))
         for callback in callbacks:

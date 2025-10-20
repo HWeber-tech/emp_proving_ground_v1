@@ -11,7 +11,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Mapping
 
-__all__ = ["SlowContextDecision", "resolve_size_multiplier"]
+__all__ = [
+    "SlowContextDecision",
+    "resolve_size_multiplier",
+    "resolve_slow_context_multiplier",
+]
 
 _ALLOWED_MULTIPLIERS: tuple[float, ...] = (0.0, 0.3, 1.0)
 
@@ -96,6 +100,14 @@ def resolve_size_multiplier(
         multiplier = 1.0
 
     return SlowContextDecision(multiplier=multiplier, drivers=drivers)
+
+
+def resolve_slow_context_multiplier(
+    context: Mapping[str, object] | None = None,
+) -> SlowContextDecision:
+    """Backward-compatible alias for :func:`resolve_size_multiplier`."""
+
+    return resolve_size_multiplier(context)
 
 
 def _any_flag(context: Mapping[str, object], keys: tuple[str, ...]) -> bool:

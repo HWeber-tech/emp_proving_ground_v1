@@ -6,7 +6,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Callable, Mapping, MutableMapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Mapping, MutableMapping, Sequence, TypeVar
 from uuid import uuid4
 
 import pandas as pd
@@ -33,10 +33,12 @@ from src.data_integration.real_data_integration import (
 from src.governance.system_config import DataBackboneMode, SystemConfig
 from src.sensory.real_sensory_organ import RealSensoryOrgan
 from src.thinking.adaptation.feature_toggles import AdaptationFeatureToggles
-from src.understanding.belief import BeliefState, RegimeSignal
-from src.understanding.live_belief_manager import LiveBeliefManager
 from src.understanding.router import BeliefSnapshot, UnderstandingDecision, UnderstandingRouter
 from src.runtime.task_supervisor import TaskSupervisor
+
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from src.understanding.live_belief_manager import LiveBeliefManager
+    from src.understanding.belief import BeliefState, RegimeSignal
 
 FetchDailyFn = Callable[[list[str], int], pd.DataFrame]
 FetchIntradayFn = Callable[[list[str], int, str], pd.DataFrame]
@@ -47,6 +49,12 @@ KafkaConsumerFactory = Callable[[], KafkaIngestEventConsumer | None]
 logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
+
+
+def _load_live_belief_manager() -> "LiveBeliefManager":
+    from src.understanding.live_belief_manager import LiveBeliefManager
+
+    return LiveBeliefManager
 
 
 def _normalise_symbols(values: Sequence[str]) -> tuple[str, ...]:
@@ -617,7 +625,8 @@ class OperationalBackbonePipeline:
                                 "event_bus must be provided when bootstrapping a belief manager",
                             )
                         belief_id = self._belief_id or f"operational.{symbol.lower()}"
-                        manager, snapshot, belief_state, regime_signal = LiveBeliefManager.from_market_data(
+                        live_belief_manager = _load_live_belief_manager()
+                        manager, snapshot, belief_state, regime_signal = live_belief_manager.from_market_data(
                             market_data=daily_frame,
                             symbol=symbol,
                             belief_id=belief_id,

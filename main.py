@@ -297,10 +297,6 @@ async def main() -> None:
     else:
         logger.debug("Configuration snapshot persistence disabled")
 
-    from src.system.requirements_check import assert_scientific_stack
-
-    assert_scientific_stack()
-
     parser = argparse.ArgumentParser(description="EMP Professional Predator")
     parser.add_argument(
         "--skip-ingest",
@@ -346,6 +342,10 @@ async def main() -> None:
         )
 
     logger.info(render_config_diff(config))
+
+    from src.system.requirements_check import assert_scientific_stack
+
+    assert_scientific_stack()
 
     try:
         app = await build_professional_predator_app(config=config)

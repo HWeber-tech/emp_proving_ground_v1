@@ -43,6 +43,7 @@ from src.operations.incident_response import (
 )
 from src.runtime.predator_app import _build_bootstrap_runtime
 from src.trading.execution.paper_broker_adapter import PaperBrokerExecutionAdapter
+from src.trading.execution.release_router import ReleaseAwareExecutionRouter
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +203,17 @@ async def run_paper_trading_simulation(
             "and ledger configuration promote strategies into limited_live."
         )
 
+    router = getattr(runtime.trading_manager, "execution_engine", None)
+    if isinstance(router, ReleaseAwareExecutionRouter):
+        try:
+            router.configure_engines(
+                paper_engine=paper_engine,
+                pilot_engine=paper_engine,
+                live_engine=paper_engine,
+            )
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("Failed to configure release router for paper simulation", exc_info=True)
+
     seen_orders: set[str] = set()
     orders: list[Mapping[str, Any]] = []
     seen_errors: set[tuple[Any, ...]] = set()
@@ -342,6 +354,9 @@ async def run_paper_trading_simulation(
 
     order_summary = _summarise_orders(orders)
 
+    strategy_summary = _resolve_strategy_summary(runtime)
+    strategy_summary = _enrich_strategy_summary(strategy_summary, orders, config)
+
     report = PaperTradingSimulationReport(
         orders=list(orders),
         errors=list(errors),
@@ -358,7 +373,7 @@ async def run_paper_trading_simulation(
         performance=_build_performance_summary(portfolio_snapshot),
         execution_stats=execution_stats,
         performance_health=performance_health,
-        strategy_summary=_resolve_strategy_summary(runtime),
+        strategy_summary=strategy_summary,
         release=release_summary,
         trade_throttle=_resolve_trade_throttle_snapshot(runtime),
         trade_throttle_scopes=_resolve_trade_throttle_scopes(runtime),
@@ -566,6 +581,43 @@ def _resolve_strategy_summary(runtime: Any) -> Mapping[str, Any] | None:
             for strategy_id, payload in summary.items()
         }
     return None
+
+
+def _enrich_strategy_summary(
+    summary: Mapping[str, Any] | None,
+    orders: Sequence[Mapping[str, Any]],
+    config: SystemConfig,
+) -> Mapping[str, Any] | None:
+    if not orders:
+        return summary
+
+    enriched: dict[str, Any] = {}
+    if isinstance(summary, Mapping):
+        enriched.update({str(key): dict(value) if isinstance(value, Mapping) else value for key, value in summary.items()})
+
+    extras = config.extras or {}
+    fallback_strategy = str(extras.get("BOOTSTRAP_STRATEGY_ID") or extras.get("POLICY_ID") or "bootstrap-strategy")
+
+    counts: dict[str, int] = {}
+    for order in orders:
+        strategy_id: str | None = None
+        metadata = order.get("metadata")
+        if isinstance(metadata, Mapping):
+            strategy_id = metadata.get("strategy_id") or metadata.get("policy_id")
+        if not strategy_id:
+            strategy_id = order.get("strategy_id") or order.get("policy_id")
+        strategy_key = str(strategy_id or fallback_strategy)
+        counts[strategy_key] = counts.get(strategy_key, 0) + 1
+
+    for strategy_key, executed_count in counts.items():
+        stats = dict(enriched.get(strategy_key, {})) if isinstance(enriched.get(strategy_key), Mapping) else {}
+        current_executed = stats.get("executed")
+        if not isinstance(current_executed, int):
+            current_executed = 0
+        stats["executed"] = max(current_executed, executed_count)
+        enriched[strategy_key] = stats
+
+    return enriched
 
 
 def _resolve_release_summary(runtime: Any) -> Mapping[str, Any] | None:

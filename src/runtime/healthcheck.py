@@ -734,12 +734,16 @@ class RuntimeHealthServer:
         return self._resolved_port if self._resolved_port is not None else self._port
 
     @property
+    def _scheme(self) -> str:
+        return "https" if self._ssl_context is not None else "http"
+
+    @property
     def url(self) -> str:
-        return f"https://{self._host}:{self.port}{self._path}"
+        return f"{self._scheme}://{self._host}:{self.port}{self._path}"
 
     @property
     def metrics_url(self) -> str:
-        return f"https://{self._host}:{self.port}{self._metrics_path}"
+        return f"{self._scheme}://{self._host}:{self.port}{self._metrics_path}"
 
     def summary(self) -> Mapping[str, object]:
         return {

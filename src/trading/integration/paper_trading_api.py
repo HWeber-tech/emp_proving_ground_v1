@@ -317,6 +317,8 @@ class PaperTradingApiAdapter:
         payload = self._build_market_payload(symbol, side, quantity)
         headers = self._settings.build_headers()
         timeout = self._build_timeout()
+        is_https = url.lower().startswith("https://")
+        ssl_option = self._settings.verify_ssl if is_https else None
 
         submission: MutableMapping[str, Any] = {
             "attempt": attempt,
@@ -324,7 +326,7 @@ class PaperTradingApiAdapter:
                 "url": url,
                 "payload": dict(payload),
                 "headers": dict(headers),
-                "verify_ssl": self._settings.verify_ssl,
+                "verify_ssl": self._settings.verify_ssl if is_https else None,
             },
         }
         if timeout is not None:
@@ -345,7 +347,7 @@ class PaperTradingApiAdapter:
                 url,
                 json=payload,
                 headers=headers,
-                ssl=self._settings.verify_ssl,
+                ssl=ssl_option,
                 timeout=timeout,
             ) as response:
                 body_text = await response.text()

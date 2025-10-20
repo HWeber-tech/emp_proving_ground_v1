@@ -40,6 +40,7 @@ from src.trading.risk.market_regime_detector import (
     MarketRegimeResult,
     RegimeLabel,
 )
+from src.risk.slow_context import SlowContextDecision, resolve_size_multiplier
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +171,14 @@ class RiskManagerImpl(RiskManagerProtocol):
             sizing_config=self._sizing_config
         )
         self.telemetry: Dict[str, object] = {}
+        self._slow_context_multiplier: float = 1.0
+        self._slow_context_drivers: Dict[str, bool] = {
+            "macro": False,
+            "volatility": False,
+            "earnings": False,
+        }
+        self.telemetry["slow_context_multiplier"] = self._slow_context_multiplier
+        self.telemetry["slow_context_drivers"] = dict(self._slow_context_drivers)
         # Market risk analytics configuration (can be overridden via ``update_limits``).
         self._var_confidence: float = 0.99
         self._var_simulations: int = 10000
@@ -231,6 +240,7 @@ class RiskManagerImpl(RiskManagerProtocol):
             * baseline_risk
             * self._drawdown_multiplier
             * self._regime_risk_multiplier
+            * self._slow_context_multiplier
         )
 
     def _resolve_position_price(self, entry: PositionEntry) -> float:
@@ -791,6 +801,27 @@ class RiskManagerImpl(RiskManagerProtocol):
             },
         )
         return result
+
+    def update_slow_context(
+        self, context: Mapping[str, object] | None = None
+    ) -> SlowContextDecision:
+        """Resolve slow-context sizing posture and update internal throttles."""
+
+        decision = resolve_size_multiplier(context)
+        self._slow_context_multiplier = decision.multiplier
+        self._slow_context_drivers = dict(decision.drivers)
+        self.telemetry["slow_context_multiplier"] = decision.multiplier
+        self.telemetry["slow_context_drivers"] = dict(decision.drivers)
+        logger.info(
+            "slow_context_update",
+            extra={
+                "size_multiplier": decision.multiplier,
+                "macro_driver": decision.drivers.get("macro", False),
+                "volatility_driver": decision.drivers.get("volatility", False),
+                "earnings_driver": decision.drivers.get("earnings", False),
+            },
+        )
+        return decision
 
     def add_position(
         self,

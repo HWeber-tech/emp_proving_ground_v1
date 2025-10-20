@@ -200,6 +200,42 @@ def test_risk_manager_rejects_invalid_payload_values() -> None:
         RiskManager(config={"max_risk_per_trade_pct": Decimal("2.0")})
 
 
+def test_update_slow_context_macro_freeze() -> None:
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=RiskConfig())
+
+    baseline = manager._compute_risk_budget()
+    decision = manager.update_slow_context({"macro_block": True})
+
+    assert decision.multiplier == pytest.approx(0.0)
+    assert manager._slow_context_multiplier == pytest.approx(0.0)
+    assert manager._compute_risk_budget() == pytest.approx(0.0)
+    assert manager.telemetry["slow_context_drivers"]["macro"] is True
+
+    manager.update_slow_context({})
+    assert manager._compute_risk_budget() == pytest.approx(baseline)
+
+
+def test_update_slow_context_throttle_multiplier() -> None:
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=RiskConfig())
+
+    baseline = manager._compute_risk_budget()
+    decision = manager.update_slow_context({"volatility_throttle": True})
+
+    assert decision.multiplier == pytest.approx(0.3)
+    assert manager._slow_context_multiplier == pytest.approx(0.3)
+    assert manager._compute_risk_budget() == pytest.approx(baseline * 0.3)
+
+
+def test_update_slow_context_allows_explicit_override() -> None:
+    manager = RiskManagerImpl(initial_balance=50_000, risk_config=RiskConfig())
+
+    decision = manager.update_slow_context({"size_multiplier": "0.3", "macro_block": True})
+
+    assert decision.multiplier == pytest.approx(0.3)
+    assert manager._slow_context_multiplier == pytest.approx(0.3)
+    assert manager.telemetry["slow_context_multiplier"] == pytest.approx(0.3)
+
+
 def test_risk_manager_facade_validate_trade_respects_limits() -> None:
     config = RiskConfig(
         max_risk_per_trade_pct=Decimal("0.02"),

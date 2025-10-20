@@ -316,15 +316,23 @@ class MarketAnalyzer(ThinkingPattern):
             return "none"
 
     def _recommend_action(self, opportunity_score: float, sentiment: float) -> str:
-        """Recommend trading action based on opportunity and sentiment."""
-        if opportunity_score > 0.7 and sentiment > 0.6:
-            return "strong_buy"
-        elif opportunity_score > 0.5 and sentiment > 0.5:
-            return "buy"
-        elif opportunity_score < 0.2 or sentiment < 0.3:
-            return "sell"
-        else:
+        """Recommend execution style for the opportunity window."""
+
+        # Treat the lowest signal as the gating alignment score; if either side is
+        # weak we prefer to stand down instead of forcing an execution style.
+        alignment = min(float(opportunity_score), float(sentiment))
+        urgency = max(float(opportunity_score), float(sentiment))
+
+        if alignment <= 0.25:
             return "hold"
+
+        if opportunity_score >= 0.75 and sentiment >= 0.65:
+            return "cross"
+
+        if alignment >= 0.4 and urgency >= 0.45:
+            return "post_and_chase"
+
+        return "hold"
 
     def _generate_risk_warnings(self, risk_metrics: dict[str, object]) -> list[str]:
         """Generate risk warnings based on metrics."""

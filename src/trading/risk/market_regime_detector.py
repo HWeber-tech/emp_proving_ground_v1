@@ -38,6 +38,12 @@ __all__ = [
 ]
 
 
+# Scale MAD to match standard deviation under a normal distribution.
+MAD_SCALE = 1.4826
+# Convert E[|X|] of a normal distribution back to σ.
+ABS_RETURN_TO_SIGMA = math.sqrt(math.pi / 2.0)
+
+
 @dataclass(frozen=True)
 class RegimeLabel:
     """Light-weight representation of a regime label."""
@@ -126,7 +132,7 @@ class MarketRegimeDetector:
                 diagnostics={"sample_size": float(sample_size)},
             )
 
-        realised_vol = float(np.std(returns, ddof=1))
+        realised_vol = self._robust_sigma(returns)
         annualisation = self._resolve_periods_per_year(data)
         annualised_vol = realised_vol * math.sqrt(annualisation)
 
@@ -199,6 +205,42 @@ class MarketRegimeDetector:
         returns = np.diff(log_prices)
         return self._sanitize_series(returns)
 
+    def _robust_sigma(self, returns: np.ndarray) -> float:
+        if returns.size == 0:
+            return 0.0
+
+        cleaned = returns[np.isfinite(returns)]
+        if cleaned.size == 0:
+            return 0.0
+
+        median = float(np.median(cleaned)) if cleaned.size else 0.0
+        deviations = np.abs(cleaned - median)
+        mad = float(np.median(deviations)) if deviations.size else 0.0
+        if not math.isfinite(mad):
+            mad = 0.0
+        mad_sigma = mad * MAD_SCALE if mad > 0.0 else 0.0
+        if math.isfinite(mad_sigma) and mad_sigma > 0.0:
+            return mad_sigma
+
+        ewma_lambda = getattr(self._vol_config, "ewma_lambda", 0.94)
+        try:
+            lam = float(ewma_lambda)
+        except (TypeError, ValueError):
+            lam = 0.94
+        if not math.isfinite(lam):
+            lam = 0.94
+        lam = min(max(lam, 0.0), 0.999)
+
+        abs_returns = np.abs(cleaned)
+        if abs_returns.size == 0:
+            return 0.0
+
+        ewma = float(abs_returns[0])
+        for value in abs_returns[1:]:
+            ewma = lam * ewma + (1.0 - lam) * float(value)
+
+        return ewma * ABS_RETURN_TO_SIGMA
+
     def _classify_regime(self, annualised_vol: float) -> str:
         calm_thr = float(self._vol_config.calm_thr)
         storm_thr = float(self._vol_config.storm_thr)
@@ -254,4 +296,3 @@ def cast_iterable(value: object) -> Iterable[float]:
     if isinstance(value, IterableABC) and not isinstance(value, (str, bytes, bytearray)):
         return list(value)  # type: ignore[return-value]
     raise TypeError("Value must be an iterable of numeric observations")
-

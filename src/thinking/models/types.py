@@ -29,6 +29,10 @@ class AttackReportTD(TypedDict, total=False):
     impact: float
     timestamp: str
     error: str
+    anticipation_guard: dict[str, object]
+    observer_focus: str
+    camouflage_seed: str
+    observation_signature: dict[str, object]
 
 
 @runtime_checkable

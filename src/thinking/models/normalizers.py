@@ -142,6 +142,10 @@ def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
       - impact: float
       - timestamp: str
       - error: str
+      - anticipation_guard: dict[str, object]
+      - observer_focus: str
+      - camouflage_seed: str
+      - observation_signature: dict[str, object]
     """
 
     def _as_mapping(obj: object) -> Optional[Mapping[str, object]]:
@@ -155,7 +159,7 @@ def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
     m = _as_mapping(a)
     if m is None:
         # Fallback to attribute access
-        return AttackReportTD(
+        out = AttackReportTD(
             attack_id=str(_safe_getattr(a, "attack_id") or ""),
             strategy_id=str(_safe_getattr(a, "strategy_id") or ""),
             success=bool(_safe_getattr(a, "success") or False),
@@ -163,6 +167,19 @@ def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
             timestamp=str(_safe_getattr(a, "timestamp") or ""),
             error=str(_safe_getattr(a, "error") or ""),
         )
+        guard_attr = _safe_getattr(a, "anticipation_guard")
+        if isinstance(guard_attr, Mapping):
+            out["anticipation_guard"] = dict(guard_attr)
+        focus_attr = _safe_getattr(a, "observer_focus")
+        if focus_attr is not None:
+            out["observer_focus"] = str(focus_attr)
+        seed_attr = _safe_getattr(a, "camouflage_seed")
+        if seed_attr is not None:
+            out["camouflage_seed"] = str(seed_attr)
+        signature_attr = _safe_getattr(a, "observation_signature")
+        if isinstance(signature_attr, Mapping):
+            out["observation_signature"] = dict(signature_attr)
+        return out
 
     # Mapping normalization
     out: AttackReportTD = AttackReportTD()
@@ -178,5 +195,17 @@ def normalize_attack_report(a: Mapping[str, object] | object) -> AttackReportTD:
         out["timestamp"] = str(m.get("timestamp", ""))
     if "error" in m:
         out["error"] = str(m.get("error", ""))
+    guard_payload = m.get("anticipation_guard")
+    if isinstance(guard_payload, Mapping):
+        out["anticipation_guard"] = dict(guard_payload)
+    focus_value = m.get("observer_focus")
+    if focus_value is not None:
+        out["observer_focus"] = str(focus_value)
+    seed_value = m.get("camouflage_seed")
+    if seed_value is not None:
+        out["camouflage_seed"] = str(seed_value)
+    signature_payload = m.get("observation_signature")
+    if isinstance(signature_payload, Mapping):
+        out["observation_signature"] = dict(signature_payload)
 
     return out

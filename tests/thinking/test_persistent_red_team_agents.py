@@ -14,7 +14,14 @@ async def test_persistent_red_team_agents_escalate_intensity() -> None:
     weakness = "trend_reversal_blindness"
 
     async def _analyze(self, target_strategy: str, test_scenarios):  # type: ignore[override]
-        return {"behavior_profile": {}}
+        return {
+            "behavior_profile": {
+                "trend_following_strength": 0.92,
+                "volatility_sensitivity": 0.61,
+            },
+            "performance_patterns": ["momentum_bias"],
+            "risk_factors": ["volatility_spike_vulnerability"],
+        }
 
     async def _find(self, behavior_profile, known_vulnerabilities):  # type: ignore[override]
         return [weakness]
@@ -33,6 +40,12 @@ async def test_persistent_red_team_agents_escalate_intensity() -> None:
         return []
 
     async def _execute(self, target_strategy: str, attack):  # type: ignore[override]
+        assert isinstance(attack, dict)
+        params = attack.get("parameters", {})
+        guard = attack.get("anticipation_guard")
+        assert isinstance(guard, dict)
+        assert params.get("observer_focus")
+        assert params.get("decoy_seed")
         return {
             "attack_id": attack["attack_id"],
             "strategy_id": target_strategy,
@@ -42,6 +55,10 @@ async def test_persistent_red_team_agents_escalate_intensity() -> None:
             "specialization_level": attack.get("specialization_level"),
             "assigned_agent_id": attack.get("assigned_agent_id"),
             "intensity": attack.get("parameters", {}).get("intensity"),
+            "anticipation_guard": guard,
+            "observer_focus": params.get("observer_focus"),
+            "camouflage_seed": params.get("decoy_seed"),
+            "observation_signature": attack.get("observation_signature"),
         }
 
     red_team.strategy_analyzer.analyze_behavior = _analyze.__get__(
@@ -63,6 +80,13 @@ async def test_persistent_red_team_agents_escalate_intensity() -> None:
     first_result = first_report["attack_results"][0]
     assert first_result["specialization_level"] == "novice"
     assert first_result["intensity"] == "medium"
+    assert first_result["anticipation_guard"]["decoy_seed"]
+    assert first_result["observer_focus"] == "trend_following_strength"
+
+    observer_signatures = first_report.get("observer_signatures")
+    assert observer_signatures and observer_signatures[0]["focus"] == "trend_following_strength"
+    guard_snapshots = first_report.get("anticipation_measures")
+    assert guard_snapshots and guard_snapshots[0]["decoy_seed"]
 
     agent_payload = await store.get(f"emp:red_team_agents:{weakness}")
     assert agent_payload is not None
@@ -70,6 +94,9 @@ async def test_persistent_red_team_agents_escalate_intensity() -> None:
     assert agent_record["attack_count"] == 1
     assert agent_record["skill_level"] == "seasoned"
     assert agent_record["preferred_intensity"] == "medium"
+    assert agent_record["mimic_trained"] is True
+    assert agent_record["observation_signature"]["focus"] == "trend_following_strength"
+    assert agent_record["camouflage_tokens"], "expected camouflage tokens to be tracked"
 
     second_report = await red_team.attack_strategy("strategy-alpha")
     assert second_report["attack_results"], "expected attack results for second run"
@@ -88,6 +115,7 @@ async def test_persistent_red_team_agents_escalate_intensity() -> None:
     assert updated_record["attack_count"] == 2
     assert updated_record["skill_level"] == "seasoned"
     assert updated_record["preferred_intensity"] == "high"
+    assert len(updated_record["camouflage_tokens"]) <= 2
 
     stats = await red_team.get_red_team_stats()
     assert stats["dedicated_agents"] == 1

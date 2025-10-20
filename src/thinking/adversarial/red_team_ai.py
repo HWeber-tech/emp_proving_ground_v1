@@ -11,6 +11,7 @@ import uuid
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
+import hashlib
 
 import numpy as np
 from src.core.state_store import StateStore
@@ -518,28 +519,45 @@ class RedTeamAI:
             behavior_profile = await self.strategy_analyzer.analyze_behavior(
                 target_strategy, test_scenarios
             )
+            behavior_map = _to_mapping(behavior_profile)
+            observer_signatures = self._derive_observer_signatures(behavior_map)
 
             # Step 2: Identify weaknesses
             known_vulnerabilities = await self._get_known_vulnerabilities()
-            profile_map = (
-                behavior_profile.get("behavior_profile", {})
-                if isinstance(behavior_profile, dict)
-                else getattr(behavior_profile, "behavior_profile", {})
-            )
+            profile_map = behavior_map.get("behavior_profile", {}) if isinstance(behavior_map, Mapping) else {}
+            if not isinstance(profile_map, Mapping):
+                profile_map = {}
+            else:
+                profile_map = dict(profile_map)
             weaknesses = await self.weakness_detector.find_weaknesses(
                 profile_map, known_vulnerabilities
             )
 
             agent_map = await self._load_persistent_agents(weaknesses) if weaknesses else {}
+            if agent_map and observer_signatures:
+                self._train_observer_mimics(agent_map, observer_signatures)
 
             # Step 3: Generate attacks
             attacks = []
-            for weakness in weaknesses:
+            guard_snapshots: List[dict[str, object]] = []
+            for idx, weakness in enumerate(weaknesses):
                 attack = await self.attack_generator.create_attack(weakness, target_strategy)
-                if agent_map:
-                    agent = agent_map.get(weakness)
-                    if agent is not None:
-                        attack = self._apply_agent_specialization(agent, attack)
+                agent = agent_map.get(weakness) if agent_map else None
+                if agent is not None:
+                    attack = self._apply_agent_specialization(agent, attack)
+                    attack = self._apply_observer_mimic(agent, attack)
+                    attack = self._guard_against_anticipation(attack, idx, agent)
+                else:
+                    attack = self._guard_against_anticipation(attack, idx, None)
+
+                if isinstance(attack, Mapping):
+                    guard = attack.get("anticipation_guard")
+                    if isinstance(guard, Mapping):
+                        snapshot = dict(guard)
+                        snapshot["weakness"] = weakness
+                        snapshot["attack_id"] = str(attack.get("attack_id", ""))
+                        guard_snapshots.append(snapshot)
+
                 attacks.append(attack)
 
             # Step 4: Develop exploits
@@ -573,6 +591,10 @@ class RedTeamAI:
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
+            if observer_signatures:
+                report["observer_signatures"] = [dict(sig) for sig in observer_signatures]
+            if guard_snapshots:
+                report["anticipation_measures"] = guard_snapshots
             if agent_map:
                 report["persistent_agents"] = [
                     {
@@ -600,6 +622,201 @@ class RedTeamAI:
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat(),
             }
+
+    def _derive_observer_signatures(self, behavior_map: Mapping[str, object]) -> List[dict[str, object]]:
+        """Construct observation signatures that external watchers might learn."""
+
+        signatures: List[dict[str, object]] = []
+
+        metrics = behavior_map.get("behavior_profile") if isinstance(behavior_map, Mapping) else None
+        if isinstance(metrics, Mapping):
+            exposures: List[tuple[str, float, float]] = []
+            for name, raw_value in metrics.items():
+                try:
+                    value = float(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                exposures.append((name, abs(value), value))
+            exposures.sort(key=lambda item: item[1], reverse=True)
+            for rank, (name, magnitude, signed_value) in enumerate(exposures[:3], start=1):
+                signatures.append(
+                    {
+                        "focus": name,
+                        "magnitude": float(magnitude),
+                        "polarity": "positive" if signed_value >= 0 else "negative",
+                        "rank": rank,
+                        "pattern": "metric_bias",
+                    }
+                )
+
+        patterns = behavior_map.get("performance_patterns")
+        if isinstance(patterns, list):
+            base_rank = len(signatures) + 1
+            for offset, pattern in enumerate(patterns[:2]):
+                if isinstance(pattern, str):
+                    signatures.append(
+                        {
+                            "focus": pattern,
+                            "magnitude": 1.0,
+                            "polarity": "pattern",
+                            "rank": base_rank + offset,
+                            "pattern": "behavior_pattern",
+                        }
+                    )
+
+        if not signatures:
+            risk_factors = behavior_map.get("risk_factors")
+            if isinstance(risk_factors, list):
+                for idx, risk in enumerate(risk_factors[:2], start=1):
+                    if isinstance(risk, str):
+                        signatures.append(
+                            {
+                                "focus": risk,
+                                "magnitude": 0.5,
+                                "polarity": "risk_factor",
+                                "rank": idx,
+                                "pattern": "risk_alert",
+                            }
+                        )
+
+        return signatures
+
+    def _train_observer_mimics(
+        self,
+        agent_map: dict[str, dict[str, object]],
+        observer_signatures: Sequence[Mapping[str, object]],
+    ) -> None:
+        """Update persistent agents so they can mimic external observers."""
+
+        if not agent_map or not observer_signatures:
+            return
+
+        signatures_list = [dict(sig) for sig in observer_signatures if isinstance(sig, Mapping)]
+        if not signatures_list:
+            return
+
+        total = len(signatures_list)
+        for idx, key in enumerate(sorted(agent_map)):
+            agent = agent_map.get(key)
+            if not isinstance(agent, dict):
+                continue
+            signature = signatures_list[idx % total]
+            agent["observation_signature"] = signature
+            mimic_profile = agent.setdefault("mimic_profile", {})
+            if not isinstance(mimic_profile, dict):
+                mimic_profile = {}
+            mimic_profile.update(
+                {
+                    "last_signature_focus": signature.get("focus"),
+                    "rank": signature.get("rank"),
+                    "pattern": signature.get("pattern"),
+                    "trained_at": datetime.utcnow().isoformat(),
+                }
+            )
+            agent["mimic_profile"] = mimic_profile
+            known = agent.get("known_tactics", [])
+            tactic_token = f"mimic:{signature.get('focus')}"
+            if isinstance(known, list):
+                if tactic_token not in known:
+                    known.append(tactic_token)
+                    if len(known) > 8:
+                        known[:] = known[-8:]
+            else:
+                known = [tactic_token]
+            agent["known_tactics"] = known
+            agent["mimic_trained"] = True
+
+    def _apply_observer_mimic(self, agent: Mapping[str, object], attack: object) -> object:
+        """Embed observer mimicry cues into the attack payload."""
+
+        signature = agent.get("observation_signature") if isinstance(agent, Mapping) else None
+        if not isinstance(signature, Mapping):
+            return attack
+
+        payload: dict[str, object]
+        if isinstance(attack, dict):
+            payload = attack
+        else:
+            payload = dict(_to_mapping(attack))
+
+        params = payload.get("parameters")
+        if isinstance(params, Mapping):
+            param_dict = dict(params)
+        else:
+            param_dict = {}
+
+        param_dict.setdefault("observer_focus", signature.get("focus"))
+        param_dict.setdefault("observer_rank", signature.get("rank"))
+        param_dict.setdefault("observer_pattern", signature.get("pattern"))
+        param_dict["observation_magnitude"] = float(signature.get("magnitude", 0.0))
+        param_dict["camouflage_bias"] = signature.get("polarity", "unknown")
+
+        payload["parameters"] = param_dict
+        payload["observation_signature"] = dict(signature)
+
+        if isinstance(attack, dict):
+            attack.update(payload)
+            return attack
+        return payload
+
+    def _guard_against_anticipation(
+        self,
+        attack: object,
+        ordinal: int,
+        agent: Optional[dict[str, object]] = None,
+    ) -> object:
+        """Inject jitter and camouflage tokens so attacks resist anticipation."""
+
+        if isinstance(attack, dict):
+            payload: dict[str, object] = attack
+        else:
+            payload = dict(_to_mapping(attack))
+
+        params = payload.get("parameters")
+        if isinstance(params, Mapping):
+            param_dict = dict(params)
+        else:
+            param_dict = {}
+
+        jitter = float(np.clip(np.random.normal(0.18, 0.06), 0.05, 0.45))
+        jitter = round(jitter, 3)
+        token = self._generate_camouflage_token(payload, ordinal)
+
+        param_dict["deployment_jitter"] = jitter
+        param_dict["decoy_seed"] = token
+        param_dict.setdefault("adaptive_schedule", True)
+
+        guard_block = {"jitter": jitter, "decoy_seed": token}
+
+        payload["parameters"] = param_dict
+        payload["anticipation_guard"] = guard_block
+        payload["camouflage_token"] = token
+
+        if isinstance(agent, dict):
+            history = agent.get("camouflage_tokens", [])
+            if isinstance(history, list):
+                tokens = list(history)
+            else:
+                tokens = []
+            tokens.append(token)
+            agent["camouflage_tokens"] = tokens[-5:]
+            agent["last_guard_refresh"] = datetime.utcnow().isoformat()
+
+        if isinstance(attack, dict):
+            attack.update(payload)
+            return attack
+        return payload
+
+    def _generate_camouflage_token(
+        self, payload: Mapping[str, object], ordinal: int
+    ) -> str:
+        """Create a short-lived token to randomize attack presentation."""
+
+        attack_id = payload.get("attack_id")
+        weakness = payload.get("weakness_targeted")
+        base = f"{attack_id or weakness or 'attack'}:{ordinal}:{np.random.random()}"
+        digest = hashlib.sha256(base.encode("utf-8")).hexdigest()
+        return digest[:12]
 
     async def _generate_test_scenarios(self) -> List[dict[str, object]]:
         """Generate test scenarios for analysis."""
@@ -660,6 +877,20 @@ class RedTeamAI:
             intensity: object | None = None
             if isinstance(params, Mapping):
                 intensity = params.get("intensity")
+                guard = params.get("decoy_seed")
+                observer_focus = params.get("observer_focus")
+            else:
+                guard = None
+                observer_focus = None
+
+            anticipation_guard = None
+            observation_signature = None
+            if isinstance(attack, Mapping):
+                anticipation_guard = attack.get("anticipation_guard")
+                observation_signature = attack.get("observation_signature")
+            else:
+                anticipation_guard = getattr(attack, "anticipation_guard", None)
+                observation_signature = getattr(attack, "observation_signature", None)
 
             return {
                 "attack_id": attack_id,
@@ -670,6 +901,10 @@ class RedTeamAI:
                 "assigned_agent_id": agent_id,
                 "specialization_level": specialization_level,
                 "intensity": intensity,
+                "anticipation_guard": anticipation_guard,
+                "observer_focus": observer_focus,
+                "camouflage_seed": guard,
+                "observation_signature": observation_signature,
             }
 
         except Exception as e:

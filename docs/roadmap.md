@@ -50,7 +50,7 @@
 **Goal:** instrument-agnostic **MarketState** emitted on every event, no leakage.
 
 ### B.1 Depth & TOB features
-- [ ] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv ? GLU ? adaptive pool to **D=8-16** dims.  
+- [x] **B.1.1** **Tick-space depth**: flip ask axis (best at index  0), **share** conv weights; 1-D conv ? GLU ? adaptive pool to **D=8-16** dims.  
 - [x] **B.1.2** Emit `has_depth` and **zero-mask** depth features when absent (spot FX).  
 - [ ] **B.1.3** Derived features (leak-free):  
   - `microprice`, `spread_ticks > 1`, `ofi_norm` (pre-event states + trade sign), `refresh_hz`, `stale_ms`, `slope/curve` (2-term poly each side).
@@ -58,7 +58,7 @@
 ### B.2 Meta/context tokens (data-driven)
 - [ ] **B.2.1** `asset_class`: {equity, fx_fut, fx_spot}; `venue`: {nasdaq, globex, spot_agg}.  
 - [ ] **B.2.2** `liquidity_bucket`: daily quantiles by median L1 size/spread ? {low, mid, high}.  
-- [ ] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
+- [x] **B.2.3** `session`: {Asia, London, NY, auction_open, auction_close, halt/resume}.
 
 ### B.3 Targets & guards
 - [ ] **B.3.1** Robust Ïƒ: EWMA(|returns|) or rolling MADÃ—1.4826 over **past-only** window.  
@@ -105,7 +105,7 @@
 
 ### D.1 Decision rule & costs
 - [ ] **D.1.1** `edge_ticks = delta_hat * max(spread, k?)`; cost?=?½·spread + slip + fees + **AS_penalty**.  
-- [ ] **D.1.2** Actions: {**cross**, **post?and?chase(±1 tick, TTL X?ms)**, hold}.
+- [x] **D.1.2** Actions: {**cross**, **post?and?chase(±1 tick, TTL X?ms)**, hold}.
 
 ### D.2 Queue & adverse selection
 - [ ] **D.2.1** L1 queue fill prob ~ our_size / (queue_size+?) × trade_flow_factor.  
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T04:32:58Z
+## Automation updates — 2025-10-20T04:57:36Z
 
 ### Last 4 commits
-- 8578a687 refactor(artifacts): tune 25 files (2025-10-20)
-- f2f819b2 docs(docker): add 3 files (2025-10-20)
-- 103c43d3 test(emp): tune 2 files (2025-10-20)
-- 284a05c1 refactor(operational): tune 5 files (2025-10-20)
+- 28f15cb7 refactor(thinking): tune 1 file (2025-10-20)
+- 587331a0 refactor(sensory): tune 7 files (2025-10-20)
+- bf1a1236 refactor(sensory): tune 4 files (2025-10-20)
+- 60207d7b refactor(sensory): tune 5 files (2025-10-20)

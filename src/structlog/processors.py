@@ -12,6 +12,7 @@ class TimeStamper:
 
     def __init__(self, *, fmt: str = "iso", utc: bool = False, key: str = "timestamp") -> None:
         self._fmt = fmt
+        self._is_iso = fmt.lower() == "iso"
         self._utc = utc
         self._key = key
 
@@ -22,7 +23,7 @@ class TimeStamper:
         event_dict: MutableMapping[str, object],
     ) -> MutableMapping[str, object]:
         timestamp = datetime.now(tz=UTC if self._utc else None)
-        if self._fmt == "iso":
+        if self._is_iso:
             rendered = timestamp.isoformat()
             if self._utc and rendered.endswith("+00:00"):
                 rendered = rendered[:-6] + "Z"

@@ -23,3 +23,12 @@ def test_timestamper_utc_iso_uses_z_suffix():
     timestamper(None, "", event)
 
     assert event["timestamp"].endswith("Z")
+
+
+def test_timestamper_accepts_uppercase_iso():
+    timestamper = TimeStamper(fmt="ISO")
+    event: dict[str, str] = {}
+
+    timestamper(None, "", event)
+
+    assert "timestamp" in event

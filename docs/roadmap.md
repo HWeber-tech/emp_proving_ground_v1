@@ -30,7 +30,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## III. Reflexivity - Knowing Its Own Shadow
 
 - [ ] **Self-Impact Model**: Quantify how EMP's trades alter the local order book and volatility.
-- [ ] **Adversary Simulation**: Train exploit agents to mimic others observing EMP's pattern; guard against being anticipated.
+- [x] **Adversary Simulation**: Train exploit agents to mimic others observing EMP's pattern; guard against being anticipated.
 - [x] **Entropy Governor**: Rotate tactics and randomize microtiming to stay unpredictable.
 - [ ] **Infrastructure Awareness**: Integrate latency, queue position, and execution certainty into planner logic.
 
@@ -40,7 +40,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [x] **Belief Packets**: Each decision records context (features, regime, reasoning, confidence).
 - [x] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
-- [ ] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
+- [x] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
 - [x] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
 - [ ] **Decay Protocol**: Prune stale memories, reinforce recurring successful ones.
 
@@ -113,7 +113,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## XII. Deployment & Operations
 
-- [ ] **Helm Failover with Replay Smoke Test**: Validate pod readiness by running historical replay.
+- [x] **Helm Failover with Replay Smoke Test**: Validate pod readiness by running historical replay.
 - [x] **Docker Reproducibility**: Images tagged with policy hash and config fingerprint.
 - [ ] **Terraform Infra Resilience**: Single-command rebuild of degraded nodes.
 - [x] **Live Config Diff**: All toggles and flags logged with color-coded diff at startup.

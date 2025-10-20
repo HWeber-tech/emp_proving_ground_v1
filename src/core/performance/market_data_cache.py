@@ -19,7 +19,7 @@ class _InMemoryCache:
 
     def get(self, key: str, default: object | None = None) -> object | None:
         expires = self._expiry.get(key)
-        if expires is not None and time.time() > expires:
+        if expires is not None and time.time() >= expires:
             self._store.pop(key, None)
             self._expiry.pop(key, None)
             return default
@@ -72,7 +72,7 @@ class MarketDataCache:
     def get(self, key: str, default: object | None = None) -> object | None:
         with self._lock:
             expires = self._kv_expiry.get(key)
-            if expires is not None and time.time() > expires:
+            if expires is not None and time.time() >= expires:
                 self._kv_store.pop(key, None)
                 self._kv_expiry.pop(key, None)
                 return default

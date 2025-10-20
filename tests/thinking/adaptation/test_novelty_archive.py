@@ -30,11 +30,25 @@ def _build_genotype(
                 name="trend_strength",
                 inputs=("price", "volume"),
                 parameters={"window": 20, "threshold": threshold},
+                economic_hypothesis=(
+                    "If price momentum paired with volume expansion persists, trend-aligned entries "
+                    "produce positive pnl; falsified when forward returns underperform despite the signal."
+                ),
+                ci_tests=(
+                    "tests/thinking/adaptation/test_novelty_archive.py::test_record_first_entry_has_max_novelty",
+                ),
             ),
             StrategyFeature(
                 name="volatility_floor",
                 inputs=("price",),
                 parameters={"window": 10, "floor": floor},
+                economic_hypothesis=(
+                    "If volatility collapses without resizing, realised drawdowns exceed tolerance; falsified "
+                    "when controlled drawdowns occur even without the floor."
+                ),
+                ci_tests=(
+                    "tests/thinking/adaptation/test_novelty_archive.py::test_variation_yields_fractional_novelty",
+                ),
             ),
         ),
         execution_topology=StrategyExecutionTopology(

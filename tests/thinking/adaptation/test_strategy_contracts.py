@@ -24,11 +24,29 @@ def _baseline_genotype() -> StrategyGenotype:
                 inputs=("price", "volume"),
                 parameters={"window": 20, "threshold": 0.5},
                 description="Primary momentum signal",
+                economic_hypothesis=(
+                    "If realised momentum with volume confirmation exceeds the threshold, "
+                    "trend continuation should deliver positive excess returns; falsified when "
+                    "forward returns turn negative under the same condition."
+                ),
+                ci_tests=(
+                    "tests/thinking/adaptation/test_strategy_contracts.py::"
+                    "test_strategy_genotype_realise_builds_phenotype_with_overrides",
+                ),
             ),
             StrategyFeature(
                 name="volatility_floor",
                 inputs=("price",),
                 parameters={"window": 10, "floor": 0.01},
+                economic_hypothesis=(
+                    "If trailing volatility falls below the configured floor, position sizing "
+                    "must contract to avoid drawdowns exceeding the risk budget; falsified when "
+                    "drawdowns remain controlled without the floor."
+                ),
+                ci_tests=(
+                    "tests/thinking/adaptation/test_strategy_contracts.py::"
+                    "test_strategy_genotype_realise_builds_phenotype_with_overrides",
+                ),
             ),
         ),
         execution_topology=StrategyExecutionTopology(
@@ -91,7 +109,19 @@ def test_strategy_genotype_realise_builds_phenotype_with_overrides() -> None:
 
 
 def test_strategy_genotype_rejects_duplicate_feature_names() -> None:
-    feature = StrategyFeature(name="alpha", inputs=("price",), parameters={})
+    feature = StrategyFeature(
+        name="alpha",
+        inputs=("price",),
+        parameters={},
+        economic_hypothesis=(
+            "If the alpha feature activates on price dislocations, trade expectancy increases; "
+            "falsified when trades under activation underperform baseline."
+        ),
+        ci_tests=(
+            "tests/thinking/adaptation/test_strategy_contracts.py::"
+            "test_strategy_genotype_rejects_duplicate_feature_names",
+        ),
+    )
     risk_template = StrategyRiskTemplate(template_id="base")
     topology = StrategyExecutionTopology(name="direct")
 
@@ -117,3 +147,29 @@ def test_tunable_enforces_bounds_and_unknown_overrides_raise() -> None:
 
     with pytest.raises(KeyError):
         genotype.resolve_tunables({"unknown": 1})
+
+
+def test_strategy_feature_requires_hypothesis_and_ci_tests() -> None:
+    with pytest.raises(ValueError):
+        StrategyFeature(
+            name="incomplete",
+            inputs=("price",),
+            parameters={},
+            economic_hypothesis="",
+            ci_tests=(
+                "tests/thinking/adaptation/test_strategy_contracts.py::"
+                "test_strategy_feature_requires_hypothesis_and_ci_tests",
+            ),
+        )
+
+    with pytest.raises(ValueError):
+        StrategyFeature(
+            name="missing_tests",
+            inputs=("price",),
+            parameters={},
+            economic_hypothesis=(
+                "If liquidity premium widens, the strategy captures positive drift; falsified "
+                "when returns stay neutral despite the signal."
+            ),
+            ci_tests=(),
+        )

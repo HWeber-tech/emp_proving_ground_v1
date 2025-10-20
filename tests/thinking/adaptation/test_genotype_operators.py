@@ -26,11 +26,27 @@ def _baseline_genotype() -> StrategyGenotype:
                 name="trend_strength",
                 inputs=("price", "volume"),
                 parameters={"window": 20, "threshold": 0.5},
+                economic_hypothesis=(
+                    "If momentum and volume expansion persist, trend-following entries should "
+                    "outperform the baseline; falsified when forward returns reverse under the signal."
+                ),
+                ci_tests=(
+                    "tests/thinking/adaptation/test_genotype_operators.py::"
+                    "test_op_add_feature_appends_new_feature",
+                ),
             ),
             StrategyFeature(
                 name="volatility_floor",
                 inputs=("price",),
                 parameters={"window": 10, "floor": 0.02},
+                economic_hypothesis=(
+                    "If trailing volatility collapses, unadjusted sizing inflates tail risk; falsified "
+                    "when risk remains controlled without enforcing the floor."
+                ),
+                ci_tests=(
+                    "tests/thinking/adaptation/test_genotype_operators.py::"
+                    "test_op_tighten_risk_scales_percentages_and_applies_floors",
+                ),
             ),
         ),
         execution_topology=StrategyExecutionTopology(
@@ -53,6 +69,14 @@ def test_op_add_feature_appends_new_feature() -> None:
         name="order_flow_bias",
         inputs=("depth",),
         parameters={"window": 5},
+        economic_hypothesis=(
+            "If persistent order-flow bias leads price continuation, tracking the imbalance should "
+            "improve entry timing; falsified when forward drift is flat despite the bias."
+        ),
+        ci_tests=(
+            "tests/thinking/adaptation/test_genotype_operators.py::"
+            "test_op_add_feature_appends_new_feature",
+        ),
     )
 
     result = op_add_feature(genotype, new_feature)
@@ -71,6 +95,14 @@ def test_op_add_feature_replaces_existing_when_requested() -> None:
         name="trend_strength",
         inputs=("price",),
         parameters={"window": 30, "threshold": 0.6},
+        economic_hypothesis=(
+            "If a tighter momentum window captures sharper trends, the adjusted signal should raise "
+            "hit-rate; falsified when performance degrades after the change."
+        ),
+        ci_tests=(
+            "tests/thinking/adaptation/test_genotype_operators.py::"
+            "test_op_add_feature_replaces_existing_when_requested",
+        ),
     )
 
     result = op_add_feature(genotype, replacement, replace=True)
@@ -92,6 +124,14 @@ def test_op_add_feature_raises_on_duplicate_without_replace() -> None:
                 "name": "trend_strength",
                 "inputs": ("price",),
                 "parameters": {"window": 40},
+                "economic_hypothesis": (
+                    "If trend resilience improves with a slower lookback, the modified signal should "
+                    "increase expectancy; falsified when returns decline after the adjustment."
+                ),
+                "ci_tests": (
+                    "tests/thinking/adaptation/test_genotype_operators.py::"
+                    "test_op_add_feature_raises_on_duplicate_without_replace",
+                ),
             },
         )
 
@@ -151,7 +191,22 @@ def test_op_tighten_risk_scales_percentages_and_applies_floors() -> None:
 
 def test_genotype_operator_result_as_dict_serialises() -> None:
     genotype = _baseline_genotype()
-    result = op_add_feature(genotype, StrategyFeature(name="imbalance", inputs=("depth",), parameters={}))
+    result = op_add_feature(
+        genotype,
+        StrategyFeature(
+            name="imbalance",
+            inputs=("depth",),
+            parameters={},
+            economic_hypothesis=(
+                "If depth imbalances precede price moves, reacting to imbalance will improve entry quality; "
+                "falsified when imbalance readings fail to forecast drift."
+            ),
+            ci_tests=(
+                "tests/thinking/adaptation/test_genotype_operators.py::"
+                "test_genotype_operator_result_as_dict_serialises",
+            ),
+        ),
+    )
     payload = result.as_dict()
 
     assert payload["action"] == "op_add_feature"

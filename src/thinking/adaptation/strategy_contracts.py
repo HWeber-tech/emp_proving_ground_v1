@@ -93,12 +93,19 @@ def _ensure_numeric(value: Any, *, field_name: str) -> float:
 
 @dataclass(frozen=True, slots=True)
 class StrategyFeature:
-    """Feature blueprint describing a signal required by a strategy."""
+    """Feature blueprint describing a signal required by a strategy.
+
+    Every feature must carry a falsifiable economic hypothesis plus references
+    to CI tests that exercise the mechanism so governance can link behaviour to
+    verified evidence.
+    """
 
     name: str
     inputs: Sequence[str] = field(default_factory=tuple)
     parameters: Mapping[str, Any] = field(default_factory=dict)
     description: str | None = None
+    economic_hypothesis: str = field(default="")
+    ci_tests: Sequence[str] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         name = _normalise_identifier(self.name, field_name="Feature name")
@@ -109,6 +116,16 @@ class StrategyFeature:
         if self.description is not None:
             description = str(self.description).strip()
             object.__setattr__(self, "description", description or None)
+
+        hypothesis = str(self.economic_hypothesis).strip()
+        if not hypothesis:
+            raise ValueError(f"StrategyFeature {name!r} requires a non-empty economic_hypothesis")
+        object.__setattr__(self, "economic_hypothesis", hypothesis)
+
+        ci_tests = _freeze_sequence(self.ci_tests)
+        if not ci_tests:
+            raise ValueError(f"StrategyFeature {name!r} must declare at least one CI test reference")
+        object.__setattr__(self, "ci_tests", ci_tests)
 
     def with_parameters(self, overrides: Mapping[str, Any] | None) -> "StrategyFeature":
         if not overrides:
@@ -124,6 +141,8 @@ class StrategyFeature:
             inputs=self.inputs,
             parameters=merged,
             description=self.description,
+            economic_hypothesis=self.economic_hypothesis,
+            ci_tests=self.ci_tests,
         )
 
     def as_dict(self) -> Mapping[str, Any]:
@@ -131,6 +150,8 @@ class StrategyFeature:
             "name": self.name,
             "inputs": list(self.inputs),
             "parameters": dict(self.parameters),
+            "economic_hypothesis": self.economic_hypothesis,
+            "ci_tests": list(self.ci_tests),
         }
         if self.description:
             payload["description"] = self.description

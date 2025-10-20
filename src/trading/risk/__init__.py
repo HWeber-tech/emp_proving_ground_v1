@@ -13,6 +13,7 @@ from .policy_telemetry import (
     publish_policy_snapshot,
 )
 from .portfolio_caps import apply_aggregate_cap, usd_beta_sign
+from .queue_fill_probability import estimate_l1_queue_fill_probability
 from .risk_policy import RiskPolicy, RiskPolicyDecision
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "publish_policy_snapshot",
     "MicropriceDriftResult",
     "compute_microprice_drift",
+    "estimate_l1_queue_fill_probability",
 ]

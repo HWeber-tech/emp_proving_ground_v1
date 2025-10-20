@@ -23,7 +23,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [x] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
 - [ ] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
 - [x] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
-- [ ] **Out-of-Distribution Sentry**: Detect when live data diverges from training; reduce aggressiveness accordingly.
+- [x] **Out-of-Distribution Sentry**: Detect when live data diverges from training; reduce aggressiveness accordingly.
 
 ---
 
@@ -58,7 +58,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## VI. Evolution - Learning Through Battle
 
 - [x] **League Evolution Engine**: Run evolutionary cycles with champions, exploiters, and chaos agents.
-- [ ] **Mutation Ledger**: Record all parameter mutations, fitness improvements, and exploitability results.
+- [x] **Mutation Ledger**: Record all parameter mutations, fitness improvements, and exploitability results.
 - [ ] **Surrogate Simulation**: Fast proxy model (GraphNet) for testing policy evolution.
 - [x] **Curriculum Scheduler**: Inject rare or catastrophic events into training more frequently.
 - [x] **Auto-Demotion**: Any live policy failing drift or exploitability gates is rolled back automatically.
@@ -98,7 +98,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 - [x] **Cognitive Scheduler**: Allocate compute by information gain potential.
 - [x] **Signal ROI Monitor**: Track marginal predictive value of each data stream.
-- [ ] **Graceful Degradation**: If sensors fail, revert to baseline policy with explicit uncertainty inflation.
+- [x] **Graceful Degradation**: If sensors fail, revert to baseline policy with explicit uncertainty inflation.
 
 ---
 

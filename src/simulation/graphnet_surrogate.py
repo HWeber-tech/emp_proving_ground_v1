@@ -200,7 +200,7 @@ class GraphNetSurrogate:
         start_node: str,
         horizon: float,
         *,
-        metrics: Iterable[str] | None = None,
+        metrics: Iterable[str] | str | None = None,
         extra_features: Mapping[str, float] | None = None,
     ) -> dict[str, float]:
         """Predict metric values for ``start_node`` over ``horizon``."""
@@ -209,7 +209,7 @@ class GraphNetSurrogate:
             raise RuntimeError("Surrogate must be trained before prediction")
 
         vector = self._build_feature_vector(start_node, horizon, extra_features)
-        requested = tuple(metrics) if metrics is not None else tuple(self._weights)
+        requested = self._normalise_metric_names(metrics)
         predictions: dict[str, float] = {}
         for metric in requested:
             weights = self._weights.get(metric)
@@ -226,7 +226,7 @@ class GraphNetSurrogate:
         start_node: str,
         horizon: float,
         *,
-        metrics: Iterable[str] | None = None,
+        metrics: Iterable[str] | str | None = None,
         extra_features: Mapping[str, float] | None = None,
     ) -> SurrogateRollout:
         """Execute a surrogate rollout and report the expected speed-up."""
@@ -367,3 +367,12 @@ class GraphNetSurrogate:
             dtype=float,
         )
         return vector
+
+    def _normalise_metric_names(
+        self, metrics: Iterable[str] | str | None
+    ) -> tuple[str, ...]:
+        if metrics is None:
+            return tuple(self._weights)
+        if isinstance(metrics, str):
+            return (metrics,)
+        return tuple(metrics)

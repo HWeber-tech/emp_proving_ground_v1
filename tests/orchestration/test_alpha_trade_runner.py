@@ -461,11 +461,23 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     intent = trading_manager.intents[0]
     assert intent["strategy_id"] == "alpha.live"
     assert intent["side"] == "BUY"
-    assert intent["quantity"] == pytest.approx(25_000)
+
+    memory_gate = result.trade_metadata.get("memory_gate")
+    assert isinstance(memory_gate, dict)
+    assert memory_gate.get("applied") is True
+    multiplier = memory_gate.get("multiplier")
+    assert multiplier == pytest.approx(0.5)
+    expected_quantity = memory_gate.get("adjusted_quantity")
+    assert expected_quantity is not None
+    assert intent["quantity"] == pytest.approx(expected_quantity)
     assert intent["price"] == pytest.approx(1.2345)
 
     assert result.loop_result.policy_id == "alpha.live"
-    assert result.trade_metadata["notional"] == pytest.approx(25_000 * 1.2345)
+    adjusted_notional = memory_gate.get("adjusted_notional")
+    assert adjusted_notional is not None
+    assert result.trade_metadata["notional"] == pytest.approx(adjusted_notional)
+    assert result.trade_metadata.get("memory_lighten_multiplier") == pytest.approx(multiplier)
+    assert result.trade_metadata.get("memory_reinforced") is False
     assert result.trade_intent["metadata"]["regime"] == result.regime_signal.regime_state.regime
     fast_weight_metadata = result.trade_metadata.get("fast_weight")
     assert isinstance(fast_weight_metadata, dict)
@@ -498,6 +510,9 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert intent_metadata.get("brief_explanation") == brief_explanation
     assert intent_metadata.get("policy_id") == attribution.get("policy_id")
     assert intent_metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
+    assert intent_metadata.get("memory_gate") == memory_gate
+    assert intent_metadata.get("memory_lighten_multiplier") == pytest.approx(multiplier)
+    assert intent_metadata.get("memory_reinforced") is False
     assert diary_store.entries(), "expected decision diary entry to be recorded"
     assert result.trade_outcome is not None
     assert result.trade_outcome.status == "executed"
@@ -506,6 +521,7 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert result.trade_outcome.metadata.get("policy_id") == attribution.get("policy_id")
     assert result.trade_outcome.metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
     assert result.trade_outcome.metadata.get("guardrails") == guardrails
+    assert result.trade_outcome.metadata.get("memory_gate") == memory_gate
     entry = diary_store.entries()[0]
     trade_execution = entry.metadata.get("trade_execution")
     assert isinstance(trade_execution, dict)
@@ -518,6 +534,7 @@ async def test_alpha_trade_loop_runner_executes_trade(monkeypatch, tmp_path) -> 
     assert result.trade_metadata.get("diary_coverage") == expected_coverage
     assert result.loop_result.metadata.get("diary_coverage") == expected_coverage
     assert result.loop_result.metadata.get("brief_explanation") == brief_explanation
+    assert result.loop_result.metadata.get("memory_gate") == memory_gate
     assert result.loop_result.metadata.get("policy_id") == attribution.get("policy_id")
     assert result.loop_result.metadata.get("diary_entry_id") == attribution.get("diary_entry_id")
     assert entry.metadata.get("diary_coverage") == expected_coverage
@@ -1020,15 +1037,29 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
     assert isinstance(mitigation, dict)
     assert pytest.approx(mitigation["size_multiplier"], rel=1e-9) == 0.5
     assert pytest.approx(mitigation["original_quantity"], rel=1e-9) == 25_000.0
-    assert pytest.approx(mitigation["adjusted_quantity"], rel=1e-9) == 12_500.0
 
-    assert pytest.approx(trade_metadata["quantity"], rel=1e-9) == 12_500.0
-    expected_notional = 12_500.0 * 1.2345
-    assert pytest.approx(trade_metadata["notional"], rel=1e-9) == expected_notional
+    memory_gate = trade_metadata.get("memory_gate")
+    assert isinstance(memory_gate, dict)
+    assert memory_gate.get("applied") is True
+    assert memory_gate.get("multiplier") == pytest.approx(0.5)
+
+    # Drift mitigation records both its own adjustment and the final quantity after memory gating.
+    assert pytest.approx(mitigation["drift_adjusted_quantity"], rel=1e-9) == 12_500.0
+    assert pytest.approx(mitigation["adjusted_quantity"], rel=1e-9) == pytest.approx(memory_gate["adjusted_quantity"], rel=1e-9)
+    assert mitigation.get("memory_multiplier") == pytest.approx(0.5)
+    assert mitigation.get("combined_multiplier") == pytest.approx(0.25)
+    assert mitigation.get("memory_support") == memory_gate.get("support")
+
+    final_quantity = memory_gate["adjusted_quantity"]
+    assert final_quantity is not None
+    assert pytest.approx(trade_metadata["quantity"], rel=1e-9) == pytest.approx(final_quantity, rel=1e-9)
+    expected_notional = memory_gate["adjusted_notional"]
+    assert expected_notional is not None
+    assert pytest.approx(trade_metadata["notional"], rel=1e-9) == pytest.approx(expected_notional, rel=1e-9)
 
     assert trading_manager.intents, "expected trade intent to be submitted"
     recorded_intent = trading_manager.intents[-1]
-    assert pytest.approx(recorded_intent["quantity"], rel=1e-9) == 12_500.0
+    assert pytest.approx(recorded_intent["quantity"], rel=1e-9) == pytest.approx(final_quantity, rel=1e-9)
 
     theory_packet = trade_metadata.get("theory_packet")
     assert isinstance(theory_packet, dict)
@@ -1036,18 +1067,76 @@ async def test_alpha_trade_runner_applies_drift_size_mitigation(monkeypatch, tmp
     actions = theory_packet.get("actions")
     assert isinstance(actions, list)
     action_labels = {entry.get("action") for entry in actions if isinstance(entry, Mapping)}
-    assert {"freeze_exploration", "size_multiplier"}.issubset(action_labels)
+    assert {"freeze_exploration", "size_multiplier", "memory_multiplier"}.issubset(action_labels)
 
     diary_metadata = result.loop_result.diary_entry.metadata
     assert diary_metadata.get("theory_packet") == theory_packet
     assert diary_metadata.get("drift_mitigation") == mitigation
+    assert diary_metadata.get("memory_gate") == memory_gate
 
     loop_metadata = result.loop_result.metadata
     assert loop_metadata.get("theory_packet") == theory_packet
     assert loop_metadata.get("drift_mitigation") == mitigation
+    assert loop_metadata.get("memory_gate") == memory_gate
 
     policy_router = runner._understanding_router.policy_router
     assert policy_router.exploration_freeze_active() is True
+
+
+@pytest.mark.asyncio()
+async def test_memory_gate_relaxes_with_support(monkeypatch, tmp_path) -> None:
+    trading_manager = _FakeTradingManager()
+    runner, _ = _build_runner(
+        monkeypatch,
+        tmp_path,
+        trading_manager,
+        runner_kwargs={
+            "memory_trust_support": 2,
+            "memory_min_multiplier": 0.5,
+        },
+    )
+
+    first_snapshot = {
+        "symbol": "EURUSD",
+        "generated_at": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
+        "lineage": {"source": "unit-test"},
+        "dimensions": {
+            "liquidity": {"signal": -0.1, "confidence": 0.7},
+        },
+        "integrated_signal": {"strength": 0.12, "confidence": 0.65},
+        "price": 1.2345,
+        "quantity": 25_000,
+    }
+
+    first = await runner.process(
+        first_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    first_gate = first.trade_metadata.get("memory_gate")
+    assert isinstance(first_gate, dict)
+    assert first_gate.get("applied") is True
+    assert first_gate.get("multiplier") == pytest.approx(0.5)
+    assert first.trade_metadata["quantity"] == pytest.approx(first_gate["adjusted_quantity"], rel=1e-9)
+
+    second_snapshot = dict(first_snapshot)
+    second_snapshot["generated_at"] = datetime(2024, 1, 1, 12, 1, tzinfo=UTC)
+
+    trading_manager.intents.clear()
+    second = await runner.process(
+        second_snapshot,
+        policy_id="alpha.live",
+        trade_overrides={"policy_id": "alpha.live"},
+    )
+
+    second_gate = second.trade_metadata.get("memory_gate")
+    assert isinstance(second_gate, dict)
+    assert second_gate.get("applied") is False
+    assert second_gate.get("reinforced") is True
+    assert second_gate.get("multiplier") == pytest.approx(1.0)
+    assert second.trade_metadata["quantity"] == pytest.approx(25_000.0)
+    assert trading_manager.intents[-1]["quantity"] == pytest.approx(25_000.0)
 
 
 @pytest.mark.asyncio()
@@ -1146,8 +1235,15 @@ async def test_alpha_trade_runner_records_alpha_decay_throttle(monkeypatch, tmp_
     assert drift_throttle.get("status") == "executed"
     assert drift_throttle.get("multiplier") == pytest.approx(multiplier)
 
+    memory_gate = trade_metadata.get("memory_gate")
+    assert isinstance(memory_gate, dict)
     quantity_before = float(sensory_snapshot["quantity"])
-    expected_quantity = quantity_before * multiplier
+    memory_multiplier = memory_gate.get("multiplier")
+    assert memory_multiplier == pytest.approx(0.5)
+    throttle_quantity = quantity_before * memory_multiplier if memory_multiplier else quantity_before
+    assert memory_gate.get("adjusted_quantity") == pytest.approx(throttle_quantity)
+    assert memory_gate.get("applied") is True
+    expected_quantity = throttle_quantity * multiplier
     assert drift_throttle.get("quantity_after") == pytest.approx(expected_quantity)
     assert trade_metadata.get("quantity") == pytest.approx(expected_quantity)
 

@@ -133,6 +133,8 @@ class AlphaTradeLoopRunner:
         diary_minimum_samples: int = 20,
         diary_gap_alert: timedelta = timedelta(minutes=5),
         clock: Callable[[], datetime] | None = None,
+        memory_trust_support: int = 3,
+        memory_min_multiplier: float = 0.5,
     ) -> None:
         self._belief_emitter = belief_emitter
         self._regime_fsm = regime_fsm
@@ -156,6 +158,16 @@ class AlphaTradeLoopRunner:
         self._diary_alert_emitted = False
         self._diary_gap_alert_emitted = False
         self._last_diary_recorded_at: datetime | None = None
+
+        if memory_trust_support < 0:
+            raise ValueError("memory_trust_support must be non-negative")
+        if not math.isfinite(memory_min_multiplier) or memory_min_multiplier <= 0.0:
+            raise ValueError("memory_min_multiplier must be positive")
+        if memory_min_multiplier > 1.0:
+            raise ValueError("memory_min_multiplier must be <= 1.0")
+
+        self._memory_trust_support = int(memory_trust_support)
+        self._memory_min_multiplier = float(memory_min_multiplier)
 
     async def process(
         self,
@@ -357,6 +369,27 @@ class AlphaTradeLoopRunner:
             intent_payload=intent_payload,
         )
 
+        mitigation_mutable: MutableMapping[str, Any] | None = None
+        if isinstance(trade_metadata.get("drift_mitigation"), MutableMapping):
+            mitigation_mutable = trade_metadata["drift_mitigation"]  # type: ignore[index]
+
+        theory_packet_mutable: MutableMapping[str, Any] | None = None
+        if isinstance(trade_metadata.get("theory_packet"), MutableMapping):
+            theory_packet_mutable = trade_metadata["theory_packet"]  # type: ignore[index]
+
+        memory_gate_payload = self._apply_memory_gate(
+            belief_state=belief_state,
+            trade_metadata=trade_metadata,
+            intent_payload=intent_payload,
+            mitigation_payload=mitigation_mutable,
+            theory_packet_payload=theory_packet_mutable,
+        )
+
+        if theory_packet_mutable is not None:
+            theory_packet_payload = theory_packet_mutable
+        if mitigation_mutable is not None:
+            mitigation_payload = mitigation_mutable
+
         trade_outcome: "TradeIntentOutcome | None" = None
         diary_annotations: dict[str, Any] = {}
         loop_metadata_updates: dict[str, Any] = {}
@@ -392,6 +425,11 @@ class AlphaTradeLoopRunner:
                 loop_metadata_updates["diary_entry_id"] = diary_entry_identifier
         elif brief_explanation_text:
             loop_metadata_updates["brief_explanation"] = brief_explanation_text
+        if memory_gate_payload:
+            memory_copy = dict(memory_gate_payload)
+            loop_metadata_updates["memory_gate"] = memory_copy
+            if has_diary_entry:
+                diary_annotations["memory_gate"] = memory_copy
         if mitigation_payload:
             mitigation_copy = dict(mitigation_payload)
             if has_diary_entry:
@@ -1454,6 +1492,201 @@ class AlphaTradeLoopRunner:
             )
             self._exploration_safe_streak = 0
             self._last_freeze_reason = None
+
+    def _compute_memory_multiplier(self, support: int) -> tuple[float, bool]:
+        """Return the multiplier applied by the memory gate and reinforcement flag."""
+
+        threshold = self._memory_trust_support
+        if threshold <= 0:
+            return 1.0, True
+
+        support_value = max(0, int(support))
+        if support_value >= threshold:
+            return 1.0, True
+
+        ratio = support_value / float(threshold)
+        multiplier = max(self._memory_min_multiplier, ratio)
+        multiplier = min(multiplier, 1.0)
+        reinforced = multiplier >= 1.0 - 1e-9
+        if reinforced:
+            multiplier = 1.0
+        return multiplier, reinforced
+
+    def _apply_memory_gate(
+        self,
+        *,
+        belief_state: BeliefState,
+        trade_metadata: MutableMapping[str, Any],
+        intent_payload: MutableMapping[str, Any] | None,
+        mitigation_payload: MutableMapping[str, Any] | None,
+        theory_packet_payload: MutableMapping[str, Any] | None,
+    ) -> Mapping[str, Any]:
+        """Scale trade size when belief support lacks sufficient precedent."""
+
+        posterior = getattr(belief_state, "posterior", None)
+        support_raw = getattr(posterior, "support", 0)
+        try:
+            support = int(support_raw)
+        except (TypeError, ValueError):
+            support = 0
+
+        multiplier, reinforced = self._compute_memory_multiplier(support)
+
+        applied_at = _coerce_datetime(trade_metadata.get("timestamp"))
+        if applied_at is None:
+            applied_at = _coerce_datetime(getattr(belief_state, "generated_at", None))
+        applied_at = applied_at or datetime.now(tz=timezone.utc)
+
+        threshold = self._memory_trust_support
+        memory_payload: dict[str, Any] = {
+            "support": support,
+            "threshold": threshold,
+            "multiplier": multiplier,
+            "applied": False,
+            "reinforced": reinforced,
+            "applied_at": applied_at.astimezone(timezone.utc).isoformat(),
+        }
+
+        trade_metadata["memory_support"] = support
+        trade_metadata["memory_lighten_multiplier"] = multiplier
+        trade_metadata["memory_reinforced"] = reinforced
+
+        intent_meta: MutableMapping[str, Any] | None = None
+        if isinstance(intent_payload, MutableMapping):
+            meta_block = intent_payload.get("metadata")
+            if isinstance(meta_block, MutableMapping):
+                intent_meta = meta_block
+            elif isinstance(meta_block, Mapping):
+                intent_meta = dict(meta_block)
+                intent_payload["metadata"] = intent_meta
+            else:
+                intent_meta = {}
+                intent_payload["metadata"] = intent_meta
+            intent_meta["memory_support"] = support
+            intent_meta["memory_lighten_multiplier"] = multiplier
+            intent_meta["memory_reinforced"] = reinforced
+
+        trade_metadata["memory_gate"] = dict(memory_payload)
+        if intent_meta is not None:
+            intent_meta["memory_gate"] = dict(memory_payload)
+
+        if reinforced or multiplier >= 1.0:
+            memory_payload["multiplier"] = 1.0
+            trade_metadata["memory_gate"] = dict(memory_payload)
+            if intent_meta is not None:
+                intent_meta["memory_gate"] = dict(memory_payload)
+            return memory_payload
+
+        quantity_value = _coerce_float(trade_metadata.get("quantity"))
+        if quantity_value is None and isinstance(intent_payload, Mapping):
+            quantity_value = _coerce_float(intent_payload.get("quantity"))
+
+        price_value = _coerce_float(trade_metadata.get("price"))
+        if price_value is None and isinstance(intent_payload, Mapping):
+            price_value = _coerce_float(intent_payload.get("price"))
+
+        notional_value = _coerce_float(trade_metadata.get("notional"))
+        if notional_value is None and isinstance(intent_payload, Mapping):
+            intent_meta = intent_payload.get("metadata")
+            if isinstance(intent_meta, Mapping):
+                notional_value = _coerce_float(intent_meta.get("notional"))
+
+        adjusted_quantity: float | None = None
+        adjusted_notional: float | None = None
+
+        if quantity_value is not None:
+            adjusted_quantity = quantity_value * multiplier
+            trade_metadata["quantity"] = adjusted_quantity
+            if isinstance(intent_payload, MutableMapping):
+                intent_payload["quantity"] = adjusted_quantity
+
+        original_notional = notional_value
+        if original_notional is None and quantity_value is not None and price_value is not None:
+            original_notional = abs(quantity_value) * abs(price_value)
+
+        if original_notional is not None:
+            adjusted_notional = original_notional * multiplier
+            trade_metadata["notional"] = adjusted_notional
+            if isinstance(intent_payload, MutableMapping):
+                meta_block = intent_payload.get("metadata")
+                if isinstance(meta_block, MutableMapping):
+                    meta_block["notional"] = adjusted_notional
+
+        applied = (adjusted_quantity is not None) or (adjusted_notional is not None)
+        memory_payload.update(
+            {
+                "applied": applied,
+                "original_quantity": quantity_value,
+                "adjusted_quantity": adjusted_quantity,
+                "original_notional": original_notional,
+                "adjusted_notional": adjusted_notional,
+            }
+        )
+
+        # Update mitigation payloads to reflect final quantities while preserving drift context.
+        mitigation_targets: list[MutableMapping[str, Any]] = []
+        if isinstance(mitigation_payload, MutableMapping):
+            mitigation_targets.append(mitigation_payload)
+        drift_block = trade_metadata.get("drift_mitigation")
+        if isinstance(drift_block, MutableMapping) and drift_block is not mitigation_payload:
+            mitigation_targets.append(drift_block)
+
+        for target in mitigation_targets:
+            prior_adjusted_quantity = _coerce_float(target.get("adjusted_quantity"))
+            prior_adjusted_notional = _coerce_float(target.get("adjusted_notional"))
+            if prior_adjusted_quantity is not None and "drift_adjusted_quantity" not in target:
+                target["drift_adjusted_quantity"] = prior_adjusted_quantity
+            if prior_adjusted_notional is not None and "drift_adjusted_notional" not in target:
+                target["drift_adjusted_notional"] = prior_adjusted_notional
+            target["memory_multiplier"] = multiplier
+            target["memory_support"] = support
+            size_multiplier = _coerce_float(target.get("size_multiplier")) or 1.0
+            target["combined_multiplier"] = size_multiplier * multiplier
+            if adjusted_quantity is not None:
+                target["adjusted_quantity"] = adjusted_quantity
+                target["final_quantity"] = adjusted_quantity
+            if adjusted_notional is not None:
+                target["adjusted_notional"] = adjusted_notional
+                target["final_notional"] = adjusted_notional
+
+        if isinstance(theory_packet_payload, MutableMapping):
+            actions = theory_packet_payload.get("actions")
+            if isinstance(actions, list):
+                action_entry: dict[str, Any] = {
+                    "action": "memory_multiplier",
+                    "value": multiplier,
+                    "applied": adjusted_quantity is not None or adjusted_notional is not None,
+                    "reason": "memory_support_below_threshold",
+                    "reason_code": "memory_support_below_threshold",
+                    "context_mult": multiplier,
+                }
+                if quantity_value is not None:
+                    action_entry["original_quantity"] = quantity_value
+                if adjusted_quantity is not None:
+                    action_entry["adjusted_quantity"] = adjusted_quantity
+                if original_notional is not None:
+                    action_entry["original_notional"] = original_notional
+                if adjusted_notional is not None:
+                    action_entry["adjusted_notional"] = adjusted_notional
+                self._ensure_action_log_shape(
+                    action_entry,
+                    default_reason="memory_support_below_threshold",
+                    default_context_mult=multiplier,
+                )
+                actions.append(action_entry)
+
+            summary = str(theory_packet_payload.get("summary", ""))
+            addition = (
+                f" Memory gate applied {multiplier:.2f}x (support {support}/{threshold})."
+            )
+            theory_packet_payload["summary"] = (summary + addition).strip()
+
+        trade_metadata["memory_gate"] = dict(memory_payload)
+
+        if intent_meta is not None:
+            intent_meta["memory_gate"] = dict(memory_payload)
+
+        return memory_payload
 
     def _apply_drift_mitigation(
         self,

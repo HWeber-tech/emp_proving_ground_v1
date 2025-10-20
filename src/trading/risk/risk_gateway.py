@@ -201,6 +201,8 @@ class RiskGateway:
         risk_config: RiskConfig | None = None,
         event_bus: EventBus | None = None,
         policy_violation_runbook: str | None = None,
+        liquidity_capacity_ratio: float = 0.02,
+        liquidity_capacity_percentile: float = 50.0,
     ) -> None:
         self.strategy_registry = strategy_registry
         self.position_sizer = position_sizer
@@ -217,6 +219,16 @@ class RiskGateway:
         self._execution_config = execution_config or load_execution_config()
         self.portfolio_risk_manager = portfolio_risk_manager
         self._risk_per_trade_float = float(self.risk_per_trade)
+
+        ratio_value = max(0.0, float(liquidity_capacity_ratio))
+        self._liquidity_capacity_ratio = ratio_value
+        self._liquidity_capacity_ratio_decimal = (
+            Decimal(str(ratio_value)) if ratio_value > 0.0 else Decimal("0")
+        )
+        self._liquidity_capacity_percentile = max(
+            0.0, min(100.0, float(liquidity_capacity_percentile))
+        )
+        self._liquidity_capacity_epsilon = Decimal("1e-9")
 
         self.telemetry: dict[str, Any] = {
             "total_checks": 0,
@@ -438,6 +450,13 @@ class RiskGateway:
                     decision.update(status="rejected", reason="insufficient_liquidity")
                     await self._reject_and_maybe_publish(decision)
                     return None
+
+            adjusted_quantity = self._apply_liquidity_capacity_guard(
+                intent,
+                adjusted_quantity,
+                decision,
+                portfolio_state=portfolio_state,
+            )
 
             self._enrich_intent(
                 intent,
@@ -1133,30 +1152,36 @@ class RiskGateway:
         self, intent: Any, portfolio_state: Mapping[str, Any], decision: dict[str, Any]
     ) -> Decimal:
         quantity = self._extract_quantity(intent)
-        if not self.position_sizer:
-            return quantity
+        adjusted = quantity
 
-        balance = _to_decimal(portfolio_state.get("equity"), default=Decimal("0"))
-        if balance <= 0:
-            return quantity
+        if self.position_sizer:
+            balance = _to_decimal(portfolio_state.get("equity"), default=Decimal("0"))
+            if balance > 0:
+                market_price = self._extract_price(intent, portfolio_state)
+                stop_loss_pct = self._extract_stop_loss_pct(
+                    intent, portfolio_state, market_price
+                )
+                recommended = self.position_sizer(
+                    balance, self.risk_per_trade, Decimal(str(stop_loss_pct))
+                )
 
-        market_price = self._extract_price(intent, portfolio_state)
-        stop_loss_pct = self._extract_stop_loss_pct(intent, portfolio_state, market_price)
-        recommended = self.position_sizer(balance, self.risk_per_trade, Decimal(str(stop_loss_pct)))
+                decision["checks"].append(
+                    {
+                        "name": "position_sizer",
+                        "recommended": float(recommended),
+                        "requested": float(quantity),
+                    }
+                )
 
-        decision["checks"].append(
-            {
-                "name": "position_sizer",
-                "recommended": float(recommended),
-                "requested": float(quantity),
-            }
-        )
+                if quantity > recommended:
+                    logger.info(
+                        "RiskGateway clipping position size from %s to %s", quantity, recommended
+                    )
+                    adjusted = recommended
+            else:
+                adjusted = quantity
 
-        if quantity <= recommended:
-            return quantity
-
-        logger.info("RiskGateway clipping position size from %s to %s", quantity, recommended)
-        return recommended
+        return adjusted
 
     async def _run_liquidity_probe(
         self,
@@ -1843,3 +1868,110 @@ class RiskGateway:
             if equity > 0:
                 return equity
         return 0.0
+
+    def _apply_liquidity_capacity_guard(
+        self,
+        intent: Any,
+        quantity: Decimal,
+        decision: dict[str, Any],
+        *,
+        portfolio_state: Mapping[str, Any],
+    ) -> Decimal:
+        if self._liquidity_capacity_ratio_decimal <= 0:
+            return quantity
+
+        metadata = _ensure_metadata(intent)
+        depth_hint = self._extract_depth_percentile_hint(metadata)
+        if depth_hint <= 0.0:
+            depth_hint = self._extract_depth_percentile_hint(portfolio_state)
+        if depth_hint <= 0.0:
+            symbol = str(_extract_attr(intent, "symbol", default=""))
+            depth_hint = self._resolve_depth_percentile(symbol)
+
+        if depth_hint <= 0.0:
+            return quantity
+
+        capacity_units = Decimal(str(depth_hint)) * self._liquidity_capacity_ratio_decimal
+        if capacity_units <= 0:
+            return quantity
+
+        abs_quantity = abs(quantity)
+        if abs_quantity <= capacity_units + self._liquidity_capacity_epsilon:
+            return quantity
+
+        clipped_abs = min(abs_quantity, capacity_units)
+        clipped_quantity = clipped_abs if quantity >= 0 else -clipped_abs
+
+        decision["checks"].append(
+            {
+                "name": "liquidity_capacity",
+                "value": float(abs_quantity),
+                "threshold": float(capacity_units),
+                "status": "clipped",
+                "adjusted": float(clipped_abs),
+                "depth_percentile": float(depth_hint),
+                "percentile": self._liquidity_capacity_percentile,
+                "ratio": self._liquidity_capacity_ratio,
+            }
+        )
+
+        logger.info(
+            "RiskGateway clipping position due to liquidity capacity: %s -> %s (symbol=%s, depth=%.2f, percentile=%.1f, ratio=%.4f)",
+            quantity,
+            clipped_quantity,
+            _extract_attr(intent, "symbol", default=""),
+            depth_hint,
+            self._liquidity_capacity_percentile,
+            self._liquidity_capacity_ratio,
+        )
+
+        return clipped_quantity
+
+    @staticmethod
+    def _extract_depth_percentile_hint(source: Mapping[str, Any] | None) -> float:
+        if not isinstance(source, Mapping):
+            return 0.0
+
+        candidate_keys = (
+            "l1_depth_percentile",
+            "l1_depth_p50",
+            "depth_percentile",
+            "depth_p50",
+            "l1_depth",
+        )
+
+        for key in candidate_keys:
+            value = source.get(key)
+            depth = _as_float(value, default=0.0)
+            if depth > 0.0:
+                return depth
+
+        nested_keys = (
+            "liquidity",
+            "microstructure",
+            "market_microstructure",
+            "execution_context",
+        )
+        for nested_key in nested_keys:
+            nested_value = source.get(nested_key)
+            if isinstance(nested_value, Mapping):
+                depth = RiskGateway._extract_depth_percentile_hint(nested_value)
+                if depth > 0.0:
+                    return depth
+        return 0.0
+
+    def _resolve_depth_percentile(self, symbol: str) -> float:
+        if not symbol:
+            return 0.0
+        prober = self.liquidity_prober
+        if prober is None:
+            return 0.0
+        depth_resolver = getattr(prober, "depth_percentile", None)
+        if not callable(depth_resolver):
+            return 0.0
+        try:
+            depth_value = float(depth_resolver(symbol, self._liquidity_capacity_percentile))
+        except Exception:  # pragma: no cover - defensive guard
+            logger.debug("liquidity_depth_percentile_failed", exc_info=True)
+            return 0.0
+        return depth_value if depth_value > 0.0 else 0.0

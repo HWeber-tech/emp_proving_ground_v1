@@ -356,6 +356,61 @@ async def test_risk_gateway_liquidity_probe_uses_portfolio_price(
 
 
 @pytest.mark.asyncio()
+async def test_risk_gateway_clips_quantity_to_depth_capacity(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    prober = DepthAwareLiquidityProber(max_history=8)
+
+    for depth in (400_000.0, 520_000.0, 610_000.0, 480_000.0):
+        prober.record_snapshot(
+            "EURUSD",
+            MarketData(
+                symbol="EURUSD",
+                bid=1.1000,
+                ask=1.1002,
+                depth=depth,
+                volume=depth * 0.3,
+                spread=0.0002,
+            ),
+        )
+
+    state = portfolio_monitor.get_state()
+    state["equity"] = 250_000.0
+    state["current_daily_drawdown"] = 0.0
+
+    config = RiskConfig(min_position_size=1, max_position_size=2_000_000)
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        liquidity_prober=prober,
+        risk_config=config,
+        risk_per_trade=Decimal("0.1"),
+    )
+
+    intent = Intent("EURUSD", Decimal("50000"), confidence=0.9)
+
+    validated = await gateway.validate_trade_intent(intent, state)
+
+    assert validated is not None
+
+    depth_percentile = prober.depth_percentile("EURUSD", 50.0)
+    expected_cap = Decimal(str(depth_percentile)) * Decimal("0.02")
+
+    assert float(validated.quantity) == pytest.approx(float(expected_cap))
+
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    checks = [entry for entry in decision.get("checks", []) if entry.get("name") == "liquidity_capacity"]
+    assert checks
+    capacity_entry = checks[-1]
+    assert capacity_entry.get("status") == "clipped"
+    assert capacity_entry.get("threshold") == pytest.approx(float(expected_cap))
+    assert capacity_entry.get("depth_percentile") == pytest.approx(depth_percentile)
+
+
+@pytest.mark.asyncio()
 async def test_risk_gateway_records_guardrail_near_miss(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

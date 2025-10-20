@@ -142,6 +142,43 @@ class DepthAwareLiquidityProber:
         }
         return results
 
+    def depth_percentile(self, symbol: str, percentile: float = 50.0) -> float:
+        """Return the requested percentile of observed L1 depths for ``symbol``.
+
+        The percentile is computed using linear interpolation to remain stable
+        across short history windows.  When no observations are available or the
+        percentile is undefined, ``0.0`` is returned so callers can fall back to
+        alternative guards.
+        """
+
+        pct = max(0.0, min(100.0, float(percentile)))
+
+        with self._lock:
+            history = list(self._history.get(symbol, ()))
+
+        if not history:
+            return 0.0
+
+        depths = sorted(snapshot.depth for snapshot in history if snapshot.depth > 0.0)
+        if not depths:
+            return 0.0
+
+        if pct <= 0.0:
+            return depths[0]
+        if pct >= 100.0:
+            return depths[-1]
+
+        rank = (pct / 100.0) * (len(depths) - 1)
+        lower_index = int(math.floor(rank))
+        upper_index = int(math.ceil(rank))
+        if lower_index == upper_index:
+            return depths[lower_index]
+
+        lower_value = depths[lower_index]
+        upper_value = depths[upper_index]
+        weight = rank - lower_index
+        return lower_value + (upper_value - lower_value) * weight
+
     def calculate_liquidity_confidence_score(
         self, probe_results: Mapping[float, float], intended_volume: float
     ) -> float:

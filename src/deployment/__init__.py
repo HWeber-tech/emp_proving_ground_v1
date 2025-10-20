@@ -8,6 +8,13 @@ from .oracle_smoke import (
     execute_smoke_plan,
     summarize_results,
 )
+from .helm_failover_smoke import (
+    HelmFailoverReplayConfig,
+    HelmFailoverReplayError,
+    HelmFailoverReplayResult,
+    HelmPodStatus,
+    run_helm_failover_replay_smoke,
+)
 
 __all__ = [
     "SmokeTest",
@@ -16,4 +23,9 @@ __all__ = [
     "load_smoke_plan",
     "execute_smoke_plan",
     "summarize_results",
+    "HelmFailoverReplayConfig",
+    "HelmFailoverReplayError",
+    "HelmFailoverReplayResult",
+    "HelmPodStatus",
+    "run_helm_failover_replay_smoke",
 ]

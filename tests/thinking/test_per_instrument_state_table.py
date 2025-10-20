@@ -121,3 +121,35 @@ def test_purge_expired_bulk(clock: _FrozenClock) -> None:
     removed = table.purge_expired()
     assert removed == 2
     assert len(list(table.iter_states())) == 0
+
+
+def test_model_hash_version_isolated(clock: _FrozenClock) -> None:
+    table = PerInstrumentStateTable(clock=clock.now)
+    first = table.pin("AAPL", model_hash="hash-a")
+    again = table.pin("AAPL", model_hash="hash-a")
+    assert first is again
+
+    replacement = table.pin("AAPL", model_hash="hash-b")
+    assert replacement is not first
+
+    reset = table.last_reset("AAPL")
+    assert reset is not None
+    assert reset.reason == "version_mismatch"
+    assert reset.details["previous_version"] == "hash-a"
+    assert reset.details["next_version"] == "hash-b"
+
+
+def test_hot_reload_invalidation_updates_model_hash(clock: _FrozenClock) -> None:
+    table = PerInstrumentStateTable(clock=clock.now, state_version="hash-a")
+    table.pin("EURUSD")
+
+    cleared = table.set_model_hash("hash-b")
+    assert cleared == 1
+    assert table.model_hash == "hash-b"
+    assert table.get("EURUSD") is None
+
+    reset = table.last_reset("EURUSD")
+    assert reset is not None
+    assert reset.reason == "hot_reload"
+    assert reset.details["previous_version"] == "hash-a"
+    assert reset.details["next_version"] == "hash-b"

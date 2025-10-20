@@ -100,7 +100,7 @@
 - [x] `[ops]` Replay harness scheduled nightly; artifacts persisted (diary, ledger, drift reports). _Progress: The nightly replay job now emits diary, drift, and ledger artifacts per run, archives them into dated `artifacts/` mirrors, and is wired to the scheduled GitHub workflow/Make target with regression coverage proving the exports.【F:tools/operations/nightly_replay_job.py:526】【F:tests/tools/test_nightly_replay_job.py:11】【F:.github/workflows/replay-nightly.yml:4】【F:Makefile:137】_
 
 **Acceptance (DoD)**
-- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, persists error-event snapshots and summaries for governance review via the runtime CLI, auto-stops runs as failed when operator-set memory growth exceeds thresholds so leaks surface immediately, emits objective-compliance metrics (minimum runtime, latency, memory, invariants) with threshold metadata for dashboards, and the runtime CLI surfaces PASS/FAIL statuses while exposing a `--minimum-runtime-hours` override that defaults to seven-day guardrails under regression coverage locking the default and summary signals.【F:src/runtime/paper_run_guardian.py†L57-L123】【F:src/runtime/paper_run_guardian.py†L250-L462】【F:src/runtime/paper_run_guardian.py†L505-L592】【F:tests/runtime/test_paper_run_guardian.py†L62-L217】【F:src/runtime/cli.py†L204-L493】_
+- [ ] `[sim]` **24/7 paper run** for â‰¥ 7 days with **zero** invariant violations, stable p99 latency, and no memory leaks. _Progress: Paper run guardian now monitors long-horizon paper sessions, enforces latency/invariant thresholds, tracks memory growth, persists error-event snapshots and summaries for governance review via the runtime CLI, auto-stops runs when operator-set memory growth exceeds thresholds so leaks surface immediately, downgrades to DEGRADED when invariant breaches occur under `allow_invariant_errors`, and emits objective-compliance metrics (minimum runtime, latency, memory, invariants) with threshold metadata for dashboards; the runtime CLI surfaces PASS/FAIL statuses while exposing a `--minimum-runtime-hours` override that defaults to seven-day guardrails under regression coverage locking the default, invariant-degrade behaviour, and summary signals.【F:src/runtime/paper_run_guardian.py†L57-L133】【F:src/runtime/paper_run_guardian.py†L250-L608】【F:tests/runtime/test_paper_run_guardian.py†L81-L139】【F:tests/runtime/test_paper_run_guardian.py†L142-L217】【F:src/runtime/cli.py†L204-L493】_
 - [x] `[obs]` Alerts fired & acknowledged in drill; dashboards show stable metrics. _Progress: CI status digests now surface alert-response telemetry with acknowledgement and resolution channel evidence URIs across the dashboard table and weekly digest, while `ci_metrics` persists the evidence metadata so drills track MTTA/MTTR plus channel artefacts; pytest snapshots lock the Markdown output and JSON feed alongside the CI health log entries for the latest drill.【F:tools/telemetry/status_digest.py†L456-L515】【F:tools/telemetry/status_digest.py†L734-L778】【F:tools/telemetry/ci_metrics.py†L520-L608】【F:tests/tools/test_status_digest.py†L168-L228】【F:docs/status/ci_health.md†L12-L18】【F:docs/status/quality_weekly_status.md†L20-L36】【F:tests/.telemetry/ci_metrics.json†L224-L252】_
 - [x] `[docs]` Incident playbook validated (killâ€‘switch, replay, rollback). _Progress: Dedicated validator CLI now executes kill-switch, nightly replay, and trade rollback drills, writes evidence packs, and is paired with a refreshed runbook and regression coverage so incident rehearsals consistently capture pass/fail artifacts.【F:tools/operations/incident_playbook_validation.py†L44-L255】【F:docs/operations/runbooks/incident_playbook_validation.md†L1-L66】【F:tests/tools/test_incident_playbook_validation.py†L9-L48】_
 
@@ -115,7 +115,7 @@
 
 **Acceptance (DoD)**
 - [x] `[ops]` Liveâ€‘pilot drill: turn on tiny capital; trigger killâ€‘switch; rollback; reconcile â€” all green. _Progress: Live pilot drill CLI now orchestrates tiny-capital overrides, kill-switch enforcement, trade-throttle rollback, and reconciliation replays into timestamped JSON evidence packs with regression coverage validating successful runs.【F:tools/operations/live_pilot_drill.py†L1-L307】【F:tests/tools/test_live_pilot_drill.py†L1-L54】_
-- [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper). _Progress: PolicyRouter now exposes an `allow_forced_exploration` property that rejects forced picks, and UnderstandingRouter zeros exploration settings before live-mode instantiation, with regression coverage verifying live catalogs fail closed.【F:src/thinking/adaptation/policy_router.py†L640-L683】【F:src/understanding/router.py†L245-L258】【F:tests/thinking/test_policy_router.py†L571-L583】【F:tests/understanding/test_understanding_router.py†L275-L307】_
+- [ ] `[risk]` **0** invariant violations; exploration locked to **0%** in live (candidates only in paper). _Progress: PolicyRouter now exposes an `allow_forced_exploration` property with a setter that coerces the flag, and UnderstandingRouter zeros exploration settings before live-mode instantiation while flipping the property post-build so live catalogs fail closed, with regression coverage locking forced-pick rejections and live-mode freezes.【F:src/thinking/adaptation/policy_router.py†L640-L700】【F:src/understanding/router.py†L247-L264】【F:tests/thinking/test_policy_router.py†L571-L584】【F:tests/understanding/test_understanding_router.py†L275-L307】_
 
 ---
 
@@ -164,13 +164,13 @@
 - If you have already implemented any item above, **check it now** to keep the roadmap honest.
 - Keep feature flags conservative by default (`fast-weights=off`, `exploration=off`, `auto-governed-feedback=off`) and enable progressively per environment.
 
-## Automation updates — 2025-10-20T01:29:15Z
+## Automation updates — 2025-10-20T01:39:15Z
 
 ### Last 4 commits
-- 601097ff feat(_automation): add 2 files (2025-10-20)
-- fea24c57 test(.telemetry): tune 1 file (2025-10-20)
-- de8a0311 refactor(orchestration): tune 2 files (2025-10-20)
-- 237a8ae1 feat(_automation): add 2 files (2025-10-20)
+- 2912a64e test(artifacts): add 19 files (2025-10-20)
+- 52392a9d refactor(thinking): tune 3 files (2025-10-20)
+- 2268adbb feat(artifacts): add 21 files (2025-10-20)
+- 570dcb67 test(artifacts): add 14 files (2025-10-20)
 
 ## Automation updates — 2025-10-20T01:11:34Z
 

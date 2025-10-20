@@ -9,7 +9,12 @@ import logging
 from pathlib import Path
 import sys
 
-from src.governance.system_config import EmpTier, SystemConfig
+from src.governance.system_config import (
+    ConnectionProtocol,
+    EmpTier,
+    RunMode,
+    SystemConfig,
+)
 from src.observability.tracing import parse_opentelemetry_settings
 from src.runtime.predator_app import build_professional_predator_app
 from src.runtime.runtime_builder import (
@@ -72,6 +77,17 @@ async def main() -> None:
         action="store_true",
         help="Skip Tier-0 data ingestion at startup",
     )
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--paper-mode",
+        action="store_true",
+        help="Force paper trading configuration overrides",
+    )
+    mode_group.add_argument(
+        "--live-mode",
+        action="store_true",
+        help="Force live trading configuration overrides",
+    )
     parser.add_argument(
         "--symbols",
         type=str,
@@ -85,6 +101,19 @@ async def main() -> None:
         help="DuckDB path for Tier-0 ingest",
     )
     args, _ = parser.parse_known_args()
+
+    if args.paper_mode:
+        config = config.with_updated(
+            run_mode=RunMode.paper,
+            confirm_live=False,
+            connection_protocol=ConnectionProtocol.paper,
+        )
+    elif args.live_mode:
+        config = config.with_updated(
+            run_mode=RunMode.live,
+            confirm_live=True,
+            connection_protocol=ConnectionProtocol.fix,
+        )
 
     try:
         app = await build_professional_predator_app(config=config)

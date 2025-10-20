@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import math
 from numbers import Real
 from typing import Any, overload, cast
 

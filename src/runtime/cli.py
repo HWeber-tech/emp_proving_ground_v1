@@ -22,7 +22,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Mapping, Sequence
 
-from src.governance.system_config import SystemConfig
+from src.governance.system_config import ConnectionProtocol, RunMode, SystemConfig
 from src.runtime.paper_run_guardian import (
     DEFAULT_MINIMUM_RUNTIME_SECONDS,
     PaperRunConfig,
@@ -123,6 +123,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "--duckdb-path",
             default="data/tier0.duckdb",
             help="Destination path for Tier-0 DuckDB ingest",
+        )
+        mode_group = subparser.add_mutually_exclusive_group()
+        mode_group.add_argument(
+            "--paper-mode",
+            action="store_true",
+            help="Force paper trading configuration overrides",
+        )
+        mode_group.add_argument(
+            "--live-mode",
+            action="store_true",
+            help="Force live trading configuration overrides",
         )
 
     summary_parser = subparsers.add_parser(
@@ -260,6 +271,7 @@ async def _build_runtime(
     args: argparse.Namespace,
 ) -> tuple[ProfessionalPredatorApp, RuntimeApplication, SystemConfig]:
     config = SystemConfig.from_env()
+    config = _apply_mode_overrides(args, config)
     app = await build_professional_predator_app(config=config)
     runtime_app = build_professional_runtime_application(
         app,
@@ -268,6 +280,22 @@ async def _build_runtime(
         duckdb_path=args.duckdb_path,
     )
     return app, runtime_app, config
+
+
+def _apply_mode_overrides(args: argparse.Namespace, config: SystemConfig) -> SystemConfig:
+    if getattr(args, "paper_mode", False):
+        return config.with_updated(
+            run_mode=RunMode.paper,
+            confirm_live=False,
+            connection_protocol=ConnectionProtocol.paper,
+        )
+    if getattr(args, "live_mode", False):
+        return config.with_updated(
+            run_mode=RunMode.live,
+            confirm_live=True,
+            connection_protocol=ConnectionProtocol.fix,
+        )
+    return config
 
 
 async def _with_runtime(
@@ -295,11 +323,15 @@ async def _handle_summary(
 
         runtime_summary = runtime_app.summary()
         app_summary = app.summary()
+        config_summary = {
+            "mode": config.run_mode.value,
+            "tier": config.tier.value,
+            "backbone_mode": config.data_backbone_mode.value,
+            "connection_protocol": config.connection_protocol.value,
+            "confirm_live": config.confirm_live,
+        }
         payload: Mapping[str, Any] = {
-            "config": {
-                "tier": config.tier.value,
-                "backbone_mode": config.data_backbone_mode.value,
-            },
+            "config": config_summary,
             "runtime": runtime_summary,
             "application": app_summary,
         }
@@ -307,6 +339,8 @@ async def _handle_summary(
         if args.json:
             print(json.dumps(_json_ready(payload), indent=2, sort_keys=True))
         else:
+            print("Config summary:")
+            print(json.dumps(_json_ready(config_summary), indent=2, sort_keys=True))
             print("Runtime summary:")
             print(json.dumps(_json_ready(runtime_summary), indent=2, sort_keys=True))
             print("Application summary:")
@@ -382,6 +416,7 @@ async def _handle_restart(args: argparse.Namespace) -> int:
 
 async def _handle_paper_run(args: argparse.Namespace) -> int:
     config = SystemConfig.from_env()
+    config = _apply_mode_overrides(args, config)
 
     duration_seconds: float | None
     if args.duration_hours in (None, 0):

@@ -28,3 +28,8 @@ def test_coerce_float_rejects_non_finite_strings() -> None:
 
 def test_coerce_int_handles_prefixed_bases() -> None:
     assert coerce_int("0x10") == 16
+
+
+def test_coerce_helpers_accept_grouped_numeric_strings() -> None:
+    assert coerce_float("1,234.5") == 1234.5
+    assert coerce_int("-2,500") == -2500

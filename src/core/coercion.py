@@ -56,6 +56,7 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
         if not candidate:
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
+        normalized = _strip_group_separators(normalized)
         try:
             result = float(normalized)
         except ValueError:
@@ -107,6 +108,7 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
         if not candidate:
             return default
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
+        normalized = _strip_group_separators(normalized)
         try:
             return int(normalized)
         except ValueError:

@@ -1,132 +1,68 @@
-# EMP Final Roadmap - Apex Predator Edition
+# EMP Sprint Plan: Security & Quality Improvements
 
-This is the integrated master roadmap for the Evolving Market Predator (EMP). It unifies perception, belief, memory, causality, reflexivity, and safety into one cohesive architecture. The objective: **flawless market shadowing**â€”EMP must mirror every price dynamic, anticipate every regime, and never commit an avoidable error.
-
----
-
-## I. Perception - Seeing All
-
-- [x] **FIX + Multivenue Depth**: Parse and merge full-depth (L1-L20) order books from all connected exchanges to construct a unified liquidity map.
-- [x] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
-- [x] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
-- [x] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
-- [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
-- [x] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
-- [x] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
-- [x] **Adaptive Sampling**: Adjust sensor frequency to volatility state; always high resolution in chaos.
+**Objective:** Close all enterprise-readiness gaps in EMP by implementing production-grade authentication, encryption, data validation, access control, secret rotation, and observability. Tasks are designed for execution with AI co-development.
 
 ---
 
-## II. Cognition - Knowing What Is True
+## 1. User & Process Authentication
 
-- [x] **Causal Graph Engine**: Formal DAG linking macro → liquidity → microprice → fills. Enables intervention testing.
-- [x] **Counterfactual Simulator**: Simulate outcomes under altered causes (do-calculus) to test belief robustness.
-- [x] **Mechanism Verification Tests**: Each feature must ship with a falsifiable economic hypothesis and a CI test.
-- [x] **Uncertainty-Aware Inference**: All predictions carry intervals and confidence; actions gated by lower-bound return.
-- [x] **Out-of-Distribution Sentry**: Detect when live data diverges from training; reduce aggressiveness accordingly.
-
----
-
-## III. Reflexivity - Knowing Its Own Shadow
-
-- [x] **Self-Impact Model**: Quantify how EMP's trades alter the local order book and volatility.
-- [x] **Adversary Simulation**: Train exploit agents to mimic others observing EMP's pattern; guard against being anticipated.
-- [x] **Entropy Governor**: Rotate tactics and randomize microtiming to stay unpredictable.
-- [x] **Infrastructure Awareness**: Integrate latency, queue position, and execution certainty into planner logic.
+- [ ] Integrate OAuth2 or token-based authentication for APIs and dashboards  
+- [ ] Add authentication middleware to protect endpoints  
+- [ ] Create basic user role storage (in-memory or database)  
+- [ ] Secure API access via token validation  
+- [ ] Document how to acquire and use authentication tokens  
 
 ---
 
-## IV. Belief & Memory - Never Forgetting, Always Contextualizing
+## 2. Encryption at Rest & In Transit
 
-- [x] **Belief Packets**: Each decision records context (features, regime, reasoning, confidence).
-- [x] **Memory Index**: Store latent summaries of extreme episodes (e.g., flash crash, news shock) in FAISS.
-- [x] **Context Recall**: At runtime, weigh actions by similarity to stored experiences.
-- [x] **Memory Gating**: Beliefs reinforced by memory are trusted; those without precedent trade lighter.
-- [x] **Decay Protocol**: Prune stale memories, reinforce recurring successful ones.
-
----
-
-## V. Planner & Foresight - Acting Only When the Future Aligns
-
-- [x] **MuZero-Lite Tree**: Simulate short-horizon futures with causal edge adjustments.
-- [x] **Veto Logic**: No action executes without positive expected return under ensemble belief.
-- [x] **Latency-Aware Planning**: Discard planner branch if total decision latency > 0.85ms.
-- [x] **Adversarial Simulation**: Inject spoofers, front-runners, and reversion agents into planner rollouts.
+- [ ] Enforce TLS on all API/web services  
+- [ ] Support HTTPS for development (e.g. self-signed certificates)  
+- [ ] Add warnings if production runs without TLS  
+- [ ] Store DuckDB files on encrypted volume or encrypt sensitive fields  
+- [ ] Ensure logs/configs do not store plaintext secrets  
+- [ ] Document encryption setup and deployment practices  
 
 ---
 
-## VI. Evolution - Learning Through Battle
+## 3. Real-World Data Validation & Quality Checks
 
-- [x] **League Evolution Engine**: Run evolutionary cycles with champions, exploiters, and chaos agents.
-- [x] **Mutation Ledger**: Record all parameter mutations, fitness improvements, and exploitability results.
-- [x] **Surrogate Simulation**: Fast proxy model (GraphNet) for testing policy evolution.
-- [x] **Curriculum Scheduler**: Inject rare or catastrophic events into training more frequently.
-- [x] **Auto-Demotion**: Any live policy failing drift or exploitability gates is rolled back automatically.
-
----
-
-## VII. Metacognition - Awareness of Its Own Limits
-
-- [x] **Belief Competence Matrix**: Maintain per-regime confidence in each belief family.
-- [x] **Persistent Red-Team Agents**: Dedicated adversaries specialize in EMP's known weak spots.
-- [x] **Self-Audit Reports**: Daily introspection logs outlining what it knows, what it doubts, and what changed.
-- [x] **Auto-RFC Generator**: When gates fail, open automatic patch proposals suggesting remediation.
+- [ ] Build validation layer for incoming data streams  
+- [ ] Define rules for required fields, value ranges, and data types  
+- [ ] Implement anomaly/outlier detection (e.g. IQR, z-score)  
+- [ ] Log validation failures with contextual details  
+- [ ] Create unit tests for invalid data scenarios  
+- [ ] Document validation logic and how to handle failures  
 
 ---
 
-## VIII. Risk Doctrine - No Avoidably Bad Trades
+## 4. Role-Based Access Control (RBAC) Scaffolding
 
-- [x] **Dominance Gate**: Execute only if chosen action dominates all alternatives across belief ensemble.
-- [x] **Pre-Trade Loss Bound**: Compute worst-case fill outcome; veto if lower bound â‰¤ 0.
-- [x] **Structural Exits**: Use liquidity-weighted unwind paths, not fixed stops.
-- [x] **Portfolio-Level Antifragility**: Diversify by regime correlation, not instrument name.
-
----
-
-## IX. Security, Provenance & Compliance
-
-- [x] **Time Integrity Daemon**: Halt if system clock drift > threshold.
-- [x] **Data Lineage Hashing**: Every decision references immutable feature hashes.
-- [x] **Adversarial Feed Quarantine**: Suspicious ticks isolated until verified.
-- [x] **Manipulation Sentinel**: Detect and block spoof-like order patterns.
-- [x] **Compliance-Constrained Planner**: Rollouts obey regulatory and venue constraints.
-- [x] **Plain-Language Rationale Export**: Each trade emits an explainable reason tied to observable factors.
+- [ ] Define initial roles (e.g. admin, reader, ingest_process)  
+- [ ] Add role checks (decorators or guards) to protected routes  
+- [ ] Embed role information in auth tokens (e.g. JWT claims)  
+- [ ] Apply RBAC to at least a few critical endpoints  
+- [ ] Document how RBAC works and how to extend it  
 
 ---
 
-## X. Cognitive Resource Management
+## 5. Secrets Rotation & Credential Expiry
 
-- [x] **Cognitive Scheduler**: Allocate compute by information gain potential.
-- [x] **Signal ROI Monitor**: Track marginal predictive value of each data stream.
-- [x] **Graceful Degradation**: If sensors fail, revert to baseline policy with explicit uncertainty inflation.
-
----
-
-## XI. CI/CD & Governance
-
-- [x] **Automated Promotion/Reversion**: CI promotes only fully passing models; auto-rollbacks on gate regression.
-- [x] **Gate Dashboard**: Real-time visual of each metric vs threshold.
-- [x] **Immutable Audit Trail**: Sign and store every policy, belief, and runtime decision.
-- [x] **Performance Covenant**: Gate advancement on sharpness, calibration, and exploitability metrics.
+- [ ] Build a script to check age of API keys and secrets  
+- [ ] Log or alert if secrets exceed defined age thresholds  
+- [ ] (Optional) Integrate with a secrets manager (e.g. AWS Secrets Manager, Vault)  
+- [ ] Set expiration time on user tokens (e.g. JWT expiry)  
+- [ ] Document secret rotation practices and automation goals  
 
 ---
 
-## XII. Deployment & Operations
+## 6. Observability & Security Monitoring
 
-- [x] **Helm Failover with Replay Smoke Test**: Validate pod readiness by running historical replay.
-- [x] **Docker Reproducibility**: Images tagged with policy hash and config fingerprint.
-- [x] **Terraform Infra Resilience**: Single-command rebuild of degraded nodes.
-- [x] **Live Config Diff**: All toggles and flags logged with color-coded diff at startup.
+- [ ] Log all auth events, RBAC rejections, and validation failures  
+- [ ] Track key metrics (e.g. failed logins, rejected records per hour)  
+- [ ] Expose metrics endpoint or write logs compatible with monitoring stack  
+- [ ] Add config options for log level, output format (e.g. JSON), and destination  
+- [ ] Ensure sensitive data is excluded or masked in logs  
+- [ ] Document observability practices and alerting roadmap  
 
 ---
-
-### Ultimate Philosophy
-EMP's final form is not predictive but *synchronous*. It doesnâ€™t guess; it co-oscillates with the market's hidden state. Each sensory and cognitive subsystem acts as a mirror, correcting distortion through feedback and evolution. When complete, the predator no longer chases signalsâ€”it embodies the market's structure and moves with it, flawlessly.
-
-## Automation updates — 2025-10-20T18:46:22Z
-
-### Last 4 commits
-- 6ba6f81f refactor(governance): tune 2 files (2025-10-20)
-- f8c1b106 docs(docs): tune 1 file (2025-10-20)
-- 27b49676 refactor(governance): tune 2 files (2025-10-20)
-- 7bd95a23 refactor(orchestration): tune 1 file (2025-10-20)

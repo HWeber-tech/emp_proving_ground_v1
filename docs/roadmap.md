@@ -25,7 +25,7 @@
 ### A.2 Config single source of truth (SoT)
 - [x] **A.2.1** `SystemConfig` reads YAML first; env only overrides explicitly set fields.  
 - [x] **A.2.2** In `mock` mode **skip live-cred validation**; provide `examples/run_mock.sh`.  
-- [ ] **A.2.3** Normalize `connection_protocol` once (`.lower().strip()`); remove `CONNECTION_PROTOCOL` drift.
+- [x] **A.2.3** Normalize `connection_protocol` once (`.lower().strip()`); remove `CONNECTION_PROTOCOL` drift.
 
 ### A.3 Market access & sensory organs
 - [x] **A.3.1** Implement FIX **MarketDataRequest** subscribe/unsubscribe on start/stop.  
@@ -206,7 +206,7 @@ actions_on_fail: ["reject", "fallback_previous_model"]
 ```
 
 - [x] **I.1** CI job runs ablations ({no-depth, no-OFI, LoRA vs per-domain head, k âˆˆ {0.3,0.5,0.7}}) and enforces **all gates**.  
-- [ ] **I.2** Model tagging: `APPROVED_DEFAULT` on pass; **auto-revert** otherwise.
+- [x] **I.2** Model tagging: `APPROVED_DEFAULT` on pass; **auto-revert** otherwise.
 
 **DoD (I):** one-button promotion with audited gates; rollback automatic.
 
@@ -288,10 +288,10 @@ body:
       - label: Docs updated
 ```
 
-## Automation updates — 2025-10-20T10:19:18Z
+## Automation updates — 2025-10-20T10:46:24Z
 
 ### Last 4 commits
-- 546249e8 feat(artifacts): add 52 files (2025-10-20)
-- b2cb8b0e refactor(sensory): tune 2 files (2025-10-20)
-- 219dce04 refactor(governance): tune 3 files (2025-10-20)
-- f5f5a6a0 refactor(operational): tune 1 file (2025-10-20)
+- f8da1465 refactor(artifacts): tune 11 files (2025-10-20)
+- 6ccb9354 refactor(orchestration): tune 3 files (2025-10-20)
+- 84cd5bcc refactor(operations): tune 1 file (2025-10-20)
+- b12ab9eb feat(artifacts): add 12 files (2025-10-20)

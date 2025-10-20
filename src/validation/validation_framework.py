@@ -2,8 +2,24 @@
 Validation Framework Implementation
 =================================
 
-Comprehensive validation framework for testing system components
-with real market data and performance metrics.
+This module orchestrates the asynchronous validation lifecycle that underpins
+our system-completeness smoke tests. Validators register via
+``ValidationFramework.setup_validators`` and each coroutine returns a
+``ValidationResult`` describing the check name, boolean outcome, measured
+value, and any contextual metadata. ``run_comprehensive_validation`` awaits
+every validator, aggregates their results, and writes a persisted
+``validation_report.json`` so CI or manual reviewers can inspect failures.
+
+Failure Handling
+----------------
+Whenever a validator raises an unexpected exception, the framework logs the
+error, records a synthetic ``ValidationResult`` with ``passed=False`` and the
+exception message, and continues so that one failure never aborts the full
+suite. After all checks complete we compute a success rate, flag the run as
+``FAILED`` if more than two validations fail, and exit the CLI with code ``1``
+when the success rate falls below 75%. Downstream automation can therefore
+gate deployments or retries on the exit status while engineers diagnose the
+detailed failure messages captured in the report file.
 """
 
 import asyncio
@@ -423,7 +439,15 @@ class ValidationFramework:
             )
 
     async def run_comprehensive_validation(self) -> Dict[str, Any]:
-        """Run all validation tests."""
+        """Run all validation tests with resilient failure handling.
+
+        Each registered validator is awaited in sequence. Unexpected
+        exceptions are caught so the suite can continue, and a synthetic
+        failing ``ValidationResult`` is emitted to capture the error message.
+        The aggregated report includes per-check payloads, success metrics,
+        and is persisted to ``validation_report.json`` for downstream
+        inspection.
+        """
         logger.info("Starting comprehensive validation...")
 
         # Run all validators

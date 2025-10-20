@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
 from decimal import Decimal
 from collections.abc import Sequence
@@ -68,6 +68,21 @@ logger = logging.getLogger(__name__)
 
 _EPSILON = 1e-9
 _SECTOR_KEYS = ("sector", "instrument_sector", "asset_sector", "industry")
+
+
+@dataclass(frozen=True)
+class DominanceDecision:
+    allowed: bool
+    status: str
+    reason: str | None
+    payload: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class _DominanceCandidate:
+    candidate_id: str
+    metrics: dict[str, float]
+    selected: bool
 
 
 class SupportsLiquidityProbing(Protocol):
@@ -244,6 +259,9 @@ class RiskGateway:
                 "guardrail_near_misses": 0,
                 "guardrail_violations": 0,
                 "last_guardrail_incident": None,
+                "dominance_evaluations": 0,
+                "dominance_failures": 0,
+                "dominance_skipped": 0,
             }
         )
         self._last_policy_decision: RiskPolicyDecision | None = None
@@ -469,6 +487,11 @@ class RiskGateway:
                 decision,
                 portfolio_state=portfolio_state,
             )
+
+            if not self._enforce_dominance_gate(intent, decision):
+                decision.update(status="rejected", reason="dominance_gate")
+                await self._reject_and_maybe_publish(decision)
+                return None
 
             self._enrich_intent(
                 intent,
@@ -889,6 +912,13 @@ class RiskGateway:
         payload["risk_reference"] = merge_risk_references(existing, base_reference)
         return payload
 
+    def _increment_telemetry(self, key: str) -> None:
+        try:
+            current = int(self.telemetry.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            current = 0
+        self.telemetry[key] = current + 1
+
     def _policy_summary(self) -> dict[str, object]:
         policy = self.risk_policy
         if policy is None:
@@ -1136,6 +1166,23 @@ class RiskGateway:
             }
         )
         return count < self.max_open_positions
+
+    def _extract_belief_ensemble(self, intent: Any) -> Mapping[str, Any] | None:
+        candidate: Any | None = None
+
+        if isinstance(intent, Mapping):
+            candidate = intent.get("belief_ensemble")
+            if not isinstance(candidate, Mapping):
+                metadata_block = intent.get("metadata")
+                if isinstance(metadata_block, Mapping):
+                    candidate = metadata_block.get("belief_ensemble")
+
+        if candidate is None:
+            metadata_attr = getattr(intent, "metadata", None)
+            if isinstance(metadata_attr, Mapping):
+                candidate = metadata_attr.get("belief_ensemble")
+
+        return candidate if isinstance(candidate, Mapping) else None
 
     def _extract_quantity(self, intent: Any) -> Decimal:
         quantity = _extract_attr(intent, "quantity", "size", "volume", default=0)
@@ -1691,6 +1738,312 @@ class RiskGateway:
             return False
 
         return True
+
+    def _enforce_dominance_gate(self, intent: Any, decision: dict[str, Any]) -> bool:
+        result = self._evaluate_dominance_gate(intent)
+        checks = decision.setdefault("checks", [])
+        entry: dict[str, Any] = {"name": "dominance_gate", "status": result.status}
+        payload = dict(result.payload)
+        if payload:
+            entry.update(payload)
+        if result.reason:
+            entry["reason"] = result.reason
+        checks.append(entry)
+
+        if result.status == "skipped":
+            self._increment_telemetry("dominance_skipped")
+            return result.allowed
+
+        self._increment_telemetry("dominance_evaluations")
+        if not result.allowed:
+            self._increment_telemetry("dominance_failures")
+            logger.warning(
+                "Dominance gate rejected intent for %s",
+                decision.get("symbol"),
+                extra={"dominance_gate": entry},
+            )
+        return result.allowed
+
+    def _evaluate_dominance_gate(self, intent: Any) -> DominanceDecision:
+        ensemble = self._extract_belief_ensemble(intent)
+        if ensemble is None:
+            return DominanceDecision(
+                allowed=True,
+                status="skipped",
+                reason="missing_ensemble",
+                payload={"detail": "missing_ensemble"},
+            )
+
+        if not isinstance(ensemble, Mapping):
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="invalid_ensemble",
+                payload={"detail": "ensemble_not_mapping"},
+            )
+
+        if not ensemble:
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="empty_ensemble",
+                payload={"detail": "empty_ensemble"},
+            )
+
+        metric_block = ensemble.get("metric_directions") or ensemble.get("metrics")
+        if not isinstance(metric_block, Mapping):
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="missing_metric_directions",
+                payload={"detail": "missing_metric_directions"},
+            )
+
+        metric_directions: dict[str, str] = {}
+        for raw_name, raw_direction in metric_block.items():
+            if raw_name is None:
+                continue
+            name = str(raw_name).strip()
+            if not name:
+                continue
+            direction_text = str(raw_direction).strip().lower()
+            if direction_text in {"max", "maximize", "higher", "higher_is_better", ">", ">="}:
+                metric_directions[name] = "max"
+            elif direction_text in {"min", "minimize", "lower", "lower_is_better", "<", "<="}:
+                metric_directions[name] = "min"
+            else:
+                return DominanceDecision(
+                    allowed=False,
+                    status="failed",
+                    reason="invalid_metric_direction",
+                    payload={"metric": name, "direction": raw_direction},
+                )
+
+        if not metric_directions:
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="metric_directions_empty",
+                payload={"detail": "metric_directions_empty"},
+            )
+
+        raw_candidates = ensemble.get("candidates")
+        if raw_candidates is None:
+            raw_candidates = ensemble.get("options")
+        if raw_candidates is None:
+            raw_candidates = ensemble.get("actions")
+
+        if not isinstance(raw_candidates, Sequence) or isinstance(raw_candidates, (str, bytes)):
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="missing_candidates",
+                payload={"detail": "missing_candidates"},
+            )
+
+        if not raw_candidates:
+            return DominanceDecision(
+                allowed=False,
+                status="failed",
+                reason="empty_candidates",
+                payload={"detail": "empty_candidates"},
+            )
+
+        def _normalise_selection_hint(value: Any) -> set[str]:
+            hints: set[str] = set()
+            if value is None:
+                return hints
+            if isinstance(value, Mapping):
+                for key in ("id", "candidate_id", "action_id", "name"):
+                    candidate_value = value.get(key)
+                    if candidate_value is None:
+                        continue
+                    text = str(candidate_value).strip()
+                    if text:
+                        hints.add(text)
+                nested = value.get("selected")
+                if nested is not None:
+                    hints.update(_normalise_selection_hint(nested))
+                return hints
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+                for entry in value:
+                    hints.update(_normalise_selection_hint(entry))
+                return hints
+            text = str(value).strip()
+            if text:
+                hints.add(text)
+            return hints
+
+        selection_hints: set[str] = set()
+        for key in ("selected", "selected_id", "selection", "choice", "chosen", "active"):
+            if key in ensemble:
+                selection_hints.update(_normalise_selection_hint(ensemble.get(key)))
+
+        candidates: list[_DominanceCandidate] = []
+        selected_candidate: _DominanceCandidate | None = None
+
+        for index, item in enumerate(raw_candidates):
+            if not isinstance(item, Mapping):
+                return DominanceDecision(
+                    allowed=False,
+                    status="failed",
+                    reason="invalid_candidate",
+                    payload={"index": index},
+                )
+
+            raw_identifier = (
+                item.get("id")
+                or item.get("candidate_id")
+                or item.get("action_id")
+                or item.get("name")
+            )
+            candidate_id = str(raw_identifier).strip() if raw_identifier is not None else ""
+            if not candidate_id:
+                candidate_id = f"candidate_{index}"
+
+            metrics_block = item.get("metrics") if isinstance(item.get("metrics"), Mapping) else None
+            metrics: dict[str, float] = {}
+            for metric, direction in metric_directions.items():
+                if metrics_block is not None:
+                    value = metrics_block.get(metric)
+                else:
+                    value = item.get(metric)
+                if value is None:
+                    return DominanceDecision(
+                        allowed=False,
+                        status="failed",
+                        reason="missing_metric",
+                        payload={"metric": metric, "candidate": candidate_id},
+                    )
+                try:
+                    numeric = float(value)
+                except (TypeError, ValueError):
+                    return DominanceDecision(
+                        allowed=False,
+                        status="failed",
+                        reason="non_numeric_metric",
+                        payload={"metric": metric, "candidate": candidate_id},
+                    )
+                if not math.isfinite(numeric):
+                    return DominanceDecision(
+                        allowed=False,
+                        status="failed",
+                        reason="non_numeric_metric",
+                        payload={"metric": metric, "candidate": candidate_id},
+                    )
+                metrics[metric] = numeric
+
+            selected_flag = bool(item.get("selected") or item.get("is_selected"))
+            if not selected_flag and selection_hints:
+                if candidate_id in selection_hints:
+                    selected_flag = True
+
+            candidate = _DominanceCandidate(candidate_id=candidate_id, metrics=metrics, selected=selected_flag)
+            candidates.append(candidate)
+            if selected_flag and selected_candidate is None:
+                selected_candidate = candidate
+
+        if selected_candidate is None:
+            if len(candidates) == 1:
+                selected_candidate = candidates[0]
+            else:
+                return DominanceDecision(
+                    allowed=False,
+                    status="failed",
+                    reason="no_selected_candidate",
+                    payload={"candidates": len(candidates)},
+                )
+
+        base_payload = {
+            "selected_id": selected_candidate.candidate_id,
+            "candidate_count": len(candidates),
+            "metrics": [
+                {"name": metric, "direction": direction}
+                for metric, direction in metric_directions.items()
+            ],
+        }
+
+        alternatives = [candidate for candidate in candidates if candidate is not selected_candidate]
+        base_payload["alternatives_checked"] = len(alternatives)
+
+        if not alternatives:
+            return DominanceDecision(
+                allowed=True,
+                status="passed",
+                reason=None,
+                payload=base_payload,
+            )
+
+        for alternative in alternatives:
+            strict_advantage = False
+            for metric, direction in metric_directions.items():
+                selected_value = selected_candidate.metrics[metric]
+                alternative_value = alternative.metrics[metric]
+
+                if direction == "max":
+                    if selected_value < alternative_value - _EPSILON:
+                        failure_payload = dict(base_payload)
+                        failure_payload["violations"] = [
+                            {
+                                "type": "metric_deficit",
+                                "metric": metric,
+                                "direction": direction,
+                                "alternative_id": alternative.candidate_id,
+                                "selected_value": selected_value,
+                                "alternative_value": alternative_value,
+                            }
+                        ]
+                        return DominanceDecision(
+                            allowed=False,
+                            status="failed",
+                            reason="non_dominant",
+                            payload=failure_payload,
+                        )
+                    if selected_value > alternative_value + _EPSILON:
+                        strict_advantage = True
+                else:  # direction == "min"
+                    if selected_value > alternative_value + _EPSILON:
+                        failure_payload = dict(base_payload)
+                        failure_payload["violations"] = [
+                            {
+                                "type": "metric_deficit",
+                                "metric": metric,
+                                "direction": direction,
+                                "alternative_id": alternative.candidate_id,
+                                "selected_value": selected_value,
+                                "alternative_value": alternative_value,
+                            }
+                        ]
+                        return DominanceDecision(
+                            allowed=False,
+                            status="failed",
+                            reason="non_dominant",
+                            payload=failure_payload,
+                        )
+                    if selected_value < alternative_value - _EPSILON:
+                        strict_advantage = True
+
+            if not strict_advantage:
+                failure_payload = dict(base_payload)
+                failure_payload["violations"] = [
+                    {
+                        "type": "no_strict_advantage",
+                        "alternative_id": alternative.candidate_id,
+                    }
+                ]
+                return DominanceDecision(
+                    allowed=False,
+                    status="failed",
+                    reason="non_dominant",
+                    payload=failure_payload,
+                )
+
+        return DominanceDecision(
+            allowed=True,
+            status="passed",
+            reason=None,
+            payload=base_payload,
+        )
 
     def _enforce_confidence_limit(
         self,

@@ -280,6 +280,174 @@ async def test_risk_gateway_detects_synthetic_invariant_in_metadata(
 
 
 @pytest.mark.asyncio()
+async def test_risk_gateway_dominance_gate_passes_for_dominant_selection(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    policy = RiskPolicy.from_config(
+        RiskConfig(min_position_size=1, mandatory_stop_loss=False)
+    )
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+    )
+
+    ensemble = {
+        "metric_directions": {
+            "expected_return": "max",
+            "downside": "min",
+            "confidence": "max",
+        },
+        "candidates": [
+            {
+                "id": "dominant",
+                "selected": True,
+                "metrics": {
+                    "expected_return": 0.021,
+                    "downside": 0.004,
+                    "confidence": 0.74,
+                },
+            },
+            {
+                "id": "runner_up",
+                "metrics": {
+                    "expected_return": 0.018,
+                    "downside": 0.006,
+                    "confidence": 0.70,
+                },
+            },
+        ],
+    }
+
+    microstructure = dict(DEFAULT_MICROSTRUCTURE)
+    microstructure.update({"delta_hat": 4.0, "spread": 0.0002})
+
+    intent = Intent(
+        symbol="EURUSD",
+        quantity=Decimal("1"),
+        confidence=0.9,
+        metadata={
+            "belief_ensemble": ensemble,
+            "microstructure": microstructure,
+        },
+    )
+
+    state = portfolio_monitor.get_state()
+    state.update(
+        {
+            "cash": 25_000.0,
+            "equity": 25_000.0,
+            "daily_equity_start": 25_000.0,
+            "peak_equity": 25_000.0,
+            "current_daily_drawdown": 0.0,
+        }
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is not None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("status") == "approved"
+    checks = decision.get("checks", [])
+    dominance_entry = next(
+        (entry for entry in checks if entry.get("name") == "dominance_gate"),
+        None,
+    )
+    assert dominance_entry is not None
+    assert dominance_entry.get("status") == "passed"
+    assert dominance_entry.get("selected_id") == "dominant"
+    assert gateway.telemetry.get("dominance_evaluations") == 1
+    assert gateway.telemetry.get("dominance_failures") == 0
+
+
+@pytest.mark.asyncio()
+async def test_risk_gateway_dominance_gate_rejects_non_dominant_selection(
+    portfolio_monitor: PortfolioMonitor,
+) -> None:
+    registry = DummyStrategyRegistry(active=True)
+    policy = RiskPolicy.from_config(
+        RiskConfig(min_position_size=1, mandatory_stop_loss=False)
+    )
+    gateway = RiskGateway(
+        strategy_registry=registry,
+        position_sizer=None,
+        portfolio_monitor=portfolio_monitor,
+        risk_policy=policy,
+    )
+
+    ensemble = {
+        "metric_directions": {
+            "expected_return": "max",
+            "downside": "min",
+            "confidence": "max",
+        },
+        "selected": "dominant",
+        "candidates": [
+            {
+                "id": "dominant",
+                "selected": True,
+                "metrics": {
+                    "expected_return": 0.015,
+                    "downside": 0.006,
+                    "confidence": 0.65,
+                },
+            },
+            {
+                "id": "superior",
+                "metrics": {
+                    "expected_return": 0.019,
+                    "downside": 0.004,
+                    "confidence": 0.72,
+                },
+            },
+        ],
+    }
+
+    microstructure = dict(DEFAULT_MICROSTRUCTURE)
+    microstructure.update({"delta_hat": 4.0, "spread": 0.0002})
+
+    intent = Intent(
+        symbol="EURUSD",
+        quantity=Decimal("1"),
+        confidence=0.85,
+        metadata={
+            "belief_ensemble": ensemble,
+            "microstructure": microstructure,
+        },
+    )
+
+    state = portfolio_monitor.get_state()
+    state.update(
+        {
+            "cash": 25_000.0,
+            "equity": 25_000.0,
+            "daily_equity_start": 25_000.0,
+            "peak_equity": 25_000.0,
+            "current_daily_drawdown": 0.0,
+        }
+    )
+
+    result = await gateway.validate_trade_intent(intent, state)
+
+    assert result is None
+    decision = gateway.get_last_decision()
+    assert decision is not None
+    assert decision.get("status") == "rejected"
+    assert decision.get("reason") == "dominance_gate"
+    checks = decision.get("checks", [])
+    dominance_entry = next(
+        (entry for entry in checks if entry.get("name") == "dominance_gate"),
+        None,
+    )
+    assert dominance_entry is not None
+    assert dominance_entry.get("status") == "failed"
+    assert dominance_entry.get("reason") == "non_dominant"
+    assert gateway.telemetry.get("dominance_failures") == 1
+
+@pytest.mark.asyncio()
 async def test_risk_gateway_detects_synthetic_invariant_in_indicator_payload(
     portfolio_monitor: PortfolioMonitor,
 ) -> None:

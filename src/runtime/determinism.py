@@ -8,9 +8,13 @@ minimal test harness used by the roadmap regression suite.
 
 from __future__ import annotations
 
+import math
 import os
 import random
+from numbers import Real
 from typing import Callable, Mapping, Sequence, Tuple
+
+from src.core.coercion import coerce_int
 
 
 def _seed_numpy(seed: int) -> None:  # pragma: no cover - optional dependency
@@ -64,13 +68,37 @@ def resolve_seed(
         raw_value = extras.get(key)
         if raw_value is None:
             continue
-        text = str(raw_value).strip()
-        if not text:
-            continue
-        try:
-            return int(text), invalid
-        except ValueError:
+        if isinstance(raw_value, bool):
             invalid.append((key, raw_value))
+            continue
+
+        candidate = coerce_int(raw_value, default=None)
+        if candidate is None:
+            invalid.append((key, raw_value))
+            continue
+
+        if isinstance(raw_value, Real):
+            float_value = float(raw_value)
+            if not math.isfinite(float_value) or float_value != float(candidate):
+                invalid.append((key, raw_value))
+                continue
+        elif isinstance(raw_value, str):
+            text = raw_value.strip()
+            if not text:
+                continue
+            try:
+                float_value = float(text)
+            except ValueError:
+                float_value = None
+            if (
+                float_value is not None
+                and math.isfinite(float_value)
+                and float_value != float(candidate)
+            ):
+                invalid.append((key, raw_value))
+                continue
+
+        return candidate, invalid
 
     return None, invalid
 

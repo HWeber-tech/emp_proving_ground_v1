@@ -20,6 +20,13 @@ def test_resolve_seed_falls_back_to_secondary_key() -> None:
     assert invalid == [("RNG_SEED", "oops")]
 
 
+def test_resolve_seed_accepts_integral_float_values() -> None:
+    seed, invalid = resolve_seed({"RNG_SEED": 17.0})
+
+    assert seed == 17
+    assert invalid == []
+
+
 def test_resolve_seed_handles_missing_values() -> None:
     seed, invalid = resolve_seed({})
 

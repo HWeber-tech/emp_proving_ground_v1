@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import logging
 import time
+from math import isfinite
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -290,6 +291,19 @@ class BootstrapTradingStack:
             intent.metadata.setdefault("understanding_snapshot", understanding_snapshot)
             if isinstance(intent.metadata, MutableMapping):
                 intent.metadata.pop("intelligence_snapshot", None)
+                microstructure = self._build_microstructure_payload(
+                    snapshot,
+                    side=side,
+                    market_price=market_price,
+                )
+                if microstructure:
+                    existing = intent.metadata.get("microstructure")
+                    if isinstance(existing, Mapping):
+                        merged = dict(existing)
+                        merged.update(microstructure)
+                        intent.metadata["microstructure"] = merged
+                    else:
+                        intent.metadata["microstructure"] = microstructure
             latency_metrics["order"] = time.perf_counter() - order_prepare_start
 
             ack_start = time.perf_counter()
@@ -357,6 +371,64 @@ class BootstrapTradingStack:
                 timestamp=tick_timestamp,
                 order_attempted=order_attempted,
             )
+
+    def _build_microstructure_payload(
+        self,
+        snapshot: SensorySnapshot,
+        *,
+        side: str,
+        market_price: float,
+    ) -> dict[str, float]:
+        def _coerce(value: object, default: float = 0.0) -> float:
+            try:
+                candidate = float(value)
+            except (TypeError, ValueError):
+                return default
+            if not isfinite(candidate):
+                return default
+            return candidate
+
+        payload: dict[str, float] = {}
+        market_data = snapshot.market_data
+
+        spread = _coerce(getattr(market_data, "spread", None))
+        if spread <= 0.0:
+            bid = _coerce(getattr(market_data, "bid", None))
+            ask = _coerce(getattr(market_data, "ask", None))
+            diff = ask - bid
+            if diff > 0.0:
+                spread = diff
+        if spread <= 0.0 and market_price > 0.0:
+            spread_bps = _coerce(getattr(market_data, "spread_bps", None))
+            if spread_bps > 0.0:
+                spread = market_price * spread_bps / 10000.0
+        if spread <= 0.0 and market_price > 0.0:
+            spread = market_price * 0.00005
+        spread = max(spread, 1e-6)
+        payload["spread"] = spread
+
+        tick_size = _coerce(getattr(market_data, "tick_size", None))
+        if tick_size <= 0.0:
+            tick_size = max(spread / 5.0, market_price * 1e-6 if market_price > 0.0 else 1e-6)
+        payload["tick_size"] = tick_size
+        payload["spread_ticks"] = spread / tick_size if tick_size > 0.0 else spread
+        payload["edge_spread_floor"] = spread
+
+        payload["liquidity_imbalance"] = _coerce(
+            getattr(market_data, "order_imbalance", None)
+        )
+        payload["sigma_ann"] = max(0.0, _coerce(getattr(market_data, "volatility", None)))
+        payload["depth"] = max(0.0, _coerce(getattr(market_data, "depth", None)))
+
+        unified_score = _coerce(snapshot.synthesis.unified_score)
+        confidence = max(0.0, min(1.0, _coerce(snapshot.synthesis.confidence, default=0.0)))
+        direction = 1.0 if side.upper() == "BUY" else -1.0
+        base_signal = max(0.0, abs(unified_score)) * (1.0 + 0.5 * confidence)
+        scaled_signal = max(10.0, base_signal * 20.0)
+        delta_hat = direction * min(25.0, scaled_signal)
+        payload["delta_hat"] = delta_hat
+
+        return payload
 
     def set_release_router(
         self, router: ReleaseAwareExecutionRouter | None

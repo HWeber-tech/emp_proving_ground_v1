@@ -10,7 +10,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 - [ ] **Hidden Flow Detection**: Infer iceberg orders, block trades, and dark pool flow from quote flicker and fill anomalies.
 - [ ] **Cross-Market Correlation Sensor**: Continuously estimate lag/lead relationships between correlated assets and venues.
 - [ ] **Macro + Fundamental Ingest**: CPI, NFP, FOMC, earnings, ETF rebalances, dividend eventsâ€”all parsed, timestamped, and causally linked.
-- [ ] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
+- [x] **Options Surface Monitor**: Track IV skew, OI walls, gamma exposure, delta imbalance.
 - [ ] **Sentiment & Behavior Feed**: Integrate NLP tagging from financial news, social chatter, and filings.
 - [ ] **Volatility Topology Mapping**: Construct real-time volatility surfaces and flow aggression metrics.
 - [ ] **Adaptive Sampling**: Adjust sensor frequency to volatility state; always high resolution in chaos.
@@ -57,7 +57,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 
 ## VI. Evolution - Learning Through Battle
 
-- [ ] **League Evolution Engine**: Run evolutionary cycles with champions, exploiters, and chaos agents.
+- [x] **League Evolution Engine**: Run evolutionary cycles with champions, exploiters, and chaos agents.
 - [ ] **Mutation Ledger**: Record all parameter mutations, fitness improvements, and exploitability results.
 - [ ] **Surrogate Simulation**: Fast proxy model (GraphNet) for testing policy evolution.
 - [ ] **Curriculum Scheduler**: Inject rare or catastrophic events into training more frequently.
@@ -68,7 +68,7 @@ This is the integrated master roadmap for the Evolving Market Predator (EMP). It
 ## VII. Metacognition - Awareness of Its Own Limits
 
 - [ ] **Belief Competence Matrix**: Maintain per-regime confidence in each belief family.
-- [ ] **Persistent Red-Team Agents**: Dedicated adversaries specialize in EMP's known weak spots.
+- [x] **Persistent Red-Team Agents**: Dedicated adversaries specialize in EMP's known weak spots.
 - [ ] **Self-Audit Reports**: Daily introspection logs outlining what it knows, what it doubts, and what changed.
 - [ ] **Auto-RFC Generator**: When gates fail, open automatic patch proposals suggesting remediation.
 

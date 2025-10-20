@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import main
+from src.governance.system_config import EmpEnvironment, SystemConfig
 
 
 @pytest.fixture(autouse=True)
@@ -74,3 +75,25 @@ def test_metrics_exporter_invalid_port(monkeypatch, logger_stub):
 
     assert captured.get("port") is None
     assert logger_stub.warning and "Invalid METRICS_EXPORTER_PORT" in logger_stub.warning[0][0]
+
+
+def test_warns_for_production_without_tls(logger_stub):
+    config = SystemConfig().with_updated(
+        environment=EmpEnvironment.production,
+        extras={},
+    )
+
+    main._warn_if_production_tls_disabled(config, config.extras)
+
+    assert logger_stub.warning, "expected TLS warning for production without TLS"
+
+
+def test_skips_warning_when_production_tls_present(logger_stub):
+    config = SystemConfig().with_updated(
+        environment=EmpEnvironment.production,
+        extras={"SECURITY_TLS_VERSIONS": "TLS1.2,TLS1.3"},
+    )
+
+    main._warn_if_production_tls_disabled(config, config.extras)
+
+    assert not logger_stub.warning, "unexpected TLS warning when TLS versions configured"

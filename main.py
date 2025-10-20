@@ -17,6 +17,7 @@ from src.data_foundation.duckdb_security import (
 )
 from src.governance.system_config import (
     ConnectionProtocol,
+    EmpEnvironment,
     EmpTier,
     RunMode,
     SystemConfig,
@@ -26,6 +27,12 @@ from src.observability.tracing import parse_opentelemetry_settings
 from src.operations.configuration_audit import (
     evaluate_configuration_audit,
     persist_configuration_snapshot,
+)
+from src.operations.security import (
+    SecurityPolicy,
+    SecurityState,
+    SecurityStatus,
+    evaluate_security_posture,
 )
 from src.operational.metrics import start_metrics_server
 from src.operational.structured_logging import (
@@ -141,6 +148,43 @@ def _maybe_start_metrics_exporter(extras: Mapping[str, str] | None) -> None:
         logger.exception("Failed to start Prometheus metrics exporter")
 
 
+def _warn_if_production_tls_disabled(
+    config: SystemConfig,
+    extras: Mapping[str, str],
+) -> None:
+    """Emit a warning when production configuration lacks TLS coverage."""
+
+    if config.environment is not EmpEnvironment.production:
+        return
+
+    policy = SecurityPolicy.from_mapping(extras)
+    state = SecurityState.from_mapping(extras)
+    snapshot = evaluate_security_posture(
+        policy,
+        state,
+        service="runtime_preflight",
+    )
+
+    tls_control = next(
+        (control for control in snapshot.controls if control.control == "tls_configuration"),
+        None,
+    )
+    if tls_control is None or tls_control.status is not SecurityStatus.fail:
+        return
+
+    metadata = dict(tls_control.metadata)
+    logger.warning(
+        "Production environment lacks required TLS configuration: %s",
+        tls_control.summary,
+        extra={
+            "tls_status": tls_control.status.value,
+            "tls_missing_versions": metadata.get("missing_versions"),
+            "tls_observed_versions": metadata.get("observed_versions"),
+            "tls_allow_legacy": metadata.get("allow_legacy"),
+        },
+    )
+
+
 def _normalise_optional_str(value: object | None) -> str | None:
     if value is None:
         return None
@@ -178,6 +222,8 @@ async def main() -> None:
 
     config = SystemConfig.from_env()
     extras: Mapping[str, str] = dict(config.extras) if config.extras else {}
+
+    _warn_if_production_tls_disabled(config, extras)
 
     rng_seed, invalid_seed_entries = resolve_seed(extras)
     if rng_seed is not None:

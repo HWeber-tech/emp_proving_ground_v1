@@ -198,7 +198,7 @@ def get_instrument(symbol: str | None) -> Instrument | None:
 
 def get_all_instruments() -> dict[str, Instrument]:
     """Get all available instruments."""
-    return FOREX_INSTRUMENTS.copy()
+    return {symbol: replace(instrument) for symbol, instrument in FOREX_INSTRUMENTS.items()}
 
 
 if __name__ == "__main__":

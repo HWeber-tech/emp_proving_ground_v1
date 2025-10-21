@@ -7,7 +7,7 @@ Defines the Instrument class for financial instruments.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 try:  # Python 3.10 compatibility for typing.Unpack
     from typing import TypedDict, Unpack, cast
 except ImportError:  # pragma: no cover - fallback for older runtimes
@@ -190,7 +190,10 @@ def get_instrument(symbol: str | None) -> Instrument | None:
     normalised = "".join(ch for ch in symbol.strip().upper() if ch.isalnum())
     if not normalised:
         return None
-    return FOREX_INSTRUMENTS.get(normalised)
+    instrument = FOREX_INSTRUMENTS.get(normalised)
+    if instrument is None:
+        return None
+    return replace(instrument)
 
 
 def get_all_instruments() -> dict[str, Instrument]:

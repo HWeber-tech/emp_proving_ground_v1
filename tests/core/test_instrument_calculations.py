@@ -70,3 +70,17 @@ def test_get_instrument_accepts_common_separators() -> None:
 
     assert instrument is not None
     assert instrument.symbol == "EURUSD"
+
+
+def test_get_instrument_returns_fresh_instance() -> None:
+    first = get_instrument("eurusd")
+
+    assert first is not None
+
+    first.name = "modified"
+
+    second = get_instrument("EURUSD")
+
+    assert second is not None
+    assert second is not first
+    assert second.name == "EURUSD Forex"

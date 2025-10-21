@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 import time
-from datetime import timedelta
+from datetime import datetime, timezone, timedelta
 
 import pytest
 
@@ -98,3 +98,14 @@ def test_market_data_cache_mid_overflow_is_none() -> None:
     cache.put_snapshot("BIG", bid=huge, ask=huge, ts=0.0)
 
     assert cache.maybe_get_mid("BIG") is None
+
+
+def test_put_snapshot_accepts_datetime_timestamp() -> None:
+    cache = MarketDataCache()
+    ts = datetime(2024, 1, 1, 12, 30, tzinfo=timezone.utc)
+
+    cache.put_snapshot("EURUSD", bid=1.1, ask=1.2, ts=ts)
+
+    snapshot = cache.get_snapshot("EURUSD")
+    assert snapshot is not None
+    assert snapshot["ts"] == ts.isoformat()

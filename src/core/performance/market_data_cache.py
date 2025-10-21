@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TypedDict, cast
 
 
@@ -55,9 +55,21 @@ class MarketDataCache:
         self._lock = threading.Lock()
 
     # Minimal snapshot API
-    def put_snapshot(self, symbol: str, bid: float, ask: float, ts: float | str) -> None:
+    def put_snapshot(
+        self, symbol: str, bid: float, ask: float, ts: float | str | datetime
+    ) -> None:
         """Store a snapshot for a symbol."""
-        snapshot: _Snapshot = {"symbol": symbol, "bid": float(bid), "ask": float(ask), "ts": ts}
+        ts_value: float | str
+        if isinstance(ts, datetime):
+            ts_value = ts.isoformat()
+        else:
+            ts_value = ts
+        snapshot: _Snapshot = {
+            "symbol": symbol,
+            "bid": float(bid),
+            "ask": float(ask),
+            "ts": ts_value,
+        }
         with self._lock:
             self._data[symbol] = snapshot
 

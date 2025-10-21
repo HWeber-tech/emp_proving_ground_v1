@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Optional, Protocol, runtime_checkable
 
+from src.core.coercion import coerce_float
+
 
 @dataclass
 class RiskConfigDecl:
@@ -57,10 +59,9 @@ class NoOpRiskManager:
     def validate_position(
         self, position: dict[str, object], _instrument: dict[str, Any] | Any, equity: Decimal | float
     ) -> bool:
-        try:
-            # Perform trivial sanity checks without rejecting
-            qty = float(position.get("quantity", 0))
-        except (TypeError, ValueError, OverflowError):
+        qty_raw = position.get("quantity", 0)
+        qty = coerce_float(qty_raw, default=None)
+        if qty is None:
             return False
 
         if not math.isfinite(qty):

@@ -33,3 +33,9 @@ def test_noop_risk_manager_rejects_non_numeric_quantity() -> None:
     manager = _risk_module.NoOpRiskManager()
 
     assert manager.validate_position({"quantity": "not-a-number"}, {}, 1000.0) is False
+
+
+def test_noop_risk_manager_handles_grouped_numeric_strings() -> None:
+    manager = _risk_module.NoOpRiskManager()
+
+    assert manager.validate_position({"quantity": "1,250"}, {}, 1000.0) is True

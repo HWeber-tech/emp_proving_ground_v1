@@ -6,6 +6,7 @@ from pathlib import Path
 from src.testing.flake_telemetry import (
     DEFAULT_RELATIVE_PATH,
     MAX_LONGREPR_LENGTH,
+    FlakeTelemetrySink,
     clip_longrepr,
     resolve_output_path,
 )
@@ -102,3 +103,18 @@ def test_resolve_output_path_supports_pathlike(tmp_path: Path) -> None:
 
     assert path == explicit_path
     assert path.parent.is_dir()
+
+
+def test_record_event_skips_missing_longrepr(tmp_path: Path) -> None:
+    sink = FlakeTelemetrySink(output_path=tmp_path / "telemetry.json")
+
+    sink.record_event(
+        nodeid="tests/test_example.py::test_case",
+        outcome="failed",
+        duration="0.2",
+        was_xfail=False,
+        longrepr=None,
+    )
+
+    assert sink.events[0]["nodeid"] == "tests/test_example.py::test_case"
+    assert "longrepr" not in sink.events[0]

@@ -49,15 +49,16 @@ class FlakeTelemetrySink:
         longrepr: str | None,
     ) -> None:
         duration_value = coerce_float(duration, default=0.0)
-        self.events.append(
-            {
-                "nodeid": nodeid,
-                "outcome": outcome,
-                "duration": duration_value,
-                "was_xfail": was_xfail,
-                "longrepr": clip_longrepr(longrepr),
-            }
-        )
+        event = {
+            "nodeid": nodeid,
+            "outcome": outcome,
+            "duration": duration_value,
+            "was_xfail": was_xfail,
+        }
+        clipped = clip_longrepr(longrepr)
+        if clipped is not None:
+            event["longrepr"] = clipped
+        self.events.append(event)
 
     def flush(self, exit_status: int) -> dict[str, Any]:
         payload = {

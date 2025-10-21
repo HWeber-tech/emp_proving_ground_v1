@@ -108,9 +108,12 @@ class DimensionalReading:
     def value(self, new_value: float) -> None:
         """Maintain legacy mutation pathway for signal strength."""
         try:
-            self.signal_strength = float(new_value)
+            coerced = float(new_value)
         except (TypeError, ValueError) as exc:
             raise ValueError("DimensionalReading.value must be numeric") from exc
+        if not math.isfinite(coerced):
+            raise ValueError("DimensionalReading.value must be finite")
+        self.signal_strength = coerced
 
 
 @dataclass

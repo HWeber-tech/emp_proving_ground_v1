@@ -20,6 +20,14 @@ def test_dimensional_reading_value_setter_rejects_non_numeric() -> None:
     with pytest.raises(ValueError):
         reading.value = "invalid"  # type: ignore[assignment]
 
+def test_dimensional_reading_value_setter_rejects_non_finite() -> None:
+    reading = DimensionalReading(dimension="gamma", signal_strength=0.7)
+
+    with pytest.raises(ValueError):
+        reading.value = float('nan')
+    with pytest.raises(ValueError):
+        reading.value = float('inf')
+
 
 def test_market_data_accepts_iso8601_timestamp() -> None:
     md = MarketData(symbol="EURUSD", timestamp="2023-07-02T15:30:00Z")

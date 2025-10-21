@@ -86,3 +86,8 @@ def test_coerce_int_handles_trailing_signs() -> None:
 def test_coerce_float_handles_decimal_comma() -> None:
     assert coerce_float("1,23") == 1.23
     assert coerce_float("1.234,56") == 1234.56
+
+
+def test_coerce_int_handles_decimal_commas() -> None:
+    assert coerce_int("1.234,5") == 1234
+    assert coerce_int("0,75") == 0

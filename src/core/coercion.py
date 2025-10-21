@@ -298,6 +298,7 @@ def coerce_int(value: object | None, *, default: int | None = None) -> int | Non
                 candidate = core
         if not candidate or candidate in "+-":
             return default
+        candidate = _normalize_decimal_markers(candidate)
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
         normalized = _strip_group_separators(normalized)
         if trailing_sign == "-":

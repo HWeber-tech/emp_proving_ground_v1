@@ -84,3 +84,17 @@ def test_sink_clips_longrepr_on_record(tmp_path: Path) -> None:
     stored = sink.events[0]["longrepr"]
     assert stored == clip_longrepr(longrepr)
     assert stored != longrepr
+
+
+def test_sink_normalizes_unparseable_duration(tmp_path: Path) -> None:
+    sink = FlakeTelemetrySink(tmp_path / "out.json")
+
+    sink.record_event(
+        nodeid="test_module::bad_duration",
+        outcome="failed",
+        duration="0.5s",
+        was_xfail=False,
+        longrepr=None,
+    )
+
+    assert sink.events[0]["duration"] == 0.0

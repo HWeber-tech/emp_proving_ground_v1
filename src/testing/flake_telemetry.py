@@ -9,6 +9,8 @@ from os import PathLike
 from pathlib import Path
 from typing import Any
 
+from src.core.coercion import coerce_float
+
 DEFAULT_RELATIVE_PATH = Path("tests/.telemetry/flake_runs.json")
 MAX_LONGREPR_LENGTH = 4000
 _PathCandidate = str | os.PathLike[str]
@@ -42,15 +44,16 @@ class FlakeTelemetrySink:
         *,
         nodeid: str,
         outcome: str,
-        duration: float,
+        duration: object,
         was_xfail: bool,
         longrepr: str | None,
     ) -> None:
+        duration_value = coerce_float(duration, default=0.0)
         self.events.append(
             {
                 "nodeid": nodeid,
                 "outcome": outcome,
-                "duration": float(duration),
+                "duration": duration_value,
                 "was_xfail": was_xfail,
                 "longrepr": clip_longrepr(longrepr),
             }

@@ -55,3 +55,17 @@ def test_validation_result_preserves_explicit_timestamp() -> None:
 
     assert result.timestamp is timestamp
     assert result.to_dict()["timestamp"] == timestamp.isoformat()
+
+
+def test_validation_result_details_none_defaults_to_empty_string() -> None:
+    result = ValidationResult(
+        test_name="details-none",
+        passed=True,
+        value=1.0,
+        threshold=1.0,
+        unit="unit",
+        details=None,
+    )
+
+    assert result.details == ""
+    assert result.to_dict()["details"] == ""

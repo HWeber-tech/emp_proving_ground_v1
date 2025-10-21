@@ -14,7 +14,7 @@ class ValidationResult:
         value: float,
         threshold: float,
         unit: str,
-        details: str = "",
+        details: str | None = "",
         metadata: Optional[dict[str, object]] = None,
         timestamp: datetime | None = None,
     ):
@@ -23,7 +23,7 @@ class ValidationResult:
         self.value = value
         self.threshold = threshold
         self.unit = unit
-        self.details = details
+        self.details = details if details is not None else ""
         self.metadata = dict(metadata) if metadata else {}
         self.timestamp = timestamp if timestamp is not None else datetime.now()
 

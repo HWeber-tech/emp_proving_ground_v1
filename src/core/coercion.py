@@ -14,6 +14,7 @@ __all__ = ["coerce_float", "coerce_int"]
 _NUMERIC_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[_',](?=\d)")
 _GROUP_SEPARATOR_PATTERN = re.compile(r"(?<=\d)[\s\u00A0\u2007\u202F\u2009](?=\d)")
 _SIGN_NORMALIZATION = str.maketrans({"\u2212": "-", "\uFF0D": "-", "\uFE63": "-"})
+_GROUP_CHAR_TRANSLATION = str.maketrans("", "", ",._'")
 
 
 def _normalize_sign_characters(value: str) -> str:
@@ -24,6 +25,68 @@ def _strip_group_separators(value: str) -> str:
     """Remove common locale-specific grouping separators embedded in numbers."""
 
     return _GROUP_SEPARATOR_PATTERN.sub("", value)
+
+
+def _remove_group_characters(value: str) -> str:
+    """Drop common grouping punctuation from ``value``."""
+
+    return value.translate(_GROUP_CHAR_TRANSLATION)
+
+
+def _normalize_decimal_markers(value: str) -> str:
+    """Coerce locale-specific decimal markers to ``.`` while preserving sign."""
+
+    if not value:
+        return value
+
+    stripped = _strip_group_separators(value)
+    if "," not in stripped:
+        return stripped
+
+    sign = ""
+    rest = stripped
+    if rest[0] in "+-":
+        sign, rest = rest[0], rest[1:]
+
+    if not rest:
+        return sign
+
+    last_comma = rest.rfind(",")
+    last_dot = rest.rfind(".")
+    if last_dot > last_comma:
+        head = _remove_group_characters(rest[:last_dot])
+        tail = rest[last_dot:]
+        return f"{sign}{head}{tail}"
+
+    if rest.count(",") > 1:
+        return f"{sign}{rest.replace(',', '')}"
+
+    integer_part = rest[:last_comma]
+    fractional_part = rest[last_comma + 1 :]
+
+    integer_digits = _remove_group_characters(integer_part)
+    fractional_digits = _remove_group_characters(fractional_part)
+    digits_before = len([ch for ch in integer_part if ch.isdigit()])
+    digits_after = len([ch for ch in fractional_part if ch.isdigit()])
+    integer_is_zero = integer_digits.strip("0") == ""
+
+    treat_as_decimal = False
+    if "." in integer_part:
+        treat_as_decimal = True
+    elif digits_after and (
+        digits_after != 3 or digits_before > 3 or integer_is_zero
+    ):
+        treat_as_decimal = True
+
+    if not treat_as_decimal:
+        return f"{sign}{rest.replace(',', '')}"
+
+    if not integer_digits:
+        integer_digits = "0"
+    if not fractional_digits:
+        fractional_digits = "0"
+
+    return f"{sign}{integer_digits}.{fractional_digits}"
 
 
 def _strip_currency_symbols(value: str) -> str:
@@ -129,6 +192,7 @@ def coerce_float(value: object | None, *, default: float | None = None) -> float
                 candidate = core
         if not candidate or candidate in "+-":
             return default
+        candidate = _normalize_decimal_markers(candidate)
         normalized = _NUMERIC_SEPARATOR_PATTERN.sub("", candidate)
         normalized = _strip_group_separators(normalized)
         try:

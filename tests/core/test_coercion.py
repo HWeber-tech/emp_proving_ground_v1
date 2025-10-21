@@ -21,6 +21,12 @@ def test_coerce_helpers_accept_thousand_separators() -> None:
     assert coerce_int("1,234") == 1234
 
 
+def test_coerce_float_handles_decimal_commas() -> None:
+    assert coerce_float("1.234,56") == 1234.56
+    assert coerce_float("1234,56") == 1234.56
+    assert coerce_float("-0,125") == -0.125
+
+
 def test_coerce_float_rejects_non_finite_strings() -> None:
     assert coerce_float("nan") is None
     assert coerce_float("inf", default=7.0) == 7.0

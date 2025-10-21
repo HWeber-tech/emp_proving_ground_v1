@@ -1,7 +1,8 @@
 import logging
 import sys
+from typing import MutableMapping
 
-from structlog.stdlib import BoundLogger
+from structlog.stdlib import BoundLogger, ProcessorFormatter
 
 
 class RecordingLogger(logging.Logger):
@@ -41,3 +42,28 @@ def test_bound_logger_forwards_exc_info() -> None:
 
     assert logger.last_exc_info == exc_info
     assert "exc_info" not in logger.last_extra["structlog_event_dict"]
+
+
+def test_processor_formatter_handles_non_mapping_event_dict() -> None:
+    captured: list[MutableMapping[str, object]] = []
+
+    def recorder(_logger, _method_name, event_dict):
+        captured.append(dict(event_dict))
+        return "ok"
+
+    formatter = ProcessorFormatter(processor=recorder)
+    record = logging.LogRecord(
+        name="structlog-test",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=0,
+        msg="test %s",
+        args=("value",),
+        exc_info=None,
+    )
+    record.structlog_event_dict = "not-a-mapping"
+
+    result = formatter.format(record)
+
+    assert result == "ok"
+    assert captured and captured[0]["event"] == "not-a-mapping"

@@ -49,7 +49,14 @@ class ProcessorFormatter(logging.Formatter):
         self._foreign_pre_chain = foreign_pre_chain or []
 
     def format(self, record: logging.LogRecord) -> str:
-        event_dict = dict(getattr(record, "structlog_event_dict", {"event": record.getMessage()}))
+        raw_event_dict = getattr(record, "structlog_event_dict", None)
+        if isinstance(raw_event_dict, MutableMapping):
+            event_dict = dict(raw_event_dict)
+        else:
+            message = record.getMessage()
+            if raw_event_dict is not None:
+                message = str(raw_event_dict)
+            event_dict = {"event": message}
         logger = event_dict.get("_logger") if isinstance(event_dict.get("_logger"), logging.Logger) else None
         method_name = str(event_dict.get("_method_name", record.levelname.lower()))
         for processor in self._foreign_pre_chain:

@@ -7,7 +7,10 @@ except ImportError:  # pragma: no cover
     UTC = timezone.utc  # type: ignore[assignment]
 from pathlib import Path
 
+import pytest
+
 from src.artifacts import archive_artifact
+from src.artifacts.archive import _default_root
 
 
 def test_archive_artifact_copies_into_dated_directory(tmp_path: Path) -> None:
@@ -145,3 +148,9 @@ def test_archive_artifact_copies_directories(tmp_path: Path) -> None:
     copied = destination / "details.txt"
     assert copied.exists()
     assert copied.read_text(encoding="utf-8") == "hello"
+
+
+def test_default_root_ignores_blank_environment_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ALPHATRADE_ARTIFACT_ROOT", "   ")
+
+    assert _default_root() == Path("artifacts")

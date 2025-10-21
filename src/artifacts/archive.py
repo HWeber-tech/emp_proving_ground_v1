@@ -25,7 +25,9 @@ _RUN_PATTERN: Final[re.Pattern[str]] = re.compile(r"[^a-zA-Z0-9_.-]+")
 def _default_root() -> Path:
     override = os.getenv("ALPHATRADE_ARTIFACT_ROOT")
     if override:
-        return Path(override).expanduser()
+        cleaned_override = override.strip()
+        if cleaned_override:
+            return Path(cleaned_override).expanduser()
     return Path("artifacts")
 
 

@@ -270,55 +270,880 @@ poetry run pytest --cov=src --cov-report=html
 
 ## Development Roadmap
 
+This roadmap provides a comprehensive, actionable path to production readiness. Each task includes specific implementation details, acceptance criteria, and estimated effort.
+
 ### Phase 1: Data Foundation (Weeks 1-4)
 
-**Goal**: Establish real-time data infrastructure
+**Goal**: Establish real-time data infrastructure for live trading
 
-- [ ] Implement LOBSTER dataset adapter
-- [ ] Build WebSocket market data feeds
-- [ ] Integrate alternative fundamental data sources
-- [ ] Extend instrument translation protocol
-- [ ] Add TimescaleDB for tick data storage
+**Estimated Effort**: 160 hours (4 weeks × 40 hours)
+
+#### 1.1 LOBSTER Dataset Integration
+
+**Objective**: Enable high-frequency order book analysis
+
+- [ ] **Design LOBSTER data schema** (4 hours)
+  - Map LOBSTER message types to internal order book events
+  - Define normalization rules for different exchanges
+  - Create data quality validation rules
+  - **Acceptance**: Schema document with examples
+
+- [ ] **Implement LOBSTER file parser** (8 hours)
+  - Build parser for LOBSTER message files (orderbook, message)
+  - Handle timestamp normalization and timezone conversion
+  - Implement efficient chunked reading for large files
+  - **Location**: `src/data_foundation/ingest/lobster_adapter.py`
+  - **Acceptance**: Parse sample LOBSTER files with 100% accuracy
+
+- [ ] **Create order book reconstruction engine** (12 hours)
+  - Rebuild full order book state from LOBSTER messages
+  - Implement snapshot + delta updates
+  - Handle order book imbalances and anomalies
+  - **Location**: `src/sensory/how/lobster_order_book.py`
+  - **Acceptance**: Reconstruct order book with microsecond precision
+
+- [ ] **Integrate with existing analytics** (8 hours)
+  - Connect LOBSTER data to `order_book_analytics.py`
+  - Feed data into ICT microstructure features
+  - Enable HOW dimension sensors to consume LOBSTER data
+  - **Acceptance**: All order book analytics work with LOBSTER data
+
+- [ ] **Build LOBSTER data loader for backtesting** (8 hours)
+  - Create historical replay mechanism
+  - Implement efficient data windowing
+  - Add caching for frequently accessed periods
+  - **Acceptance**: Replay 1 day of LOBSTER data in <5 minutes
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Unit tests for parser and reconstruction
+  - Integration tests with sensory cortex
+  - Performance benchmarks
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+#### 1.2 Real-Time Market Data Streaming
+
+**Objective**: Enable live trading with real-time price feeds
+
+- [ ] **Design streaming data architecture** (4 hours)
+  - Define WebSocket connection management strategy
+  - Design reconnection and failover logic
+  - Plan data buffering and backpressure handling
+  - **Acceptance**: Architecture diagram and design doc
+
+- [ ] **Implement WebSocket client framework** (12 hours)
+  - Build generic WebSocket client with auto-reconnect
+  - Implement heartbeat and connection monitoring
+  - Add rate limiting and throttling
+  - **Location**: `src/data_foundation/streaming/websocket_client.py`
+  - **Acceptance**: Maintain stable connection for 24+ hours
+
+- [ ] **Integrate broker-specific WebSocket feeds** (16 hours)
+  - Implement adapters for 2-3 major brokers (e.g., Interactive Brokers, Alpaca, Binance)
+  - Normalize tick data to internal format
+  - Handle broker-specific quirks and edge cases
+  - **Location**: `src/data_foundation/streaming/broker_feeds/`
+  - **Acceptance**: Real-time tick data from all integrated brokers
+
+- [ ] **Build streaming data pipeline** (12 hours)
+  - Create async pipeline from WebSocket to sensory cortex
+  - Implement data validation and quality checks
+  - Add latency monitoring and alerting
+  - **Location**: `src/data_foundation/streaming/pipeline.py`
+  - **Acceptance**: End-to-end latency <50ms at p99
+
+- [ ] **Implement market data cache** (8 hours)
+  - Build Redis-backed tick data cache
+  - Implement sliding window for recent data
+  - Add cache warming on startup
+  - **Location**: `src/data_foundation/streaming/market_cache.py`
+  - **Acceptance**: Cache hit rate >95% for recent data
+
+- [ ] **Create monitoring and observability** (8 hours)
+  - Add Prometheus metrics for connection health
+  - Implement alerting for disconnections
+  - Build dashboard for streaming data quality
+  - **Acceptance**: Real-time visibility into all data streams
+
+#### 1.3 Fundamental Data Integration
+
+**Objective**: Enable WHY dimension with comprehensive fundamental analysis
+
+- [ ] **Evaluate and select data providers** (8 hours)
+  - Research alternatives: Financial Modeling Prep, Polygon.io, Quandl
+  - Compare pricing, coverage, and API quality
+  - Select 2-3 providers for redundancy
+  - **Acceptance**: Provider selection document with justification
+
+- [ ] **Implement fundamental data adapters** (16 hours)
+  - Build adapters for selected providers
+  - Normalize financial statements, earnings, economics data
+  - Implement caching and rate limit handling
+  - **Location**: `src/data_foundation/ingest/fundamental/`
+  - **Acceptance**: Fetch and normalize data from all providers
+
+- [ ] **Create fundamental data storage** (8 hours)
+  - Design schema for financial statements, ratios, events
+  - Implement DuckDB tables for fundamental data
+  - Add versioning for historical data corrections
+  - **Location**: `src/data_foundation/storage/fundamental_store.py`
+  - **Acceptance**: Store and query 10+ years of fundamental data
+
+- [ ] **Integrate with WHY dimension sensors** (12 hours)
+  - Connect fundamental data to `why_sensor.py`
+  - Implement fundamental analysis features
+  - Build valuation models (P/E, DCF, etc.)
+  - **Acceptance**: WHY sensor produces fundamental signals
+
+- [ ] **Build fundamental data quality monitoring** (8 hours)
+  - Detect missing or stale data
+  - Validate data consistency across providers
+  - Alert on data quality issues
+  - **Acceptance**: Automated quality checks with alerting
+
+#### 1.4 Instrument Translation Protocol
+
+**Objective**: Universal instrument representation across asset classes
+
+- [ ] **Design universal instrument schema** (8 hours)
+  - Define fields for equities, futures, options, forex, crypto
+  - Handle instrument-specific attributes (strikes, expiries, etc.)
+  - Design unique identifier system
+  - **Acceptance**: Schema document covering all asset classes
+
+- [ ] **Implement InstrumentTranslator** (16 hours)
+  - Build translator from broker symbols to universal format
+  - Support multiple naming conventions (Bloomberg, Reuters, etc.)
+  - Implement reverse translation
+  - **Location**: `src/sensory/services/instrument_translator.py`
+  - **Acceptance**: Translate 1000+ instruments with 100% accuracy
+
+- [ ] **Create instrument metadata registry** (8 hours)
+  - Build database of instrument specifications
+  - Include contract sizes, tick sizes, trading hours
+  - Add exchange and regulatory information
+  - **Location**: `src/sensory/services/instrument_registry.py`
+  - **Acceptance**: Registry covers major global instruments
+
+- [ ] **Integrate with existing SymbolMapper** (8 hours)
+  - Extend SymbolMapper to use InstrumentTranslator
+  - Maintain backward compatibility
+  - Migrate existing code to new translator
+  - **Acceptance**: All existing functionality preserved
+
+- [ ] **Build instrument search and discovery** (8 hours)
+  - Implement fuzzy search for instruments
+  - Add filtering by asset class, exchange, etc.
+  - Create API for instrument lookup
+  - **Acceptance**: Find any instrument in <100ms
+
+#### 1.5 TimescaleDB Integration
+
+**Objective**: High-performance storage for tick data
+
+- [ ] **Set up TimescaleDB infrastructure** (8 hours)
+  - Deploy TimescaleDB instance (local or cloud)
+  - Configure hypertables for tick data
+  - Set up retention policies and compression
+  - **Acceptance**: TimescaleDB operational with monitoring
+
+- [ ] **Design tick data schema** (4 hours)
+  - Define tables for trades, quotes, order book snapshots
+  - Optimize for time-series queries
+  - Plan partitioning strategy
+  - **Acceptance**: Schema optimized for query performance
+
+- [ ] **Implement TimescaleDB adapter** (12 hours)
+  - Build async writer for high-throughput ingestion
+  - Implement batch writes for efficiency
+  - Add connection pooling and error handling
+  - **Location**: `src/data_foundation/storage/timescale_adapter.py`
+  - **Acceptance**: Ingest 10K+ ticks/second
+
+- [ ] **Create query interface** (8 hours)
+  - Build API for historical tick data queries
+  - Implement efficient windowing and aggregation
+  - Add caching for common queries
+  - **Location**: `src/data_foundation/storage/timescale_queries.py`
+  - **Acceptance**: Query 1 day of tick data in <1 second
+
+- [ ] **Migrate existing data** (8 hours)
+  - Export data from DuckDB
+  - Import into TimescaleDB
+  - Verify data integrity
+  - **Acceptance**: All historical data migrated successfully
+
+---
 
 ### Phase 2: Strategy Development (Weeks 5-8)
 
-**Goal**: Build comprehensive strategy library
+**Goal**: Build comprehensive, backtested strategy library
 
-- [ ] Develop 5-10 concrete trading strategies
-- [ ] Implement comprehensive backtesting framework
-- [ ] Build strategy validation pipeline
-- [ ] Create strategy performance attribution
-- [ ] Establish strategy lifecycle management
+**Estimated Effort**: 160 hours (4 weeks × 40 hours)
+
+#### 2.1 Comprehensive Backtesting Framework
+
+**Objective**: Validate strategies before live deployment
+
+- [ ] **Design backtesting architecture** (8 hours)
+  - Define event-driven backtesting engine
+  - Plan realistic market simulation (slippage, fees, latency)
+  - Design strategy performance metrics
+  - **Acceptance**: Architecture document with examples
+
+- [ ] **Implement historical data replay engine** (16 hours)
+  - Build time-ordered event replay from multiple data sources
+  - Handle OHLCV, tick, and order book data
+  - Implement variable speed replay (1x to 1000x)
+  - **Location**: `src/backtesting/replay_engine.py`
+  - **Acceptance**: Replay 1 year of data with microsecond accuracy
+
+- [ ] **Create market simulator** (16 hours)
+  - Simulate order fills with realistic slippage
+  - Model market impact for large orders
+  - Implement latency simulation
+  - **Location**: `src/backtesting/market_simulator.py`
+  - **Acceptance**: Realistic fill simulation validated against live data
+
+- [ ] **Build backtest orchestrator** (12 hours)
+  - Integrate replay engine with existing trading manager
+  - Connect to risk manager and execution adapters
+  - Implement parallel backtesting for multiple strategies
+  - **Location**: `src/backtesting/backtest_orchestrator.py`
+  - **Acceptance**: Run 10+ strategies in parallel
+
+- [ ] **Implement performance analytics** (12 hours)
+  - Calculate Sharpe, Sortino, Calmar ratios
+  - Compute drawdown statistics
+  - Analyze trade-level attribution
+  - **Location**: `src/backtesting/performance_analytics.py`
+  - **Acceptance**: Comprehensive performance report for any strategy
+
+- [ ] **Create backtesting CLI and UI** (12 hours)
+  - Build CLI for running backtests
+  - Generate HTML reports with charts
+  - Add comparison tools for multiple strategies
+  - **Location**: `src/backtesting/cli.py`
+  - **Acceptance**: User-friendly backtest execution and reporting
+
+- [ ] **Write backtesting documentation** (8 hours)
+  - Document backtesting methodology
+  - Provide examples and tutorials
+  - Explain performance metrics
+  - **Acceptance**: Complete backtesting guide
+
+#### 2.2 Strategy Library Development
+
+**Objective**: Implement 5-10 proven trading strategies
+
+- [ ] **Strategy 1: Mean Reversion (Pairs Trading)** (16 hours)
+  - Implement cointegration-based pair selection
+  - Build z-score entry/exit logic
+  - Add dynamic hedge ratio adjustment
+  - **Location**: `src/trading/strategies/mean_reversion/pairs_trading.py`
+  - **Acceptance**: Backtest shows positive Sharpe on historical data
+
+- [ ] **Strategy 2: Momentum (Trend Following)** (16 hours)
+  - Implement multi-timeframe momentum signals
+  - Build trend strength filters
+  - Add volatility-based position sizing
+  - **Location**: `src/trading/strategies/momentum/trend_following.py`
+  - **Acceptance**: Backtest shows positive returns in trending markets
+
+- [ ] **Strategy 3: Market Making** (20 hours)
+  - Implement bid-ask spread capture
+  - Build inventory risk management
+  - Add adverse selection protection
+  - **Location**: `src/trading/strategies/market_making/simple_mm.py`
+  - **Acceptance**: Backtest shows consistent small profits
+
+- [ ] **Strategy 4: Statistical Arbitrage** (20 hours)
+  - Implement PCA-based factor models
+  - Build residual mean reversion signals
+  - Add multi-asset portfolio construction
+  - **Location**: `src/trading/strategies/stat_arb/pca_arb.py`
+  - **Acceptance**: Backtest shows market-neutral returns
+
+- [ ] **Strategy 5: Volatility Trading** (16 hours)
+  - Implement realized vs implied volatility signals
+  - Build options-like payoff structures with futures
+  - Add gamma scalping logic
+  - **Location**: `src/trading/strategies/volatility/vol_trading.py`
+  - **Acceptance**: Backtest shows profit during volatility spikes
+
+- [ ] **Strategy 6-10: Additional strategies** (60 hours)
+  - Select from: breakout, reversal, carry, value, quality
+  - Implement with similar rigor as above
+  - Ensure diversity across market conditions
+  - **Acceptance**: Each strategy has positive backtest results
+
+#### 2.3 Strategy Validation Pipeline
+
+**Objective**: Systematic validation before production deployment
+
+- [ ] **Implement walk-forward analysis** (12 hours)
+  - Build rolling window backtesting
+  - Implement out-of-sample validation
+  - Detect overfitting
+  - **Location**: `src/backtesting/walk_forward.py`
+  - **Acceptance**: Validate strategy robustness across time periods
+
+- [ ] **Create Monte Carlo simulation** (12 hours)
+  - Simulate strategy performance under random scenarios
+  - Estimate confidence intervals for returns
+  - Assess tail risk
+  - **Location**: `src/backtesting/monte_carlo.py`
+  - **Acceptance**: Probabilistic performance estimates
+
+- [ ] **Build regime analysis** (12 hours)
+  - Test strategy performance across market regimes
+  - Identify favorable and unfavorable conditions
+  - Create regime-based allocation rules
+  - **Location**: `src/backtesting/regime_analysis.py`
+  - **Acceptance**: Strategy performance by regime documented
+
+- [ ] **Implement stress testing** (8 hours)
+  - Test strategies during historical crises
+  - Simulate extreme market conditions
+  - Validate risk controls under stress
+  - **Location**: `src/backtesting/stress_testing.py`
+  - **Acceptance**: Strategies survive stress scenarios
+
+- [ ] **Create validation checklist** (4 hours)
+  - Document required validation steps
+  - Define acceptance criteria for production
+  - Build automated validation pipeline
+  - **Acceptance**: Checklist integrated into deployment process
+
+---
 
 ### Phase 3: Learning Pipeline (Weeks 9-12)
 
-**Goal**: Enable autonomous learning and adaptation
+**Goal**: Enable autonomous learning and continuous improvement
 
-- [ ] Automate FAISS memory retraining
-- [ ] Build fitness evaluation framework
-- [ ] Implement multi-objective optimization
-- [ ] Create cold-start simulation training
-- [ ] Establish continuous evolution loop
+**Estimated Effort**: 160 hours (4 weeks × 40 hours)
+
+#### 3.1 Automated FAISS Memory Management
+
+**Objective**: Continuous learning from trading experience
+
+- [ ] **Implement automated memory retraining** (12 hours)
+  - Schedule periodic FAISS index rebuilding
+  - Implement incremental index updates
+  - Add memory compaction and pruning
+  - **Location**: `src/sentient/memory/auto_retraining.py`
+  - **Acceptance**: Memory auto-updates every 24 hours
+
+- [ ] **Build experience sampling strategy** (8 hours)
+  - Implement prioritized experience replay
+  - Balance recent vs historical experiences
+  - Add diversity-based sampling
+  - **Location**: `src/sentient/memory/sampling.py`
+  - **Acceptance**: Efficient sampling of relevant experiences
+
+- [ ] **Create memory quality monitoring** (8 hours)
+  - Track memory utilization and hit rates
+  - Detect degraded memory performance
+  - Alert on memory quality issues
+  - **Location**: `src/sentient/memory/monitoring.py`
+  - **Acceptance**: Real-time memory health metrics
+
+- [ ] **Implement memory backup and recovery** (8 hours)
+  - Periodic snapshots of FAISS indices
+  - Implement recovery from corruption
+  - Add version control for memory states
+  - **Location**: `src/sentient/memory/backup.py`
+  - **Acceptance**: Memory recoverable from any snapshot
+
+#### 3.2 Advanced Fitness Evaluation
+
+**Objective**: Sophisticated strategy evaluation for evolution
+
+- [ ] **Design multi-objective fitness function** (8 hours)
+  - Define objectives: return, risk, drawdown, consistency
+  - Implement Pareto optimization
+  - Add regime-specific fitness
+  - **Acceptance**: Fitness function design document
+
+- [ ] **Implement fitness calculator** (16 hours)
+  - Build comprehensive fitness evaluation
+  - Include risk-adjusted returns
+  - Add behavioral penalties (overtrading, etc.)
+  - **Location**: `src/evolution/fitness/calculator.py`
+  - **Acceptance**: Fitness scores correlate with strategy quality
+
+- [ ] **Create fitness benchmarking** (8 hours)
+  - Compare strategies against baselines
+  - Implement relative fitness scoring
+  - Add peer comparison
+  - **Location**: `src/evolution/fitness/benchmarking.py`
+  - **Acceptance**: Strategies ranked by relative performance
+
+- [ ] **Build fitness visualization** (8 hours)
+  - Plot fitness evolution over generations
+  - Visualize Pareto frontiers
+  - Create fitness distribution charts
+  - **Location**: `src/evolution/fitness/visualization.py`
+  - **Acceptance**: Clear visual representation of evolution progress
+
+#### 3.3 Multi-Objective Optimization
+
+**Objective**: Evolve strategies optimizing multiple goals simultaneously
+
+- [ ] **Implement NSGA-II algorithm** (16 hours)
+  - Build non-dominated sorting
+  - Implement crowding distance calculation
+  - Add elitism and selection
+  - **Location**: `src/evolution/algorithms/nsga2.py`
+  - **Acceptance**: NSGA-II produces diverse Pareto-optimal strategies
+
+- [ ] **Create objective space explorer** (12 hours)
+  - Implement objective space visualization
+  - Build interactive Pareto front exploration
+  - Add objective trade-off analysis
+  - **Location**: `src/evolution/optimization/explorer.py`
+  - **Acceptance**: Visualize and explore objective trade-offs
+
+- [ ] **Implement constraint handling** (8 hours)
+  - Add hard constraints (risk limits, etc.)
+  - Implement soft constraints with penalties
+  - Build constraint violation tracking
+  - **Location**: `src/evolution/optimization/constraints.py`
+  - **Acceptance**: Strategies respect all constraints
+
+- [ ] **Build preference articulation** (8 hours)
+  - Allow user to specify objective preferences
+  - Implement weighted sum and goal programming
+  - Add interactive preference tuning
+  - **Location**: `src/evolution/optimization/preferences.py`
+  - **Acceptance**: Evolution respects user preferences
+
+#### 3.4 Cold-Start Simulation Training
+
+**Objective**: Pre-train strategies before live deployment
+
+- [ ] **Build simulation environment** (16 hours)
+  - Create realistic market simulator
+  - Implement diverse market scenarios
+  - Add noise and uncertainty
+  - **Location**: `src/simulation/training_env.py`
+  - **Acceptance**: Simulation indistinguishable from real markets
+
+- [ ] **Implement curriculum learning** (12 hours)
+  - Start with simple scenarios
+  - Gradually increase complexity
+  - Add adversarial scenarios
+  - **Location**: `src/simulation/curriculum.py`
+  - **Acceptance**: Strategies learn progressively
+
+- [ ] **Create pre-training pipeline** (12 hours)
+  - Automate simulation-based training
+  - Implement transfer learning to live markets
+  - Add validation on historical data
+  - **Location**: `src/simulation/pretraining.py`
+  - **Acceptance**: Pre-trained strategies outperform random initialization
+
+- [ ] **Build simulation-to-reality transfer** (12 hours)
+  - Implement domain adaptation techniques
+  - Measure sim-to-real gap
+  - Add fine-tuning on real data
+  - **Location**: `src/simulation/transfer.py`
+  - **Acceptance**: Strategies transfer successfully to live markets
+
+#### 3.5 Continuous Evolution Loop
+
+**Objective**: Autonomous strategy evolution without human intervention
+
+- [ ] **Implement evolution scheduler** (12 hours)
+  - Schedule evolution runs (nightly, weekly)
+  - Implement resource management
+  - Add evolution monitoring
+  - **Location**: `src/evolution/scheduler.py`
+  - **Acceptance**: Evolution runs automatically on schedule
+
+- [ ] **Build population management** (12 hours)
+  - Implement population size control
+  - Add diversity maintenance
+  - Build extinction and speciation
+  - **Location**: `src/evolution/population_manager.py`
+  - **Acceptance**: Population remains diverse and healthy
+
+- [ ] **Create evolution safety controls** (12 hours)
+  - Implement kill switches for runaway evolution
+  - Add performance degradation detection
+  - Build rollback mechanisms
+  - **Location**: `src/evolution/safety.py`
+  - **Acceptance**: Evolution cannot harm live trading
+
+- [ ] **Implement evolution reporting** (8 hours)
+  - Generate evolution progress reports
+  - Track best strategies over time
+  - Alert on significant improvements
+  - **Location**: `src/evolution/reporting.py`
+  - **Acceptance**: Clear visibility into evolution progress
+
+---
 
 ### Phase 4: Production Hardening (Weeks 13-16)
 
-**Goal**: Deploy production-grade infrastructure
+**Goal**: Deploy enterprise-grade operational infrastructure
 
-- [ ] Set up Prometheus + Grafana monitoring
-- [ ] Integrate ELK stack for logging
-- [ ] Build alerting and incident response
-- [ ] Implement disaster recovery procedures
-- [ ] Conduct load testing and optimization
+**Estimated Effort**: 160 hours (4 weeks × 40 hours)
+
+#### 4.1 Monitoring Stack (Prometheus + Grafana)
+
+**Objective**: Real-time visibility into system health and performance
+
+- [ ] **Set up Prometheus infrastructure** (8 hours)
+  - Deploy Prometheus server
+  - Configure scraping and retention
+  - Set up service discovery
+  - **Acceptance**: Prometheus operational and scraping metrics
+
+- [ ] **Instrument application code** (16 hours)
+  - Add Prometheus metrics to all major components
+  - Implement RED metrics (Rate, Errors, Duration)
+  - Add business metrics (trades, PnL, positions)
+  - **Location**: Throughout codebase using `prometheus_client`
+  - **Acceptance**: 100+ metrics exposed
+
+- [ ] **Deploy Grafana dashboards** (12 hours)
+  - Create system health dashboard
+  - Build trading performance dashboard
+  - Add risk monitoring dashboard
+  - **Acceptance**: Comprehensive real-time visibility
+
+- [ ] **Implement alerting rules** (8 hours)
+  - Define alert thresholds
+  - Configure AlertManager
+  - Set up notification channels (email, Slack, PagerDuty)
+  - **Acceptance**: Alerts fire on critical issues
+
+- [ ] **Create runbooks for alerts** (8 hours)
+  - Document response procedures for each alert
+  - Add troubleshooting steps
+  - Include escalation paths
+  - **Acceptance**: Every alert has a runbook
+
+#### 4.2 Logging Stack (ELK)
+
+**Objective**: Centralized logging for debugging and audit
+
+- [ ] **Deploy Elasticsearch cluster** (8 hours)
+  - Set up Elasticsearch nodes
+  - Configure indices and retention
+  - Implement security and access control
+  - **Acceptance**: Elasticsearch operational and ingesting logs
+
+- [ ] **Set up Logstash pipeline** (8 hours)
+  - Configure log ingestion from applications
+  - Implement log parsing and enrichment
+  - Add filtering and routing
+  - **Acceptance**: Logs flowing into Elasticsearch
+
+- [ ] **Deploy Kibana dashboards** (8 hours)
+  - Create log exploration interface
+  - Build saved searches for common queries
+  - Add visualizations for log patterns
+  - **Acceptance**: Easy log search and analysis
+
+- [ ] **Implement structured logging** (12 hours)
+  - Migrate to structured JSON logs
+  - Add correlation IDs for request tracing
+  - Include context in all log messages
+  - **Location**: Throughout codebase using `structlog`
+  - **Acceptance**: All logs structured and searchable
+
+- [ ] **Create log retention policies** (4 hours)
+  - Define retention periods by log level
+  - Implement log archival to S3
+  - Add compliance-required log preservation
+  - **Acceptance**: Logs retained per policy
+
+#### 4.3 Incident Response
+
+**Objective**: Rapid detection and resolution of production issues
+
+- [ ] **Build incident detection system** (12 hours)
+  - Implement anomaly detection on metrics
+  - Add pattern recognition in logs
+  - Create composite health checks
+  - **Location**: `src/operations/incident_detection.py`
+  - **Acceptance**: Incidents detected within 1 minute
+
+- [ ] **Create incident management workflow** (8 hours)
+  - Define incident severity levels
+  - Build incident tracking system
+  - Implement escalation procedures
+  - **Acceptance**: Clear incident response process
+
+- [ ] **Implement automated remediation** (16 hours)
+  - Build self-healing for common issues
+  - Implement circuit breakers
+  - Add automatic service restarts
+  - **Location**: `src/operations/auto_remediation.py`
+  - **Acceptance**: 80% of incidents auto-remediated
+
+- [ ] **Create incident postmortem process** (8 hours)
+  - Define postmortem template
+  - Implement blameless postmortem culture
+  - Build action item tracking
+  - **Acceptance**: Postmortem for every major incident
+
+- [ ] **Build incident simulation (chaos engineering)** (12 hours)
+  - Implement failure injection
+  - Create disaster scenarios
+  - Run regular fire drills
+  - **Location**: `src/operations/chaos.py`
+  - **Acceptance**: System resilient to injected failures
+
+#### 4.4 Disaster Recovery
+
+**Objective**: Ensure business continuity in catastrophic scenarios
+
+- [ ] **Design disaster recovery plan** (8 hours)
+  - Define RTO and RPO targets
+  - Identify critical systems and data
+  - Plan failover procedures
+  - **Acceptance**: Comprehensive DR plan document
+
+- [ ] **Implement database backups** (8 hours)
+  - Automate daily backups of all databases
+  - Test backup restoration
+  - Store backups in multiple regions
+  - **Acceptance**: Backups restorable within 1 hour
+
+- [ ] **Build configuration backup** (8 hours)
+  - Version control all configuration
+  - Implement configuration snapshots
+  - Add configuration rollback capability
+  - **Acceptance**: Configuration recoverable to any point in time
+
+- [ ] **Create failover infrastructure** (16 hours)
+  - Set up hot standby systems
+  - Implement automatic failover
+  - Add health checks and failover triggers
+  - **Acceptance**: Failover completes within 5 minutes
+
+- [ ] **Conduct DR drills** (12 hours)
+  - Run quarterly DR exercises
+  - Test full system recovery
+  - Document lessons learned
+  - **Acceptance**: Successful DR drill with <1 hour recovery
+
+#### 4.5 Performance Optimization
+
+**Objective**: Achieve production performance targets
+
+- [ ] **Conduct performance profiling** (12 hours)
+  - Profile CPU, memory, I/O usage
+  - Identify bottlenecks
+  - Measure end-to-end latency
+  - **Acceptance**: Performance baseline established
+
+- [ ] **Optimize critical paths** (20 hours)
+  - Reduce risk validation latency
+  - Optimize data ingestion throughput
+  - Improve strategy evaluation speed
+  - **Acceptance**: 50% latency reduction in critical paths
+
+- [ ] **Implement caching strategies** (12 hours)
+  - Add Redis caching for hot data
+  - Implement query result caching
+  - Build cache warming on startup
+  - **Acceptance**: Cache hit rate >90%
+
+- [ ] **Conduct load testing** (16 hours)
+  - Simulate production load
+  - Test system under stress
+  - Identify breaking points
+  - **Acceptance**: System handles 10x expected load
+
+- [ ] **Optimize resource utilization** (12 hours)
+  - Tune database queries
+  - Optimize memory usage
+  - Reduce unnecessary computation
+  - **Acceptance**: 30% reduction in resource costs
+
+---
 
 ### Phase 5: Regulatory Compliance (Weeks 17-20)
 
-**Goal**: Meet institutional requirements
+**Goal**: Meet institutional and regulatory requirements
 
-- [ ] Build formatted regulatory reports
-- [ ] Implement compliance monitoring
-- [ ] Establish audit procedures
-- [ ] Create kill-switch mechanisms
-- [ ] Document operational procedures
+**Estimated Effort**: 160 hours (4 weeks × 40 hours)
+
+#### 5.1 Regulatory Reporting
+
+**Objective**: Generate required regulatory reports automatically
+
+- [ ] **Research regulatory requirements** (12 hours)
+  - Study MiFID II, Dodd-Frank, SEC rules
+  - Identify required reports and formats
+  - Understand filing deadlines
+  - **Acceptance**: Compliance requirements document
+
+- [ ] **Implement trade reporting** (16 hours)
+  - Build FIX-based trade reporting
+  - Implement transaction reporting
+  - Add order audit trail
+  - **Location**: `src/compliance/trade_reporting.py`
+  - **Acceptance**: All trades reported per regulations
+
+- [ ] **Create position reporting** (12 hours)
+  - Generate daily position reports
+  - Implement large position reporting
+  - Add exposure breakdowns
+  - **Location**: `src/compliance/position_reporting.py`
+  - **Acceptance**: Position reports match regulatory format
+
+- [ ] **Build risk reporting** (12 hours)
+  - Calculate regulatory risk metrics (VaR, etc.)
+  - Generate risk reports
+  - Implement stress test reporting
+  - **Location**: `src/compliance/risk_reporting.py`
+  - **Acceptance**: Risk reports meet regulatory standards
+
+- [ ] **Implement automated filing** (12 hours)
+  - Build integration with regulatory portals
+  - Automate report submission
+  - Add filing confirmation tracking
+  - **Location**: `src/compliance/filing.py`
+  - **Acceptance**: Reports filed automatically on schedule
+
+#### 5.2 Compliance Monitoring
+
+**Objective**: Continuous monitoring for regulatory violations
+
+- [ ] **Implement pre-trade compliance checks** (16 hours)
+  - Check position limits before trades
+  - Validate against restricted securities
+  - Enforce trading hours and venue rules
+  - **Location**: `src/compliance/pretrade_checks.py`
+  - **Acceptance**: 100% of trades pass pre-trade checks
+
+- [ ] **Build post-trade surveillance** (16 hours)
+  - Detect wash trades and manipulation
+  - Identify excessive trading
+  - Monitor for insider trading patterns
+  - **Location**: `src/compliance/surveillance.py`
+  - **Acceptance**: Suspicious activity detected and flagged
+
+- [ ] **Create compliance dashboard** (12 hours)
+  - Visualize compliance status
+  - Show violations and exceptions
+  - Track remediation actions
+  - **Location**: `src/compliance/dashboard.py`
+  - **Acceptance**: Real-time compliance visibility
+
+- [ ] **Implement compliance alerting** (8 hours)
+  - Alert on potential violations
+  - Notify compliance officers
+  - Escalate critical issues
+  - **Acceptance**: Violations detected within 1 minute
+
+#### 5.3 Audit Procedures
+
+**Objective**: Enable efficient internal and external audits
+
+- [ ] **Enhance audit trail** (12 hours)
+  - Ensure all decisions are logged
+  - Add tamper-proof logging
+  - Implement audit log retention
+  - **Location**: Throughout codebase
+  - **Acceptance**: Complete audit trail for all activities
+
+- [ ] **Build audit report generator** (12 hours)
+  - Create audit-ready reports
+  - Include decision rationale
+  - Add supporting evidence
+  - **Location**: `src/compliance/audit_reports.py`
+  - **Acceptance**: Audit reports generated on demand
+
+- [ ] **Implement audit search** (8 hours)
+  - Build powerful search across audit logs
+  - Add filtering and export
+  - Create audit replay capability
+  - **Location**: `src/compliance/audit_search.py`
+  - **Acceptance**: Find any audit record in <1 second
+
+- [ ] **Create audit documentation** (12 hours)
+  - Document all audit procedures
+  - Explain decision-making processes
+  - Provide audit evidence examples
+  - **Acceptance**: Comprehensive audit documentation
+
+#### 5.4 Kill-Switch and Emergency Controls
+
+**Objective**: Immediate system shutdown capability
+
+- [ ] **Implement global kill-switch** (12 hours)
+  - Build instant trading halt mechanism
+  - Add multiple activation methods (UI, API, hotkey)
+  - Ensure fail-safe operation
+  - **Location**: `src/operations/kill_switch.py`
+  - **Acceptance**: Kill-switch stops all trading in <1 second
+
+- [ ] **Create strategy-level controls** (8 hours)
+  - Implement per-strategy pause/resume
+  - Add strategy risk limits
+  - Build strategy quarantine
+  - **Location**: `src/governance/strategy_controls.py`
+  - **Acceptance**: Individual strategies controllable
+
+- [ ] **Build position liquidation** (12 hours)
+  - Implement emergency position closing
+  - Add smart liquidation (minimize impact)
+  - Create liquidation dry-run mode
+  - **Location**: `src/trading/liquidation.py`
+  - **Acceptance**: Positions liquidated safely on command
+
+- [ ] **Implement circuit breakers** (12 hours)
+  - Add automatic trading halts on loss thresholds
+  - Implement volatility-based breakers
+  - Build cooldown periods
+  - **Location**: `src/risk/circuit_breakers.py`
+  - **Acceptance**: Circuit breakers trigger appropriately
+
+- [ ] **Create emergency procedures documentation** (8 hours)
+  - Document all emergency scenarios
+  - Provide step-by-step response procedures
+  - Include contact information
+  - **Acceptance**: Clear emergency response playbook
+
+#### 5.5 Operational Documentation
+
+**Objective**: Comprehensive documentation for operations team
+
+- [ ] **Create operations manual** (16 hours)
+  - Document daily operational procedures
+  - Include system startup/shutdown
+  - Add troubleshooting guides
+  - **Acceptance**: Complete operations manual
+
+- [ ] **Build runbook library** (16 hours)
+  - Create runbooks for common issues
+  - Add escalation procedures
+  - Include contact information
+  - **Location**: `docs/runbooks/`
+  - **Acceptance**: Runbook for every operational scenario
+
+- [ ] **Implement change management** (12 hours)
+  - Define change approval process
+  - Build change tracking system
+  - Add rollback procedures
+  - **Acceptance**: All changes tracked and approved
+
+- [ ] **Create training materials** (12 hours)
+  - Build operator training program
+  - Create video tutorials
+  - Add hands-on exercises
+  - **Acceptance**: New operators trained in 1 week
+
+- [ ] **Document system architecture** (12 hours)
+  - Create comprehensive architecture diagrams
+  - Document data flows
+  - Explain design decisions
+  - **Acceptance**: Architecture fully documented
 
 ---
 

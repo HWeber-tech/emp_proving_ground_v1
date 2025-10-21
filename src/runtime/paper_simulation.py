@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -869,6 +869,8 @@ def _parse_order_timestamp(value: Any) -> datetime | None:
         if value.tzinfo is None:
             return value.replace(tzinfo=timezone.utc)
         return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
     if isinstance(value, (int, float)):
         try:
             return datetime.fromtimestamp(float(value), tz=timezone.utc)

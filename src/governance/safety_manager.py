@@ -35,7 +35,8 @@ class SafetyManager:
     def _normalize_run_mode(value: str) -> str:
         """Normalise run mode strings for consistent policy enforcement."""
 
-        return value.strip().lower()
+        normalised = (value or "").strip().lower()
+        return normalised or "paper"
 
     @staticmethod
     def _normalize_kill_switch_path(path: str | Path | None) -> Optional[Path]:

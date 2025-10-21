@@ -60,6 +60,16 @@ def test_enforce_requires_live_confirmation(tmp_path: Path) -> None:
         manager.enforce()
 
 
+def test_blank_run_mode_defaults_to_paper() -> None:
+    """Blank run mode should fall back to the safe paper default."""
+
+    manager = SafetyManager.from_config({"run_mode": "   ", "confirm_live": False})
+
+    manager.enforce()
+
+    assert manager._ctx.run_mode == "paper"
+
+
 def test_enforce_warns_when_kill_switch_unreadable(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     """I/O errors while checking the kill-switch should not abort startup."""
 

@@ -171,6 +171,8 @@ class MarketData:
         def _to_float(x: Optional[Union[float, int, str]], default: float = 0.0) -> float:
             if x is None:
                 return default
+            if isinstance(x, bool):
+                return default
             if isinstance(x, Real):
                 try:
                     return float(x)

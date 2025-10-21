@@ -21,3 +21,11 @@ def test_market_data_coerces_localized_numeric_strings() -> None:
     assert data.ask == pytest.approx(1235.5)
     assert data.close == pytest.approx(1233.0)
     assert data.mid_price == pytest.approx(1235.0)
+
+
+def test_market_data_ignores_boolean_inputs_for_quotes() -> None:
+    data = MarketData(symbol="XYZ", bid=True, ask=False, close=12.5)
+
+    assert data.bid == pytest.approx(0.0)
+    assert data.ask == pytest.approx(0.0)
+    assert data.close == pytest.approx(12.5)

@@ -79,6 +79,28 @@ def test_archive_artifact_sanitises_target_name(tmp_path: Path) -> None:
     assert destination.read_text(encoding="utf-8") == "ok"
 
 
+def test_archive_artifact_rejects_parent_directory_target(tmp_path: Path) -> None:
+    source = tmp_path / "data.txt"
+    source.write_text("payload", encoding="utf-8")
+
+    root = tmp_path / "artifacts-root"
+    timestamp = datetime(2024, 5, 6, 7, 8, 9, tzinfo=UTC)
+
+    destination = archive_artifact(
+        "reports",
+        source,
+        root=root,
+        timestamp=timestamp,
+        target_name="..",
+    )
+
+    assert destination is not None
+    expected_parent = root / "reports" / "2024" / "05" / "06" / "run-070809"
+    assert destination.parent == expected_parent
+    assert destination.name == "data.txt"
+    assert destination.read_text(encoding="utf-8") == "payload"
+
+
 def test_archive_artifact_handles_identical_source_and_destination(tmp_path: Path) -> None:
     timestamp = datetime(2026, 4, 5, 8, 30, tzinfo=UTC)
     root = tmp_path / "artifacts-root"

@@ -84,8 +84,16 @@ def archive_artifact(
         return None
 
     dest_name = Path(target_name).name if target_name else src_path.name
-    if not dest_name:
-        dest_name = src_path.name
+    stripped = dest_name.strip()
+    if target_name and stripped:
+        dest_name = stripped
+    if dest_name in {"", ".", ".."}:
+        fallback = src_path.name
+        if fallback in {"", ".", ".."}:
+            suffix = src_path.suffix
+            dest_name = f"artifact{suffix}" if suffix else "artifact"
+        else:
+            dest_name = fallback
     destination = dest_dir / dest_name
     try:
         if src_path.resolve() == destination.resolve():

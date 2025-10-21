@@ -90,6 +90,19 @@ def _coerce_bool(payload: Mapping[str, str], key: str, default: bool) -> bool:
     return default
 
 
+def _normalise_strategy_name(value: object) -> str:
+    text = str(value).strip().lower().replace("-", "_")
+    return text
+
+
+@dataclass(frozen=True)
+class _RedisCacheStrategyDefinition:
+    ttl_seconds: int | None
+    max_keys: int | None
+    namespace: str | None = None
+    invalidate_prefixes: tuple[str, ...] = tuple()
+
+
 @dataclass(frozen=True)
 class RedisConnectionSettings:
     """Connection information required to instantiate a Redis client."""
@@ -231,7 +244,7 @@ class RedisConnectionSettings:
         )
         return redis.Redis(**options)
 
-    def summary(self, *, redacted: bool = False) -> str:
+    def summary(self, *, redacted: bool = True) -> str:
         if not self.configured:
             return "Redis: not configured"
         try:
@@ -284,14 +297,73 @@ class RedisCachePolicy:
     max_keys: int | None = 512
     namespace: str = "emp:cache"
     invalidate_prefixes: tuple[str, ...] = field(default_factory=tuple)
+    strategy: str | None = None
 
     @classmethod
     def bootstrap_defaults(cls) -> "RedisCachePolicy":
-        return cls(ttl_seconds=1800, max_keys=256, namespace="emp:bootstrap")
+        return cls(
+            ttl_seconds=1800,
+            max_keys=256,
+            namespace="emp:bootstrap",
+            strategy="bootstrap",
+        )
 
     @classmethod
     def institutional_defaults(cls) -> "RedisCachePolicy":
-        return cls(ttl_seconds=900, max_keys=1024, namespace="emp:cache")
+        return cls(
+            ttl_seconds=900,
+            max_keys=1024,
+            namespace="emp:cache",
+            strategy="institutional",
+        )
+
+    @classmethod
+    def strategy_presets(cls) -> dict[str, dict[str, object | None]]:
+        """Expose the built-in cache strategy presets for documentation/tests."""
+
+        return {
+            name: {
+                "ttl_seconds": definition.ttl_seconds,
+                "max_keys": definition.max_keys,
+                "namespace": definition.namespace,
+                "invalidate_prefixes": definition.invalidate_prefixes,
+            }
+            for name, definition in _CACHE_STRATEGY_DEFINITIONS.items()
+        }
+
+    @classmethod
+    def from_strategy(
+        cls,
+        strategy: str,
+        *,
+        fallback: "RedisCachePolicy" | None = None,
+    ) -> "RedisCachePolicy":
+        """Resolve a named strategy into a :class:`RedisCachePolicy`."""
+
+        base = fallback or cls.institutional_defaults()
+        if not strategy:
+            return base
+
+        normalised = _normalise_strategy_name(strategy)
+        canonical = _CACHE_STRATEGY_ALIASES.get(normalised, normalised)
+        definition = _CACHE_STRATEGY_DEFINITIONS.get(canonical)
+        if definition is None:
+            return base
+
+        ttl_seconds = definition.ttl_seconds
+        max_keys = definition.max_keys if definition.max_keys is not None else base.max_keys
+        namespace = definition.namespace or base.namespace
+        invalidate_prefixes = (
+            definition.invalidate_prefixes if definition.invalidate_prefixes else base.invalidate_prefixes
+        )
+
+        return cls(
+            ttl_seconds=ttl_seconds,
+            max_keys=max_keys,
+            namespace=namespace,
+            invalidate_prefixes=invalidate_prefixes,
+            strategy=canonical,
+        )
 
     @classmethod
     def from_mapping(
@@ -302,6 +374,10 @@ class RedisCachePolicy:
     ) -> "RedisCachePolicy":
         payload = _normalise_env(mapping)
         defaults = fallback or cls.institutional_defaults()
+
+        raw_strategy = payload.get("REDIS_CACHE_STRATEGY")
+        if raw_strategy is not None:
+            defaults = cls.from_strategy(raw_strategy, fallback=defaults)
 
         ttl = _coerce_optional_int(payload, "REDIS_CACHE_TTL_SECONDS", defaults.ttl_seconds)
         max_keys = _coerce_optional_int(payload, "REDIS_CACHE_MAX_KEYS", defaults.max_keys)
@@ -317,6 +393,7 @@ class RedisCachePolicy:
             max_keys=max_keys,
             namespace=namespace,
             invalidate_prefixes=invalidate,
+            strategy=defaults.strategy,
         )
 
     def namespace_key(self, key: str) -> str:
@@ -326,6 +403,68 @@ class RedisCachePolicy:
         if key.startswith(f"{namespace}:"):
             return key
         return f"{namespace}:{key}"
+
+
+_CACHE_STRATEGY_ALIASES: dict[str, str] = {
+    "": "institutional",
+    "default": "institutional",
+    "institutional": "institutional",
+    "standard": "institutional",
+    "balanced": "institutional",
+    "production": "institutional",
+    "prod": "institutional",
+    "bootstrap": "bootstrap",
+    "bootstrap_defaults": "bootstrap",
+    "aggressive": "aggressive",
+    "fast": "aggressive",
+    "short": "aggressive",
+    "short_ttl": "aggressive",
+    "extended": "extended",
+    "long": "extended",
+    "long_ttl": "extended",
+    "12h": "extended",
+    "12hr": "extended",
+    "twelve_hours": "extended",
+    "disabled": "disabled",
+    "none": "disabled",
+    "no_cache": "disabled",
+    "off": "disabled",
+}
+
+
+def _build_strategy_definitions() -> dict[str, _RedisCacheStrategyDefinition]:
+    bootstrap_defaults = RedisCachePolicy.bootstrap_defaults()
+    institutional_defaults = RedisCachePolicy.institutional_defaults()
+
+    return {
+        "bootstrap": _RedisCacheStrategyDefinition(
+            ttl_seconds=bootstrap_defaults.ttl_seconds,
+            max_keys=bootstrap_defaults.max_keys,
+            namespace=bootstrap_defaults.namespace,
+            invalidate_prefixes=bootstrap_defaults.invalidate_prefixes,
+        ),
+        "institutional": _RedisCacheStrategyDefinition(
+            ttl_seconds=institutional_defaults.ttl_seconds,
+            max_keys=institutional_defaults.max_keys,
+            namespace=institutional_defaults.namespace,
+            invalidate_prefixes=institutional_defaults.invalidate_prefixes,
+        ),
+        "aggressive": _RedisCacheStrategyDefinition(
+            ttl_seconds=120,
+            max_keys=512,
+        ),
+        "extended": _RedisCacheStrategyDefinition(
+            ttl_seconds=43_200,
+            max_keys=4_096,
+        ),
+        "disabled": _RedisCacheStrategyDefinition(
+            ttl_seconds=None,
+            max_keys=0,
+        ),
+    }
+
+
+_CACHE_STRATEGY_DEFINITIONS = _build_strategy_definitions()
 
 
 class CacheMetrics(dict[str, int | str]):
@@ -376,6 +515,7 @@ class InMemoryRedis:
             namespace="emp:inmemory",
             sets=self._sets,
             keys=len(self._store),
+            strategy="inmemory",
         )
         if reset:
             self._hits = self._misses = self._sets = 0
@@ -529,6 +669,7 @@ class ManagedRedisCache:
             namespace=self.policy.namespace,
             ttl_seconds=self.policy.ttl_seconds,
             max_keys=self.policy.max_keys,
+            strategy=self.policy.strategy or "custom",
         )
         if reset:
             self._hits = self._misses = self._evictions = 0

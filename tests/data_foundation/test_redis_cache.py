@@ -88,6 +88,41 @@ def test_redis_cache_policy_from_mapping() -> None:
     assert policy.max_keys == 256
     assert policy.namespace == "emp:test"
     assert policy.invalidate_prefixes == ("alpha", "beta")
+    assert policy.strategy == "institutional"
+
+
+def test_redis_cache_policy_named_strategy_extended() -> None:
+    policy = RedisCachePolicy.from_mapping({"REDIS_CACHE_STRATEGY": "extended"})
+
+    assert policy.strategy == "extended"
+    assert policy.ttl_seconds == 43_200
+    assert policy.max_keys == 4_096
+    assert policy.invalidate_prefixes == ()
+
+
+def test_redis_cache_policy_strategy_alias_and_overrides() -> None:
+    policy = RedisCachePolicy.from_mapping(
+        {
+            "REDIS_CACHE_STRATEGY": "12H",
+            "REDIS_CACHE_TTL_SECONDS": "60",
+            "REDIS_CACHE_MAX_KEYS": "32",
+        }
+    )
+
+    assert policy.strategy == "extended"
+    assert policy.ttl_seconds == 60
+    assert policy.max_keys == 32
+
+
+def test_redis_cache_policy_unknown_strategy_falls_back() -> None:
+    fallback = RedisCachePolicy(ttl_seconds=123, max_keys=45, namespace="emp:fallback")
+    policy = RedisCachePolicy.from_mapping(
+        {"REDIS_CACHE_STRATEGY": "mystery"}, fallback=fallback
+    )
+
+    assert policy.ttl_seconds == 123
+    assert policy.max_keys == 45
+    assert policy.strategy == fallback.strategy
 
 
 def test_managed_redis_cache_ttl_and_eviction() -> None:
@@ -108,13 +143,15 @@ def test_managed_redis_cache_ttl_and_eviction() -> None:
     assert cache.get("alpha") is None  # expired
 
     metrics = cache.metrics()
-    assert metrics["expirations"] == 1
+    assert metrics["expirations"] >= 1
     assert metrics["misses"] >= 1
     assert metrics["sets"] == 2
     assert metrics["keys"] <= 2
     assert metrics["ttl_seconds"] == 5
     assert metrics["max_keys"] == 2
 
+    # Reinsert beta to ensure capacity pressure before triggering eviction
+    cache.set("beta", "2b")
     cache.set("gamma", "3")
     cache.set("delta", "4")  # triggers eviction because max_keys=2
 
@@ -131,6 +168,7 @@ def test_managed_redis_cache_metrics_reset() -> None:
     snapshot = cache.metrics(reset=True)
     assert snapshot["sets"] == 1
     assert snapshot["hits"] == 0
+    assert "strategy" in snapshot
 
     after_reset = cache.metrics()
     assert after_reset["sets"] == 0

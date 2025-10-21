@@ -1098,6 +1098,7 @@ def build_institutional_ingest_config(
         "max_keys": redis_policy.max_keys,
         "namespace": redis_policy.namespace,
         "invalidate_prefixes": list(redis_policy.invalidate_prefixes),
+        "strategy": redis_policy.strategy,
     }
     metadata["redis_configured"] = redis_settings.configured
     metadata["redis_client_name"] = redis_settings.client_name

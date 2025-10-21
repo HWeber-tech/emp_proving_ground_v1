@@ -55,13 +55,16 @@ class TimeStamper:
 class JSONRenderer:
     """Render the event dictionary as a JSON encoded string."""
 
+    def __init__(self, *, sort_keys: bool = True) -> None:
+        self._sort_keys = sort_keys
+
     def __call__(
         self,
         _logger: object,
         _method_name: str,
         event_dict: MutableMapping[str, object],
     ) -> str:
-        return json.dumps(event_dict, default=str, sort_keys=True)
+        return json.dumps(event_dict, default=str, sort_keys=self._sort_keys)
 
 
 __all__ = [

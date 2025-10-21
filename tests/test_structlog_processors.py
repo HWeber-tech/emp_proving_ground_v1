@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from structlog.processors import TimeStamper
+from structlog.processors import JSONRenderer, TimeStamper
 
 
 def test_timestamper_respects_custom_key():
@@ -66,3 +66,10 @@ def test_timestamper_converts_non_utc_factory_values():
     timestamper(None, "", event)
 
     assert event["timestamp"] == "2023-01-02T01:04:05Z"
+
+
+def test_jsonrenderer_respects_sort_keys_flag():
+    renderer = JSONRenderer(sort_keys=False)
+    rendered = renderer(None, "", {"b": 2, "a": 1})
+
+    assert rendered == "{\"b\": 2, \"a\": 1}"

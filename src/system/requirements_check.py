@@ -21,8 +21,16 @@ MINIMUM_VERSIONS: Dict[str, Tuple[int, int, int]] = {
 }
 
 
-def _parse(ver: str) -> tuple[int, int, int]:
-    parts = (ver.strip().split("+", 1)[0]).split(".")
+def _parse(ver: object) -> tuple[int, int, int]:
+    if isinstance(ver, bytes):
+        try:
+            text = ver.decode()
+        except UnicodeDecodeError:
+            text = ""
+    else:
+        text = "" if ver is None else str(ver)
+
+    parts = (text.strip().split("+", 1)[0]).split(".")
 
     def _coerce(part: str) -> int:
         match = re.match(r"\d+", part)

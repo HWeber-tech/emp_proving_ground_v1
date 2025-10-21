@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import time
+from datetime import timedelta
 
 import pytest
 
@@ -53,6 +54,27 @@ def test_market_data_cache_zero_ttl_expires_immediately(monkeypatch) -> None:
 
     cache.set("key", "value", ttl_seconds=0)
 
+    assert cache.get("key") is None
+
+
+@pytest.mark.parametrize("cache_factory", (_InMemoryCache, MarketDataCache))
+def test_cache_accepts_timedelta_ttl(monkeypatch, cache_factory) -> None:
+    cache = cache_factory()
+    current = 5_000.0
+
+    def fake_time() -> float:
+        return current
+
+    monkeypatch.setattr("src.core.performance.market_data_cache.time.time", fake_time)
+
+    cache.set("key", "value", ttl_seconds=timedelta(seconds=5))
+
+    assert cache.get("key") == "value"
+
+    current += 4
+    assert cache.get("key") == "value"
+
+    current += 2
     assert cache.get("key") is None
 
 

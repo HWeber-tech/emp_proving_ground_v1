@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import threading
 import time
+from datetime import timedelta
 from typing import TypedDict, cast
 
 
@@ -11,7 +12,11 @@ class _InMemoryCache:
         self._store: dict[str, object] = {}
         self._expiry: dict[str, float] = {}
 
-    def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:
+    def set(
+        self, key: str, value: object, ttl_seconds: float | timedelta | None = 300
+    ) -> None:
+        if isinstance(ttl_seconds, timedelta):
+            ttl_seconds = ttl_seconds.total_seconds()
         if ttl_seconds is None:
             self._store[key] = value
             self._expiry.pop(key, None)
@@ -80,8 +85,12 @@ class MarketDataCache:
         return mid
 
     # Legacy KV API (backward-compatible with _InMemoryCache)
-    def set(self, key: str, value: object, ttl_seconds: float | None = 300) -> None:
+    def set(
+        self, key: str, value: object, ttl_seconds: float | timedelta | None = 300
+    ) -> None:
         with self._lock:
+            if isinstance(ttl_seconds, timedelta):
+                ttl_seconds = ttl_seconds.total_seconds()
             if ttl_seconds is None:
                 self._kv_store[key] = value
                 self._kv_expiry.pop(key, None)

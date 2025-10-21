@@ -130,6 +130,11 @@ def should_record_event(outcome: object, was_xfail: bool) -> bool:
 
     if was_xfail:
         return True
+    if isinstance(outcome, (bytes, bytearray, memoryview)):
+        try:
+            outcome = bytes(outcome).decode()
+        except UnicodeDecodeError:
+            return False
     if not isinstance(outcome, str):
         return False
     normalized = outcome.strip().lower()

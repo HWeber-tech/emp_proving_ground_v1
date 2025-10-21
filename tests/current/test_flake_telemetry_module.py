@@ -33,6 +33,11 @@ def test_should_record_event_handles_non_string_outcome() -> None:
     assert should_record_event(None, False) is False
 
 
+def test_should_record_event_handles_bytes_outcome() -> None:
+    assert should_record_event(b"FAILED", False) is True
+    assert should_record_event(b"\xff", False) is False
+
+
 def test_clip_longrepr_truncates_when_needed() -> None:
     assert clip_longrepr(None) is None
     assert clip_longrepr("short") == "short"

@@ -114,8 +114,16 @@ def _coerce_str_tuple(value: object | None) -> tuple[str, ...]:
     if value is None:
         return tuple()
     if isinstance(value, Iterable) and not isinstance(value, (str, bytes, bytearray)):
-        return tuple(str(item) for item in value)
-    return (str(value),)
+        items: list[str] = []
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text:
+                items.append(text)
+        return tuple(items)
+    text = str(value).strip()
+    return (text,) if text else tuple()
 
 
 def evaluate_runtime_health(

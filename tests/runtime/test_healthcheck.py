@@ -15,7 +15,11 @@ from src.operations.data_backbone import (
     BackboneStatus,
     DataBackboneReadinessSnapshot,
 )
-from src.runtime.healthcheck import RuntimeHealthServer, evaluate_runtime_health
+from src.runtime.healthcheck import (
+    RuntimeHealthServer,
+    evaluate_runtime_health,
+    _coerce_str_tuple,
+)
 from src.security.auth_tokens import create_access_token
 
 
@@ -30,6 +34,11 @@ def _build_token(*roles: str) -> str:
         expires_in=timedelta(minutes=5),
     )
 
+
+def test_coerce_str_tuple_filters_blank_values() -> None:
+    assert _coerce_str_tuple([" topic ", " ", None, "alpha"]) == ("topic", "alpha")
+    assert _coerce_str_tuple(" value ") == ("value",)
+    assert _coerce_str_tuple(None) == tuple()
 
 
 _TEST_CERT = Path(__file__).parent / "certs" / "server.pem"
@@ -321,4 +330,3 @@ async def test_runtime_health_server_requires_roles() -> None:
                 await ok_response.text()
     finally:
         await server.stop()
-

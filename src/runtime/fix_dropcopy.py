@@ -13,6 +13,7 @@ from typing import Any, Callable, Coroutine, Mapping, MutableMapping, Optional
 from src.runtime.task_supervisor import TaskSupervisor
 
 from src.core.event_bus import Event, EventBus, TopicBus, get_global_bus
+from src.core.coercion import coerce_float
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +34,7 @@ def _decode_value(value: object) -> object | None:
 
 
 def _coerce_float(value: object | None) -> float | None:
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    try:
-        return float(str(value))
-    except (TypeError, ValueError):
-        return None
+    return coerce_float(value, default=None)
 
 
 def _sanitize_mapping(mapping: Mapping[str, object]) -> Mapping[str, object]:

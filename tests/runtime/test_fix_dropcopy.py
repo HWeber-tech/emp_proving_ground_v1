@@ -80,3 +80,12 @@ async def test_dropcopy_reconciler_flags_unmatched_orders():
     assert "status_mismatches" not in summary or not summary["status_mismatches"]
 
     await reconciler.stop()
+
+
+def test_dropcopy_reconciler_parses_localised_floats():
+    reconciler = FixDropcopyReconciler(event_bus=None, broker_order_lookup=None)
+
+    event = reconciler._normalise_message({11: "ORD-3", 31: "1,234.5", 150: "0"})
+
+    assert event is not None
+    assert event.last_px == pytest.approx(1234.5)

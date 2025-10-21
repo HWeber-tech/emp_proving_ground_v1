@@ -115,6 +115,29 @@ def _strip_currency_symbols(value: str) -> str:
     return f"{sign}{stripped}" if sign else stripped
 
 
+def _normalize_decimal_separator(value: str) -> str:
+    """Convert locale-specific decimal delimiters to the canonical period."""
+
+    if "," not in value:
+        return value
+
+    decimal_is_comma = False
+    if "." in value:
+        if value.rfind(",") > value.rfind("."):
+            decimal_is_comma = True
+    else:
+        head, _, tail = value.rpartition(",")
+        if head and tail and len(tail) in (1, 2):
+            decimal_is_comma = True
+
+    if not decimal_is_comma:
+        return value
+
+    head, _, tail = value.rpartition(",")
+    sanitized_head = head.replace(".", "").replace(",", "")
+    return f"{sanitized_head}.{tail}"
+
+
 @overload
 def coerce_float(value: object | None, *, default: float) -> float:
     ...

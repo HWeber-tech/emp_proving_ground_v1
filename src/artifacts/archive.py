@@ -105,7 +105,10 @@ def archive_artifact(
     except (OSError, RuntimeError):
         pass
     try:
-        shutil.copy2(src_path, destination)
+        if src_path.is_dir():
+            shutil.copytree(src_path, destination, dirs_exist_ok=True)
+        else:
+            shutil.copy2(src_path, destination)
     except Exception:  # pragma: no cover - filesystem edge cases
         logger.exception("Failed to archive artifact %s -> %s", src_path, destination)
         return None

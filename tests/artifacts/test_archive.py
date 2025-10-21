@@ -120,3 +120,28 @@ def test_archive_artifact_handles_identical_source_and_destination(tmp_path: Pat
 
     assert archived == source
     assert archived.read_text(encoding="utf-8") == "content"
+
+
+def test_archive_artifact_copies_directories(tmp_path: Path) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    (source_dir / "details.txt").write_text("hello", encoding="utf-8")
+
+    root = tmp_path / "artifacts-root"
+    timestamp = datetime(2024, 2, 3, 4, 5, tzinfo=UTC)
+
+    destination = archive_artifact(
+        "bundle",
+        source_dir,
+        root=root,
+        timestamp=timestamp,
+        run_id="Collect/Run",
+    )
+
+    assert destination is not None
+    expected = root / "bundle" / "2024" / "02" / "03" / "Collect-Run" / "source"
+    assert destination == expected
+    assert destination.is_dir()
+    copied = destination / "details.txt"
+    assert copied.exists()
+    assert copied.read_text(encoding="utf-8") == "hello"

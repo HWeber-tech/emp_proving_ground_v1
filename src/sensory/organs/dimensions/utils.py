@@ -354,11 +354,20 @@ def calculate_volatility(prices: List[float], period: int = 20) -> float:
         return 0.5  # Default moderate volatility
 
     recent_prices = prices[-period:]
+    if len(recent_prices) < 2:
+        return 0.5
+
+    if any(price <= 0 for price in recent_prices):
+        return 0.5
+
     returns = np.diff(np.log(recent_prices))
     volatility = np.std(returns) * np.sqrt(252)  # Annualized
 
     # Normalize to 0-1 range (assuming max 100% annual volatility)
-    return float(min(1.0, volatility))
+    if not np.isfinite(volatility):
+        return 0.5
+
+    return float(min(1.0, max(0.0, volatility)))
 
 
 def detect_regime_change(

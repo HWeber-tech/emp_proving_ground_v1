@@ -26,6 +26,26 @@ Set the following environment variables to tune the policy for your deployment:
 The resolved settings are embedded inside runtime metadata and exposed through
 `ProfessionalPredatorApp.summary()` for quick inspection.【F:src/data_foundation/ingest/configuration.py†L200-L320】【F:src/runtime/predator_app.py†L260-L380】
 
+## Configuration snapshot packaging
+
+Pair the policy telemetry with the configuration backup builder so operators can
+ship artefacts that match the readiness snapshot. The
+`src/operations/configuration_backup.py` module assembles a declarative plan of
+source directories (config, env templates, top-level config files), walks each
+tree according to include/exclude patterns, and writes a ZIP archive alongside a
+JSON manifest that records relative paths, sizes, and SHA-256 checksums for
+every captured file.【F:src/operations/configuration_backup.py†L1-L174】【F:src/operations/configuration_backup.py†L176-L268】
+
+- Call `default_configuration_backup_plan()` with the repository root (or a
+  deployment checkout) to bootstrap the plan automatically.
+- Feed the plan into `build_configuration_backup()` with a destination folder to
+  create timestamped archives during drills; the helper returns the archive path
+  and manifest location so runbooks can attach them to readiness evidence.
+
+Capture the generated manifest alongside the ingest backup telemetry when
+reporting drills—the deterministic hashing makes it obvious when drift occurs
+between rehearsals without manually diffing directories.
+
 ## Telemetry
 
 `evaluate_backup_readiness` merges policy inputs with ingest health/quality and

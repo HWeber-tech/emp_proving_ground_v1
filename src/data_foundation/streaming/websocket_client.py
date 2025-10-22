@@ -16,6 +16,7 @@ __all__ = [
     "WebSocketClient",
     "WebSocketClientError",
     "WebSocketClientSettings",
+    "WebSocketSubscription",
     "WebSocketConnectionError",
     "WebSocketHeartbeatError",
 ]
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 MessageHandler = Callable[[WSMessage], Awaitable[None]]
 ConnectCallback = Callable[["WebSocketClient", bool], Awaitable[None] | None]
+SubscriptionCallback = Callable[["WebSocketClient", bool], Awaitable[None] | None]
+UnsubscribeCallback = Callable[["WebSocketClient"], Awaitable[None] | None]
 
 
 class WebSocketClientError(RuntimeError):
@@ -54,6 +57,61 @@ class WebSocketClientSettings:
     rate_limit_per_second: float | None = 50.0
     rate_limit_capacity: float | None = None
     connect_timeout: float = 10.0
+
+
+@dataclass(slots=True)
+class WebSocketSubscription:
+    """Represents a durable subscription that auto-resends on reconnect."""
+
+    name: str
+    subscribe: SubscriptionCallback
+    unsubscribe: UnsubscribeCallback | None = None
+
+    @classmethod
+    def text(
+        cls,
+        name: str,
+        payload: str,
+        *,
+        unsubscribe_payload: str | None = None,
+    ) -> "WebSocketSubscription":
+        """Create a subscription that sends plain-text payloads."""
+
+        async def _subscribe(client: "WebSocketClient", _: bool) -> None:
+            await client.send_text(payload)
+
+        async def _unsubscribe(client: "WebSocketClient") -> None:
+            if unsubscribe_payload is not None:
+                await client.send_text(unsubscribe_payload)
+
+        return cls(
+            name=name,
+            subscribe=_subscribe,
+            unsubscribe=_unsubscribe if unsubscribe_payload is not None else None,
+        )
+
+    @classmethod
+    def json(
+        cls,
+        name: str,
+        payload: Mapping[str, object],
+        *,
+        unsubscribe_payload: Mapping[str, object] | None = None,
+    ) -> "WebSocketSubscription":
+        """Create a subscription that sends JSON payloads."""
+
+        async def _subscribe(client: "WebSocketClient", _: bool) -> None:
+            await client.send_json(payload)
+
+        async def _unsubscribe(client: "WebSocketClient") -> None:
+            if unsubscribe_payload is not None:
+                await client.send_json(unsubscribe_payload)
+
+        return cls(
+            name=name,
+            subscribe=_subscribe,
+            unsubscribe=_unsubscribe if unsubscribe_payload is not None else None,
+        )
 
 
 class _AsyncRateLimiter:
@@ -108,10 +166,55 @@ class WebSocketClient:
         self._heartbeat_task: asyncio.Task[None] | None = None
         self._closed = False
         self._lock = asyncio.Lock()
+        self._subscription_lock = asyncio.Lock()
+        self._subscriptions: dict[str, WebSocketSubscription] = {}
+        self._active_subscriptions: set[str] = set()
+        self._current_is_reconnect = False
 
     @property
     def closed(self) -> bool:
         return self._closed
+
+    async def register_subscription(
+        self,
+        subscription: WebSocketSubscription,
+        *,
+        replace: bool = False,
+    ) -> None:
+        """Register a durable subscription that replays on reconnect."""
+
+        async with self._subscription_lock:
+            exists = subscription.name in self._subscriptions
+            if exists and not replace:
+                raise ValueError(f"subscription '{subscription.name}' already registered")
+            self._subscriptions[subscription.name] = subscription
+            should_activate = self._ws is not None
+            is_reconnect = self._current_is_reconnect
+
+        if should_activate:
+            await self._execute_subscription(subscription, is_reconnect)
+
+    async def unregister_subscription(
+        self,
+        name: str,
+        *,
+        call_unsubscribe: bool = True,
+    ) -> None:
+        """Remove a subscription, optionally sending an unsubscribe payload."""
+
+        async with self._subscription_lock:
+            subscription = self._subscriptions.pop(name, None)
+            was_active = name in self._active_subscriptions
+            if was_active:
+                self._active_subscriptions.remove(name)
+
+        if subscription is None:
+            raise KeyError(f"subscription '{name}' is not registered")
+
+        if call_unsubscribe and was_active:
+            await self._execute_unsubscribe(
+                subscription, swallow_connection_errors=True
+            )
 
     async def run(
         self,
@@ -139,9 +242,11 @@ class WebSocketClient:
                 continue
 
             reconnect_attempts = 0
+            self._current_is_reconnect = is_reconnect
             try:
                 if on_connect is not None:
                     await _maybe_await(on_connect(self, is_reconnect))
+                await self._activate_subscriptions(is_reconnect)
                 is_reconnect = True
                 await self._consume(ws, handler, stop_event)
                 break
@@ -166,7 +271,9 @@ class WebSocketClient:
             if self._closed:
                 return
             self._closed = True
+        self._current_is_reconnect = False
         await self._stop_heartbeat()
+        await self._deactivate_subscriptions()
         await self._close_ws()
         if self._session is not None:
             await self._session.close()
@@ -209,6 +316,7 @@ class WebSocketClient:
         try:
             while True:
                 if stop_event and stop_event.is_set():
+                    await self._deactivate_subscriptions()
                     return
                 try:
                     message = (
@@ -255,6 +363,70 @@ class WebSocketClient:
         except aiohttp.ClientError as exc:
             raise WebSocketConnectionError("Failed to send on websocket") from exc
 
+    async def _activate_subscriptions(self, is_reconnect: bool) -> None:
+        async with self._subscription_lock:
+            subscriptions = list(self._subscriptions.values())
+
+        for subscription in subscriptions:
+            await self._execute_subscription(subscription, is_reconnect)
+
+    async def _deactivate_subscriptions(self) -> None:
+        async with self._subscription_lock:
+            active_names = list(self._active_subscriptions)
+            subscriptions = [
+                self._subscriptions[name]
+                for name in active_names
+                if name in self._subscriptions
+            ]
+
+        for subscription in subscriptions:
+            await self._execute_unsubscribe(subscription, swallow_connection_errors=True)
+
+        async with self._subscription_lock:
+            for name in active_names:
+                self._active_subscriptions.discard(name)
+
+    async def _execute_subscription(
+        self, subscription: WebSocketSubscription, is_reconnect: bool
+    ) -> None:
+        try:
+            await _maybe_await(subscription.subscribe(self, is_reconnect))
+        except WebSocketClientError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            raise WebSocketClientError(
+                f"Subscription '{subscription.name}' callback failed"
+            ) from exc
+
+        async with self._subscription_lock:
+            self._active_subscriptions.add(subscription.name)
+
+    async def _execute_unsubscribe(
+        self,
+        subscription: WebSocketSubscription,
+        *,
+        swallow_connection_errors: bool = False,
+    ) -> None:
+        callback = subscription.unsubscribe
+        if callback is None:
+            return
+        try:
+            await _maybe_await(callback(self))
+        except WebSocketConnectionError:
+            if swallow_connection_errors:
+                logger.debug(
+                    "Skipping unsubscribe for %s because the connection is closed",
+                    subscription.name,
+                )
+                return
+            raise
+        except WebSocketClientError:
+            raise
+        except Exception as exc:  # pragma: no cover - defensive
+            raise WebSocketClientError(
+                f"Unsubscribe '{subscription.name}' callback failed"
+            ) from exc
+
     def _start_heartbeat(self, ws: ClientWebSocketResponse) -> None:
         if self._settings.heartbeat_interval <= 0:
             return
@@ -298,6 +470,8 @@ class WebSocketClient:
         if ws is None:
             return
         await ws.close()
+        async with self._subscription_lock:
+            self._active_subscriptions.clear()
 
     async def _handle_retry(self, attempt: int) -> None:
         max_retries = self._settings.max_retries

@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import io
 import zipfile
+import json
 from pathlib import Path
 
 import pytest
 
-from tools.observability.deploy_kibana_dashboards import deploy_dashboards
+from tools.observability.deploy_kibana_dashboards import (
+    SavedObjectSummary,
+    deploy_dashboards,
+    summarize_dashboards,
+)
 
 
 class _SuccessfulResponse:
@@ -111,3 +116,43 @@ def test_deploy_dashboards_surfaces_errors(monkeypatch: pytest.MonkeyPatch, tmp_
     assert result.success is False
     assert "invalid references" in (result.details or "")
     assert result.status_code == 400
+
+
+def test_summarize_dashboards_extracts_queries(tmp_path: Path) -> None:
+    dashboard_bundle = tmp_path / "bundle.ndjson"
+    payloads = [
+        {
+            "type": "dashboard",
+            "attributes": {
+                "title": "Operations Overview",
+                "description": "Operational metrics dashboard",
+            },
+        },
+        {
+            "type": "search",
+            "attributes": {
+                "title": "Recent Errors",
+                "kibanaSavedObjectMeta": {
+                    "searchSourceJSON": json.dumps(
+                        {
+                            "index": "logs-*",
+                            "query": {"query": "log.level: error", "language": "kuery"},
+                        }
+                    )
+                },
+            },
+        },
+    ]
+    dashboard_bundle.write_text(
+        "\n".join(json.dumps(payload) for payload in payloads) + "\n",
+        encoding="utf-8",
+    )
+
+    summary_map = summarize_dashboards(tmp_path)
+    summaries = summary_map[dashboard_bundle]
+
+    assert [summary.object_type for summary in summaries] == ["dashboard", "search"]
+    search_summary = summaries[1]
+    assert isinstance(search_summary, SavedObjectSummary)
+    assert search_summary.query == "log.level: error"
+    assert search_summary.data_source == "logs-*"

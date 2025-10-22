@@ -456,6 +456,85 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - Alert on data quality issues
   - **Acceptance**: Automated quality checks with alerting
 
+- [ ] **Implement Document OCR Compression for Fundamental Analysis** (24 hours)
+  - **Background**: This implements vision-language compression from recent research (DeepSeek-OCR, Oct 2024) that compresses large financial documents (100-page earnings reports) from 50,000+ tokens down to 200-500 tokens while preserving semantic content and extracting structured chart data. This enables real-time fundamental analysis that would otherwise be prohibitively expensive or slow.
+  - **What it does**: Converts unstructured PDFs (earnings reports, Fed minutes, analyst reports) into compact, structured data (text summaries + extracted chart data as JSON) that the WHY sensor can analyze efficiently.
+  - **How it works**: Send PDF to cloud vision API (Google Cloud Vision, OpenAI GPT-4 Vision, or Azure Computer Vision) → API's vision model compresses document internally using neural compression → Receive back compressed text + structured chart data → Store in database → WHY sensor analyzes.
+  - **Why cloud API**: The compression happens inside a pre-trained vision-language model. Using cloud APIs avoids needing GPU infrastructure ($0 additional hardware cost) and leverages state-of-the-art models. Cost is ~$0.15 per 100-page document vs. $5-10 for traditional LLM processing.
+  - **Cost analysis**: Light usage (10 docs/month) = $1.50/month; Medium (100 docs/month) = $15/month; Heavy (1,000 docs/month) = $150/month. At 1,000+ docs/month, consider self-hosted model with GPU.
+  - **Implementation steps**:
+    1. **Select and configure cloud vision API** (4 hours)
+       - Evaluate Google Cloud Vision, OpenAI GPT-4 Vision, Azure Computer Vision
+       - Recommendation: Google Cloud Vision for document-heavy workloads (best price/performance for PDFs)
+       - Create account, obtain API key, configure billing
+       - Test API with sample earnings report to verify output quality
+       - **Location**: Store API credentials in `.env` file (never commit to git)
+       - **Acceptance**: Successfully process sample PDF and receive structured response
+    2. **Build document processor module** (8 hours)
+       - Create `DocumentProcessor` class that handles PDF → API → structured data flow
+       - Implement API client with error handling, retries, and rate limiting
+       - Add support for batch processing (multiple documents in parallel)
+       - Handle API-specific response formats and normalize to common schema
+       - **Location**: `src/sensory/why_sensor/document_processor.py`
+       - **Key methods**: `process_pdf(path)`, `send_to_api(pdf_bytes)`, `parse_api_response(response)`
+       - **Acceptance**: Process 100-page PDF in 10-15 seconds, return structured data
+    3. **Implement chart extraction and parsing** (4 hours)
+       - Parse API response to extract chart data (revenue trends, segment breakdowns, etc.)
+       - Convert chart images/descriptions into structured JSON (e.g., {2021: 94.7, 2022: 108.2})
+       - Handle various chart types: line charts (trends), bar charts (comparisons), tables (metrics)
+       - Validate extracted data for completeness and accuracy
+       - **Location**: `src/sensory/why_sensor/chart_extractor.py`
+       - **Acceptance**: Extract 90%+ of chart data accurately from test documents
+    4. **Create database schema for compressed documents** (2 hours)
+       - Design table: `fundamental_reports` with fields: ticker, quarter, compressed_text, charts (JSONB), metrics (JSONB), timestamp
+       - Add indexes on ticker and quarter for fast retrieval
+       - Implement versioning to handle data corrections
+       - **Location**: Add migration to `src/data_foundation/storage/migrations/`
+       - **Acceptance**: Store and query compressed documents efficiently (<100ms)
+    5. **Integrate with WHY sensor** (4 hours)
+       - Modify `fundamental_analyzer.py` to consume compressed document data
+       - Extract key metrics (revenue growth, EPS beat, margin trends) from compressed data
+       - Generate trading signals based on fundamental analysis
+       - Add fallback to traditional data sources if document processing fails
+       - **Location**: `src/sensory/why_sensor/fundamental_analyzer.py`
+       - **Acceptance**: WHY sensor generates signals from compressed earnings reports
+    6. **Write comprehensive tests** (2 hours)
+       - Unit tests for document processor, chart extractor, API client
+       - Integration test: full flow from PDF → compressed data → trading signal
+       - Mock API responses to avoid costs during testing
+       - Test error handling (API failures, malformed PDFs, missing data)
+       - **Location**: `tests/sensory/why_sensor/test_document_processor.py`
+       - **Acceptance**: 90%+ test coverage, all tests passing
+  - **Technical details for developers**:
+    - **What is OCR compression?** Traditional OCR extracts all text from a document (50,000+ words from 100-page PDF). Vision-language compression uses a neural network (vision encoder) to compress the visual representation of the document into a compact latent space (256-512 tokens internally), then a decoder reconstructs only the semantically important text and structured data. This is 10-20x more efficient than traditional OCR + LLM analysis.
+    - **Where does compression happen?** Inside the cloud API's vision model, not in your code. You send a 15MB PDF, the API compresses it internally using their pre-trained model, and you receive back 5KB of structured data. You don't implement the compression algorithm—you just use the API.
+    - **Why is this better than traditional PDF parsing?** Traditional parsing (PyPDF2, pdfplumber) extracts raw text but loses chart data and requires expensive LLM processing to extract meaning. Vision-language models can "see" charts and extract structured data directly from images, plus they compress the text semantically (keeping important info, discarding boilerplate).
+    - **Example API request/response**:
+      ```python
+      # Request (simplified)
+      response = requests.post(
+          'https://vision.googleapis.com/v1/documents:analyze',
+          files={'file': open('earnings.pdf', 'rb')},
+          headers={'Authorization': f'Bearer {API_KEY}'}
+      )
+      
+      # Response (simplified)
+      {
+          'text': 'Apple Q4 2024: Revenue $89.5B (+8% YoY), iPhone $43.8B (+3%), Services $22.3B (+16%), Gross margin 45.2% (up 0.5pp), EPS $1.64 (beat est. $1.60)...',
+          'charts': [
+              {'name': 'revenue_trend', 'data': {'2021': 94.7, '2022': 108.2, '2023': 112.5, '2024': 119.3}},
+              {'name': 'segment_revenue', 'data': {'iPhone': 43.8, 'Mac': 7.6, 'iPad': 6.4, 'Services': 22.3}}
+          ],
+          'tables': [...]
+      }
+      ```
+    - **Cost optimization**: Cache processed documents to avoid re-processing. Batch process documents during off-peak hours if possible. Monitor API usage and set budget alerts.
+    - **Error handling**: API can fail (rate limits, downtime, malformed PDFs). Implement exponential backoff retries, fallback to traditional data sources, and alert on repeated failures.
+    - **Privacy consideration**: Documents are sent to third-party API. Most earnings reports are public, but be aware of data leaving your infrastructure. For sensitive documents, consider self-hosted model with GPU (see alternative implementation below).
+  - **Alternative implementation (self-hosted, requires GPU)**: If processing >1,000 documents/month or have privacy requirements, consider self-hosting the vision model. Requires: NVIDIA GPU (RTX 3060 12GB minimum, RTX 4060 Ti 16GB recommended), pre-trained model (Donut, Pix2Struct, or DeepSeek-OCR if available), inference server (FastAPI + PyTorch). Implementation effort: +40 hours. Operating cost: GPU hardware ($300-600) + electricity (~$30/month). Break-even vs. cloud API: ~80 months at 100 docs/month.
+  - **Success metrics**: 90%+ accuracy in extracting key metrics from earnings reports; 10-15 second processing time per document; <$20/month API costs for typical usage; WHY sensor generates actionable signals from compressed documents.
+  - **Acceptance**: Process Apple Q4 2024 earnings report (or similar 100-page PDF) → Extract revenue, EPS, margins, guidance → Store in database → WHY sensor generates BUY/SELL/HOLD signal based on fundamental analysis → All within 15 seconds of document release.
+
 #### 1.4 Instrument Translation Protocol
 
 **Objective**: Universal instrument representation across asset classes

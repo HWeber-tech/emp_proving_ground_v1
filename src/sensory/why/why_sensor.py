@@ -9,6 +9,13 @@ import pandas as pd
 
 from src.sensory.dimensions.why.yield_signal import YieldSlopeTracker
 from src.sensory.why.narrative_hooks import NarrativeEvent, NarrativeHookEngine, NarrativeSummary
+from src.sensory.why.fundamental import (
+    FundamentalMetrics,
+    FundamentalSnapshot,
+    compute_fundamental_metrics,
+    normalise_fundamental_snapshot,
+    score_fundamentals,
+)
 from src.sensory.signals import SensorSignal
 from src.sensory.lineage import build_lineage_record
 
@@ -83,6 +90,7 @@ class WhySensor:
         narrative_events: list[NarrativeEvent] | None = None,
         macro_regime_flags: Mapping[str, float] | None = None,
         as_of: datetime | pd.Timestamp | None = None,
+        fundamental_snapshot: Mapping[str, object] | FundamentalSnapshot | None = None,
     ) -> list[SensorSignal]:
         if df is None or df.empty or "close" not in df:
             return [self._default_signal(reason="no_market_data")]
@@ -100,6 +108,13 @@ class WhySensor:
             slope = float((df["close"].iloc[-1] - df["close"].iloc[-20]) / base)
 
         macro_bias = float(last_row.get("macro_bias", 0.0) or 0.0)
+
+        (
+            fundamentals_snapshot,
+            fundamental_metrics,
+            fundamental_strength,
+            fundamental_confidence,
+        ) = self._evaluate_fundamentals(last_row, fundamental_snapshot)
 
         base_strength = 0.0
         base_confidence = 0.45
@@ -119,14 +134,27 @@ class WhySensor:
         if slope_2s10s is not None:
             yield_strength = yield_direction * _clamp(abs(float(slope_2s10s)) * 8.0, 0.0, 0.75)
 
+        components: list[tuple[float, float]] = [
+            (0.45, base_strength),
+            (0.25, yield_strength),
+            (0.20, _clamp(macro_bias, -1.0, 1.0)),
+        ]
+        if fundamental_metrics is not None:
+            components.append((0.25, fundamental_strength))
+        total_weight = sum(weight for weight, _ in components) or 1.0
         combined_strength = _clamp(
-            0.55 * base_strength + 0.25 * yield_strength + 0.20 * _clamp(macro_bias, -1.0, 1.0),
+            sum(weight * value for weight, value in components) / total_weight,
             -1.0,
             1.0,
         )
 
+        confidence_sources = [base_confidence, yield_confidence]
+        if fundamental_metrics is not None:
+            confidence_sources.append(max(0.0, fundamental_confidence))
+        mean_confidence = sum(confidence_sources) / len(confidence_sources)
+        peak_confidence = max(confidence_sources) if confidence_sources else 0.0
         combined_confidence = _clamp(
-            max(base_confidence, yield_confidence) * 0.6 + 0.4 * _clamp(abs(macro_bias), 0.0, 1.0),
+            0.45 * peak_confidence + 0.35 * mean_confidence + 0.20 * _clamp(abs(macro_bias), 0.0, 1.0),
             0.2,
             1.0,
         )
@@ -163,6 +191,15 @@ class WhySensor:
             "macro_confidence": base_confidence,
             "yield_curve": yield_snapshot_dict,
         }
+        if fundamental_metrics is not None:
+            fundamentals_payload: dict[str, object] = {
+                "metrics": fundamental_metrics.as_dict(),
+                "strength": float(fundamental_strength),
+                "confidence": float(fundamental_confidence),
+            }
+            if fundamentals_snapshot is not None:
+                fundamentals_payload["snapshot"] = fundamentals_snapshot.as_dict()
+            metadata["fundamentals"] = fundamentals_payload
         if narrative_summary is not None:
             metadata["narrative"] = narrative_summary.as_dict()
 
@@ -170,6 +207,9 @@ class WhySensor:
             "strength": float(combined_strength),
             "confidence": float(combined_confidence),
         }
+        if fundamental_metrics is not None:
+            value["fundamental_strength"] = float(fundamental_strength)
+            value["fundamental_confidence"] = float(fundamental_confidence)
         if narrative_summary is not None:
             value["narrative_sentiment"] = float(narrative_summary.sentiment_score)
 
@@ -183,6 +223,8 @@ class WhySensor:
         data_quality = self._extract_data_quality(df)
         if data_quality is not None:
             quality["data_quality"] = data_quality
+        if fundamental_metrics is not None:
+            quality["fundamental_confidence"] = float(fundamental_confidence)
 
         lineage = build_lineage_record(
             "WHY",
@@ -193,6 +235,12 @@ class WhySensor:
                 "macro_bias": float(macro_bias),
                 "yield_direction": float(yield_direction),
                 "yield_confidence": float(yield_confidence),
+                "fundamental_strength": float(fundamental_strength)
+                if fundamental_metrics is not None
+                else 0.0,
+                "fundamental_confidence": float(fundamental_confidence)
+                if fundamental_metrics is not None
+                else 0.0,
             },
             outputs={
                 "strength": float(combined_strength),
@@ -202,11 +250,15 @@ class WhySensor:
                 "macro_strength": float(base_strength),
                 "macro_confidence": float(base_confidence),
                 "yield_strength": float(yield_strength),
+                "fundamental_strength": float(fundamental_strength)
+                if fundamental_metrics is not None
+                else 0.0,
             },
             metadata={
                 "timestamp": timestamp.isoformat(),
                 "mode": "macro_yield_fusion",
                 "narrative_present": narrative_summary is not None,
+                "fundamentals_present": fundamental_metrics is not None,
             },
         )
 
@@ -288,3 +340,24 @@ class WhySensor:
             return float(df["data_quality"].iloc[-1])
         except (TypeError, ValueError):
             return None
+
+    def _evaluate_fundamentals(
+        self,
+        row: Mapping[str, object],
+        snapshot_override: Mapping[str, object] | FundamentalSnapshot | None,
+    ) -> tuple[FundamentalSnapshot | None, FundamentalMetrics | None, float, float]:
+        price = row.get("close")
+        try:
+            fallback_price = float(price) if price is not None else None
+        except (TypeError, ValueError):
+            fallback_price = None
+
+        snapshot = normalise_fundamental_snapshot(snapshot_override, fallback_price=fallback_price)
+        if snapshot is None:
+            snapshot = normalise_fundamental_snapshot(row, fallback_price=fallback_price)
+        if snapshot is None:
+            return None, None, 0.0, 0.0
+
+        metrics = compute_fundamental_metrics(snapshot)
+        strength, confidence = score_fundamentals(metrics)
+        return snapshot, metrics, strength, confidence

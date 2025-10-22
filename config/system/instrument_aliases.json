@@ -1,0 +1,37 @@
+{
+  "EURUSD": {
+    "aliases": {
+      "ctrader": ["EURUSD", "1"],
+      "bloomberg": ["EURUSD CURNCY"],
+      "reuters": ["EUR=", "EURUSD="]
+    }
+  },
+  "GBPUSD": {
+    "aliases": {
+      "ctrader": ["GBPUSD", "2"],
+      "bloomberg": ["GBPUSD CURNCY"],
+      "reuters": ["GBP=", "GBPUSD="]
+    }
+  },
+  "USDJPY": {
+    "aliases": {
+      "ctrader": ["USDJPY", "3"],
+      "bloomberg": ["USDJPY CURNCY"],
+      "reuters": ["JPY=", "USDJPY="]
+    }
+  },
+  "6E_DEC24": {
+    "aliases": {
+      "cme": ["6EZ4", "6E DEC24"],
+      "bloomberg": ["6EZ4 COMB"],
+      "reuters": ["0#6E:"]
+    }
+  },
+  "AAPL": {
+    "aliases": {
+      "nasdaq": ["AAPL"],
+      "bloomberg": ["AAPL US Equity"],
+      "reuters": ["AAPL.O"]
+    }
+  }
+}

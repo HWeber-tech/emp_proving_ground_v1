@@ -139,12 +139,14 @@ These components are **production-grade** with comprehensive implementations and
 - **Symbol mapping**: Broker-agnostic symbol resolution with caching
 - **LOBSTER dataset parser**: Normalises message and depth snapshots, enforces alignment, and prepares high-frequency order book frames for analytics consumers
 - **Streaming market data cache**: Redis-compatible tick window with warm starts, TTL enforcement, and in-memory fallback for streaming ingestion pipelines
+- **TimescaleQueryInterface**: Unified tick/quote/book query facade with timezone normalisation, SQLite compatibility, and an LRU cache so notebooks and tests reuse recent results without hammering Timescale on repeated queries.【F:src/data_foundation/storage/timescale_queries.py†L1-L158】【F:src/data_foundation/storage/timescale_queries.py†L180-L318】
 - **Status**: Functional for historical daily data
 
 #### 7. Governance (`src/governance/`)
 - **PolicyLedger**: Stage-based promotion with evidence requirements
 - **PromotionGuard**: Blocks strategy graduation without regime coverage
 - **StrategyRegistry**: Centralized strategy management with lifecycle controls
+- **Kill-switch monitoring**: Async file watcher guards the global kill switch and wires into the runtime so emergency stops trigger graceful shutdowns automatically.【F:src/governance/kill_switch.py†L1-L118】【F:src/runtime/predator_app.py†L1135-L1161】
 - **Audit documentation playbook**: Centralises decision diary, policy ledger, and
   compliance evidence capture with command-level runbooks for audit packs
   (`docs/audits/audit_documentation.md`).
@@ -176,7 +178,7 @@ These components have **architectural foundations** but require additional work:
   gamma scalping and microstructure alignment signals under regression coverage.
 
 #### 4. Operations (`src/operations/`)
-- **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI, and an incident-response chaos simulation harness that stages responder outages, runbook corruption, stale metrics, and surge drills while exporting markdown/JSON evidence for readiness reviews.【F:src/operations/incident_simulation.py†L1-L200】
+- **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI, and a chaos campaign orchestrator that sequences typed drills, rotates responders, escalates severity, and exports Markdown/JSON evidence packs for readiness reviews with reproducible seeds.【F:src/operations/incident_simulation.py†L1-L318】【F:src/operations/incident_simulation.py†L320-L472】
 - **New governance controls**: Pre-launch validation checklist and post-enable audit log document required evidence, checklists,
   and follow-up reviews for each institutional data integration, keeping operational sign-off aligned with readiness audits.
   【F:docs/operations/validation_checklist.md†L1-L40】【F:docs/operations/post_enable_reviews.md†L1-L25】
@@ -933,12 +935,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - Build action item tracking
   - **Acceptance**: Postmortem for every major incident
 
-- [ ] **Build incident simulation (chaos engineering)** (12 hours)
+- [x] **Build incident simulation (chaos engineering)** (12 hours)
   - Implement failure injection
   - Create disaster scenarios
   - Run regular fire drills
-  - **Location**: `src/operations/chaos.py`
-  - **Acceptance**: System resilient to injected failures
+  - **Location**: `src/operations/incident_simulation.py`
+  - **Acceptance**: Chaos campaigns export Markdown/JSON evidence and exercise multiple responder/metrics failure modes
 
 #### 4.4 Disaster Recovery
 
@@ -956,11 +958,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - Store backups in multiple regions
   - **Acceptance**: Backups restorable within 1 hour
 
-- [ ] **Build configuration backup** (8 hours)
+- [x] **Build configuration backup** (8 hours)
   - Version control all configuration
   - Implement configuration snapshots
   - Add configuration rollback capability
-  - **Acceptance**: Configuration recoverable to any point in time
+  - **Location**: `src/operations/configuration_backup.py`
+  - **Acceptance**: Manifest + archive package config trees with deterministic hashing for restores
 
 - [ ] **Create failover infrastructure** (16 hours)
   - Set up hot standby systems

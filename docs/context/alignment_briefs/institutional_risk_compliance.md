@@ -26,7 +26,7 @@
 - Policy & code audit Phase II fail-closed refresh now captures the hardened portfolio risk path, updated regression coverage, and governance follow-ups so reviewers inherit the latest remediation evidence in one packet.【docs/reports/policy_code_audit_phase_ii_fail_closed_refresh.md:1】【src/risk/risk_manager_impl.py:845】【tests/risk/test_risk_manager_impl_additional.py:531】【tests/current/test_risk_manager_impl.py:95】
 - Policy & code audit Phase II follow-up documents the governance approval de-duplication and risk override coercion fixes with pointers to the ledger and risk implementations plus the guarding regression tests so compliance reviewers inherit the remediation evidence in one packet.【F:docs/audits/policy_code_audit_phase2_followup.md†L1-L19】【F:src/governance/policy_ledger.py†L123-L174】【F:src/risk/risk_manager_impl.py†L50-L980】【F:tests/governance/test_policy_ledger.py†L202-L223】【F:tests/current/test_risk_manager_impl.py†L141-L166】
 - Audit documentation playbook consolidates evidence sources (decision diary, policy ledger, compliance workflows) with CLI recipes and signature verification guidance so audit tickets can link directly to reproducible artefacts.【F:docs/audits/audit_documentation.md†L1-L120】【F:docs/audits/audit_documentation.md†L122-L191】
-- Policy & code audit Phase II completion now enumerates audit-log hardening and the locked risk book remediation, pairing fresh guardrail suites so reviewers inherit both the finding narrative and executable proof that corrupt entries are skipped and asynchronous calls cannot race the portfolio snapshot.【F:docs/reports/policy_code_audit_phase2.md†L1-L19】【F:src/governance/audit_logger.py†L203-L338】【F:tests/governance/test_audit_logger.py†L15-L72】【F:src/risk/risk_manager_impl.py†L738-L929】【F:tests/risk/test_risk_manager_impl_additional.py†L648-L694】
+- Policy & code audit Phase II completion now enumerates audit-log hardening and the locked risk book remediation, pairing fresh guardrail suites so reviewers inherit both the finding narrative and executable proof that corrupt entries are skipped, tamper-evident hashes verify continuity, and structured search keeps compliance reviews navigable.【F:docs/reports/policy_code_audit_phase2.md†L1-L19】【F:src/governance/audit_logger.py†L22-L528】【F:tests/governance/test_audit_logger.py†L16-L257】【F:src/risk/risk_manager_impl.py†L738-L929】【F:tests/risk/test_risk_manager_impl_additional.py†L648-L694】
 - Market-regime detection now fails closed when detectors raise, zeroing multipliers, surfacing blocked telemetry, documenting the guardrail in the Phase II audit refresh, and covering the recovery path under regression tests so governance sees deterministic posture for flaky feeds.【docs/audits/policy_code_audit_phase2.md:1】【src/risk/risk_manager_impl.py:639】【tests/risk/test_risk_manager_impl_additional.py:449】
 
 ## Gap themes
@@ -174,6 +174,11 @@
   surfacing active task counts, and exposing markdown evidence with pytest
   guardrails so governance cadences inherit truthful compliance posture
   summaries.【F:src/operations/compliance_readiness.py†L262-L420】【F:tests/operations/test_compliance_readiness.py†L58-L213】
+- Progress: Change management policy evaluation now models impact tiers,
+  approval roles, lead-time requirements, and Markdown export helpers so
+  operational reviews can gate deployments and publish reviewer-ready packets
+  directly from code, with regression coverage locking approvals, warnings,
+  lead-time breaches, and report formatting.【F:src/operations/change_management.py†L1-L382】【F:tests/operations/test_change_management.py†L20-L186】
 - Progress: Governance reporting cadence now uses the shared failover helper to
   publish compiled KYC/AML, regulatory, and audit evidence bundles with typed
   escalation logs, merges section summaries/statuses into metadata, and derives

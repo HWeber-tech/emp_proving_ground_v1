@@ -106,6 +106,7 @@ These components are **production-grade** with comprehensive implementations and
 #### 3. Sentient Learning (`src/sentient/`)
 - **SentientPredator**: Autonomous learning loop that adapts from trade outcomes
 - **FAISSPatternMemory**: Vector-based experience storage with decay and reinforcement
+- **Memory backup & recovery**: Snapshot helper captures FAISS indices/metadata into timestamped folders with retention pruning and restore tooling so operators can rehearse memory recovery workflows in CI.【F:src/sentient/memory/faiss_pattern_memory.py†L53-L324】【F:tests/sentient/test_memory_backup.py†L28-L70】
 - **MemoryAutoRetrainer**: Automates FAISS index rebuilding, batch flushes, and duplicate pruning with persisted state so
   experience stores stay compact even when the optional `faiss` dependency is missing, backed by regression coverage around
   compaction, scheduling, and persistence flows.【F:src/sentient/memory/auto_retraining.py†L1-L336】【F:tests/sentient/test_auto_retraining.py†L1-L110】
@@ -141,6 +142,7 @@ These components are **production-grade** with comprehensive implementations and
 - **LOBSTER dataset parser**: Normalises message and depth snapshots, enforces alignment, and prepares high-frequency order book frames for analytics consumers
 - **Streaming market data cache**: Redis-compatible tick window with warm starts, TTL enforcement, and in-memory fallback for streaming ingestion pipelines
 - **TimescaleQueryInterface**: Unified tick/quote/book query facade with timezone normalisation, SQLite compatibility, and an LRU cache so notebooks and tests reuse recent results without hammering Timescale on repeated queries.【F:src/data_foundation/storage/timescale_queries.py†L1-L158】【F:src/data_foundation/storage/timescale_queries.py†L180-L318】
+- **TimescaleAdapter**: Async ingestion facade that batches DataFrame/iterable payloads, captures per-dimension telemetry, and tolerates partial failures while still returning merged ingest statistics for operational dashboards.【F:src/data_foundation/storage/timescale_adapter.py†L1-L220】【F:tests/data_foundation/test_timescale_adapter.py†L17-L155】
 - **Status**: Functional for historical daily data
 
 #### 7. Governance (`src/governance/`)
@@ -148,7 +150,7 @@ These components are **production-grade** with comprehensive implementations and
 - **PromotionGuard**: Blocks strategy graduation without regime coverage
 - **StrategyRegistry**: Centralized strategy management with lifecycle controls
 - **Kill-switch monitoring**: Async file watcher guards the global kill switch and wires into the runtime so emergency stops trigger graceful shutdowns automatically.【F:src/governance/kill_switch.py†L1-L118】【F:src/runtime/predator_app.py†L1135-L1161】
-- **Tamper-evident audit logging**: Hash-chained JSONL ledger with integrity verification, statistics, and export helpers keeps governance records reviewable even when log entries are corrupted.【F:src/governance/audit_logger.py†L1-L364】
+- **Tamper-evident audit logging**: Hash-chained JSONL ledger now layers structured search across text, metadata paths, and timestamps plus integrity verification, statistics, and export helpers so governance reviews stay navigable even when corrupted rows appear.【F:src/governance/audit_logger.py†L22-L528】【F:tests/governance/test_audit_logger.py†L16-L257】
 - **Audit documentation playbook**: Centralises decision diary, policy ledger, and
   compliance evidence capture with command-level runbooks for audit packs
   (`docs/audits/audit_documentation.md`).
@@ -185,6 +187,7 @@ These components have **architectural foundations** but require additional work:
 
 #### 4. Operations (`src/operations/`)
 - **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI, and a chaos campaign orchestrator that sequences typed drills, rotates responders, escalates severity, and exports Markdown/JSON evidence packs for readiness reviews with reproducible seeds.【F:src/operations/incident_simulation.py†L1-L318】【F:src/operations/incident_simulation.py†L320-L472】
+- **Change management evaluation**: Policy helpers normalise change requests, enforce lead-time and approval thresholds per impact tier, and emit Markdown summaries that gate deployments while feeding governance packets under regression coverage.【F:src/operations/change_management.py†L1-L382】【F:tests/operations/test_change_management.py†L20-L186】
 - **New governance controls**: Pre-launch validation checklist and post-enable audit log document required evidence, checklists,
   and follow-up reviews for each institutional data integration, keeping operational sign-off aligned with readiness audits.
   【F:docs/operations/validation_checklist.md†L1-L40】【F:docs/operations/post_enable_reviews.md†L1-L25】

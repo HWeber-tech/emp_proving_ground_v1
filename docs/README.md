@@ -12,4 +12,6 @@
   - [Core](api/core.md)
   - [Strategies](api/strategies.md)
   - [Risk](api/risk.md)
+- Research
+  - [Fundamental Data Provider Selection](research/fundamental_data_provider_selection.md)
 

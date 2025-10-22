@@ -7,6 +7,7 @@ from .constraints import (
     HardConstraint,
     SoftConstraint,
 )
+from .explorer import ObjectiveSpaceExplorer, ObjectiveSpaceError, TradeOffRecord
 
 __all__ = [
     "ComparisonOperator",
@@ -14,5 +15,8 @@ __all__ = [
     "ConstraintSet",
     "ConstraintViolation",
     "HardConstraint",
+    "ObjectiveSpaceError",
+    "ObjectiveSpaceExplorer",
     "SoftConstraint",
+    "TradeOffRecord",
 ]

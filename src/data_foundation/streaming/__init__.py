@@ -19,6 +19,7 @@ from .latency_benchmark import (
     LatencySummary,
     StreamingLatencyBenchmark,
 )
+from .market_cache import InMemoryRedis, MarketDataCache
 
 __all__ = [
     "KafkaConnectionSettings",
@@ -36,4 +37,6 @@ __all__ = [
     "LatencySample",
     "LatencySummary",
     "StreamingLatencyBenchmark",
+    "MarketDataCache",
+    "InMemoryRedis",
 ]

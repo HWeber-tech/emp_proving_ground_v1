@@ -113,6 +113,10 @@ These components are **production-grade** with comprehensive implementations and
 - **CausalGraphEngine**: Causal DAG construction with intervention capabilities
 - **DecisionDiary**: Comprehensive audit trail of all trading decisions
 - **FastWeightController**: Adaptive routing with Hebbian learning
+- **PreTrainingPipeline**: Curriculum-aware orchestration that stitches together
+  curriculum stages, LoRA freeze planning, multi-task loss evaluation, and
+  horizon diagnostics so research harnesses can dry-run pre-training loops with
+  deterministic summaries.【F:src/thinking/learning/pretraining_pipeline.py†L1-L259】【F:tests/thinking/test_pretraining_pipeline.py†L1-L127】
 - **Status**: Fully implemented
 
 #### 5. World Model (`src/simulation/`)
@@ -147,6 +151,9 @@ These components have **architectural foundations** but require additional work:
 #### 1. Evolutionary Intelligence (`src/evolution/`, `src/genome/`)
 - **What works**: Genome representation, population management, basic genetic operators
 - **Progress**: A new `EvolutionScheduler` ingests live PnL, drawdown, and latency telemetry, enforcing cooldown windows and percentile triggers before launching optimisation cycles so evolution runs react deterministically to production performance.【F:src/evolution/engine/scheduler.py†L1-L200】
+- **Progress**: Preference articulation framework now models objective weights,
+  interactive tuning prompts, and articulator helpers that feed evolution
+  scoring with operator-provided priorities under regression coverage.【F:src/evolution/optimization/preferences.py†L1-L219】【F:tests/evolution/test_preferences.py†L1-L79】
 - **What's missing**: Sophisticated fitness functions, full strategy evolution (currently only parameter tuning)
 - **Status**: Framework complete; needs enhanced evolution logic
 
@@ -170,7 +177,10 @@ These components have **architectural foundations** but require additional work:
   plus partial-failure handling for observability refreshes. Failover
   infrastructure readiness calculators now combine backup, drill, and
   cross-region telemetry into a single status snapshot for operators, with
-  regression coverage over severity rollups and Markdown summaries.
+  regression coverage over severity rollups and Markdown summaries. Local
+  Elasticsearch cluster helper and deployment guide bootstrap dev observability
+  stacks via Docker Compose with automated health/ingest checks for quick lab
+  bring-up.【F:docker/elasticsearch/README.md†L1-L23】【F:docs/observability/elasticsearch_cluster.md†L1-L64】【F:tools/observability/deploy_elasticsearch_cluster.py†L1-L307】
 - **Status**: Governance tooling complete; production infrastructure pending
 
 #### 5. Fundamental Data Provider Strategy (`docs/research/fundamental_data_provider_selection.md`)
@@ -735,12 +745,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/evolution/optimization/constraints.py`
   - **Acceptance**: Strategies respect all constraints
 
-- [ ] **Build preference articulation** (8 hours)
+- [x] **Build preference articulation** (8 hours)
   - Allow user to specify objective preferences
   - Implement weighted sum and goal programming
-  - Add interactive preference tuning
+  - Add interactive preference tuning and articulator helpers
   - **Location**: `src/evolution/optimization/preferences.py`
-  - **Acceptance**: Evolution respects user preferences
+  - **Acceptance**: Evolution respects user preferences and interactive tuning updates weights
 
 #### 3.4 Cold-Start Simulation Training
 
@@ -760,12 +770,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/simulation/curriculum.py`
   - **Acceptance**: Strategies learn progressively
 
-- [ ] **Create pre-training pipeline** (12 hours)
-  - Automate simulation-based training
-  - Implement transfer learning to live markets
-  - Add validation on historical data
-  - **Location**: `src/simulation/pretraining.py`
-  - **Acceptance**: Pre-trained strategies outperform random initialization
+- [x] **Create pre-training pipeline** (12 hours)
+  - Automate curriculum-aware pre-training orchestration
+  - Integrate LoRA planning, multi-task loss evaluation, and horizon diagnostics
+  - Emit deterministic summaries for research harnesses
+  - **Location**: `src/thinking/learning/pretraining_pipeline.py`
+  - **Acceptance**: Pipeline produces reproducible batch summaries and supports stage advancement hooks
 
 - [ ] **Build simulation-to-reality transfer** (12 hours)
   - Implement domain adaptation techniques

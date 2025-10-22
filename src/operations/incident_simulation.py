@@ -6,7 +6,8 @@ import logging
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import Mapping, Sequence
+from random import Random
+from typing import Callable, Mapping, Sequence
 
 from src.operations.incident_response import (
     IncidentResponseMetrics,
@@ -128,6 +129,16 @@ class ChaosEvent:
             return self.description
         return self.event_type.replace("_", " ")
 
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "event_type": self.event_type.value,
+            "severity": self.resolved_severity().value,
+            "description": self.resolved_description(),
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
+
 
 @dataclass(frozen=True)
 class SimulatedChaosEvent:
@@ -202,6 +213,174 @@ class IncidentSimulationResult:
         lines.append("**Incident response snapshot:**")
         lines.append(self.snapshot.to_markdown())
         return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class ChaosScenario:
+    """Declarative chaos drill describing the events to exercise."""
+
+    name: str
+    events: tuple[ChaosEvent, ...] = tuple()
+    description: str | None = None
+    objectives: tuple[str, ...] = tuple()
+    metadata: Mapping[str, object] = field(default_factory=dict)
+    randomise_events: bool = False
+
+    def resolve_events(self, rng: Random | None = None) -> tuple[ChaosEvent, ...]:
+        """Return the ordered chaos events for this scenario."""
+
+        if not self.events:
+            return tuple()
+        if self.randomise_events and rng is not None:
+            events = list(self.events)
+            rng.shuffle(events)
+            return tuple(events)
+        return self.events
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "name": self.name,
+            "events": [event.as_dict() for event in self.events],
+        }
+        if self.description:
+            payload["description"] = self.description
+        if self.objectives:
+            payload["objectives"] = list(self.objectives)
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        if self.randomise_events:
+            payload["randomise_events"] = True
+        return payload
+
+
+@dataclass(frozen=True)
+class ChaosScenarioOutcome:
+    """Outcome captured after running a chaos scenario."""
+
+    scenario: ChaosScenario
+    result: IncidentSimulationResult
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "scenario": self.scenario.as_dict(),
+            "result": self.result.as_dict(),
+        }
+
+
+@dataclass(frozen=True)
+class ChaosCampaignResult:
+    """Aggregated outcome for a collection of chaos scenarios."""
+
+    executed_at: datetime
+    status: IncidentResponseStatus
+    outcomes: tuple[ChaosScenarioOutcome, ...]
+    metadata: Mapping[str, object] = field(default_factory=dict)
+
+    @property
+    def worst_scenario_severity(self) -> IncidentResponseStatus:
+        severity = IncidentResponseStatus.ok
+        for outcome in self.outcomes:
+            severity = _escalate(severity, outcome.result.status)
+        return severity
+
+    def as_dict(self) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "executed_at": self.executed_at.isoformat(),
+            "status": self.status.value,
+            "outcomes": [outcome.as_dict() for outcome in self.outcomes],
+        }
+        if self.metadata:
+            payload["metadata"] = dict(self.metadata)
+        return payload
+
+    def to_markdown(self) -> str:
+        lines = [
+            "## Chaos campaign summary",
+            f"- Executed: {self.executed_at.isoformat()}",
+            f"- Overall status: {self.status.value.upper()}",
+            f"- Scenarios executed: {len(self.outcomes)}",
+            "",
+        ]
+        if self.outcomes:
+            lines.append("### Scenario outcomes")
+            for outcome in self.outcomes:
+                result = outcome.result
+                lines.append(
+                    f"- {outcome.scenario.name}: "
+                    f"{result.status.value.upper()} (worst event {result.worst_event_severity.value.upper()})"
+                )
+        else:
+            lines.append("No scenarios executed.")
+        return "\n".join(lines)
+
+
+StateFactory = Callable[[ChaosScenario], IncidentResponseState]
+
+
+def run_chaos_campaign(
+    policy: IncidentResponsePolicy,
+    base_state: IncidentResponseState,
+    scenarios: Sequence[ChaosScenario],
+    *,
+    state_factory: StateFactory | None = None,
+    random_order: bool = False,
+    random_seed: int | None = None,
+    now: datetime | None = None,
+    metadata: Mapping[str, object] | None = None,
+) -> ChaosCampaignResult:
+    """Execute a series of chaos scenarios and aggregate the outcomes."""
+
+    moment = now or datetime.now(tz=UTC)
+    rng = Random(random_seed) if (random_order or any(s.randomise_events for s in scenarios)) else None
+    scenario_list = list(scenarios)
+
+    if random_order and rng is not None:
+        rng.shuffle(scenario_list)
+
+    outcomes: list[ChaosScenarioOutcome] = []
+    status = IncidentResponseStatus.ok
+
+    for index, scenario in enumerate(scenario_list):
+        scenario_rng = rng if scenario.randomise_events else None
+        scenario_events = scenario.resolve_events(scenario_rng)
+        scenario_state = state_factory(scenario) if state_factory else base_state
+        scenario_metadata: dict[str, object] = {
+            "scenario": scenario.name,
+            "sequence": index + 1,
+        }
+        if metadata:
+            scenario_metadata.update(metadata)
+        if scenario.metadata:
+            scenario_metadata.update(scenario.metadata)
+        if scenario.objectives:
+            scenario_metadata.setdefault("objectives", list(scenario.objectives))
+
+        result = simulate_incident_response(
+            policy,
+            scenario_state,
+            events=scenario_events,
+            scenario=scenario.name,
+            now=moment + timedelta(minutes=index),
+            metadata=scenario_metadata,
+        )
+        status = _escalate(status, result.status)
+        outcomes.append(ChaosScenarioOutcome(scenario=scenario, result=result))
+
+    campaign_metadata: dict[str, object] = {
+        "scenario_names": [outcome.scenario.name for outcome in outcomes],
+        "random_order": random_order,
+    }
+    if random_seed is not None:
+        campaign_metadata["random_seed"] = random_seed
+    if metadata:
+        campaign_metadata.update(metadata)
+
+    return ChaosCampaignResult(
+        executed_at=moment,
+        status=status,
+        outcomes=tuple(outcomes),
+        metadata=campaign_metadata,
+    )
 
 
 def simulate_incident_response(

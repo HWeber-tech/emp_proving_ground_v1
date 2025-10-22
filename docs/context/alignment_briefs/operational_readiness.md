@@ -151,6 +151,9 @@
   JSON evidence pack, and links into the refreshed runbook so operators can drop
   the artifacts straight into the context pack.【F:tools/operations/incident_playbook_validation.py†L208】【F:docs/operations/runbooks/incident_playbook_validation.md†L1】【F:docs/operations/runbooks/incident_playbook_validation.md†L31】【F:tests/tools/test_incident_playbook_validation.py†L9】
 - Progress: Chaos engineering for incident response now lives in `simulate_incident_response`, letting responders stage primary-responder outages, runbook corruption, stale-metrics drills, and surging incident loads while exporting markdown/JSON snapshots for readiness reviews under regression coverage.【F:src/operations/incident_simulation.py†L1-L200】【F:tests/operations/test_incident_simulation.py†L1-L117】
+- Progress: Data integration validation checklist and post-enable audit log now codify pre-launch gating, required evidence, and
+  the two-week follow-up review so institutional ingest promotions ship with repeatable governance packets instead of ad-hoc
+  notes.【F:docs/operations/validation_checklist.md†L1-L40】【F:docs/operations/post_enable_reviews.md†L1-L25】
 - Progress: Kubernetes deployment stack now ships a Kustomize base with replay CronJob/ScaledJob resources, sealed-secret templates, and dev/paper/prod overlays plus a paper profile runbook so operators can deploy autoscaled replay jobs and regenerate secrets without hand-editing manifests.【F:k8s/README.md†L1-L95】【F:k8s/base/replay-scaledjob.yaml†L1-L63】【F:k8s/overlays/paper/kustomization.yaml†L1-L18】【F:docs/deployment/paper_k8s_profile.md†L1-L120】
 - Progress: Containerised runtime profiles now live under `docker/runtime/`, wiring
   the production image to Timescale, Redis, and Kafka with compose health checks,

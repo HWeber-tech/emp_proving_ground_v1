@@ -7,6 +7,12 @@ from .constraints import (
     HardConstraint,
     SoftConstraint,
 )
+from .preferences import (
+    ObjectivePreference,
+    PreferenceArticulator,
+    PreferenceProfile,
+    interactive_preference_tuning,
+)
 
 __all__ = [
     "ComparisonOperator",
@@ -15,4 +21,8 @@ __all__ = [
     "ConstraintViolation",
     "HardConstraint",
     "SoftConstraint",
+    "ObjectivePreference",
+    "PreferenceArticulator",
+    "PreferenceProfile",
+    "interactive_preference_tuning",
 ]

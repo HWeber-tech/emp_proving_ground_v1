@@ -9,6 +9,11 @@ from .tiered_storage import (
     RetentionEnforcementReport,
     RetentionPolicy,
 )
+from .timescale_queries import (
+    QueryCacheStats,
+    TimescaleQueryInterface,
+    TimescaleTickQueryResult,
+)
 
 __all__ = [
     "ArchiveMetadata",
@@ -16,5 +21,8 @@ __all__ = [
     "MicrostructureTieredArchive",
     "RetentionEnforcementReport",
     "RetentionPolicy",
+    "QueryCacheStats",
+    "TimescaleQueryInterface",
+    "TimescaleTickQueryResult",
 ]
 

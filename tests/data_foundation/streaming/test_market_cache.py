@@ -86,3 +86,31 @@ def test_cache_warm_loader_callable() -> None:
     latest = cache.get_latest_tick("AAPL")
     assert latest is not None
     assert latest.price == pytest.approx(100.0)
+
+
+def test_ttl_eviction_removes_expired_keys() -> None:
+    now = datetime(2024, 3, 1, tzinfo=UTC)
+    clock_holder = {"now": now}
+
+    def clock() -> datetime:
+        return clock_holder["now"]
+
+    redis = InMemoryRedis(clock=clock)
+    cache = MarketDataCache(redis_client=redis, window_size=5, ttl_seconds=60)
+
+    cache.store_tick("ETHUSD", _sample_tick(1))
+    assert cache.get_latest_tick("ETHUSD") is not None
+
+    clock_holder["now"] = now + timedelta(seconds=30)
+    assert cache.get_latest_tick("ETHUSD") is not None
+
+    clock_holder["now"] = now + timedelta(seconds=61)
+    assert cache.get_latest_tick("ETHUSD") is None
+    assert redis.lrange("market:ETHUSD", 0, -1) == []
+
+
+def test_zero_ttl_behaves_like_ephemeral_cache() -> None:
+    cache = MarketDataCache(redis_client=InMemoryRedis(), window_size=5, ttl_seconds=0)
+
+    cache.store_tick("BTCUSD", _sample_tick(0))
+    assert cache.get_recent_ticks("BTCUSD") == ()

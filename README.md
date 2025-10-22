@@ -105,6 +105,9 @@ These components are **production-grade** with comprehensive implementations and
 #### 3. Sentient Learning (`src/sentient/`)
 - **SentientPredator**: Autonomous learning loop that adapts from trade outcomes
 - **FAISSPatternMemory**: Vector-based experience storage with decay and reinforcement
+- **MemoryAutoRetrainer**: Automates FAISS index rebuilding, batch flushes, and duplicate pruning with persisted state so
+  experience stores stay compact even when the optional `faiss` dependency is missing, backed by regression coverage around
+  compaction, scheduling, and persistence flows.【F:src/sentient/memory/auto_retraining.py†L1-L336】【F:tests/sentient/test_auto_retraining.py†L1-L110】
 - **Extreme episode detection**: Identifies and stores high-impact market events
 - **Status**: Fully implemented with graceful fallback to in-memory storage
 
@@ -129,6 +132,9 @@ These components are **production-grade** with comprehensive implementations and
 - **PricingPipeline**: Multi-vendor normalization with quality checks, window-aware
   validation hints, and vectorised duplicate/coverage diagnostics that now surface
   resolved window metadata alongside expected candle counts.
+- **WebSocketClient**: Durable streaming client with reconnect, heartbeat, rate limiting,
+  and auto-replayed subscriptions so venue adapters regain data feeds without manual
+  resubscription logic during reconnect scenarios.【F:src/data_foundation/streaming/websocket_client.py†L1-L520】【F:tests/data_foundation/streaming/test_websocket_client.py†L1-L288】
 - **DuckDB storage**: Persistent storage with encryption support and CSV fallback
 - **Symbol mapping**: Broker-agnostic symbol resolution with caching
 - **LOBSTER dataset parser**: Normalises message and depth snapshots, enforces alignment, and prepares high-frequency order book frames for analytics consumers
@@ -171,6 +177,9 @@ These components have **architectural foundations** but require additional work:
 
 #### 4. Operations (`src/operations/`)
 - **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI, and an incident-response chaos simulation harness that stages responder outages, runbook corruption, stale metrics, and surge drills while exporting markdown/JSON evidence for readiness reviews.【F:src/operations/incident_simulation.py†L1-L200】
+- **New governance controls**: Pre-launch validation checklist and post-enable audit log document required evidence, checklists,
+  and follow-up reviews for each institutional data integration, keeping operational sign-off aligned with readiness audits.
+  【F:docs/operations/validation_checklist.md†L1-L40】【F:docs/operations/post_enable_reviews.md†L1-L25】
 - **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
 - **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports,
   emits human-readable saved object summaries, and supports API key/basic auth
@@ -197,7 +206,7 @@ These components have **architectural foundations** but require additional work:
 These features are **required for production deployment** but not yet implemented:
 
 1. **Real-Time Data Streaming**
-   - Broker/WebSocket adapters and live feed supervision still pending. A hardened `WebSocketClient` with reconnect, heartbeat, and rate-limited send support now ships under `data_foundation/streaming`, but venue-specific adapters are not yet wired into ingest pipelines.【F:src/data_foundation/streaming/websocket_client.py†L1-L200】
+    - Broker/WebSocket adapters and live feed supervision still pending. The hardened `WebSocketClient` now layers reconnect, heartbeat, rate-limited send support, and durable subscription replay, but venue-specific adapters are not yet wired into ingest pipelines.【F:src/data_foundation/streaming/websocket_client.py†L1-L520】
    - Streaming cache now retains tick windows with Redis compatibility but has no upstream connectors yet
    - **Impact**: Cannot trade live markets without real-time data
 

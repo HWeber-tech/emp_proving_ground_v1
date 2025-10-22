@@ -41,6 +41,10 @@
   interactive tuning, and articulator helpers that feed weighted scoring into
   evolution loops, with pytest locking clamp, normalisation, and CLI flows so
   operators can shift priorities without bespoke tooling.【F:src/evolution/optimization/preferences.py†L1-L219】【F:tests/evolution/test_preferences.py†L1-L79】
+- Progress: Ecosystem optimizer now hoists species/regime heuristics into cached
+  maps, batch-evaluates genomes, and samples from a bounded selection pool so
+  population churn favours top performers while shrinking the critical path for
+  large species cohorts.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L80-L304】
 - Implement genotype mutation operators that add/drop features, swap execution topology, and tighten risk templates while preserving provenance for governance reviewers.
 - Progress: `op_add_feature`, `op_drop_feature`, `op_swap_execution_topology`, and `op_tighten_risk` now clone immutable genotypes, normalise mapping inputs, and emit `GenotypeOperatorResult` payloads capturing change metadata; the adaptation package exports the helpers and pytest coverage locks duplicate, replacement, and risk-floor scenarios.【F:src/thinking/adaptation/operators.py†L1-L353】【F:src/thinking/adaptation/__init__.py†L28-L98】【F:tests/thinking/adaptation/test_genotype_operators.py†L1-L158】
 - Define telemetry contracts for population health, lineage snapshots, and

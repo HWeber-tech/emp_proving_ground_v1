@@ -46,6 +46,10 @@
   async-path metadata. Recent uplift adds a built-in trend-strength score that
   threads through lineage, telemetry, and default signals so directional probes
   distinguish bullish versus bearish sequences under pytest coverage.【F:src/sensory/what/what_sensor.py†L83-L200】【F:src/sensory/when/when_sensor.py†L147-L230】【F:src/sensory/why/why_sensor.py†L126-L238】【F:tests/sensory/test_primary_dimension_sensors.py†L35-L174】
+- Progress: WHY sensor now consumes `FundamentalSnapshot` payloads, derives
+  valuation/quality metrics, emits composite WHY scores with audit-friendly
+  metadata, and guards error handling for partial datasets so fundamental
+  signals survive missing fields under regression coverage.【F:src/sensory/why/fundamental.py†L1-L239】【F:src/sensory/why/why_sensor.py†L210-L370】【F:tests/sensory/test_why_fundamentals.py†L1-L99】
 - Real sensory organ fuses WHY/WHAT/WHEN/HOW/ANOMALY outputs, publishes
   telemetry snapshots with lineage metadata and bundled metrics payloads, and
   exposes audit/status helpers

@@ -151,8 +151,8 @@ These components have **architectural foundations** but require additional work:
 - **Status**: Framework complete; needs enhanced evolution logic
 
 #### 2. Sensory Cortex (`src/sensory/`)
-- **What works**: RealSensoryOrgan integration, technical indicators, order book analytics framework, plus an `InstrumentTranslator` service that normalises multi-venue aliases (Bloomberg, Reuters, cTrader, CME, NASDAQ) into the universal instrument model using configurable mappings.【F:src/sensory/services/instrument_translator.py†L1-L200】【F:config/system/instrument_aliases.json†L1-L37】
-- **What's missing**: Real-time data feeds, comprehensive fundamental data, live institutional footprint tracking
+- **What works**: RealSensoryOrgan integration, technical indicators, order book analytics framework, a fundamental analysis pipeline that normalises provider payloads into valuation/quality metrics for the WHY sensor, and an `InstrumentTranslator` service that normalises multi-venue aliases (Bloomberg, Reuters, cTrader, CME, NASDAQ) into the universal instrument model using configurable mappings.【F:src/sensory/real_sensory_organ.py†L41-L520】【F:src/sensory/why/fundamental.py†L1-L239】【F:src/sensory/why/why_sensor.py†L70-L210】【F:src/sensory/services/instrument_translator.py†L1-L200】【F:config/system/instrument_aliases.json†L1-L37】
+- **What's missing**: Real-time data feeds, provider-backed fundamental ingestion (current pipeline relies on supplied snapshots), live institutional footprint tracking
 - **Status**: Architecture solid; limited by data source availability
 
 #### 3. Strategy Library (`src/trading/strategies/`)
@@ -167,7 +167,10 @@ These components have **architectural foundations** but require additional work:
 - **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
 - **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports,
   emits human-readable saved object summaries, and supports API key/basic auth
-  plus partial-failure handling for observability refreshes.
+  plus partial-failure handling for observability refreshes. Failover
+  infrastructure readiness calculators now combine backup, drill, and
+  cross-region telemetry into a single status snapshot for operators, with
+  regression coverage over severity rollups and Markdown summaries.
 - **Status**: Governance tooling complete; production infrastructure pending
 
 #### 5. Fundamental Data Provider Strategy (`docs/research/fundamental_data_provider_selection.md`)
@@ -195,7 +198,8 @@ These features are **required for production deployment** but not yet implemente
 
 3. **Comprehensive Backtesting**
    - No historical replay engine
-   - Paper trading exists but not systematic backtest framework
+   - Batch orchestrator now coordinates concurrent runs with supervision, but
+     lacks a replay engine, market simulator, and data pipelines to drive it
    - **Impact**: Cannot validate strategies before live deployment
 
 4. **Automated ML Training Pipeline**
@@ -205,7 +209,8 @@ These features are **required for production deployment** but not yet implemente
 
 5. **OpenBloomberg / Alternative Data**
    - Vendor evaluation complete, but no Bloomberg-equivalent or fundamental adapters implemented
-   - Fundamental provider analysis recommends FMP/Polygon/Intrinio mix, yet ingestion remains to be built
+   - WHY sensor now computes valuation/quality metrics from provided snapshots,
+     yet provider ingestion and storage remain to be built
    - **Impact**: WHY dimension is architecturally present but data-limited
 
 ### 🔧 Enhancement Opportunities
@@ -369,9 +374,10 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/data_foundation/streaming/pipeline.py`
   - **Acceptance**: End-to-end latency <50ms at p99
 
-- [ ] **Implement market data cache** (8 hours)
+- [x] **Implement market data cache** (8 hours)
   - Build Redis-backed tick data cache
-  - Implement sliding window for recent data
+  - Implement sliding window for recent data with configurable TTL refresh and
+    warm-start support
   - Add cache warming on startup
   - **Location**: `src/data_foundation/streaming/market_cache.py`
   - **Acceptance**: Cache hit rate >95% for recent data
@@ -406,9 +412,9 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/data_foundation/storage/fundamental_store.py`
   - **Acceptance**: Store and query 10+ years of fundamental data
 
-- [ ] **Integrate with WHY dimension sensors** (12 hours)
+- [x] **Integrate with WHY dimension sensors** (12 hours)
   - Connect fundamental data to `why_sensor.py`
-  - Implement fundamental analysis features
+  - Implement fundamental analysis features with valuation and quality scoring
   - Build valuation models (P/E, DCF, etc.)
   - **Acceptance**: WHY sensor produces fundamental signals
 
@@ -522,10 +528,11 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/backtesting/market_simulator.py`
   - **Acceptance**: Realistic fill simulation validated against live data
 
-- [ ] **Build backtest orchestrator** (12 hours)
+- [x] **Build backtest orchestrator** (12 hours)
   - Integrate replay engine with existing trading manager
   - Connect to risk manager and execution adapters
-  - Implement parallel backtesting for multiple strategies
+  - Implement parallel backtesting for multiple strategies with supervised
+    task orchestration and progress callbacks
   - **Location**: `src/backtesting/backtest_orchestrator.py`
   - **Acceptance**: Run 10+ strategies in parallel
 

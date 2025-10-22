@@ -12,6 +12,8 @@
   - [Core](api/core.md)
   - [Strategies](api/strategies.md)
   - [Risk](api/risk.md)
+- Audits
+  - [Audit Documentation Playbook](audits/audit_documentation.md)
 - Research
   - [Fundamental Data Provider Selection](research/fundamental_data_provider_selection.md)
 

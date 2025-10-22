@@ -36,6 +36,18 @@ and governance tags consumed by the SQLite-backed registry
 - Scenario uplift: leads `volatility_breakout` scenario with strongest return.
 - Ops focus: ensure latency metrics and liquidity guardrails are enabled.
 
+### Volatility Spread & Gamma Scalping (`vol_synthetic_v1`)
+- Trades the spread between realised and implied volatility with optional gamma
+  scalping overlays and Level 1 liquidity caps.
+- Config exposes entry thresholds, target volatility sizing, gamma bias caps,
+  and microstructure weighting so operators can tune conviction and leverage
+  limits.
+- Scenario uplift: designed for implied-rich regimes; monitor synthetic payoff
+  telemetry and microstructure alignment before scaling capital.
+- Observability: capture realised/implied readings, gamma adjustments, and
+  capacity metadata from `StrategySignal.metadata` to evidence positioning
+  rationale during audits.
+
 ### Multi-Timeframe Momentum (`mtf_momentum_v1`)
 - Confirms direction across 15m / 1h / 1d legs with confirmation ratio 0.6.
 - Catalog encodes leg weights and volatility timeframe (1d, lookback 20).

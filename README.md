@@ -122,7 +122,9 @@ These components are **production-grade** with comprehensive implementations and
 
 #### 6. Data Pipeline (`src/data_foundation/`)
 - **Yahoo Finance integration**: Historical OHLCV data ingestion
-- **PricingPipeline**: Multi-vendor normalization with quality checks
+- **PricingPipeline**: Multi-vendor normalization with quality checks, window-aware
+  validation hints, and vectorised duplicate/coverage diagnostics that now surface
+  resolved window metadata alongside expected candle counts.
 - **DuckDB storage**: Persistent storage with encryption support and CSV fallback
 - **Symbol mapping**: Broker-agnostic symbol resolution with caching
 - **LOBSTER dataset parser**: Normalises message and depth snapshots, enforces alignment, and prepares high-frequency order book frames for analytics consumers
@@ -133,6 +135,9 @@ These components are **production-grade** with comprehensive implementations and
 - **PolicyLedger**: Stage-based promotion with evidence requirements
 - **PromotionGuard**: Blocks strategy graduation without regime coverage
 - **StrategyRegistry**: Centralized strategy management with lifecycle controls
+- **Audit documentation playbook**: Centralises decision diary, policy ledger, and
+  compliance evidence capture with command-level runbooks for audit packs
+  (`docs/audits/audit_documentation.md`).
 - **Status**: Fully implemented per AlphaTrade whitepaper
 
 ### ⚠️ Partially Implemented
@@ -152,12 +157,16 @@ These components have **architectural foundations** but require additional work:
 #### 3. Strategy Library (`src/trading/strategies/`)
 - **What works**: Strategy protocol, signal generation framework, ICT microstructure features
 - **What's missing**: Comprehensive library of tested strategies
-- **Status**: Framework exists; needs strategy development
+- **Status**: Framework exists; needs strategy development – the new
+  `VolatilityTradingStrategy` blends implied vs realised volatility spreads with
+  gamma scalping and microstructure alignment signals under regression coverage.
 
 #### 4. Operations (`src/operations/`)
 - **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI
 - **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
-- **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports with API key/basic auth support
+- **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports,
+  emits human-readable saved object summaries, and supports API key/basic auth
+  plus partial-failure handling for observability refreshes.
 - **Status**: Governance tooling complete; production infrastructure pending
 
 #### 5. Fundamental Data Provider Strategy (`docs/research/fundamental_data_provider_selection.md`)

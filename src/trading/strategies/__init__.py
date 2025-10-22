@@ -24,6 +24,7 @@ from .signals import (
     compute_garch_volatility,
 )
 from .volatility_breakout import VolatilityBreakoutConfig, VolatilityBreakoutStrategy
+from .volatility import VolatilityTradingConfig, VolatilityTradingStrategy
 
 __all__ = [
     "AttributionResult",
@@ -42,6 +43,8 @@ __all__ = [
     "PairTradingStrategy",
     "StrategyAction",
     "StrategySignal",
+    "VolatilityTradingConfig",
+    "VolatilityTradingStrategy",
     "VolatilityBreakoutConfig",
     "VolatilityBreakoutStrategy",
     "compute_performance_attribution",

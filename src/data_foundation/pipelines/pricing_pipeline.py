@@ -162,15 +162,53 @@ class PricingPipeline:
 
         raw = vendor.fetch(config)
         frame = self._normalise_frame(raw, source=config.vendor)
-        issues = self._validate_frame(frame, config)
+
+        symbols = config.normalised_symbols()
+        window_start, window_end = self._resolve_window(config)
+        expected_per_symbol = self._candles_hint_for_window(
+            config, window_start, window_end
+        )
+        issues = self._validate_frame(
+            frame,
+            config,
+            window_end=window_end,
+            expected_per_symbol=expected_per_symbol,
+        )
         metadata = {
             "vendor": config.vendor,
-            "symbol_count": len(config.normalised_symbols()),
+            "symbol_count": len(symbols),
             "row_count": int(len(frame)),
-            "window_start": config.window_start().isoformat(),
-            "window_end": config.window_end().isoformat(),
+            "window_start": window_start.isoformat(),
+            "window_end": window_end.isoformat(),
         }
         return PricingPipelineResult(data=frame, issues=issues, metadata=metadata)
+
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _resolve_window(
+        config: PricingPipelineConfig,
+    ) -> tuple[datetime, datetime]:
+        """Return a consistent (start, end) tuple for the requested window."""
+
+        window_end = config.window_end()
+        if config.start is not None:
+            window_start = PricingPipelineConfig._coerce_ts(config.start)
+        else:
+            window_start = window_end - timedelta(days=max(config.lookback_days, 1))
+        return window_start, window_end
+
+    @staticmethod
+    def _candles_hint_for_window(
+        config: PricingPipelineConfig,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> int:
+        """Approximate the candle count from the resolved window."""
+
+        delta = window_end - window_start
+        if delta <= timedelta(0):
+            return max(config.lookback_days, 1)
+        return max(int(delta.total_seconds() // 86400), 1)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -234,7 +272,12 @@ class PricingPipeline:
 
     # ------------------------------------------------------------------
     def _validate_frame(
-        self, df: pd.DataFrame, config: PricingPipelineConfig
+        self,
+        df: pd.DataFrame,
+        config: PricingPipelineConfig,
+        *,
+        window_end: datetime | None = None,
+        expected_per_symbol: int | None = None,
     ) -> tuple[PricingQualityIssue, ...]:
         issues: list[PricingQualityIssue] = []
 
@@ -248,25 +291,33 @@ class PricingPipeline:
             )
             return tuple(issues)
 
-        duplicated = df[df.duplicated(subset=["symbol", "timestamp"], keep=False)]
-        if not duplicated.empty:
+        duplicated_mask = df.duplicated(subset=["symbol", "timestamp"], keep=False)
+        duplicate_rows = int(duplicated_mask.sum())
+        if duplicate_rows:
             issues.append(
                 PricingQualityIssue(
                     code="duplicate_rows",
                     severity="warning",
                     message="Duplicate candles detected",
-                    context={"rows": int(len(duplicated))},
+                    context={"rows": duplicate_rows},
                 )
             )
 
-        expected_per_symbol = config.candles_per_symbol_hint()
+        if window_end is None:
+            window_end = config.window_end()
+        if expected_per_symbol is None:
+            expected_per_symbol = config.candles_per_symbol_hint()
         min_required = max(int(expected_per_symbol * config.minimum_coverage_ratio), 1)
-        window_end = config.window_end()
         staleness_cutoff = window_end - timedelta(days=2)
 
-        for symbol, group in df.groupby("symbol"):
-            group_count = int(len(group))
-            if group_count < min_required:
+        grouped = df.groupby("symbol", sort=False)
+        group_counts = grouped.size()
+        unique_close = grouped["close"].nunique(dropna=True)
+        latest_ts = grouped["timestamp"].max()
+
+        for symbol, group_count in group_counts.items():
+            observed = int(group_count)
+            if observed < min_required:
                 issues.append(
                     PricingQualityIssue(
                         code="missing_rows",
@@ -274,15 +325,14 @@ class PricingPipeline:
                         message="Observed candles below coverage threshold",
                         symbol=symbol,
                         context={
-                            "observed": group_count,
+                            "observed": observed,
                             "expected_hint": expected_per_symbol,
                             "minimum_required": min_required,
                         },
                     )
                 )
 
-            unique_close = group["close"].dropna().nunique()
-            if group_count > 1 and unique_close <= 1:
+            if observed > 1 and unique_close.get(symbol, 0) <= 1:
                 issues.append(
                     PricingQualityIssue(
                         code="flat_prices",
@@ -292,17 +342,17 @@ class PricingPipeline:
                     )
                 )
 
-            latest_ts = group["timestamp"].max()
-            if pd.isna(latest_ts) or latest_ts.tzinfo is None:
+            latest = latest_ts.get(symbol)
+            if pd.isna(latest) or getattr(latest, "tzinfo", None) is None:
                 continue
-            if latest_ts < staleness_cutoff:
+            if latest < staleness_cutoff:
                 issues.append(
                     PricingQualityIssue(
                         code="stale_series",
                         severity="warning",
                         message="Latest candle predates staleness cutoff",
                         symbol=symbol,
-                        context={"latest": latest_ts.isoformat()},
+                        context={"latest": latest.isoformat()},
                     )
                 )
 

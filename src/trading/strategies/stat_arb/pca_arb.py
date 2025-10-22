@@ -260,7 +260,8 @@ def _extract_price_matrix(
             raise KeyError(f"market data missing symbol {symbol}")
 
         prices = _extract_series(payload)
-        prices = prices[np.isfinite(prices)]
+        if not np.all(np.isfinite(prices)):
+            raise ValueError(f"insufficient_history:{symbol}:non_finite_values")
         if prices.size < required_length:
             raise ValueError(
                 f"insufficient_history:{symbol}:{prices.size}:{required_length}"

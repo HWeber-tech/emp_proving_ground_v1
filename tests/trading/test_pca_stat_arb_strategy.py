@@ -78,3 +78,27 @@ async def test_pca_stat_arb_handles_insufficient_history() -> None:
     assert signal.action == "FLAT"
     assert signal.notional == 0.0
     assert signal.metadata["reason"].startswith("insufficient_history")
+
+
+@pytest.mark.asyncio
+async def test_pca_stat_arb_rejects_non_finite_history() -> None:
+    strategy = PCAStatArbStrategy(
+        "stat_arb_non_finite",
+        ["AAA", "BBB", "CCC"],
+        capital=500_000,
+    )
+
+    base = np.linspace(100.0, 105.0, 140)
+    bbb = base.copy()
+    bbb[50] = np.nan
+    market = {
+        "AAA": {"close": base.tolist()},
+        "BBB": {"close": bbb.tolist()},
+        "CCC": {"close": (base * 1.01).tolist()},
+    }
+
+    signal = await strategy.generate_signal(market, "AAA")
+
+    assert signal.action == "FLAT"
+    assert signal.notional == 0.0
+    assert signal.metadata["reason"] == "insufficient_history:BBB:non_finite_values"

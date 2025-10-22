@@ -10,6 +10,14 @@ from .backtest_orchestrator import (
     BacktestResult,
     BacktestRunner,
 )
+from .performance_analytics import (
+    DrawdownEvent,
+    PerformanceMetrics,
+    TradeAttribution,
+    compute_drawdown_events,
+    compute_performance_metrics,
+    compute_trade_attribution,
+)
 
 __all__ = [
     "BacktestBatchResult",
@@ -18,4 +26,10 @@ __all__ = [
     "BacktestRequest",
     "BacktestResult",
     "BacktestRunner",
+    "DrawdownEvent",
+    "PerformanceMetrics",
+    "TradeAttribution",
+    "compute_drawdown_events",
+    "compute_performance_metrics",
+    "compute_trade_attribution",
 ]

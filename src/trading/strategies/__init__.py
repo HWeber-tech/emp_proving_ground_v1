@@ -17,6 +17,7 @@ from .multi_timeframe_momentum import (
     TimeframeMomentumLegConfig,
 )
 from .pairs import PairTradingConfig, PairTradingStrategy
+from .stat_arb import PCAStatArbConfig, PCAStatArbStrategy
 from .signals import (
     GARCHCalibrationError,
     GARCHVolatilityConfig,
@@ -41,6 +42,8 @@ __all__ = [
     "MomentumStrategyConfig",
     "PairTradingConfig",
     "PairTradingStrategy",
+    "PCAStatArbConfig",
+    "PCAStatArbStrategy",
     "StrategyAction",
     "StrategySignal",
     "VolatilityTradingConfig",

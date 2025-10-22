@@ -26,8 +26,11 @@ poetry run python scripts/data_bootstrap.py \
   --cache-retention-days 7
 ```
 
-The command prints a JSON summary with dataset location, row counts, and any
-quality issues raised by the pipeline validators.
+The command prints a JSON summary with dataset location, row counts, resolved
+window bounds, and any quality issues raised by the pipeline validators. The
+pipeline now normalises window inputs once, deriving expected candle counts per
+symbol from the resolved window so downstream checks share a deterministic
+coverage hint.
 
 ## Multi-source Aggregator
 
@@ -114,10 +117,12 @@ level issues so stale datasets never land in cache.
 `PricingPipeline._validate_frame` issues structured `PricingQualityIssue`
 records. Only `no_data` is flagged as `error`; other checks (`duplicate_rows`,
 `missing_rows`, `flat_prices`, `stale_series`) are `warning`s that include
-symbol-level context. Warnings should trigger manual review but still allow the
-run to proceed. When `--fail-on-quality` is set, the CLI aborts if any
-error-severity issues are present. Without the flag, the JSON summary emitted by
-the CLI still lists all findings so dashboards and notebooks can surface them.
+symbol-level context produced via vectorised group statistics (row counts,
+unique closes, latest timestamp). Warnings should trigger manual review but
+still allow the run to proceed. When `--fail-on-quality` is set, the CLI aborts
+if any error-severity issues are present. Without the flag, the JSON summary
+emitted by the CLI still lists all findings so dashboards and notebooks can
+surface them alongside the resolved window metadata.
 
 ### Timescale ingest scoring
 

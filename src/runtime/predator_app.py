@@ -75,6 +75,7 @@ from src.operations.ingest_trends import (
     format_ingest_trends_markdown,
 )
 from src.governance.audit_logger import AuditLogger
+from src.governance.kill_switch import KillSwitchMonitor
 from src.governance.safety_manager import SafetyManager
 from src.governance.strategy_registry import StrategyRegistry
 from src.reflection.trm.application import apply_auto_applied_suggestions_to_ledger
@@ -340,6 +341,7 @@ class ProfessionalPredatorApp:
         self._runtime_application: "RuntimeApplication | None" = None
         self._backpressure_sessions: set[str] = set()
         self._backpressure_metadata: dict[str, object] | None = None
+        self._kill_switch_monitor: KillSwitchMonitor | None = None
 
     async def __aenter__(self) -> "ProfessionalPredatorApp":
         await self.start()
@@ -1130,6 +1132,34 @@ class ProfessionalPredatorApp:
         await self._stop_component(self.broker_interface)
         await self._stop_component(self.sensory_organ)
 
+    def _start_kill_switch_monitor(self) -> None:
+        path = self.config.kill_switch_path
+        if path is None:
+            self._logger.debug("Kill-switch disabled; monitor not started")
+            return
+
+        monitor = KillSwitchMonitor(path, logger=self._logger, poll_interval=1.0)
+        self._kill_switch_monitor = monitor
+
+        async def _run_monitor() -> None:
+            await monitor.run(
+                self._handle_kill_switch_trigger,
+                stop_event=self._stop_event,
+            )
+
+        self.create_background_task(
+            _run_monitor(),
+            name="kill-switch-monitor",
+            metadata={
+                "component": "governance",
+                "kill_switch_path": str(path),
+            },
+        )
+
+    async def _handle_kill_switch_trigger(self, path: Path) -> None:
+        self._logger.critical("🚨 Kill-switch engaged at %s; requesting shutdown", path)
+        self.request_shutdown()
+
     async def start(self) -> None:
         if self._started:
             return
@@ -1151,6 +1181,7 @@ class ProfessionalPredatorApp:
         self._start_time = datetime.now()
         self._shutdown_time = None
 
+        self._start_kill_switch_monitor()
         await self._activate_components()
         self._logger.info("🎉 Professional Predator initialization complete")
 

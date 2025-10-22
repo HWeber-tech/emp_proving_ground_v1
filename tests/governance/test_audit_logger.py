@@ -111,3 +111,147 @@ def test_verify_integrity_reports_tampering(tmp_path) -> None:
     assert tampered_result["violations"], "Expected violations after tampering"
     reasons = {violation.reason for violation in tampered_result["violations"]}
     assert "hash mismatch" in reasons
+
+
+def test_search_entries_supports_free_text(tmp_path) -> None:
+    log_path = Path(tmp_path) / "audit.jsonl"
+    _write_log(
+        log_path,
+        [
+            json.dumps(
+                {
+                    "timestamp": "2024-01-01T00:00:00",
+                    "event_type": "system_event",
+                    "message": "Alpha heartbeat acknowledged",
+                }
+            ),
+            json.dumps(
+                {
+                    "timestamp": "2024-01-02T00:00:00",
+                    "event_type": "governance_decision",
+                    "metadata": {"notes": "Regulator review scheduled"},
+                }
+            ),
+        ],
+    )
+
+    logger = AuditLogger(log_file=str(log_path))
+    matches = logger.search_entries(text="regulator")
+
+    assert len(matches) == 1
+    assert matches[0]["metadata"]["notes"] == "Regulator review scheduled"
+
+
+def test_search_entries_filters_on_metadata_paths(tmp_path) -> None:
+    log_path = Path(tmp_path) / "audit.jsonl"
+    _write_log(
+        log_path,
+        [
+            json.dumps(
+                {
+                    "timestamp": "2024-01-01T00:00:00",
+                    "event_type": "compliance_check",
+                    "strategy_id": "alpha",
+                    "metadata": {
+                        "approver": "Alice",
+                        "scores": [0.25, 0.9],
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "timestamp": "2024-01-01T01:00:00",
+                    "event_type": "compliance_check",
+                    "strategy_id": "beta",
+                    "metadata": {"approver": "Bob"},
+                }
+            ),
+        ],
+    )
+
+    logger = AuditLogger(log_file=str(log_path))
+
+    matches = logger.search_entries(metadata_filters={"metadata.approver": "alice"})
+    assert [match["strategy_id"] for match in matches] == ["alpha"]
+
+    callable_matches = logger.search_entries(
+        metadata_filters={
+            "metadata.scores": lambda scores: isinstance(scores, list)
+            and scores[-1] > 0.5
+        }
+    )
+    assert [match["strategy_id"] for match in callable_matches] == ["alpha"]
+
+    none_matches = logger.search_entries(metadata_filters={"metadata.approver": "carol"})
+    assert none_matches == []
+
+
+def test_search_entries_respects_time_and_limit(tmp_path) -> None:
+    log_path = Path(tmp_path) / "audit.jsonl"
+    _write_log(
+        log_path,
+        [
+            json.dumps(
+                {
+                    "timestamp": "2024-01-01T00:00:00",
+                    "event_type": "system_event",
+                    "strategy_id": "alpha",
+                }
+            ),
+            json.dumps(
+                {
+                    "timestamp": "2024-01-02T00:00:00",
+                    "event_type": "system_event",
+                    "strategy_id": "beta",
+                }
+            ),
+            json.dumps(
+                {
+                    "timestamp": "2024-01-03T00:00:00",
+                    "event_type": "system_event",
+                    "strategy_id": "gamma",
+                }
+            ),
+        ],
+    )
+
+    logger = AuditLogger(log_file=str(log_path))
+
+    matches = logger.search_entries(
+        event_types=["system_event"],
+        start_time=datetime(2024, 1, 2),
+        limit=1,
+    )
+
+    assert [match["strategy_id"] for match in matches] == ["gamma"]
+
+
+def test_search_entries_match_any_when_requested(tmp_path) -> None:
+    log_path = Path(tmp_path) / "audit.jsonl"
+    _write_log(
+        log_path,
+        [
+            json.dumps(
+                {
+                    "timestamp": "2024-01-01T00:00:00",
+                    "event_type": "system_event",
+                    "message": "Alpha ready",
+                }
+            ),
+            json.dumps(
+                {
+                    "timestamp": "2024-01-01T01:00:00",
+                    "event_type": "system_event",
+                    "message": "Beta confirmed",
+                }
+            ),
+        ],
+    )
+
+    logger = AuditLogger(log_file=str(log_path))
+
+    all_matches = logger.search_entries(text=["alpha", "beta"], match_all_terms=True)
+    assert all_matches == []
+
+    any_matches = logger.search_entries(text=["alpha", "beta"], match_all_terms=False)
+    assert len(any_matches) == 2

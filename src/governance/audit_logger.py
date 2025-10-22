@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
@@ -40,6 +40,9 @@ class AuditIntegrityViolation:
 
     line_number: int
     reason: str
+
+
+_MISSING = object()
 
 
 class AuditLogger:
@@ -397,6 +400,139 @@ class AuditLogger:
         except Exception as e:
             logger.error(f"Error exporting audit log: {e}")
 
+    def search_entries(
+        self,
+        *,
+        text: str | Sequence[str] | None = None,
+        event_types: Sequence[str] | None = None,
+        strategy_ids: Sequence[str] | None = None,
+        metadata_filters: Mapping[str, object] | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        limit: int | None = None,
+        match_all_terms: bool = True,
+        case_sensitive: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Search the audit log using structured and free-text criteria.
+
+        Parameters
+        ----------
+        text:
+            A single term or collection of terms that should appear anywhere in a
+            serialised representation of the entry. By default all terms must be
+            present (case insensitive unless ``case_sensitive`` is true). When
+            ``match_all_terms`` is ``False`` at least one term must match.
+        event_types:
+            Optional collection of event types to match (exact string match).
+        strategy_ids:
+            Optional collection of strategy identifiers to match.
+        metadata_filters:
+            Mapping of ``"dot.separated"`` paths to either literal values or
+            callables. Literal string comparisons respect ``case_sensitive`` and
+            list-valued fields are treated as containing a match when the value is
+            present. Callables receive the resolved value and should return a
+            truthy value to keep the entry.
+        start_time, end_time:
+            Optional inclusive bounds applied to the ``timestamp`` field. Entries
+            with unparsable timestamps are skipped when date filters are active to
+            preserve deterministic filtering.
+        limit:
+            Maximum number of matching entries to return (the most recent matches
+            are kept when the limit is exceeded).
+        match_all_terms:
+            Whether all text terms must match (``True``) or any single term is
+            sufficient (``False``).
+        case_sensitive:
+            Whether text and string metadata comparisons should honour case.
+        """
+
+        if not self.log_path.exists():
+            return []
+
+        terms: list[str]
+        if text is None:
+            terms = []
+        elif isinstance(text, str):
+            terms = [text]
+        else:
+            terms = [term for term in text if isinstance(term, str)]
+
+        if not case_sensitive:
+            terms = [term.lower() for term in terms]
+
+        event_filter = {evt for evt in event_types} if event_types else None
+        strategy_filter = {sid for sid in strategy_ids} if strategy_ids else None
+        metadata_filter = dict(metadata_filters or {})
+
+        matches: list[dict[str, Any]] = []
+
+        try:
+            with open(self.log_path, "r", encoding="utf-8") as handle:
+                for line in handle:
+                    payload = line.strip()
+                    if not payload:
+                        continue
+
+                    try:
+                        entry = json.loads(payload)
+                    except json.JSONDecodeError:
+                        logger.warning("Invalid JSON in audit log: %s", payload)
+                        continue
+
+                    if not isinstance(entry, dict):
+                        logger.warning("Ignoring non-object audit entry: %s", payload)
+                        continue
+
+                    timestamp_raw = entry.get("timestamp")
+                    entry_time: datetime | None
+                    if start_time or end_time:
+                        entry_time = _safe_parse_timestamp(timestamp_raw)
+                        if entry_time is None:
+                            # Unable to guarantee ordering when date filters are
+                            # provided, therefore skip unparsable entries.
+                            continue
+                    else:
+                        entry_time = None
+
+                    if start_time and entry_time and entry_time < start_time:
+                        continue
+                    if end_time and entry_time and entry_time > end_time:
+                        continue
+
+                    if event_filter and entry.get("event_type") not in event_filter:
+                        continue
+                    if strategy_filter and entry.get("strategy_id") not in strategy_filter:
+                        continue
+
+                    if metadata_filter and not _metadata_matches(
+                        entry,
+                        metadata_filter,
+                        case_sensitive=case_sensitive,
+                    ):
+                        continue
+
+                    if terms:
+                        haystack = _build_search_haystack(
+                            entry,
+                            case_sensitive=case_sensitive,
+                        )
+                        if match_all_terms:
+                            if not all(term in haystack for term in terms):
+                                continue
+                        elif not any(term in haystack for term in terms):
+                            continue
+
+                    matches.append(entry)
+
+            if limit is not None and limit >= 0 and len(matches) > limit:
+                matches = matches[-limit:]
+
+            return matches
+
+        except Exception as exc:  # pragma: no cover - defensive guard
+            logger.error("Error searching audit log: %s", exc)
+            return []
+
     def verify_integrity(self) -> dict[str, Any]:
         """Verify the integrity chain of the audit log."""
 
@@ -553,3 +689,121 @@ def _stringify(value: Any) -> str:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+def _metadata_matches(
+    entry: Mapping[str, Any],
+    requirements: Mapping[str, object],
+    *,
+    case_sensitive: bool,
+) -> bool:
+    for path, expected in requirements.items():
+        actual = _resolve_path(entry, path)
+        if actual is _MISSING:
+            return False
+
+        if callable(expected):
+            try:
+                if not expected(actual):
+                    return False
+            except Exception:  # pragma: no cover - defensive, user provided callable
+                logger.debug(
+                    "Audit metadata filter callable raised; rejecting entry", exc_info=True
+                )
+                return False
+            continue
+
+        if isinstance(actual, str) and isinstance(expected, str) and not case_sensitive:
+            if actual.lower() != expected.lower():
+                return False
+            continue
+
+        if _sequence_contains(actual, expected, case_sensitive=case_sensitive):
+            continue
+
+        if actual != expected:
+            return False
+
+    return True
+
+
+def _sequence_contains(value: object, expected: object, *, case_sensitive: bool) -> bool:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return False
+
+    if isinstance(expected, str):
+        return any(
+            isinstance(item, str) and _compare_strings(item, expected, case_sensitive)
+            for item in value
+        )
+
+    if isinstance(expected, Sequence) and not isinstance(
+        expected, (str, bytes, bytearray)
+    ):
+        expected_items = list(expected)
+        if not expected_items:
+            return True
+        for candidate in expected_items:
+            if isinstance(candidate, str):
+                if not _sequence_contains(value, candidate, case_sensitive=case_sensitive):
+                    return False
+            elif candidate not in value:
+                return False
+        return True
+
+    return expected in value
+
+
+def _compare_strings(a: str, b: str, case_sensitive: bool) -> bool:
+    return a == b if case_sensitive else a.lower() == b.lower()
+
+
+def _resolve_path(entry: Mapping[str, Any], path: str) -> object:
+    if not path:
+        return entry
+
+    current: object = entry
+    for component in path.split("."):
+        if isinstance(current, Mapping):
+            current = current.get(component, _MISSING)
+        elif isinstance(current, Sequence) and not isinstance(
+            current, (str, bytes, bytearray)
+        ):
+            if not component.isdigit():
+                return _MISSING
+            index = int(component)
+            try:
+                current = current[index]
+            except (IndexError, TypeError):
+                return _MISSING
+        else:
+            return _MISSING
+
+        if current is _MISSING:
+            return _MISSING
+
+    return current
+
+
+def _build_search_haystack(entry: Mapping[str, Any], *, case_sensitive: bool) -> str:
+    parts: list[str] = []
+
+    def _collect(value: object) -> None:
+        if isinstance(value, Mapping):
+            for key in sorted(value):
+                parts.append(str(key))
+                _collect(value[key])
+        elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            for item in value:
+                _collect(item)
+        else:
+            parts.append(_stringify(value))
+
+    for key in sorted(entry):
+        if key == "integrity":
+            continue
+        parts.append(str(key))
+        _collect(entry[key])
+
+    haystack = " ".join(parts)
+    return haystack if case_sensitive else haystack.lower()

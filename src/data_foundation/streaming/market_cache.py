@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import json
 from typing import Callable, Mapping, MutableSequence, Protocol, Sequence
 
@@ -167,20 +167,23 @@ class InMemoryPipeline:
 class InMemoryRedis:
     """Test double implementing the subset of redis features we need."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, clock: Callable[[], datetime] | None = None) -> None:
         self._store: dict[str, list[str]] = {}
-        self._expiry: dict[str, int] = {}
+        self._expiry: dict[str, datetime] = {}
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     def pipeline(self) -> InMemoryPipeline:
         return InMemoryPipeline(self)
 
     def lpush(self, key: str, *values: str) -> int:
+        self._evict_if_expired(key)
         bucket = self._store.setdefault(key, [])
         for value in values:
             bucket.insert(0, value)
         return len(bucket)
 
     def ltrim(self, key: str, start: int, end: int) -> int:
+        self._evict_if_expired(key)
         bucket = self._store.get(key)
         if bucket is None:
             return 0
@@ -198,6 +201,7 @@ class InMemoryRedis:
         return len(self._store[key])
 
     def lrange(self, key: str, start: int, end: int) -> Sequence[str]:
+        self._evict_if_expired(key)
         bucket = self._store.get(key, [])
         length = len(bucket)
         if not bucket:
@@ -214,6 +218,7 @@ class InMemoryRedis:
     def delete(self, *keys: str) -> int:
         removed = 0
         for key in keys:
+            self._evict_if_expired(key)
             if key in self._store:
                 del self._store[key]
                 removed += 1
@@ -221,8 +226,20 @@ class InMemoryRedis:
         return removed
 
     def expire(self, key: str, ttl_seconds: int) -> bool:
-        self._expiry[key] = ttl_seconds
+        self._evict_if_expired(key)
+        if ttl_seconds <= 0:
+            self.delete(key)
+            return True
+        self._expiry[key] = self._clock() + timedelta(seconds=ttl_seconds)
         return True
+
+    def _evict_if_expired(self, key: str) -> None:
+        deadline = self._expiry.get(key)
+        if deadline is None:
+            return
+        if deadline <= self._clock():
+            self._store.pop(key, None)
+            self._expiry.pop(key, None)
 
 
 class MarketDataCache:

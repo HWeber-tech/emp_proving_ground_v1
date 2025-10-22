@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, Optional
 
@@ -31,15 +34,41 @@ def _safe_parse_timestamp(value: object, *, context: str = "audit entry") -> dat
         return None
 
 
-class AuditLogger:
-    """Audit logger for governance layer actions."""
+@dataclass(frozen=True)
+class AuditIntegrityViolation:
+    """Structured representation of audit integrity issues."""
 
-    def __init__(self, log_file: Optional[str] = None) -> None:
+    line_number: int
+    reason: str
+
+
+class AuditLogger:
+    """Audit logger for governance layer actions with tamper evidence."""
+
+    def __init__(
+        self,
+        log_file: Optional[str] = None,
+        *,
+        enable_integrity: bool = True,
+        _integrity_serializer: Callable[[dict[str, Any]], str] | None = None,
+    ) -> None:
         self.log_file = log_file or "data/audit_log.jsonl"
         self.log_path = Path(self.log_file)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Audit Logger initialized with log file: {self.log_file}")
+        self._enable_integrity = enable_integrity
+        self._integrity_serializer = (
+            _integrity_serializer or _canonicalize_for_integrity
+        )
+        self._last_entry_hash: str | None = None
+        if self._enable_integrity:
+            self._last_entry_hash = self._load_last_entry_hash()
+
+        logger.info(
+            "Audit Logger initialized with log file: %s (integrity=%s)",
+            self.log_file,
+            "enabled" if self._enable_integrity else "disabled",
+        )
 
     def log_decision(
         self,
@@ -194,11 +223,19 @@ class AuditLogger:
 
     def _write_log_entry(self, entry: dict[str, Any]) -> None:
         """Write a log entry to the audit log file."""
+        prepared_entry = dict(entry)
+        if self._enable_integrity:
+            prepared_entry["integrity"] = self._build_integrity_record(prepared_entry)
+
         try:
-            with open(self.log_path, "a") as f:
-                f.write(json.dumps(entry) + "\n")
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(_serialize_entry(prepared_entry))
         except Exception as e:
             logger.error(f"Error writing to audit log: {e}")
+            return
+
+        if self._enable_integrity:
+            self._last_entry_hash = prepared_entry["integrity"]["hash"]
 
     def get_audit_history(
         self,
@@ -214,7 +251,7 @@ class AuditLogger:
                 return []
 
             entries: list[tuple[dict[str, Any], datetime]] = []
-            with open(self.log_path, "r") as f:
+            with open(self.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     payload = line.strip()
                     if not payload:
@@ -268,7 +305,7 @@ class AuditLogger:
                 return {"total_entries": 0, "event_types": {}, "strategies": {}, "date_range": None}
 
             entries = []
-            with open(self.log_path, "r") as f:
+            with open(self.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     payload = line.strip()
                     if not payload:
@@ -359,3 +396,160 @@ class AuditLogger:
             logger.info(f"Audit log exported to: {export_file}")
         except Exception as e:
             logger.error(f"Error exporting audit log: {e}")
+
+    def verify_integrity(self) -> dict[str, Any]:
+        """Verify the integrity chain of the audit log."""
+
+        if not self._enable_integrity:
+            logger.info("Integrity verification skipped because integrity is disabled")
+            return {
+                "valid": True,
+                "checked_entries": 0,
+                "violations": [],
+                "mode": "disabled",
+            }
+
+        if not self.log_path.exists():
+            return {"valid": True, "checked_entries": 0, "violations": [], "mode": "empty"}
+
+        violations: list[AuditIntegrityViolation] = []
+        previous_hash: str | None = None
+        checked_entries = 0
+
+        with open(self.log_path, "r", encoding="utf-8") as f:
+            for line_number, line in enumerate(f, start=1):
+                payload = line.strip()
+                if not payload:
+                    continue
+
+                try:
+                    entry = json.loads(payload)
+                except json.JSONDecodeError as exc:
+                    violations.append(
+                        AuditIntegrityViolation(line_number=line_number, reason=str(exc))
+                    )
+                    previous_hash = None
+                    continue
+
+                if not isinstance(entry, dict):
+                    violations.append(
+                        AuditIntegrityViolation(
+                            line_number=line_number,
+                            reason="entry is not a JSON object",
+                        )
+                    )
+                    previous_hash = None
+                    continue
+
+                integrity_meta = entry.get("integrity")
+                if not isinstance(integrity_meta, dict):
+                    violations.append(
+                        AuditIntegrityViolation(
+                            line_number=line_number,
+                            reason="missing integrity metadata",
+                        )
+                    )
+                    previous_hash = None
+                    continue
+
+                recorded_hash = integrity_meta.get("hash")
+                recorded_prev = integrity_meta.get("previous_hash")
+
+                expected_prev = previous_hash
+                if recorded_prev != expected_prev:
+                    violations.append(
+                        AuditIntegrityViolation(
+                            line_number=line_number,
+                            reason=(
+                                "previous hash mismatch: expected %r but found %r"
+                                % (expected_prev, recorded_prev)
+                            ),
+                        )
+                    )
+
+                computed = self._integrity_serializer(
+                    _canonical_integrity_payload(entry, recorded_prev)
+                )
+                computed_hash = sha256(computed.encode("utf-8")).hexdigest()
+
+                if recorded_hash != computed_hash:
+                    violations.append(
+                        AuditIntegrityViolation(
+                            line_number=line_number,
+                            reason="hash mismatch",
+                        )
+                    )
+                    previous_hash = recorded_hash if isinstance(recorded_hash, str) else None
+                else:
+                    previous_hash = recorded_hash
+                    checked_entries += 1
+
+        return {
+            "valid": not violations,
+            "checked_entries": checked_entries,
+            "violations": violations,
+            "mode": "verified",
+        }
+
+    def _build_integrity_record(self, entry: dict[str, Any]) -> dict[str, Any]:
+        payload = _canonical_integrity_payload(entry, self._last_entry_hash)
+        serialized = self._integrity_serializer(payload)
+        digest = sha256(serialized.encode("utf-8")).hexdigest()
+        return {
+            "hash": digest,
+            "previous_hash": self._last_entry_hash,
+            "version": 1,
+        }
+
+    def _load_last_entry_hash(self) -> str | None:
+        if not self.log_path.exists():
+            return None
+
+        try:
+            with open(self.log_path, "rb") as f:
+                try:
+                    f.seek(-4096, 2)
+                except OSError:
+                    f.seek(0)
+                tail = f.read().decode("utf-8", errors="ignore")
+        except OSError:
+            return None
+
+        for line in reversed(tail.splitlines()):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(entry, dict):
+                continue
+            integrity_meta = entry.get("integrity")
+            if isinstance(integrity_meta, dict):
+                hash_value = integrity_meta.get("hash")
+                if isinstance(hash_value, str):
+                    return hash_value
+        return None
+
+
+def _canonical_integrity_payload(
+    entry: dict[str, Any], previous_hash: str | None
+) -> dict[str, Any]:
+    payload = {key: value for key, value in entry.items() if key != "integrity"}
+    payload["_integrity_previous"] = previous_hash
+    return payload
+
+
+def _canonicalize_for_integrity(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=_stringify)
+
+
+def _serialize_entry(entry: dict[str, Any]) -> str:
+    return json.dumps(entry, separators=(",", ":"), default=_stringify) + "\n"
+
+
+def _stringify(value: Any) -> str:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value)

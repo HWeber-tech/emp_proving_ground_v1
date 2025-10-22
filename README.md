@@ -456,12 +456,16 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - Alert on data quality issues
   - **Acceptance**: Automated quality checks with alerting
 
-- [ ] **Implement Document OCR Compression for Fundamental Analysis** (24 hours)
-  - **Background**: This implements vision-language compression from recent research (DeepSeek-OCR, Oct 2024) that compresses large financial documents (100-page earnings reports) from 50,000+ tokens down to 200-500 tokens while preserving semantic content and extracting structured chart data. This enables real-time fundamental analysis that would otherwise be prohibitively expensive or slow.
-  - **What it does**: Converts unstructured PDFs (earnings reports, Fed minutes, analyst reports) into compact, structured data (text summaries + extracted chart data as JSON) that the WHY sensor can analyze efficiently.
-  - **How it works**: Send PDF to cloud vision API (Google Cloud Vision, OpenAI GPT-4 Vision, or Azure Computer Vision) → API's vision model compresses document internally using neural compression → Receive back compressed text + structured chart data → Store in database → WHY sensor analyzes.
-  - **Why cloud API**: The compression happens inside a pre-trained vision-language model. Using cloud APIs avoids needing GPU infrastructure ($0 additional hardware cost) and leverages state-of-the-art models. Cost is ~$0.15 per 100-page document vs. $5-10 for traditional LLM processing.
-  - **Cost analysis**: Light usage (10 docs/month) = $1.50/month; Medium (100 docs/month) = $15/month; Heavy (1,000 docs/month) = $150/month. At 1,000+ docs/month, consider self-hosted model with GPU.
+- [ ] **Implement Document OCR Compression for Fundamental Analysis** (32 hours)
+  - **Background**: This implements vision-language compression from recent research (DeepSeek optical compression, 2025) that compresses large financial documents (100-page earnings reports) from 50,000+ tokens down to 200-500 tokens while preserving semantic content. This is early research that works well at moderate compression but accuracy drops at extreme compression ratios. This enables real-time fundamental analysis that would otherwise be prohibitively expensive or slow.
+  - **What it does**: Converts unstructured PDFs (earnings reports, Fed minutes, analyst reports) into compact, structured data (text summaries + extracted chart/table data as JSON) that the WHY sensor can analyze efficiently.
+  - **How it works (two-stage pipeline)**: (A) OCR/Layout extraction (Google Cloud Document AI / Azure Document Intelligence / GCP Vision API) extracts text, tables, and layout → (B) VL/LLM summarizer (OpenAI GPT-4 Vision / Gemini Flash / Claude) compresses extracted content with semantic prompt → Store compressed data in database → WHY sensor analyzes.
+  - **Why cloud API**: The two-stage approach leverages specialized OCR services for accurate extraction, then uses vision-language models for semantic compression. Using cloud APIs avoids needing GPU infrastructure ($0 additional hardware cost) and leverages state-of-the-art models.
+  - **Cost analysis**: 
+    - **Stage A (OCR/Layout)**: Google Cloud Vision ~$1.50 per 1,000 pages; Azure Document Intelligence similar per-page pricing (region-specific)
+    - **Stage B (VL/LLM Summarization)**: OpenAI GPT-4 Vision variable (token + image-token based, see pricing docs); Gemini Flash ~$0.075 per 1M input tokens
+    - **Total estimate**: Light usage (10 docs/month, 1,000 pages) = $15-25/month; Medium (100 docs/month, 10,000 pages) = $150-250/month; Heavy (1,000 docs/month) = $1,500-2,500/month
+    - **At 1,000+ docs/month**: Consider self-hosted model with GPU (break-even analysis needed)
   - **Implementation steps**:
     1. **Select and configure cloud vision API** (4 hours)
        - Evaluate Google Cloud Vision, OpenAI GPT-4 Vision, Azure Computer Vision
@@ -475,16 +479,18 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
        - Implement API client with error handling, retries, and rate limiting
        - Add support for batch processing (multiple documents in parallel)
        - Handle API-specific response formats and normalize to common schema
-       - **Location**: `src/sensory/why_sensor/document_processor.py`
-       - **Key methods**: `process_pdf(path)`, `send_to_api(pdf_bytes)`, `parse_api_response(response)`
-       - **Acceptance**: Process 100-page PDF in 10-15 seconds, return structured data
-    3. **Implement chart extraction and parsing** (4 hours)
-       - Parse API response to extract chart data (revenue trends, segment breakdowns, etc.)
-       - Convert chart images/descriptions into structured JSON (e.g., {2021: 94.7, 2022: 108.2})
-       - Handle various chart types: line charts (trends), bar charts (comparisons), tables (metrics)
+       - **Location**: `src/sensory/why/documents/document_processor.py` (follows existing pattern)
+       - **Key methods**: `process_pdf(path)`, `extract_ocr(pdf_bytes)`, `compress_content(ocr_result)`, `parse_response(response)`
+       - **Acceptance**: Process 100-page PDF in ≤60s p50, ≤120s p95 (async batch processing), return structured data
+    3. **Implement chart and table extraction** (8 hours)
+       - **Important**: OCR services detect text/tables but don't convert charts/plots to series values by default
+       - Implement table extraction from OCR results (most financial data is in tables, not charts)
+       - For actual charts: Add DePlot-style plot-to-table conversion or rule-based extractor when chart images detected
+       - Convert extracted tables/charts into structured JSON (e.g., {2021: 94.7, 2022: 108.2})
+       - Handle various formats: tables (primary), line charts (trends), bar charts (comparisons)
        - Validate extracted data for completeness and accuracy
-       - **Location**: `src/sensory/why_sensor/chart_extractor.py`
-       - **Acceptance**: Extract 90%+ of chart data accurately from test documents
+       - **Location**: `src/sensory/why/documents/chart_extractor.py` and `table_extractor.py`
+       - **Acceptance**: Extract 90%+ of table data accurately; 70%+ of chart data (charts are harder)
     4. **Create database schema for compressed documents** (2 hours)
        - Design table: `fundamental_reports` with fields: ticker, quarter, compressed_text, charts (JSONB), metrics (JSONB), timestamp
        - Add indexes on ticker and quarter for fast retrieval
@@ -496,19 +502,20 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
        - Extract key metrics (revenue growth, EPS beat, margin trends) from compressed data
        - Generate trading signals based on fundamental analysis
        - Add fallback to traditional data sources if document processing fails
-       - **Location**: `src/sensory/why_sensor/fundamental_analyzer.py`
+       - **Location**: `src/sensory/why/fundamental_analyzer.py`
        - **Acceptance**: WHY sensor generates signals from compressed earnings reports
     6. **Write comprehensive tests** (2 hours)
        - Unit tests for document processor, chart extractor, API client
        - Integration test: full flow from PDF → compressed data → trading signal
        - Mock API responses to avoid costs during testing
        - Test error handling (API failures, malformed PDFs, missing data)
-       - **Location**: `tests/sensory/why_sensor/test_document_processor.py`
+       - **Location**: `tests/sensory/why/documents/test_document_processor.py`
        - **Acceptance**: 90%+ test coverage, all tests passing
   - **Technical details for developers**:
-    - **What is OCR compression?** Traditional OCR extracts all text from a document (50,000+ words from 100-page PDF). Vision-language compression uses a neural network (vision encoder) to compress the visual representation of the document into a compact latent space (256-512 tokens internally), then a decoder reconstructs only the semantically important text and structured data. This is 10-20x more efficient than traditional OCR + LLM analysis.
-    - **Where does compression happen?** Inside the cloud API's vision model, not in your code. You send a 15MB PDF, the API compresses it internally using their pre-trained model, and you receive back 5KB of structured data. You don't implement the compression algorithm—you just use the API.
-    - **Why is this better than traditional PDF parsing?** Traditional parsing (PyPDF2, pdfplumber) extracts raw text but loses chart data and requires expensive LLM processing to extract meaning. Vision-language models can "see" charts and extract structured data directly from images, plus they compress the text semantically (keeping important info, discarding boilerplate).
+    - **What is OCR compression?** Traditional OCR extracts all text from a document (50,000+ words from 100-page PDF). The two-stage approach: (1) OCR/layout extraction gets structured text and tables, (2) VL/LLM compression uses a vision-language model to semantically compress the content (keeping important info, discarding boilerplate) down to 200-500 tokens. This is 10-20x more efficient than processing raw OCR output with LLMs.
+    - **Where does compression happen?** Stage A (OCR) happens in the OCR API (Google Document AI, Azure DI). Stage B (compression) happens when you send the OCR result to a VL/LLM (GPT-4 Vision, Gemini) with a compression prompt. You orchestrate the two-stage pipeline in your code.
+    - **Why is this better than traditional PDF parsing?** Traditional parsing (PyPDF2, pdfplumber) extracts raw text but loses layout/tables and requires expensive LLM processing. OCR services preserve structure (tables, sections). VL/LLMs can understand context and compress semantically. The two-stage approach gets best of both: accurate extraction + intelligent compression.
+    - **Chart extraction reality**: Most financial data is in tables (balance sheets, income statements), which OCR handles well. Actual charts (line/bar plots) require additional processing (DePlot-style plot-to-table or specialized chart understanding). Prioritize table extraction first.
     - **Example API request/response**:
       ```python
       # Request (simplified)
@@ -528,9 +535,14 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
           'tables': [...]
       }
       ```
-    - **Cost optimization**: Cache processed documents to avoid re-processing. Batch process documents during off-peak hours if possible. Monitor API usage and set budget alerts.
-    - **Error handling**: API can fail (rate limits, downtime, malformed PDFs). Implement exponential backoff retries, fallback to traditional data sources, and alert on repeated failures.
-    - **Privacy consideration**: Documents are sent to third-party API. Most earnings reports are public, but be aware of data leaving your infrastructure. For sensitive documents, consider self-hosted model with GPU (see alternative implementation below).
+    - **Latency expectations**: Google Document AI publishes ~120 pages/min for Gemini Flash tiers (≈50s for 100 pages). Custom extractors may be slower. Set realistic SLAs: ≤60s p50, ≤120s p95 for 100-page documents with batch async processing. Parallelize Stage A and B where possible.
+    - **Cost optimization**: Cache processed documents to avoid re-processing. Batch process documents during off-peak hours if possible. Monitor API usage and set budget alerts. Consider Gemini Flash for Stage B (cheaper than GPT-4 Vision for summarization).
+    - **Error handling**: APIs can fail (rate limits, downtime, malformed PDFs). Implement exponential backoff retries, fallback to traditional data sources, and alert on repeated failures. Handle partial failures gracefully (e.g., OCR succeeds but compression fails).
+    - **Governance and privacy**: 
+      - **No MNPI to third-party APIs**: Only process public documents (earnings reports, Fed minutes). Never send material non-public information.
+      - **Redact before upload**: Strip any sensitive metadata (internal notes, proprietary analysis) before sending to external APIs.
+      - **Audit trail**: Emit tamper-evident audit record for every external API call (document hash, provider, scope, cost) to PolicyLedger/AuditLogger.
+      - **For sensitive documents**: Consider self-hosted model with GPU (see alternative implementation below) to keep data in your infrastructure.
   - **Alternative implementation (self-hosted, requires GPU)**: If processing >1,000 documents/month or have privacy requirements, consider self-hosting the vision model. Requires: NVIDIA GPU (RTX 3060 12GB minimum, RTX 4060 Ti 16GB recommended), pre-trained model (Donut, Pix2Struct, or DeepSeek-OCR if available), inference server (FastAPI + PyTorch). Implementation effort: +40 hours. Operating cost: GPU hardware ($300-600) + electricity (~$30/month). Break-even vs. cloud API: ~80 months at 100 docs/month.
   - **Success metrics**: 90%+ accuracy in extracting key metrics from earnings reports; 10-15 second processing time per document; <$20/month API costs for typical usage; WHY sensor generates actionable signals from compressed documents.
   - **Acceptance**: Process Apple Q4 2024 earnings report (or similar 100-page PDF) → Extract revenue, EPS, margins, guidance → Store in database → WHY sensor generates BUY/SELL/HOLD signal based on fundamental analysis → All within 15 seconds of document release.
@@ -916,6 +928,178 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - Alert on significant improvements
   - **Location**: `src/evolution/reporting.py`
   - **Acceptance**: Clear visibility into evolution progress
+
+#### 3.6 arXiv Research Enhancements
+
+**Objective**: Integrate cutting-edge research from arXiv to enhance system capabilities
+
+**Background**: These enhancements are based on recent peer-reviewed research (2024-2025) that provides natural, non-forced improvements to existing EMP architecture layers. Each enhancement solves a specific problem in the current system without requiring architectural changes.
+
+---
+
+- [ ] **Enhancement 1: Sharpe Ratio Reward Function for Reinforcement Learning** (24 hours)
+  - **Research basis**: "A Deep Reinforcement Learning Framework for Dynamic Portfolio Optimization" (arXiv:2412.18563, Dec 2024)
+  - **What it does**: Replaces simple return-based reward function with Sharpe ratio-based reward that optimizes risk-adjusted returns and ensures stable RL training convergence.
+  - **Where it fits**: THINKING layer → `src/thinking/learning/sentient_learning.py` (existing RL framework)
+  - **Why it's not shoehorned**: You already use RL for strategy learning; this just improves the reward signal (drop-in replacement). Sharpe ratio is a standard finance metric—not forcing ML where it doesn't belong. Solves real problem: naive rewards lead to unstable training and high-risk strategies.
+  - **GPU required**: ❌ **NO** - Pure mathematical formula, no neural network training
+  - **Implementation steps**:
+    1. **Implement Sharpe ratio reward function** (8 hours)
+       - Create `SharpeRewardCalculator` class with rolling window statistics
+       - Formula: `Reward_t = (R_t - R_f) / σ_t` where R_t = portfolio return, R_f = risk-free rate, σ_t = rolling std dev
+       - Implement configurable window sizes (default: 20 periods for daily, 100 for intraday)
+       - Add numerical stability handling (avoid division by zero when σ_t → 0)
+       - **Location**: `src/thinking/learning/rewards/sharpe_reward.py`
+       - **Acceptance**: Calculate Sharpe reward for sample trading history, verify against manual calculation
+    2. **Integrate with existing RL training loop** (8 hours)
+       - Replace current reward function in `sentient_learning.py`
+       - Update reward calculation in experience replay buffer
+       - Modify policy gradient updates to use new reward signal
+       - Maintain backward compatibility (allow switching between reward functions)
+       - **Location**: Modify `src/thinking/learning/sentient_learning.py`
+       - **Acceptance**: RL agent trains with Sharpe reward, no errors in training loop
+    3. **Retrain and compare strategies** (8 hours)
+       - Retrain existing strategies with Sharpe reward function
+       - Compare performance metrics: convergence speed, final Sharpe ratio, drawdowns
+       - Run A/B test: old reward vs. new reward on same historical data
+       - Document performance improvements in strategy validation reports
+       - **Location**: Results saved to `experiments/sharpe_reward_comparison/`
+       - **Acceptance**: New reward function shows improved risk-adjusted performance and training stability
+  - **Technical details for developers**:
+    - **What is Sharpe ratio reward?** Traditional RL rewards use raw returns (profit/loss), which can lead agents to take excessive risk. Sharpe ratio reward divides returns by volatility, encouraging strategies that achieve returns with lower risk. This aligns RL optimization with real-world trading objectives (risk-adjusted performance, not just maximum returns).
+    - **Why rolling window?** Using a rolling window for standard deviation (σ_t) makes the reward adaptive to changing market conditions. During high volatility, the same return gets lower reward (encouraging caution). During low volatility, the same return gets higher reward (encouraging aggression).
+    - **Risk-free rate selection**: Use appropriate risk-free rate for your market: US Treasury yield for USD markets, SOFR for overnight, or 0 for simplicity. The paper uses 0 for short-term trading (intraday/daily) where risk-free returns are negligible.
+    - **Numerical stability**: When volatility approaches zero (rare but possible in very stable periods), add small epsilon (1e-8) to denominator to prevent division by zero. Also clip reward to reasonable range (e.g., [-10, 10]) to prevent extreme values from destabilizing training.
+    - **Expected improvements**: Paper reports consistent positive Sharpe ratios (0.8-1.2) vs. baseline methods (0.3-0.6), faster convergence (30-50% fewer training episodes), and reduced drawdowns (20-40% improvement).
+  - **Success metrics**: RL training converges 30%+ faster; trained strategies achieve Sharpe ratio >0.8 in backtests; drawdowns reduced by 20%+ vs. old reward function.
+  - **Acceptance**: Retrain momentum strategy with Sharpe reward → Backtest shows improved risk-adjusted returns → Compare metrics vs. old reward function → Document results.
+
+---
+
+- [ ] **Enhancement 2: TLOB Transformer for Order Book Analysis** (60 hours)
+  - **Research basis**: "TLOB: A Novel Transformer Model with Dual Attention for Price Trend Prediction with Limit Order Book Data" (arXiv:2502.15757, Feb 2025)
+  - **What it does**: Uses dual attention mechanism (spatial + temporal) to capture complex patterns in limit order book data for superior price prediction. Spatial attention captures relationships between price levels (bid-ask dynamics, depth imbalances). Temporal attention tracks how order book states evolve (order flow patterns, liquidity cycles).
+  - **Where it fits**: HOW sensor → `src/sensory/how/order_book_analytics.py` (microstructure analysis)
+  - **Why it's not shoehorned**: You're already integrating LOBSTER order book data (Phase 1.1 in roadmap). HOW sensor explicitly needs microstructure analysis. Current order book analytics are rule-based; TLOB learns patterns from data. Solves real problem: predicting price movements from order book requires understanding complex spatial-temporal dependencies.
+  - **GPU required**: ⚠️ **OPTIONAL** - Training: 12-24 hours on CPU (one-time, run overnight) or 2-4 hours on GPU. Inference (live trading): CPU is perfect (<10ms per prediction). Alternative: Rent cloud GPU for $2-5 to train in 4 hours.
+  - **Implementation steps**:
+    1. **Integrate TLOB architecture** (24 hours)
+       - Implement dual attention mechanism (spatial attention for price levels, temporal attention for time series)
+       - Create `TLOBModel` class with encoder-decoder architecture
+       - Implement patch-based self-attention (processes order book as 2D image: price levels × time)
+       - Add positional encodings for both spatial (price level) and temporal (time step) dimensions
+       - **Location**: `src/sensory/how/models/tlob_model.py`
+       - **Dependencies**: PyTorch (already in stack), attention mechanism implementation
+       - **Acceptance**: TLOB model architecture implemented, forward pass works on sample order book data
+    2. **Prepare LOBSTER training data** (12 hours)
+       - Load LOBSTER order book snapshots (requires Phase 1.1 LOBSTER integration complete)
+       - Normalize order book features (prices, volumes, depth) to [0, 1] range
+       - Create training labels: price movement direction (up/down/neutral) at different horizons (10, 20, 50, 100 ticks)
+       - Split data: 70% train, 15% validation, 15% test (chronological split, no lookahead bias)
+       - **Location**: `src/sensory/how/data/lobster_dataset.py`
+       - **Acceptance**: Training dataset with 100K+ order book snapshots, labels, ready for model training
+    3. **Train TLOB model** (16 hours - mostly waiting for training)
+       - Implement training loop with Adam optimizer, learning rate scheduling
+       - Use cross-entropy loss for classification (up/down/neutral)
+       - Train on CPU overnight (12-24 hours) or GPU (2-4 hours if available)
+       - Monitor training: loss curves, validation accuracy, attention weight visualizations
+       - Save best model checkpoint based on validation accuracy
+       - **Location**: `src/sensory/how/training/train_tlob.py`
+       - **Acceptance**: Trained model achieves >55% accuracy on test set (paper reports 60-65% for 10-tick horizon)
+    4. **Integrate with HOW sensor** (8 hours)
+       - Load trained TLOB model in `order_book_analytics.py`
+       - Feed live order book snapshots to model for inference (<10ms latency on CPU)
+       - Convert model predictions to trading signals (confidence scores for price direction)
+       - Combine TLOB signals with existing microstructure indicators (bid-ask spread, depth imbalance)
+       - **Location**: Modify `src/sensory/how/order_book_analytics.py`
+       - **Acceptance**: HOW sensor generates TLOB-enhanced signals in live trading, latency <10ms
+  - **Technical details for developers**:
+    - **What is dual attention?** TLOB uses two attention mechanisms: (1) Spatial attention looks across price levels at a single time step (e.g., "bid depth at $100 is unusually high relative to $99.95"), (2) Temporal attention looks at the same price level across time (e.g., "ask volume at $100.05 has been increasing for last 5 snapshots"). This captures both instantaneous order book state and its evolution.
+    - **Why transformers for order books?** Traditional methods (CNNs, LSTMs) struggle with long-range dependencies in order books. Transformers can attend to any price level or time step directly, learning which parts of the order book matter most for prediction. The paper shows transformers outperform CNNs/LSTMs by 5-10% accuracy.
+    - **Prediction horizons**: TLOB works for multiple horizons (10, 20, 50, 100 ticks ahead). Shorter horizons (10-20 ticks) are easier to predict (60-65% accuracy) but less profitable (small price moves). Longer horizons (50-100 ticks) are harder (55-60% accuracy) but more profitable. Choose based on your trading style.
+    - **Data requirements**: Minimum 50K order book snapshots for training (1-2 weeks of LOBSTER data). More data improves performance. Paper uses 500K+ snapshots from FI-2010 benchmark.
+    - **CPU vs GPU training**: On modern CPU (8+ cores), training takes 12-24 hours for 50K snapshots. On GPU (RTX 3060+), 2-4 hours. Since this is one-time training (or monthly retraining), CPU overnight is perfectly acceptable. Inference is fast on CPU (<10ms), so no GPU needed for live trading.
+    - **Code availability**: Paper states "We release the code at [GitHub URL]" - can directly adapt their implementation. Check arXiv paper abstract for GitHub link.
+  - **Success metrics**: Test set accuracy >55% for 10-tick horizon; inference latency <10ms on CPU; backtests show improved entry/exit timing vs. rule-based order book analytics.
+  - **Acceptance**: Train TLOB on LOBSTER data → Integrate with HOW sensor → Backtest strategy with TLOB signals → Compare Sharpe ratio vs. without TLOB → Document 10%+ improvement in risk-adjusted returns.
+
+---
+
+- [ ] **Enhancement 3: FinRL Benchmark Framework Integration** (40 hours)
+  - **Research basis**: "FinRL Contests: Benchmarking Data-driven Financial Reinforcement Learning Agents" (arXiv:2504.02281, May 2025)
+  - **What it does**: Provides standardized environments, benchmark datasets, and baseline algorithms to validate your strategies against state-of-the-art methods. Enables GPU-optimized parallel backtesting for faster iteration.
+  - **Where it fits**: Backtesting infrastructure → Phase 2.1 (you need backtesting anyway)
+  - **Why it's not shoehorned**: You need backtesting framework (it's in roadmap). Solves real problem: without benchmarks, you can't prove your 5-layer architecture outperforms simpler alternatives. Community-driven standard (200+ participants, 100+ institutions). Enables validation that sophistication delivers value.
+  - **GPU required**: ⚠️ **OPTIONAL** - CPU backtesting: 15-30 minutes for 10 strategies. GPU backtesting: 5 minutes for same workload. For most use cases (running backtests overnight or weekly), CPU is perfectly adequate. GPU only matters if you're running hundreds of backtests daily (hyperparameter sweeps).
+  - **Implementation steps**:
+    1. **Install and configure FinRL** (8 hours)
+       - Install FinRL library: `pip install finrl`
+       - Familiarize with FinRL API: environments, datasets, baseline algorithms
+       - Download benchmark datasets (stock trading, crypto, portfolio management)
+       - Set up FinRL configuration for your asset classes and time periods
+       - **Location**: `requirements/finrl.txt` for dependencies
+       - **Acceptance**: FinRL installed, sample environment runs successfully
+    2. **Adapt EMP strategies to FinRL environments** (16 hours)
+       - Create FinRL-compatible wrapper for your strategies
+       - Implement `FinRLStrategyAdapter` that translates between EMP signals and FinRL actions
+       - Map your strategy outputs (BUY/SELL/HOLD + position sizes) to FinRL action space
+       - Handle differences in data formats (FinRL uses pandas DataFrames, EMP uses custom schemas)
+       - **Location**: `src/backtesting/finrl/strategy_adapter.py`
+       - **Acceptance**: Run one EMP strategy in FinRL environment, verify trades execute correctly
+    3. **Run benchmark comparisons** (8 hours)
+       - Select baseline algorithms from FinRL: PPO, A3C, SAC, DDPG
+       - Run your strategies alongside baselines on same datasets and time periods
+       - Collect performance metrics: Sharpe ratio, max drawdown, total return, win rate
+       - Generate comparison reports with statistical significance tests
+       - **Location**: `experiments/finrl_benchmarks/`
+       - **Acceptance**: Comparison report showing your strategies vs. baselines with clear metrics
+    4. **Integrate into CI/CD pipeline** (8 hours)
+       - Add FinRL benchmarking to automated testing pipeline
+       - Run benchmarks on every major strategy change (weekly or on-demand)
+       - Set up alerts if strategy performance degrades below baseline
+       - Archive benchmark results for historical tracking
+       - **Location**: `.github/workflows/finrl_benchmark.yml` or similar CI config
+       - **Acceptance**: Automated benchmarking runs on schedule, results stored and tracked over time
+  - **Technical details for developers**:
+    - **What is FinRL?** FinRL is an open-source framework for financial reinforcement learning research. It provides: (1) Standardized environments (stock trading, crypto, portfolio management), (2) Pre-processed datasets (Yahoo Finance, Binance, etc.), (3) Baseline RL algorithms (PPO, A3C, SAC), (4) GPU-optimized parallel backtesting. It's the de facto standard for comparing RL trading strategies in academic research.
+    - **Why standardized benchmarks matter**: Without benchmarks, you can't objectively assess if your sophisticated 5-layer architecture delivers value over simpler methods. FinRL lets you answer: "Does my EMP system with 4D+1 sensors outperform a simple PPO agent with technical indicators?" If yes, the complexity is justified. If no, you've learned something important.
+    - **GPU acceleration**: FinRL can run multiple strategy simulations in parallel on GPU (vectorized environments). This speeds up hyperparameter sweeps and ensemble testing. However, for typical use (backtesting 5-10 strategies weekly), CPU is fine. GPU matters for research teams running thousands of experiments.
+    - **Baseline algorithms**: FinRL includes proven RL algorithms: PPO (Proximal Policy Optimization), A3C (Asynchronous Advantage Actor-Critic), SAC (Soft Actor-Critic), DDPG (Deep Deterministic Policy Gradient). These are your competition—if your strategies don't beat these, the extra complexity isn't justified.
+    - **Datasets**: FinRL provides clean, preprocessed data: US stocks (2009-2021), crypto (2017-2021), Chinese stocks (CSI 300). You can also add your own data. Use the same data for fair comparison.
+    - **Community and credibility**: 200+ participants in FinRL contests, 100+ institutions using it. Publishing results comparable to FinRL benchmarks gives your work credibility and allows comparison with published research.
+  - **Success metrics**: Your strategies achieve Sharpe ratio ≥1.2 (vs. baseline PPO ~0.8-1.0); max drawdown <15% (vs. baseline ~20-25%); results reproducible and statistically significant (p<0.05).
+  - **Acceptance**: Run momentum + mean reversion strategies in FinRL environment → Compare against PPO/A3C baselines → Generate report showing your strategies outperform baselines by 20%+ in risk-adjusted returns → Document results with statistical significance.
+
+---
+
+**Implementation Priority**:
+
+1. **Priority 1 (Weeks 9-10)**: Sharpe Ratio Reward Function
+   - Lowest effort (24 hours)
+   - Immediate improvement to RL training
+   - No dependencies on other work
+   - No GPU required
+
+2. **Priority 2 (Weeks 11-13)**: TLOB Order Book Attention
+   - Depends on LOBSTER integration (Phase 1.1)
+   - Significant trading edge potential
+   - Natural fit for HOW sensor
+   - GPU optional (train on CPU overnight)
+
+3. **Priority 3 (Weeks 14-15)**: FinRL Benchmarking
+   - Depends on having strategies to benchmark
+   - Validates that Priorities 1 & 2 actually improved performance
+   - Proves sophisticated architecture delivers value
+   - GPU optional (CPU backtesting acceptable)
+
+**Total Effort**: 124 hours (3 weeks full-time or 6 weeks part-time)
+
+**Total Cost**: $0 (all open-source, no GPU required, cloud GPU rental <$10 if desired for TLOB training)
+
+**Expected ROI**: 
+- Sharpe Ratio: 30%+ faster RL convergence, 20%+ drawdown reduction
+- TLOB: 10%+ improvement in order book-based entry/exit timing
+- FinRL: Validation that your system outperforms baselines (or identification of areas needing improvement)
 
 ---
 

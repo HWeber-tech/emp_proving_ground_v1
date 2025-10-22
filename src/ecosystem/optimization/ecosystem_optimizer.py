@@ -77,6 +77,20 @@ class EcosystemSummary(TypedDict):
 class EcosystemOptimizer(IEcosystemOptimizer):
     """Advanced ecosystem optimization system."""
 
+    _SPECIES_SUITABILITY: Dict[str, float] = {
+        "stalker": 0.8,
+        "ambusher": 0.7,
+        "pack_hunter": 0.9,
+        "scavenger": 0.6,
+        "alpha": 0.85,
+    }
+    _DEFAULT_SPECIES_BONUS = 0.5
+    _REGIME_BONUSES: Dict[str, float] = {
+        "trend": 1.1,
+        "volatile": 0.9,
+        "crisis": 0.9,
+    }
+
     def __init__(self) -> None:
         self.niche_detector = NicheDetector()
         self.coordination_engine = CoordinationEngine()
@@ -211,10 +225,13 @@ class EcosystemOptimizer(IEcosystemOptimizer):
                 return []
 
         # Select best performers
-        scored_population: List[Tuple[float, CanonDecisionGenome]] = []
-        for genome in population:
-            score = await self._evaluate_genome_performance(genome, market_context)
-            scored_population.append((score, genome))
+        scored_population: List[Tuple[float, CanonDecisionGenome]] = [
+            (
+                await self._evaluate_genome_performance(genome, market_context),
+                genome,
+            )
+            for genome in population
+        ]
 
         # Sort by performance
         scored_population.sort(key=lambda x: x[0], reverse=True)
@@ -228,19 +245,26 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         ]
 
         # Fill remaining slots
+        if scored_population:
+            pool_size = max(5, len(scored_population) // 2)
+            selection_pool: List[CanonDecisionGenome] = [
+                genome for _, genome in scored_population[:pool_size]
+            ]
+            mutation_rate = float(self.optimization_params["mutation_rate"])
+        else:
+            selection_pool = []
+            mutation_rate = 0.0
+
         child: Optional[CanonDecisionGenome] = None
-        while len(new_population) < target_size and scored_population:
+        while len(new_population) < target_size and selection_pool:
             # Crossover and mutation
-            if len(scored_population) >= 2:
-                parent1 = random.choice(scored_population[: max(5, len(scored_population) // 2)])[1]
-                parent2 = random.choice(scored_population[: max(5, len(scored_population) // 2)])[1]
+            if len(selection_pool) >= 2:
+                parent1, parent2 = random.sample(selection_pool, 2)
                 child = self._crossover_genomes(parent1, parent2)
             else:
-                child = scored_population[0][1] if scored_population else None
+                child = selection_pool[0]
 
-            if child is not None and random.random() < float(
-                self.optimization_params["mutation_rate"]
-            ):
+            if child is not None and random.random() < mutation_rate:
                 child = self._mutate_genome(child)
 
             if child is not None:
@@ -257,28 +281,25 @@ class EcosystemOptimizer(IEcosystemOptimizer):
         base_score = 0.5
 
         # Adjust for species suitability
-        species_suitability: Dict[str, float] = {
-            "stalker": 0.8,
-            "ambusher": 0.7,
-            "pack_hunter": 0.9,
-            "scavenger": 0.6,
-            "alpha": 0.85,
-        }
-
         species = (genome.species_type or "").lower()
-        species_bonus = species_suitability.get(species, 0.5)
+        species_bonus = self._SPECIES_SUITABILITY.get(
+            species, self._DEFAULT_SPECIES_BONUS
+        )
 
         # Adjust for market regime
-        regime_bonus = 1.0
         regime_attr = getattr(market_context, "regime", "")
         try:
-            regime_str = str(regime_attr).lower()
-        except (TypeError, ValueError, AttributeError):
-            regime_str = ""
-        if "trend" in regime_str:
-            regime_bonus = 1.1
-        elif "volatile" in regime_str or "crisis" in regime_str:
-            regime_bonus = 0.9
+            regime_key = str(regime_attr).lower()
+        except Exception:  # pragma: no cover - defensive against exotic repr
+            regime_key = ""
+
+        regime_bonus = 1.0
+        if "trend" in regime_key:
+            regime_bonus = self._REGIME_BONUSES["trend"]
+        elif "volatile" in regime_key:
+            regime_bonus = self._REGIME_BONUSES["volatile"]
+        elif "crisis" in regime_key:
+            regime_bonus = self._REGIME_BONUSES["crisis"]
 
         return float(base_score * species_bonus * regime_bonus)
 

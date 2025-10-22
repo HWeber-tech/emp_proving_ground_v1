@@ -146,11 +146,12 @@ These components have **architectural foundations** but require additional work:
 
 #### 1. Evolutionary Intelligence (`src/evolution/`, `src/genome/`)
 - **What works**: Genome representation, population management, basic genetic operators
+- **Progress**: A new `EvolutionScheduler` ingests live PnL, drawdown, and latency telemetry, enforcing cooldown windows and percentile triggers before launching optimisation cycles so evolution runs react deterministically to production performance.【F:src/evolution/engine/scheduler.py†L1-L200】
 - **What's missing**: Sophisticated fitness functions, full strategy evolution (currently only parameter tuning)
 - **Status**: Framework complete; needs enhanced evolution logic
 
 #### 2. Sensory Cortex (`src/sensory/`)
-- **What works**: RealSensoryOrgan integration, technical indicators, order book analytics framework
+- **What works**: RealSensoryOrgan integration, technical indicators, order book analytics framework, plus an `InstrumentTranslator` service that normalises multi-venue aliases (Bloomberg, Reuters, cTrader, CME, NASDAQ) into the universal instrument model using configurable mappings.【F:src/sensory/services/instrument_translator.py†L1-L200】【F:config/system/instrument_aliases.json†L1-L37】
 - **What's missing**: Real-time data feeds, comprehensive fundamental data, live institutional footprint tracking
 - **Status**: Architecture solid; limited by data source availability
 
@@ -162,7 +163,7 @@ These components have **architectural foundations** but require additional work:
   gamma scalping and microstructure alignment signals under regression coverage.
 
 #### 4. Operations (`src/operations/`)
-- **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI
+- **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI, and an incident-response chaos simulation harness that stages responder outages, runbook corruption, stale metrics, and surge drills while exporting markdown/JSON evidence for readiness reviews.【F:src/operations/incident_simulation.py†L1-L200】
 - **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
 - **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports,
   emits human-readable saved object summaries, and supports API key/basic auth
@@ -183,7 +184,7 @@ These components have **architectural foundations** but require additional work:
 These features are **required for production deployment** but not yet implemented:
 
 1. **Real-Time Data Streaming**
-   - Broker/WebSocket adapters and live feed supervision still pending
+   - Broker/WebSocket adapters and live feed supervision still pending. A hardened `WebSocketClient` with reconnect, heartbeat, and rate-limited send support now ships under `data_foundation/streaming`, but venue-specific adapters are not yet wired into ingest pipelines.【F:src/data_foundation/streaming/websocket_client.py†L1-L200】
    - Streaming cache now retains tick windows with Redis compatibility but has no upstream connectors yet
    - **Impact**: Cannot trade live markets without real-time data
 

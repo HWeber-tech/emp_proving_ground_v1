@@ -19,6 +19,7 @@
   connectivity probes so audits receive a single `LiveMarketSnapshot` payload;
   synchronous and asynchronous paths plus JSON serialisation live under
   regression coverage and a refreshed runbook section for operators.【F:src/sensory/services/live_market_feed.py†L37-L334】【F:tests/sensory/test_live_market_feed.py†L1-L134】【F:docs/runbooks/sensor_drift_monitoring.md†L76-L103】
+- Sensory services now expose an `InstrumentTranslator` that loads configurable alias maps, normalises venue namespaces, enforces conflict detection, and converts between universal EMP instruments and broker identifiers under regression coverage so downstream feeds can speak a single symbol language.【F:src/sensory/services/instrument_translator.py†L1-L200】【F:config/system/instrument_aliases.json†L1-L37】【F:tests/sensory/test_instrument_translator.py†L1-L64】
 - Dead-code and dependency audits list sensory modules among unused paths,
   underscoring the lack of executable coverage.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Technical debt priorities call out async hazards and namespace drift that block

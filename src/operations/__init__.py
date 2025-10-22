@@ -20,6 +20,26 @@ _EXPORTS = {
     'BackupReadinessSnapshot': ('src.operations.backup', 'BackupReadinessSnapshot'),
     'BackupState': ('src.operations.backup', 'BackupState'),
     'BackupStatus': ('src.operations.backup', 'BackupStatus'),
+    'ConfigurationBackupEntry': (
+        'src.operations.configuration_backup',
+        'ConfigurationBackupEntry',
+    ),
+    'ConfigurationBackupManifest': (
+        'src.operations.configuration_backup',
+        'ConfigurationBackupManifest',
+    ),
+    'ConfigurationBackupPlan': (
+        'src.operations.configuration_backup',
+        'ConfigurationBackupPlan',
+    ),
+    'ConfigurationBackupResult': (
+        'src.operations.configuration_backup',
+        'ConfigurationBackupResult',
+    ),
+    'ConfigurationBackupSource': (
+        'src.operations.configuration_backup',
+        'ConfigurationBackupSource',
+    ),
     'CacheHealthSnapshot': ('src.operations.cache_health', 'CacheHealthSnapshot'),
     'CacheHealthStatus': ('src.operations.cache_health', 'CacheHealthStatus'),
     'ComplianceReadinessComponent': ('src.operations.compliance_readiness', 'ComplianceReadinessComponent'),
@@ -166,6 +186,14 @@ _EXPORTS = {
     'build_observability_dashboard': ('src.operations.observability_dashboard', 'build_observability_dashboard'),
     'build_quality_telemetry_snapshot': ('src.operations.quality_telemetry', 'build_quality_telemetry_snapshot'),
     'build_sensory_summary': ('src.operations.sensory_summary', 'build_sensory_summary'),
+    'build_configuration_backup': (
+        'src.operations.configuration_backup',
+        'build_configuration_backup',
+    ),
+    'default_configuration_backup_plan': (
+        'src.operations.configuration_backup',
+        'default_configuration_backup_plan',
+    ),
     'default_alert_policy_config': ('src.operations.alerts', 'default_alert_policy_config'),
     'derive_drift_alerts': ('src.operations.sensory_drift', 'derive_drift_alerts'),
     'derive_drift_sentry_alerts': ('src.operations.drift_sentry', 'derive_drift_sentry_alerts'),

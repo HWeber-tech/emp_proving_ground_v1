@@ -43,6 +43,13 @@ from src.evolution.lineage_telemetry import (
     build_lineage_snapshot,
 )
 from src.evolution.mutation_ledger import MutationLedger
+from src.evolution.safety import (
+    EvolutionSafetyController,
+    EvolutionSafetyDecision,
+    EvolutionSafetyPolicy,
+    EvolutionSafetyState,
+    EvolutionSafetyViolation,
+)
 from src.evolution.engine import (
     EvolutionScheduler,
     EvolutionSchedulerConfig,
@@ -77,6 +84,11 @@ __all__ = [
     "load_recorded_snapshots",
     "summarise_recorded_replay",
     "MutationLedger",
+    "EvolutionSafetyController",
+    "EvolutionSafetyDecision",
+    "EvolutionSafetyPolicy",
+    "EvolutionSafetyState",
+    "EvolutionSafetyViolation",
     "EvolutionScheduler",
     "EvolutionSchedulerConfig",
     "EvolutionSchedulerDecision",

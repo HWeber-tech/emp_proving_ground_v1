@@ -18,7 +18,7 @@ This document provides an honest assessment of the current development state of 
 
 ### 🚧 Framework-Only Modules
 
-- **Evolution / intelligence** – Major subsystems remain placeholders with `pass` stubs and no concrete algorithms, e.g. the episodic memory system.【F:src/evolution/episodic_memory_system.py†L4-L11】
+- **Evolution / intelligence** – Core orchestration still leans on scaffolding (e.g., episodic memory remains a stub), but multi-objective search (`NSGA2`) and institutional guard rails (`EvolutionSafetyController`) are now implemented even though they are not yet wired into end-to-end adaptive runs.【F:src/evolution/episodic_memory_system.py†L4-L11】【F:src/evolution/algorithms/nsga2.py†L1-L334】【F:src/evolution/safety/controls.py†L1-L260】
 - **Execution & strategy layers** – Legacy classes like `FIXExecutor` still simulate behaviour with logging rather than integrating with the new FIX stack, signalling pending refactors for real order routing.【F:src/trading/execution/fix_executor.py†L51-L244】
 - **Monitoring utilities** – Some operational helpers (e.g. parity checker) provide thin wrappers around metrics sinks without broker integrations, highlighting that live parity reconciliation is unfinished.【F:src/trading/monitoring/parity_checker.py†L27-L129】
 
@@ -26,7 +26,7 @@ This document provides an honest assessment of the current development state of 
 
 - No production market data ingestion beyond the simulator.
 - No validated trading strategies, risk sizing, or portfolio management loops.
-- Research components (genetic evolution, intelligence) remain architectural sketches awaiting concrete algorithms.
+- Research components (genetic evolution, intelligence) retain large architectural gaps despite the new NSGA-II primitive and safety enforcement layer.
 
 ## Test Coverage Snapshot
 

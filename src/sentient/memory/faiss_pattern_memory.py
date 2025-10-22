@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import shutil
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -55,6 +56,10 @@ class _BasePatternMemory:
         self.index_path = Path(config.get("index_path", "data/memory/faiss_index"))
         self.metadata_path = Path(config.get("metadata_path", "data/memory/metadata.json"))
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_dir_default = self.metadata_path.parent / "backups"
+        self.backup_dir = Path(config.get("backup_dir", backup_dir_default))
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        self.backup_retention = int(config.get("backup_retention", 5))
         self.memory_counter = 0
         self.metadata: dict[str, Any] = {}
         self.max_memories = int(config.get("max_memories", 10000))
@@ -77,6 +82,12 @@ class _BasePatternMemory:
         self.decay_interval = int(config.get("decay_interval", 50))
         if self.decay_interval < 0:
             self.decay_interval = 0
+
+    @staticmethod
+    def _slugify(value: str) -> str:
+        cleaned = [ch.lower() for ch in value if ch.isalnum() or ch in {"-", "_"}]
+        slug = "".join(cleaned).strip("-_")
+        return slug[:40]
 
     def _should_run_decay(self) -> bool:
         return self.decay_interval > 0 and self.memory_counter % self.decay_interval == 0
@@ -175,6 +186,143 @@ class _BasePatternMemory:
             arr = arr / norm
         return arr
 
+    def _pre_backup(self) -> None:
+        """Hook executed before a backup is captured."""
+
+    def _export_index_snapshot(self, destination: Path) -> Optional[str]:
+        """Copy index artefacts into the backup folder if present."""
+
+        if self.index_path.exists():
+            target = destination / self.index_path.name
+            shutil.copy2(self.index_path, target)
+            return target.name
+        return None
+
+    def _restore_index_snapshot(self, source: Path) -> None:
+        """Restore index artefacts from a backup folder when present."""
+
+        snapshot = source / self.index_path.name
+        if snapshot.exists():
+            shutil.copy2(snapshot, self.index_path)
+
+    def _post_restore(self) -> None:
+        """Hook executed after metadata and index files are restored."""
+
+    def _prune_backups(self) -> None:
+        if self.backup_retention <= 0:
+            return
+        backups = sorted(
+            [path for path in self.backup_dir.iterdir() if path.is_dir()]
+        )
+        if len(backups) <= self.backup_retention:
+            return
+        for path in backups[: len(backups) - self.backup_retention]:
+            try:
+                shutil.rmtree(path)
+            except FileNotFoundError:  # pragma: no cover - race safe
+                continue
+
+    def list_backups(self) -> list[Path]:
+        """Return available backups sorted from oldest to newest."""
+
+        backups = [path for path in self.backup_dir.iterdir() if path.is_dir()]
+        backups.sort()
+        return backups
+
+    def create_backup(self, reason: Optional[str] = None) -> dict[str, Any]:
+        """Persist the current memory state to a timestamped backup folder."""
+
+        saver = getattr(self, "_save_metadata", None)
+        if callable(saver):
+            saver()
+
+        self._pre_backup()
+
+        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+        suffix = self._slugify(reason) if reason else ""
+        folder_name = f"{timestamp}_{suffix}" if suffix else timestamp
+        backup_path = self.backup_dir / folder_name
+        counter = 1
+        while backup_path.exists():
+            backup_path = self.backup_dir / f"{folder_name}_{counter}"
+            counter += 1
+
+        backup_path.mkdir(parents=True, exist_ok=True)
+
+        copied_files: dict[str, str] = {}
+        if self.metadata_path.exists():
+            target = backup_path / self.metadata_path.name
+            shutil.copy2(self.metadata_path, target)
+            copied_files["metadata"] = target.name
+
+        index_snapshot = self._export_index_snapshot(backup_path)
+        if index_snapshot:
+            copied_files["index"] = index_snapshot
+
+        stats = self.get_memory_stats()
+        manifest = {
+            "created_at": datetime.utcnow().isoformat(),
+            "reason": reason,
+            "files": copied_files,
+            "memory_counter": self.memory_counter,
+            "stats": stats,
+        }
+        with (backup_path / "manifest.json").open("w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, default=str, indent=2)
+
+        self._prune_backups()
+
+        return {"backup_path": str(backup_path), "files": copied_files, "stats": stats}
+
+    def _resolve_backup_path(self, backup: Optional[str | Path]) -> Optional[Path]:
+        if backup is not None:
+            candidate = Path(backup)
+            if candidate.is_dir():
+                return candidate
+            candidate = self.backup_dir / str(backup)
+            if candidate.is_dir():
+                return candidate
+            return None
+
+        backups = self.list_backups()
+        return backups[-1] if backups else None
+
+    def restore_backup(self, backup: Optional[str | Path] = None) -> dict[str, Any]:
+        """Restore memory state from a previously created backup."""
+
+        backup_path = self._resolve_backup_path(backup)
+        if backup_path is None:
+            raise FileNotFoundError("No backup available to restore")
+
+        metadata_source = backup_path / self.metadata_path.name
+        if metadata_source.exists():
+            shutil.copy2(metadata_source, self.metadata_path)
+        else:
+            raise FileNotFoundError(
+                f"Backup missing metadata file: {metadata_source.name}"
+            )
+
+        self._restore_index_snapshot(backup_path)
+
+        loader = getattr(self, "_load_metadata", None)
+        if callable(loader):
+            loader()
+
+        self._post_restore()
+
+        manifest_path = backup_path / "manifest.json"
+        manifest: dict[str, Any] | None = None
+        if manifest_path.exists():
+            with manifest_path.open("r", encoding="utf-8") as handle:
+                manifest = json.load(handle)
+
+        stats = self.get_memory_stats()
+        return {
+            "restored_from": str(backup_path),
+            "manifest": manifest,
+            "stats": stats,
+        }
+
     def store_extreme_episode(
         self, latent_summary: np.ndarray, metadata: dict[str, Any]
     ) -> str:
@@ -235,6 +383,22 @@ if faiss is not None:
             self.index: Optional[faiss.Index] = None
             self._initialize_index()
             self._load_metadata()
+
+        def _pre_backup(self) -> None:
+            if self.index is not None:
+                faiss.write_index(self.index, str(self.index_path))
+
+        def _restore_index_snapshot(self, source: Path) -> None:
+            snapshot = source / self.index_path.name
+            if snapshot.exists():
+                shutil.copy2(snapshot, self.index_path)
+                self._initialize_index()
+            else:
+                self.index = faiss.IndexFlatL2(self.dimension)
+
+        def _post_restore(self) -> None:
+            if self.index is None:
+                self._initialize_index()
 
         def _initialize_index(self) -> None:
             if self.index_path.exists():
@@ -544,6 +708,7 @@ else:
 
             self.memory_counter = int(raw.get("__counter__", 0))
             entries = raw.get("entries", {})
+            self._memories = {}
             for memory_id, payload in entries.items():
                 try:
                     entry = MemoryEntry(

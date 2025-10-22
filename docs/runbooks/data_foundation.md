@@ -139,6 +139,48 @@ breaches append explanatory messages, and any anomalies detected by
   upstream source, and rerun the plan with fresh expectations before resuming
   downstream processing.
 
+## Timescale adapter for batched ingestion
+
+* Module: `src/data_foundation/storage/timescale_adapter.py`
+
+The `TimescaleAdapter` wraps `TimescaleIngestor` with an async-friendly batching
+layer that accepts pandas DataFrames or iterable payloads, chunks them into
+configurable batch sizes, and merges ingest telemetry (rows written, symbol
+coverage, duration, freshness) into a single `TimescaleAdapterResult`. Errors are
+captured per chunk so partial failures still return diagnostics to operational
+dashboards.【F:src/data_foundation/storage/timescale_adapter.py†L73-L220】 Regression
+tests exercise batching, iterable support, and error recovery to keep ingestion
+drills deterministic.【F:tests/data_foundation/test_timescale_adapter.py†L17-L155】
+
+Example usage when wiring the adapter into an async ingest plan:
+
+```python
+import asyncio
+import pandas as pd
+
+from src.data_foundation.persist.timescale import TimescaleConnectionSettings
+from src.data_foundation.storage import TimescaleAdapter
+
+
+async def main() -> None:
+    settings = TimescaleConnectionSettings(url="sqlite:///demo_timescale.db")
+    engine = settings.create_engine()
+    adapter = TimescaleAdapter(engine, batch_size=1_000, chunk_size=256)
+
+    frame = pd.DataFrame(
+        {"timestamp": pd.date_range("2024-01-01", periods=2, freq="1S"),
+         "symbol": ["EURUSD", "EURUSD"],
+         "price": [1.101, 1.102],
+         "size": [100, 120]}
+    )
+
+    result = await adapter.ingest_intraday_trades(frame, source="shadow-feed")
+    if not result.ok:
+        raise RuntimeError(f"ingest issues: {result.errors}")
+
+asyncio.run(main())
+```
+
 ## Streaming Latency Benchmarking
 
 * Module: `src/data_foundation/streaming/latency_benchmark.py`

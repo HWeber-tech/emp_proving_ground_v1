@@ -148,6 +148,12 @@
 - Progress: Timescale ingest helpers now validate schema/table identifiers at
   construction time and assert the contract under regression coverage so policy
   payloads cannot inject unsafe SQL into institutional ingest jobs.【F:src/data_foundation/persist/timescale.py†L1-L120】【F:tests/data_foundation/test_timescale_ingest.py†L1-L83】
+- Progress: Async Timescale adapter now batches DataFrame and iterable payloads,
+  writes through `TimescaleIngestor` on worker threads, and aggregates telemetry
+  (rows, symbols, window bounds, freshness, errors) into a single
+  `TimescaleAdapterResult`, with regression coverage spanning batching,
+  iterable inputs, and fault tolerance so operations inherit deterministic
+  ingest diagnostics.【F:src/data_foundation/storage/timescale_adapter.py†L73-L220】【F:tests/data_foundation/test_timescale_adapter.py†L17-L155】
 - Progress: Macro calendar ingestion now uses a hardened FRED client that reads
   API keys from dotenv files, normalises release metadata, and returns sorted
   `MacroEvent` payloads so Timescale plans can annotate runs with real economic

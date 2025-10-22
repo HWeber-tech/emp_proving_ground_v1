@@ -94,6 +94,7 @@ These components are **production-grade** with comprehensive implementations and
 - **RiskManagerImpl**: Multi-layer risk enforcement with exposure limits, leverage caps, sector constraints, and drawdown protection
 - **Volatility-aware position sizing**: Dynamic allocation based on market conditions
 - **Policy enforcement**: Real-time validation with audit trails
+- **Monte Carlo analytics**: Geometric Brownian motion simulator with optional antithetic variates and VaR/ES helpers for downstream risk reports.【F:src/risk/analytics/monte_carlo.py†L1-L171】
 - **Status**: Production-ready
 
 #### 2. Execution Layer (`src/trading/`)
@@ -159,13 +160,14 @@ These components have **architectural foundations** but require additional work:
 
 #### 1. Evolutionary Intelligence (`src/evolution/`, `src/genome/`)
 - **What works**: Genome representation, population management, basic genetic operators
+- **Progress**: Fitness calculator combines weighted performance metrics, risk penalties, and behaviour constraints into auditable scores for evolution loops.【F:src/evolution/fitness/calculator.py†L1-L268】【F:tests/evolution/test_fitness_calculator.py†L1-L65】
 - **Progress**: A new `EvolutionScheduler` ingests live PnL, drawdown, and latency telemetry, enforcing cooldown windows and percentile triggers before launching optimisation cycles so evolution runs react deterministically to production performance.【F:src/evolution/engine/scheduler.py†L1-L200】
 - **Progress**: Fresh guard rails in `EvolutionSafetyController` track drawdown, VaR, latency, slippage, and data quality limits with cooldown and lockdown logic so adaptive runs stay within institutional risk bounds before mutation begins.【F:src/evolution/safety/controls.py†L1-L260】
 - **Progress**: Preference articulation framework now models objective weights,
   interactive tuning prompts, and articulator helpers that feed evolution
   scoring with operator-provided priorities under regression coverage.【F:src/evolution/optimization/preferences.py†L1-L219】【F:tests/evolution/test_preferences.py†L1-L79】
 - **Progress**: Multi-objective optimisation now ships with an NSGA-II implementation featuring crowding-distance ranking, configurable crossover/mutation hooks, and deterministic exports for Pareto-front reporting.【F:src/evolution/algorithms/nsga2.py†L1-L334】【F:tests/evolution/test_nsga2.py†L1-L119】
-- **What's missing**: Sophisticated fitness functions, full strategy evolution (currently only parameter tuning)
+- **What's missing**: Deeper adaptive integration that turns the scoring framework into fully autonomous strategy evolution (currently focused on parameter tuning)
 - **Status**: Framework complete; needs enhanced evolution logic
 
 #### 2. Sensory Cortex (`src/sensory/`)
@@ -175,8 +177,9 @@ These components have **architectural foundations** but require additional work:
 
 #### 3. Strategy Library (`src/trading/strategies/`)
 - **What works**: Strategy protocol, signal generation framework, ICT microstructure features
-- **What's missing**: Comprehensive library of tested strategies
-- **Status**: Framework exists; needs strategy development – the new
+- **Progress**: PCA-driven statistical arbitrage strategy constructs market-neutral baskets from principal components, clamps exposure, and emits rich signal metadata for downstream attribution under regression coverage.【F:src/trading/strategies/stat_arb/pca_arb.py†L1-L279】【F:tests/trading/test_pca_stat_arb_strategy.py†L1-L104】
+- **What's missing**: Comprehensive library of tested strategies beyond the emerging catalogue
+- **Status**: Framework exists with an expanding library – the new
   `VolatilityTradingStrategy` blends implied vs realised volatility spreads with
   gamma scalping and microstructure alignment signals under regression coverage.
 
@@ -185,6 +188,7 @@ These components have **architectural foundations** but require additional work:
 - **New governance controls**: Pre-launch validation checklist and post-enable audit log document required evidence, checklists,
   and follow-up reviews for each institutional data integration, keeping operational sign-off aligned with readiness audits.
   【F:docs/operations/validation_checklist.md†L1-L40】【F:docs/operations/post_enable_reviews.md†L1-L25】
+- **Progress**: Emergency procedures handbook codifies trigger conditions, communications flow, failover drills, and post-incident review checklists with ready-to-run templates for responders.【F:docs/operations/emergency_procedures.md†L1-L105】
 - **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
 - **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports,
   emits human-readable saved object summaries, and supports API key/basic auth
@@ -606,12 +610,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/trading/strategies/market_making/simple_mm.py`
   - **Acceptance**: Backtest shows consistent small profits
 
-- [ ] **Strategy 4: Statistical Arbitrage** (20 hours)
+- [x] **Strategy 4: Statistical Arbitrage** (20 hours)
   - Implement PCA-based factor models
   - Build residual mean reversion signals
   - Add multi-asset portfolio construction
   - **Location**: `src/trading/strategies/stat_arb/pca_arb.py`
-  - **Acceptance**: Backtest shows market-neutral returns
+  - **Acceptance**: PCA residual engine produces market-neutral allocations across managed baskets
 
 - [ ] **Strategy 5: Volatility Trading** (16 hours)
   - Implement realized vs implied volatility signals
@@ -637,12 +641,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/backtesting/walk_forward.py`
   - **Acceptance**: Validate strategy robustness across time periods
 
-- [ ] **Create Monte Carlo simulation** (12 hours)
+- [x] **Create Monte Carlo simulation** (12 hours)
   - Simulate strategy performance under random scenarios
   - Estimate confidence intervals for returns
   - Assess tail risk
-  - **Location**: `src/backtesting/monte_carlo.py`
-  - **Acceptance**: Probabilistic performance estimates
+  - **Location**: `src/risk/analytics/monte_carlo.py`
+  - **Acceptance**: Probabilistic performance estimates with VaR/ES helpers
 
 - [ ] **Build regime analysis** (12 hours)
   - Test strategy performance across market regimes
@@ -714,12 +718,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - Add regime-specific fitness
   - **Acceptance**: Fitness function design document
 
-- [ ] **Implement fitness calculator** (16 hours)
+- [x] **Implement fitness calculator** (16 hours)
   - Build comprehensive fitness evaluation
   - Include risk-adjusted returns
   - Add behavioral penalties (overtrading, etc.)
   - **Location**: `src/evolution/fitness/calculator.py`
-  - **Acceptance**: Fitness scores correlate with strategy quality
+  - **Acceptance**: Fitness scores combine weighted performance, risk, and behavioural penalties for evolution loops
 
 - [ ] **Create fitness benchmarking** (8 hours)
   - Compare strategies against baselines
@@ -1155,11 +1159,12 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/risk/circuit_breakers.py`
   - **Acceptance**: Circuit breakers trigger appropriately
 
-- [ ] **Create emergency procedures documentation** (8 hours)
+- [x] **Create emergency procedures documentation** (8 hours)
   - Document all emergency scenarios
   - Provide step-by-step response procedures
   - Include contact information
-  - **Acceptance**: Clear emergency response playbook
+  - **Location**: `docs/operations/emergency_procedures.md`
+  - **Acceptance**: Clear emergency response playbook covering triggers, comms, and post-incident reviews
 
 #### 5.5 Operational Documentation
 

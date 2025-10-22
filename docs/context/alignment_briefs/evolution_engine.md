@@ -14,6 +14,7 @@
   as episodic memory remain stubs—but the codebase now includes a working NSGA-II
   core and safety controller even though neither is yet integrated into the
   production adaptation loop.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/evolution/algorithms/nsga2.py†L1-L334】【F:src/evolution/safety/controls.py†L1-L260】
+- Fitness calculator now combines weighted performance contributions with risk and behavioural penalties, emitting auditable reports that evolution loops can consume directly.【F:src/evolution/fitness/calculator.py†L1-L268】【F:tests/evolution/test_fitness_calculator.py†L1-L65】
 - Dead-code reports list evolution modules as unused, confirming the absence of
   active integration paths.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Technical debt priorities emphasise hollow risk controls and async hazards,
@@ -43,6 +44,7 @@
   interactive tuning, and articulator helpers that feed weighted scoring into
   evolution loops, with pytest locking clamp, normalisation, and CLI flows so
   operators can shift priorities without bespoke tooling.【F:src/evolution/optimization/preferences.py†L1-L219】【F:tests/evolution/test_preferences.py†L1-L79】
+- Progress: Fitness calculator now blends weighted performance, risk, and behavioural penalties into a single score and emits detailed reports so adaptive loops can consume the metrics without bespoke notebooks.【F:src/evolution/fitness/calculator.py†L1-L268】【F:tests/evolution/test_fitness_calculator.py†L1-L65】
 - Progress: Evolution safety controller packages deterministic guard rails for
   drawdown, VaR, latency, slippage, and data quality, issuing cooldown and
   lockdown decisions that orchestration layers can consume once they wire the

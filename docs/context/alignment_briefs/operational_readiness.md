@@ -146,6 +146,7 @@
 - Progress: Observability dashboard now renders an operator leverage panel that summarises experiments-per-week, quality posture, and lagging operators while surfacing tournament metadata so readiness reviews track experimentation throughput alongside risk metrics under guardrail coverage.【F:src/operations/operator_leverage.py†L1-L543】【F:src/operations/observability_dashboard.py†L701-L748】【F:tests/operations/test_operator_leverage.py†L49-L139】【F:tests/operations/test_observability_dashboard.py†L560-L598】
 - Update incident response docs with current limitations and TODOs; remove or
   archive obsolete OpenAPI references where possible.【F:archive/legacy/README.md†L1-L12】
+- Progress: Emergency procedures handbook codifies trigger conditions, communications plans, failover drills, and post-incident review checklists with ready-to-run templates for responders.【F:docs/operations/emergency_procedures.md†L1-L105】
 - Progress: Incident playbook validation now ships as a bundled CLI that runs the
   kill-switch, nightly replay, and trade throttle rollback drills, persists a
   JSON evidence pack, and links into the refreshed runbook so operators can drop

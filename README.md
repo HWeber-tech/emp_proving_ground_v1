@@ -1020,6 +1020,430 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
     - **Data requirements**: Minimum 50K order book snapshots for training (1-2 weeks of LOBSTER data). More data improves performance. Paper uses 500K+ snapshots from FI-2010 benchmark.
     - **CPU vs GPU training**: On modern CPU (8+ cores), training takes 12-24 hours for 50K snapshots. On GPU (RTX 3060+), 2-4 hours. Since this is one-time training (or monthly retraining), CPU overnight is perfectly acceptable. Inference is fast on CPU (<10ms), so no GPU needed for live trading.
     - **Code availability**: Paper states "We release the code at [GitHub URL]" - can directly adapt their implementation. Check arXiv paper abstract for GitHub link.
+  - **Complete implementation code for coder**:
+    
+    **File: `src/sensory/how/models/tlob_model.py`** (Complete implementation)
+    ```python
+    import torch
+    import torch.nn as nn
+    import math
+    
+    class TLOBModel(nn.Module):
+        """
+        Transformer-based Limit Order Book model with dual attention.
+        Based on arXiv:2502.15757 (TLOB paper).
+        """
+        def __init__(self, 
+                     num_price_levels=10,      # Number of price levels (5 bid + 5 ask)
+                     num_time_steps=100,        # Number of time steps in sequence
+                     d_model=64,                # Model dimension
+                     nhead=4,                   # Number of attention heads
+                     num_encoder_layers=3,      # Number of transformer layers
+                     dim_feedforward=256,       # FFN dimension
+                     dropout=0.1,
+                     num_classes=3):            # up/down/neutral
+            super().__init__()
+            
+            self.num_price_levels = num_price_levels
+            self.num_time_steps = num_time_steps
+            self.d_model = d_model
+            
+            # Input projection: (batch, time, price_levels, features) -> (batch, time*price, d_model)
+            # Each price level has 4 features: bid_price, bid_volume, ask_price, ask_volume
+            self.input_projection = nn.Linear(4, d_model)
+            
+            # Positional encodings for spatial (price level) and temporal (time step)
+            self.spatial_pos_encoding = nn.Parameter(
+                self._create_positional_encoding(num_price_levels, d_model)
+            )
+            self.temporal_pos_encoding = nn.Parameter(
+                self._create_positional_encoding(num_time_steps, d_model)
+            )
+            
+            # Dual attention transformer encoder
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=d_model,
+                nhead=nhead,
+                dim_feedforward=dim_feedforward,
+                dropout=dropout,
+                batch_first=True
+            )
+            self.transformer_encoder = nn.TransformerEncoder(
+                encoder_layer,
+                num_layers=num_encoder_layers
+            )
+            
+            # Classification head
+            self.classifier = nn.Sequential(
+                nn.Linear(d_model, dim_feedforward),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(dim_feedforward, num_classes)
+            )
+        
+        def _create_positional_encoding(self, max_len, d_model):
+            """Create sinusoidal positional encoding."""
+            pe = torch.zeros(max_len, d_model)
+            position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+            div_term = torch.exp(torch.arange(0, d_model, 2).float() * 
+                                (-math.log(10000.0) / d_model))
+            pe[:, 0::2] = torch.sin(position * div_term)
+            pe[:, 1::2] = torch.cos(position * div_term)
+            return pe
+        
+        def forward(self, x):
+            """
+            Forward pass.
+            
+            Args:
+                x: Tensor of shape (batch, time_steps, price_levels, 4)
+                   where 4 features are [bid_price, bid_volume, ask_price, ask_volume]
+            
+            Returns:
+                logits: Tensor of shape (batch, num_classes)
+            """
+            batch_size = x.shape[0]
+            
+            # Project input: (batch, time, price, 4) -> (batch, time, price, d_model)
+            x = self.input_projection(x)
+            
+            # Add spatial positional encoding (broadcast across time dimension)
+            x = x + self.spatial_pos_encoding.unsqueeze(0).unsqueeze(0)
+            
+            # Add temporal positional encoding (broadcast across price dimension)
+            x = x + self.temporal_pos_encoding.unsqueeze(0).unsqueeze(2)
+            
+            # Reshape to (batch, time*price, d_model) for transformer
+            x = x.view(batch_size, self.num_time_steps * self.num_price_levels, self.d_model)
+            
+            # Apply transformer encoder (dual attention happens here)
+            x = self.transformer_encoder(x)
+            
+            # Global average pooling across sequence
+            x = x.mean(dim=1)  # (batch, d_model)
+            
+            # Classification
+            logits = self.classifier(x)  # (batch, num_classes)
+            
+            return logits
+    ```
+    
+    **File: `src/sensory/how/data/lobster_dataset.py`** (Data preprocessing)
+    ```python
+    import torch
+    from torch.utils.data import Dataset
+    import numpy as np
+    import pandas as pd
+    
+    class LOBSTERDataset(Dataset):
+        """
+        Dataset for LOBSTER limit order book data.
+        Prepares data for TLOB model training.
+        """
+        def __init__(self, 
+                     lobster_file_path,
+                     num_price_levels=10,
+                     num_time_steps=100,
+                     prediction_horizon=10,
+                     smoothing_window=5):
+            """
+            Args:
+                lobster_file_path: Path to LOBSTER CSV file
+                num_price_levels: Number of price levels (5 bid + 5 ask = 10 total)
+                num_time_steps: Sequence length (number of snapshots)
+                prediction_horizon: How many ticks ahead to predict (10, 20, 50, 100)
+                smoothing_window: Window for smoothing price changes to create labels
+            """
+            self.num_price_levels = num_price_levels
+            self.num_time_steps = num_time_steps
+            self.prediction_horizon = prediction_horizon
+            
+            # Load LOBSTER data
+            # LOBSTER format: columns are [ask_price_1, ask_vol_1, bid_price_1, bid_vol_1, ...]
+            df = pd.read_csv(lobster_file_path, header=None)
+            
+            # Extract price and volume data
+            # Assuming 10 levels: columns 0-39 (4 values per level: ask_p, ask_v, bid_p, bid_v)
+            self.data = df.values
+            
+            # Normalize data to [0, 1] range
+            self.data_normalized = self._normalize(self.data)
+            
+            # Create labels (price movement direction)
+            self.labels = self._create_labels(df, prediction_horizon, smoothing_window)
+            
+            # Create sequences
+            self.sequences = []
+            self.sequence_labels = []
+            
+            for i in range(len(self.data) - num_time_steps - prediction_horizon):
+                # Get sequence of order book snapshots
+                seq = self.data_normalized[i:i+num_time_steps]
+                
+                # Reshape to (time_steps, price_levels, 4)
+                seq_reshaped = self._reshape_lob_data(seq)
+                
+                # Get label for this sequence
+                label = self.labels[i + num_time_steps + prediction_horizon - 1]
+                
+                self.sequences.append(seq_reshaped)
+                self.sequence_labels.append(label)
+            
+            self.sequences = np.array(self.sequences)
+            self.sequence_labels = np.array(self.sequence_labels)
+        
+        def _normalize(self, data):
+            """Normalize each feature to [0, 1] range."""
+            # Normalize prices and volumes separately
+            normalized = np.zeros_like(data, dtype=np.float32)
+            
+            for col in range(data.shape[1]):
+                min_val = data[:, col].min()
+                max_val = data[:, col].max()
+                if max_val > min_val:
+                    normalized[:, col] = (data[:, col] - min_val) / (max_val - min_val)
+                else:
+                    normalized[:, col] = 0.0
+            
+            return normalized
+        
+        def _create_labels(self, df, horizon, smoothing_window):
+            """
+            Create labels based on mid-price movement.
+            0 = down, 1 = neutral, 2 = up
+            """
+            # Calculate mid-price (average of best bid and best ask)
+            best_ask = df.iloc[:, 0]  # First column is best ask price
+            best_bid = df.iloc[:, 2]  # Third column is best bid price
+            mid_price = (best_ask + best_bid) / 2
+            
+            # Calculate price change over horizon
+            price_change = mid_price.shift(-horizon) - mid_price
+            
+            # Smooth price changes to reduce noise
+            price_change_smoothed = price_change.rolling(window=smoothing_window, center=True).mean()
+            
+            # Create labels based on threshold (0.01% of mid-price)
+            threshold = mid_price * 0.0001
+            
+            labels = np.zeros(len(df), dtype=np.int64)
+            labels[price_change_smoothed > threshold] = 2   # up
+            labels[price_change_smoothed < -threshold] = 0  # down
+            labels[np.abs(price_change_smoothed) <= threshold] = 1  # neutral
+            
+            # Fill NaN values (from smoothing) with neutral
+            labels[np.isnan(price_change_smoothed)] = 1
+            
+            return labels
+        
+        def _reshape_lob_data(self, seq):
+            """
+            Reshape LOBSTER data to (time_steps, price_levels, 4).
+            
+            LOBSTER format per row: [ask_p1, ask_v1, bid_p1, bid_v1, ask_p2, ask_v2, ...]
+            We want: [time, level, [bid_p, bid_v, ask_p, ask_v]]
+            """
+            time_steps = seq.shape[0]
+            reshaped = np.zeros((time_steps, self.num_price_levels, 4), dtype=np.float32)
+            
+            for t in range(time_steps):
+                for level in range(self.num_price_levels // 2):  # 5 levels each side
+                    # LOBSTER columns: ask_p, ask_v, bid_p, bid_v (repeating)
+                    base_idx = level * 4
+                    
+                    # Extract values
+                    ask_price = seq[t, base_idx]
+                    ask_volume = seq[t, base_idx + 1]
+                    bid_price = seq[t, base_idx + 2]
+                    bid_volume = seq[t, base_idx + 3]
+                    
+                    # Store as [bid_price, bid_volume, ask_price, ask_volume]
+                    reshaped[t, level * 2] = [bid_price, bid_volume, 0, 0]      # bid side
+                    reshaped[t, level * 2 + 1] = [0, 0, ask_price, ask_volume]  # ask side
+            
+            return reshaped
+        
+        def __len__(self):
+            return len(self.sequences)
+        
+        def __getitem__(self, idx):
+            return (
+                torch.FloatTensor(self.sequences[idx]),
+                torch.LongTensor([self.sequence_labels[idx]])[0]
+            )
+    ```
+    
+    **File: `src/sensory/how/training/train_tlob.py`** (Training script)
+    ```python
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, random_split
+    import sys
+    import os
+    
+    # Add project root to path
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+    
+    from src.sensory.how.models.tlob_model import TLOBModel
+    from src.sensory.how.data.lobster_dataset import LOBSTERDataset
+    
+    def train_tlob():
+        """Train TLOB model on LOBSTER data."""
+        
+        # Hyperparameters (tuned based on paper)
+        BATCH_SIZE = 32
+        LEARNING_RATE = 0.001
+        NUM_EPOCHS = 50
+        DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Model hyperparameters
+        NUM_PRICE_LEVELS = 10
+        NUM_TIME_STEPS = 100
+        D_MODEL = 64
+        NHEAD = 4
+        NUM_ENCODER_LAYERS = 3
+        DIM_FEEDFORWARD = 256
+        DROPOUT = 0.1
+        
+        # Data parameters
+        PREDICTION_HORIZON = 10  # Predict 10 ticks ahead (change for different horizons)
+        
+        print(f"Using device: {DEVICE}")
+        
+        # Load dataset
+        print("Loading LOBSTER dataset...")
+        dataset = LOBSTERDataset(
+            lobster_file_path='data/lobster/orderbook.csv',  # Update path as needed
+            num_price_levels=NUM_PRICE_LEVELS,
+            num_time_steps=NUM_TIME_STEPS,
+            prediction_horizon=PREDICTION_HORIZON
+        )
+        
+        # Split dataset: 70% train, 15% val, 15% test
+        train_size = int(0.7 * len(dataset))
+        val_size = int(0.15 * len(dataset))
+        test_size = len(dataset) - train_size - val_size
+        
+        train_dataset, val_dataset, test_dataset = random_split(
+            dataset, [train_size, val_size, test_size]
+        )
+        
+        # Create data loaders
+        train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+        val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+        
+        print(f"Dataset sizes - Train: {train_size}, Val: {val_size}, Test: {test_size}")
+        
+        # Initialize model
+        model = TLOBModel(
+            num_price_levels=NUM_PRICE_LEVELS,
+            num_time_steps=NUM_TIME_STEPS,
+            d_model=D_MODEL,
+            nhead=NHEAD,
+            num_encoder_layers=NUM_ENCODER_LAYERS,
+            dim_feedforward=DIM_FEEDFORWARD,
+            dropout=DROPOUT,
+            num_classes=3  # up/down/neutral
+        ).to(DEVICE)
+        
+        # Loss and optimizer
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode='max', factor=0.5, patience=5, verbose=True
+        )
+        
+        # Training loop
+        best_val_acc = 0.0
+        
+        for epoch in range(NUM_EPOCHS):
+            # Training
+            model.train()
+            train_loss = 0.0
+            train_correct = 0
+            train_total = 0
+            
+            for batch_idx, (data, target) in enumerate(train_loader):
+                data, target = data.to(DEVICE), target.to(DEVICE)
+                
+                optimizer.zero_grad()
+                output = model(data)
+                loss = criterion(output, target)
+                loss.backward()
+                optimizer.step()
+                
+                train_loss += loss.item()
+                _, predicted = output.max(1)
+                train_total += target.size(0)
+                train_correct += predicted.eq(target).sum().item()
+                
+                if batch_idx % 100 == 0:
+                    print(f'Epoch {epoch+1}/{NUM_EPOCHS}, Batch {batch_idx}/{len(train_loader)}, '
+                          f'Loss: {loss.item():.4f}')
+            
+            train_acc = 100. * train_correct / train_total
+            train_loss /= len(train_loader)
+            
+            # Validation
+            model.eval()
+            val_loss = 0.0
+            val_correct = 0
+            val_total = 0
+            
+            with torch.no_grad():
+                for data, target in val_loader:
+                    data, target = data.to(DEVICE), target.to(DEVICE)
+                    output = model(data)
+                    loss = criterion(output, target)
+                    
+                    val_loss += loss.item()
+                    _, predicted = output.max(1)
+                    val_total += target.size(0)
+                    val_correct += predicted.eq(target).sum().item()
+            
+            val_acc = 100. * val_correct / val_total
+            val_loss /= len(val_loader)
+            
+            print(f'Epoch {epoch+1}/{NUM_EPOCHS}: '
+                  f'Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%, '
+                  f'Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%')
+            
+            # Learning rate scheduling
+            scheduler.step(val_acc)
+            
+            # Save best model
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                torch.save(model.state_dict(), 'models/tlob_best.pth')
+                print(f'Saved best model with validation accuracy: {val_acc:.2f}%')
+        
+        # Test evaluation
+        print("\nEvaluating on test set...")
+        model.load_state_dict(torch.load('models/tlob_best.pth'))
+        model.eval()
+        
+        test_correct = 0
+        test_total = 0
+        
+        with torch.no_grad():
+            for data, target in test_loader:
+                data, target = data.to(DEVICE), target.to(DEVICE)
+                output = model(data)
+                _, predicted = output.max(1)
+                test_total += target.size(0)
+                test_correct += predicted.eq(target).sum().item()
+        
+        test_acc = 100. * test_correct / test_total
+        print(f'Test Accuracy: {test_acc:.2f}%')
+        
+        return model
+    
+    if __name__ == '__main__':
+        train_tlob()
+    ```
+
   - **Success metrics**: Test set accuracy >55% for 10-tick horizon; inference latency <10ms on CPU; backtests show improved entry/exit timing vs. rule-based order book analytics.
   - **Acceptance**: Train TLOB on LOBSTER data → Integrate with HOW sensor → Backtest strategy with TLOB signals → Compare Sharpe ratio vs. without TLOB → Document 10%+ improvement in risk-adjusted returns.
 
@@ -1067,6 +1491,348 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
     - **Baseline algorithms**: FinRL includes proven RL algorithms: PPO (Proximal Policy Optimization), A3C (Asynchronous Advantage Actor-Critic), SAC (Soft Actor-Critic), DDPG (Deep Deterministic Policy Gradient). These are your competition—if your strategies don't beat these, the extra complexity isn't justified.
     - **Datasets**: FinRL provides clean, preprocessed data: US stocks (2009-2021), crypto (2017-2021), Chinese stocks (CSI 300). You can also add your own data. Use the same data for fair comparison.
     - **Community and credibility**: 200+ participants in FinRL contests, 100+ institutions using it. Publishing results comparable to FinRL benchmarks gives your work credibility and allows comparison with published research.
+  - **Complete implementation code for coder**:
+    
+    **File: `src/backtesting/finrl/strategy_adapter.py`** (Complete implementation)
+    ```python
+    import numpy as np
+    import pandas as pd
+    from typing import Dict, Any, List
+    
+    class FinRLStrategyAdapter:
+        """
+        Adapter to run EMP strategies in FinRL environments.
+        Translates between EMP signal format and FinRL action space.
+        """
+        def __init__(self, emp_strategy, initial_cash=100000):
+            """
+            Args:
+                emp_strategy: Your EMP strategy object (must have .generate_signal() method)
+                initial_cash: Starting cash for trading
+            """
+            self.emp_strategy = emp_strategy
+            self.initial_cash = initial_cash
+            self.current_cash = initial_cash
+            self.current_positions = {}
+        
+        def predict(self, observation: np.ndarray) -> np.ndarray:
+            """
+            FinRL environment calls this method to get actions.
+            
+            Args:
+                observation: numpy array from FinRL environment
+                    Shape: (num_stocks * num_features,)
+                    Features typically: [open, high, low, close, volume, ...technical indicators]
+            
+            Returns:
+                actions: numpy array of shape (num_stocks,)
+                    Values: -1 (sell), 0 (hold), +1 (buy)
+                    Or continuous: [-1, 1] for position sizing
+            """
+            # Convert FinRL observation to EMP format
+            emp_data = self._finrl_to_emp_format(observation)
+            
+            # Get EMP strategy signal
+            emp_signal = self.emp_strategy.generate_signal(emp_data)
+            
+            # Convert EMP signal to FinRL actions
+            finrl_actions = self._emp_to_finrl_actions(emp_signal)
+            
+            return finrl_actions
+        
+        def _finrl_to_emp_format(self, observation: np.ndarray) -> Dict[str, Any]:
+            """
+            Convert FinRL observation to EMP data format.
+            
+            FinRL observation is flat array: [stock1_feat1, stock1_feat2, ..., stock2_feat1, ...]
+            EMP expects dict with market data structure.
+            """
+            # Assuming FinRL env has these features per stock: OHLCV + indicators
+            # Adjust based on your actual FinRL environment configuration
+            num_features_per_stock = 10  # Example: OHLCV + 5 technical indicators
+            num_stocks = len(observation) // num_features_per_stock
+            
+            # Reshape observation
+            obs_reshaped = observation.reshape(num_stocks, num_features_per_stock)
+            
+            # Create EMP-compatible data structure
+            emp_data = {
+                'prices': obs_reshaped[:, 3],  # Close prices (index 3 in OHLCV)
+                'volumes': obs_reshaped[:, 4],  # Volumes (index 4)
+                'indicators': {
+                    'open': obs_reshaped[:, 0],
+                    'high': obs_reshaped[:, 1],
+                    'low': obs_reshaped[:, 2],
+                    'close': obs_reshaped[:, 3],
+                    # Add other indicators as needed
+                },
+                'timestamp': pd.Timestamp.now()  # FinRL doesn't provide timestamp in obs
+            }
+            
+            return emp_data
+        
+        def _emp_to_finrl_actions(self, emp_signal: Dict[str, Any]) -> np.ndarray:
+            """
+            Convert EMP signal to FinRL action format.
+            
+            EMP signal format (example):
+            {
+                'action': 'BUY' | 'SELL' | 'HOLD',
+                'symbol': 'AAPL',
+                'size': 0.5,  # Fraction of portfolio
+                'confidence': 0.8
+            }
+            
+            FinRL action format:
+            numpy array of shape (num_stocks,) with values in [-1, 1]
+            -1 = sell all, 0 = hold, +1 = buy with all cash
+            """
+            # Get number of stocks from signal or default
+            num_stocks = len(emp_signal.get('symbols', []))
+            actions = np.zeros(num_stocks)
+            
+            # Map EMP signals to FinRL actions
+            for i, symbol in enumerate(emp_signal.get('symbols', [])):
+                signal = emp_signal.get('signals', {}).get(symbol, {})
+                action_type = signal.get('action', 'HOLD')
+                size = signal.get('size', 0.0)
+                
+                if action_type == 'BUY':
+                    actions[i] = size  # Positive value = buy
+                elif action_type == 'SELL':
+                    actions[i] = -size  # Negative value = sell
+                else:  # HOLD
+                    actions[i] = 0.0
+            
+            return actions
+    ```
+    
+    **File: `experiments/finrl_benchmarks/run_benchmark.py`** (Usage example)
+    ```python
+    """
+    Example script to run EMP strategies in FinRL environment and compare with baselines.
+    """
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    
+    import numpy as np
+    import pandas as pd
+    from finrl.meta.env_stock_trading.env_stocktrading import StockTradingEnv
+    from finrl.agents.stablebaselines3.models import DRLAgent
+    from finrl.config import INDICATORS
+    
+    from src.backtesting.finrl.strategy_adapter import FinRLStrategyAdapter
+    from src.trading.strategies.momentum.simple_momentum import SimpleMomentumStrategy  # Example
+    
+    def download_data():
+        """Download stock data using FinRL's data processor."""
+        from finrl.meta.preprocessor.yahoodownloader import YahooDownloader
+        from finrl.meta.preprocessor.preprocessors import FeatureEngineer, data_split
+        
+        # Download data
+        df = YahooDownloader(
+            start_date='2020-01-01',
+            end_date='2023-12-31',
+            ticker_list=['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA']
+        ).fetch_data()
+        
+        # Add technical indicators
+        fe = FeatureEngineer(
+            use_technical_indicator=True,
+            tech_indicator_list=INDICATORS,
+            use_turbulence=False,
+            user_defined_feature=False
+        )
+        
+        processed = fe.preprocess_data(df)
+        
+        # Split into train/test
+        train = data_split(processed, '2020-01-01', '2022-12-31')
+        test = data_split(processed, '2023-01-01', '2023-12-31')
+        
+        return train, test
+    
+    def create_finrl_env(df, initial_amount=100000):
+        """Create FinRL stock trading environment."""
+        stock_dimension = len(df.tic.unique())
+        state_space = 1 + 2*stock_dimension + len(INDICATORS)*stock_dimension
+        
+        env_kwargs = {
+            "hmax": 100,
+            "initial_amount": initial_amount,
+            "buy_cost_pct": 0.001,
+            "sell_cost_pct": 0.001,
+            "state_space": state_space,
+            "stock_dim": stock_dimension,
+            "tech_indicator_list": INDICATORS,
+            "action_space": stock_dimension,
+            "reward_scaling": 1e-4
+        }
+        
+        env = StockTradingEnv(df=df, **env_kwargs)
+        return env
+    
+    def run_emp_strategy(env, strategy):
+        """Run EMP strategy in FinRL environment."""
+        # Wrap EMP strategy with adapter
+        adapter = FinRLStrategyAdapter(strategy)
+        
+        # Run episode
+        obs = env.reset()
+        done = False
+        total_reward = 0
+        actions_taken = []
+        
+        while not done:
+            # Get action from EMP strategy via adapter
+            action = adapter.predict(obs)
+            actions_taken.append(action)
+            
+            # Step environment
+            obs, reward, done, info = env.step(action)
+            total_reward += reward
+        
+        # Get final portfolio value
+        final_value = env.asset_memory[-1]
+        
+        return {
+            'final_value': final_value,
+            'total_reward': total_reward,
+            'returns': (final_value - env.initial_amount) / env.initial_amount,
+            'sharpe_ratio': calculate_sharpe(env.asset_memory),
+            'max_drawdown': calculate_max_drawdown(env.asset_memory)
+        }
+    
+    def run_baseline_ppo(env, train_env):
+        """Run FinRL's PPO baseline."""
+        # Train PPO agent
+        agent = DRLAgent(env=train_env)
+        
+        model_ppo = agent.get_model("ppo")
+        trained_ppo = agent.train_model(
+            model=model_ppo,
+            tb_log_name='ppo',
+            total_timesteps=50000
+        )
+        
+        # Test PPO
+        obs = env.reset()
+        done = False
+        
+        while not done:
+            action, _states = trained_ppo.predict(obs)
+            obs, reward, done, info = env.step(action)
+        
+        final_value = env.asset_memory[-1]
+        
+        return {
+            'final_value': final_value,
+            'returns': (final_value - env.initial_amount) / env.initial_amount,
+            'sharpe_ratio': calculate_sharpe(env.asset_memory),
+            'max_drawdown': calculate_max_drawdown(env.asset_memory)
+        }
+    
+    def calculate_sharpe(asset_values, risk_free_rate=0.0):
+        """Calculate Sharpe ratio from asset values."""
+        returns = pd.Series(asset_values).pct_change().dropna()
+        excess_returns = returns - risk_free_rate/252  # Daily risk-free rate
+        
+        if returns.std() == 0:
+            return 0.0
+        
+        sharpe = np.sqrt(252) * excess_returns.mean() / returns.std()
+        return sharpe
+    
+    def calculate_max_drawdown(asset_values):
+        """Calculate maximum drawdown."""
+        peak = np.maximum.accumulate(asset_values)
+        drawdown = (asset_values - peak) / peak
+        return drawdown.min()
+    
+    def main():
+        """Main benchmark comparison."""
+        print("=" * 60)
+        print("FinRL Benchmark: EMP Strategy vs. Baselines")
+        print("=" * 60)
+        
+        # Download and prepare data
+        print("\n1. Downloading data...")
+        train_df, test_df = download_data()
+        
+        # Create environments
+        print("\n2. Creating environments...")
+        train_env = create_finrl_env(train_df)
+        test_env = create_finrl_env(test_df)
+        
+        # Run EMP strategy
+        print("\n3. Running EMP strategy...")
+        emp_strategy = SimpleMomentumStrategy()  # Replace with your strategy
+        emp_results = run_emp_strategy(test_env, emp_strategy)
+        
+        # Run PPO baseline
+        print("\n4. Running PPO baseline...")
+        test_env_ppo = create_finrl_env(test_df)  # Fresh env for PPO
+        ppo_results = run_baseline_ppo(test_env_ppo, train_env)
+        
+        # Compare results
+        print("\n" + "=" * 60)
+        print("RESULTS COMPARISON")
+        print("=" * 60)
+        
+        print(f"\nEMP Strategy:")
+        print(f"  Final Value: ${emp_results['final_value']:,.2f}")
+        print(f"  Returns: {emp_results['returns']*100:.2f}%")
+        print(f"  Sharpe Ratio: {emp_results['sharpe_ratio']:.2f}")
+        print(f"  Max Drawdown: {emp_results['max_drawdown']*100:.2f}%")
+        
+        print(f"\nPPO Baseline:")
+        print(f"  Final Value: ${ppo_results['final_value']:,.2f}")
+        print(f"  Returns: {ppo_results['returns']*100:.2f}%")
+        print(f"  Sharpe Ratio: {ppo_results['sharpe_ratio']:.2f}")
+        print(f"  Max Drawdown: {ppo_results['max_drawdown']*100:.2f}%")
+        
+        # Calculate improvement
+        returns_improvement = (emp_results['returns'] - ppo_results['returns']) / abs(ppo_results['returns']) * 100
+        sharpe_improvement = (emp_results['sharpe_ratio'] - ppo_results['sharpe_ratio']) / abs(ppo_results['sharpe_ratio']) * 100
+        
+        print(f"\nEMP vs PPO:")
+        print(f"  Returns Improvement: {returns_improvement:+.1f}%")
+        print(f"  Sharpe Improvement: {sharpe_improvement:+.1f}%")
+        
+        # Save results
+        results_df = pd.DataFrame({
+            'Strategy': ['EMP', 'PPO'],
+            'Final Value': [emp_results['final_value'], ppo_results['final_value']],
+            'Returns (%)': [emp_results['returns']*100, ppo_results['returns']*100],
+            'Sharpe Ratio': [emp_results['sharpe_ratio'], ppo_results['sharpe_ratio']],
+            'Max Drawdown (%)': [emp_results['max_drawdown']*100, ppo_results['max_drawdown']*100]
+        })
+        
+        results_df.to_csv('experiments/finrl_benchmarks/results.csv', index=False)
+        print("\nResults saved to experiments/finrl_benchmarks/results.csv")
+    
+    if __name__ == '__main__':
+        main()
+    ```
+    
+    **Installation and setup instructions**:
+    ```bash
+    # Install FinRL
+    pip install finrl
+    
+    # Install dependencies
+    pip install stable-baselines3[extra]
+    pip install pyfolio
+    
+    # Create directories
+    mkdir -p experiments/finrl_benchmarks
+    mkdir -p models
+    
+    # Run benchmark
+    python experiments/finrl_benchmarks/run_benchmark.py
+    ```
+
   - **Success metrics**: Your strategies achieve Sharpe ratio ≥1.2 (vs. baseline PPO ~0.8-1.0); max drawdown <15% (vs. baseline ~20-25%); results reproducible and statistically significant (p<0.05).
   - **Acceptance**: Run momentum + mean reversion strategies in FinRL environment → Compare against PPO/A3C baselines → Generate report showing your strategies outperform baselines by 20%+ in risk-adjusted returns → Document results with statistical significance.
 

@@ -10,8 +10,10 @@
 
 ## Reality snapshot
 
-- Evolution and intelligence subsystems remain skeletal with `pass` statements
-  and no executable algorithms; strategy decisions stay static.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】
+- Evolution orchestration still leans heavily on scaffolding—key planners such
+  as episodic memory remain stubs—but the codebase now includes a working NSGA-II
+  core and safety controller even though neither is yet integrated into the
+  production adaptation loop.【F:docs/DEVELOPMENT_STATUS.md†L19-L35】【F:src/evolution/algorithms/nsga2.py†L1-L334】【F:src/evolution/safety/controls.py†L1-L260】
 - Dead-code reports list evolution modules as unused, confirming the absence of
   active integration paths.【F:docs/reports/CLEANUP_REPORT.md†L71-L175】
 - Technical debt priorities emphasise hollow risk controls and async hazards,
@@ -41,12 +43,17 @@
   interactive tuning, and articulator helpers that feed weighted scoring into
   evolution loops, with pytest locking clamp, normalisation, and CLI flows so
   operators can shift priorities without bespoke tooling.【F:src/evolution/optimization/preferences.py†L1-L219】【F:tests/evolution/test_preferences.py†L1-L79】
+- Progress: Evolution safety controller packages deterministic guard rails for
+  drawdown, VaR, latency, slippage, and data quality, issuing cooldown and
+  lockdown decisions that orchestration layers can consume once they wire the
+  helper in.【F:src/evolution/safety/controls.py†L1-L260】【F:tests/evolution/test_safety_controls.py†L1-L109】
 - Progress: Ecosystem optimizer now hoists species/regime heuristics into cached
   maps, batch-evaluates genomes, and samples from a bounded selection pool so
   population churn favours top performers while shrinking the critical path for
   large species cohorts.【F:src/ecosystem/optimization/ecosystem_optimizer.py†L80-L304】
 - Implement genotype mutation operators that add/drop features, swap execution topology, and tighten risk templates while preserving provenance for governance reviewers.
 - Progress: `op_add_feature`, `op_drop_feature`, `op_swap_execution_topology`, and `op_tighten_risk` now clone immutable genotypes, normalise mapping inputs, and emit `GenotypeOperatorResult` payloads capturing change metadata; the adaptation package exports the helpers and pytest coverage locks duplicate, replacement, and risk-floor scenarios.【F:src/thinking/adaptation/operators.py†L1-L353】【F:src/thinking/adaptation/__init__.py†L28-L98】【F:tests/thinking/adaptation/test_genotype_operators.py†L1-L158】
+- Progress: NSGA-II now powers multi-objective selection with non-dominated sorting, crowding distance, configurable crossover/mutation hooks, and export helpers so Pareto fronts can be inspected in dashboards once integrated into the adaptation loop.【F:src/evolution/algorithms/nsga2.py†L1-L334】【F:tests/evolution/test_nsga2.py†L1-L119】
 - Define telemetry contracts for population health, lineage snapshots, and
   experiment metadata; add placeholder tests to lock schemas.
 - Progress: Legacy portfolio evolution module now raises a descriptive

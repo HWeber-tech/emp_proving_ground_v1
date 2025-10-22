@@ -147,6 +147,7 @@ These components are **production-grade** with comprehensive implementations and
 - **PromotionGuard**: Blocks strategy graduation without regime coverage
 - **StrategyRegistry**: Centralized strategy management with lifecycle controls
 - **Kill-switch monitoring**: Async file watcher guards the global kill switch and wires into the runtime so emergency stops trigger graceful shutdowns automatically.【F:src/governance/kill_switch.py†L1-L118】【F:src/runtime/predator_app.py†L1135-L1161】
+- **Tamper-evident audit logging**: Hash-chained JSONL ledger with integrity verification, statistics, and export helpers keeps governance records reviewable even when log entries are corrupted.【F:src/governance/audit_logger.py†L1-L364】
 - **Audit documentation playbook**: Centralises decision diary, policy ledger, and
   compliance evidence capture with command-level runbooks for audit packs
   (`docs/audits/audit_documentation.md`).
@@ -159,9 +160,11 @@ These components have **architectural foundations** but require additional work:
 #### 1. Evolutionary Intelligence (`src/evolution/`, `src/genome/`)
 - **What works**: Genome representation, population management, basic genetic operators
 - **Progress**: A new `EvolutionScheduler` ingests live PnL, drawdown, and latency telemetry, enforcing cooldown windows and percentile triggers before launching optimisation cycles so evolution runs react deterministically to production performance.【F:src/evolution/engine/scheduler.py†L1-L200】
+- **Progress**: Fresh guard rails in `EvolutionSafetyController` track drawdown, VaR, latency, slippage, and data quality limits with cooldown and lockdown logic so adaptive runs stay within institutional risk bounds before mutation begins.【F:src/evolution/safety/controls.py†L1-L260】
 - **Progress**: Preference articulation framework now models objective weights,
   interactive tuning prompts, and articulator helpers that feed evolution
   scoring with operator-provided priorities under regression coverage.【F:src/evolution/optimization/preferences.py†L1-L219】【F:tests/evolution/test_preferences.py†L1-L79】
+- **Progress**: Multi-objective optimisation now ships with an NSGA-II implementation featuring crowding-distance ranking, configurable crossover/mutation hooks, and deterministic exports for Pareto-front reporting.【F:src/evolution/algorithms/nsga2.py†L1-L334】【F:tests/evolution/test_nsga2.py†L1-L119】
 - **What's missing**: Sophisticated fitness functions, full strategy evolution (currently only parameter tuning)
 - **Status**: Framework complete; needs enhanced evolution logic
 
@@ -219,8 +222,9 @@ These features are **required for production deployment** but not yet implemente
 
 3. **Comprehensive Backtesting**
    - No historical replay engine
-   - Batch orchestrator now coordinates concurrent runs with supervision, but
-     lacks a replay engine, market simulator, and data pipelines to drive it
+   - Batch orchestrator now coordinates concurrent runs with supervision, and
+     performance analytics export drawdown, ratio, and trade attribution reports,
+     but the replay engine, market simulator, and live data feeds remain absent
    - **Impact**: Cannot validate strategies before live deployment
 
 4. **Automated ML Training Pipeline**
@@ -557,7 +561,7 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Location**: `src/backtesting/backtest_orchestrator.py`
   - **Acceptance**: Run 10+ strategies in parallel
 
-- [ ] **Implement performance analytics** (12 hours)
+- [x] **Implement performance analytics** (12 hours)
   - Calculate Sharpe, Sortino, Calmar ratios
   - Compute drawdown statistics
   - Analyze trade-level attribution
@@ -735,7 +739,7 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
 
 **Objective**: Evolve strategies optimizing multiple goals simultaneously
 
-- [ ] **Implement NSGA-II algorithm** (16 hours)
+- [x] **Implement NSGA-II algorithm** (16 hours)
   - Build non-dominated sorting
   - Implement crowding distance calculation
   - Add elitism and selection

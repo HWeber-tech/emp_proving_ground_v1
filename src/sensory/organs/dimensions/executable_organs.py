@@ -592,12 +592,20 @@ class WhySensoryOrgan(SensoryOrgan):
         self,
         market_data: MarketData | Mapping[str, Any] | pd.DataFrame | None,
     ) -> SensoryReading:
-        drop_keys = ("narrative_events", "macro_regime_flags", "as_of")
+        drop_keys = (
+            "narrative_events",
+            "macro_regime_flags",
+            "as_of",
+            "fundamentals",
+            "fundamental_snapshot",
+            "fundamental_data",
+        )
         frame = _normalise_frame(market_data, drop_keys=drop_keys)
 
         narrative_events = list(self._config_narrative_events)
         macro_flags = dict(self._config_macro_flags)
         as_of: datetime | None = None
+        fundamentals_payload: Mapping[str, Any] | None = None
 
         if isinstance(market_data, Mapping):
             payload_events = _parse_narrative_events(market_data.get("narrative_events"))
@@ -608,12 +616,22 @@ class WhySensoryOrgan(SensoryOrgan):
             as_of_values = _parse_datetime_sequence(market_data.get("as_of"))
             if as_of_values:
                 as_of = as_of_values[0]
+            for key in ("fundamentals", "fundamental_snapshot", "fundamental_data"):
+                candidate = market_data.get(key)
+                if isinstance(candidate, Mapping):
+                    fundamentals_payload = candidate
+                    break
+        elif isinstance(market_data, MarketData):
+            candidate = getattr(market_data, "fundamentals", None)
+            if isinstance(candidate, Mapping):
+                fundamentals_payload = candidate
 
         signals = self._sensor.process(
             frame,
             narrative_events=narrative_events,
             macro_regime_flags=macro_flags,
             as_of=as_of,
+            fundamental_snapshot=fundamentals_payload,
         )
         if not signals:
             signals = [SensorSignal(signal_type="WHY", value={}, confidence=0.0)]

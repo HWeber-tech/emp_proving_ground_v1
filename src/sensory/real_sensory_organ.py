@@ -137,6 +137,7 @@ class RealSensoryOrgan:
         macro_events: Sequence[datetime] | None = None,
         anomaly_input: pd.DataFrame | Mapping[str, Any] | Sequence[float] | None = None,
         as_of: datetime | None = None,
+        fundamentals: Mapping[str, Any] | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         """Produce a fused sensory snapshot from canonical organs."""
@@ -145,12 +146,21 @@ class RealSensoryOrgan:
         resolved_symbol = self._resolve_symbol(symbol, frame)
         timestamp = self._resolve_timestamp(as_of, frame)
 
+        fundamentals_payload = fundamentals
+        if fundamentals_payload is None and isinstance(metadata, Mapping):
+            for key in ("fundamentals", "fundamental_snapshot", "fundamental_data"):
+                candidate = metadata.get(key)
+                if isinstance(candidate, Mapping):
+                    fundamentals_payload = candidate
+                    break
+
         why_signal = self._first_signal(
             self._why.process(
                 frame,
                 narrative_events=list(narrative_events or []),
                 macro_regime_flags=macro_regime_flags or {},
                 as_of=timestamp,
+                fundamental_snapshot=fundamentals_payload,
             ),
             "WHY",
         )

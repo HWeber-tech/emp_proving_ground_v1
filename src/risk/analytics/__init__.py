@@ -5,6 +5,10 @@ from .var import (
     compute_parametric_var,
     compute_monte_carlo_var,
 )
+from .monte_carlo import (
+    MonteCarloSimulationResult,
+    simulate_geometric_brownian_motion,
+)
 from .expected_shortfall import (
     compute_historical_expected_shortfall,
     compute_parametric_expected_shortfall,
@@ -25,6 +29,8 @@ __all__ = [
     "compute_historical_var",
     "compute_parametric_var",
     "compute_monte_carlo_var",
+    "MonteCarloSimulationResult",
+    "simulate_geometric_brownian_motion",
     "compute_historical_expected_shortfall",
     "compute_parametric_expected_shortfall",
     "VolatilityTargetAllocation",

@@ -9,7 +9,7 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 import requests
 from requests import Response
@@ -34,6 +34,22 @@ class KibanaImportResult:
         return self.file.name
 
 
+@dataclass(frozen=True)
+class SavedObjectSummary:
+    """High-level view of a Kibana saved object contained in an export bundle."""
+
+    file: Path
+    object_type: str
+    title: str
+    description: str | None
+    query: str | None
+    data_source: str | None
+
+    @property
+    def display_type(self) -> str:
+        return self.object_type.replace("_", " ").title()
+
+
 def _collect_ndjson_files(directory: Path) -> list[Path]:
     files = [path for path in sorted(directory.glob("*.ndjson")) if path.is_file()]
     if not files:
@@ -55,6 +71,68 @@ def _zip_ndjson_file(path: Path) -> bytes:
     with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.write(path, arcname=path.name)
     return buffer.getvalue()
+
+
+def _load_json_lines(path: Path) -> Iterable[dict[str, object]]:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:  # pragma: no cover - defensive guard
+            continue
+        if isinstance(payload, dict):
+            yield payload
+
+
+def _extract_search_source(attributes: dict[str, object]) -> tuple[str | None, str | None]:
+    meta = attributes.get("kibanaSavedObjectMeta")
+    if not isinstance(meta, dict):
+        return None, None
+    raw_source = meta.get("searchSourceJSON")
+    if not isinstance(raw_source, str):
+        return None, None
+    try:
+        source = json.loads(raw_source)
+    except json.JSONDecodeError:
+        return None, None
+    query = source.get("query")
+    query_text = query.get("query") if isinstance(query, dict) else None
+    index = source.get("index") if isinstance(source.get("index"), str) else None
+    return query_text, index
+
+
+def _summaries_for_file(path: Path) -> list[SavedObjectSummary]:
+    summaries: list[SavedObjectSummary] = []
+    for payload in _load_json_lines(path):
+        object_type = payload.get("type")
+        attributes = payload.get("attributes")
+        if not isinstance(object_type, str) or not isinstance(attributes, dict):
+            continue
+        title = attributes.get("title") if isinstance(attributes.get("title"), str) else "(untitled)"
+        description = (
+            attributes.get("description")
+            if isinstance(attributes.get("description"), str)
+            else None
+        )
+        query_text, index = _extract_search_source(attributes)
+        summaries.append(
+            SavedObjectSummary(
+                file=path,
+                object_type=object_type,
+                title=title,
+                description=description,
+                query=query_text,
+                data_source=index,
+            )
+        )
+    return summaries
+
+
+def summarize_dashboards(directory: Path) -> dict[Path, list[SavedObjectSummary]]:
+    files = _collect_ndjson_files(directory)
+    return {path: _summaries_for_file(path) for path in files}
 
 
 def _extract_details(response: Response) -> tuple[bool, str | None]:
@@ -188,11 +266,33 @@ def _parse_args(args: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Exit with status 0 even if some imports fail",
     )
+    parser.add_argument(
+        "--no-summary",
+        action="store_true",
+        help="Suppress saved object summary output",
+    )
     return parser.parse_args(args)
 
 
 def main(args: Sequence[str] | None = None) -> int:
     options = _parse_args(args)
+    if not options.no_summary:
+        summary_map = summarize_dashboards(options.directory)
+        for path, summaries in summary_map.items():
+            relative_path = path.relative_to(_REPO_ROOT)
+            print(f"=== {relative_path} ===")
+            if not summaries:
+                print("  (no saved objects detected)")
+            for summary in summaries:
+                parts = [f"- {summary.display_type}: {summary.title}"]
+                if summary.data_source:
+                    parts.append(f"index={summary.data_source}")
+                if summary.query:
+                    parts.append(f"query={summary.query}")
+                if summary.description:
+                    parts.append(f"description={summary.description}")
+                print("  " + " | ".join(parts))
+            print()
     results = deploy_dashboards(
         options.directory,
         kibana_url=options.kibana_url,

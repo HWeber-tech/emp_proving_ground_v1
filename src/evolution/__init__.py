@@ -43,6 +43,13 @@ from src.evolution.lineage_telemetry import (
     build_lineage_snapshot,
 )
 from src.evolution.mutation_ledger import MutationLedger
+from src.evolution.engine import (
+    EvolutionScheduler,
+    EvolutionSchedulerConfig,
+    EvolutionSchedulerDecision,
+    EvolutionSchedulerState,
+    EvolutionTelemetrySample,
+)
 
 _ = None  # Legacy facade: re-export core evolution interfaces
 
@@ -70,4 +77,9 @@ __all__ = [
     "load_recorded_snapshots",
     "summarise_recorded_replay",
     "MutationLedger",
+    "EvolutionScheduler",
+    "EvolutionSchedulerConfig",
+    "EvolutionSchedulerDecision",
+    "EvolutionSchedulerState",
+    "EvolutionTelemetrySample",
 ]

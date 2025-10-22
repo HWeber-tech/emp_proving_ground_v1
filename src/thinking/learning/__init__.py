@@ -11,6 +11,13 @@ from .horizon_evaluation import (
 from .lora_freeze import LoRAFreezePlan, LoRALayerConfig, plan_lora_freeze
 from .l2sp_rehearsal import L2SPRegularizer, EquityRehearsalPlan, plan_equity_rehearsal
 from .trainer_chunker import SequenceChunk, TrainerChunker
+from .pretraining_pipeline import (
+    PreTrainingBatch,
+    PreTrainingChunkSummary,
+    PreTrainingPipeline,
+    PreTrainingPipelineConfig,
+    PreTrainingRunResult,
+)
 from .sequence_curriculum import (
     CurriculumTransition,
     SequenceLengthCurriculum,
@@ -35,6 +42,11 @@ __all__ = [
     "plan_equity_rehearsal",
     "SequenceChunk",
     "TrainerChunker",
+    "PreTrainingBatch",
+    "PreTrainingChunkSummary",
+    "PreTrainingPipeline",
+    "PreTrainingPipelineConfig",
+    "PreTrainingRunResult",
     "SequenceLengthStage",
     "SequenceLengthCurriculum",
     "CurriculumTransition",

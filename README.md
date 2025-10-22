@@ -125,6 +125,8 @@ These components are **production-grade** with comprehensive implementations and
 - **PricingPipeline**: Multi-vendor normalization with quality checks
 - **DuckDB storage**: Persistent storage with encryption support and CSV fallback
 - **Symbol mapping**: Broker-agnostic symbol resolution with caching
+- **LOBSTER dataset parser**: Normalises message and depth snapshots, enforces alignment, and prepares high-frequency order book frames for analytics consumers
+- **Streaming market data cache**: Redis-compatible tick window with warm starts, TTL enforcement, and in-memory fallback for streaming ingestion pipelines
 - **Status**: Functional for historical daily data
 
 #### 7. Governance (`src/governance/`)
@@ -155,7 +157,13 @@ These components have **architectural foundations** but require additional work:
 #### 4. Operations (`src/operations/`)
 - **What works**: ObservabilityDashboard, PaperRunGuardian, incident playbook CLI
 - **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
+- **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports with API key/basic auth support
 - **Status**: Governance tooling complete; production infrastructure pending
+
+#### 5. Fundamental Data Provider Strategy (`docs/research/fundamental_data_provider_selection.md`)
+- **What works**: Comparative analysis across FMP, Polygon.io, Intrinio, Alpha Vantage, and Quandl with weighted scoring
+- **What's missing**: Implementing ingestion adapters, storage schema extensions, and governance policies for the recommended vendors
+- **Status**: Research complete; awaiting engineering execution
 
 ---
 
@@ -166,13 +174,13 @@ These components have **architectural foundations** but require additional work:
 These features are **required for production deployment** but not yet implemented:
 
 1. **Real-Time Data Streaming**
-   - No WebSocket or FIX market data feeds
-   - Currently limited to historical daily data from Yahoo Finance
+   - Broker/WebSocket adapters and live feed supervision still pending
+   - Streaming cache now retains tick windows with Redis compatibility but has no upstream connectors yet
    - **Impact**: Cannot trade live markets without real-time data
 
 2. **LOBSTER Dataset Integration**
-   - No order book data parser or adapter
-   - Framework exists (`order_book_analytics.py`) but no data source
+   - Parser exists for messages and order book snapshots, yet no reconstruction engine or sensory cortex wiring
+   - Framework exists (`order_book_analytics.py`) but upstream ingestion still incomplete
    - **Impact**: Cannot train on high-frequency order book data as intended
 
 3. **Comprehensive Backtesting**
@@ -186,8 +194,8 @@ These features are **required for production deployment** but not yet implemente
    - **Impact**: Cannot achieve fully autonomous operation
 
 5. **OpenBloomberg / Alternative Data**
-   - No Bloomberg-equivalent data integration
-   - No fundamental data sources (earnings, financials, economics)
+   - Vendor evaluation complete, but no Bloomberg-equivalent or fundamental adapters implemented
+   - Fundamental provider analysis recommends FMP/Polygon/Intrinio mix, yet ingestion remains to be built
    - **Impact**: WHY dimension is architecturally present but data-limited
 
 ### 🔧 Enhancement Opportunities

@@ -7,6 +7,7 @@ from .constraints import (
     HardConstraint,
     SoftConstraint,
 )
+from .explorer import ObjectivePoint, ObjectiveSpaceExplorer, TradeoffMetrics
 from .preferences import (
     ObjectivePreference,
     PreferenceArticulator,
@@ -21,6 +22,9 @@ __all__ = [
     "ConstraintViolation",
     "HardConstraint",
     "SoftConstraint",
+    "ObjectivePoint",
+    "ObjectiveSpaceExplorer",
+    "TradeoffMetrics",
     "ObjectivePreference",
     "PreferenceArticulator",
     "PreferenceProfile",

@@ -3,6 +3,15 @@
 ## Purpose and Scope
 This playbook consolidates the operational procedures, artefacts, and validation steps used to satisfy internal and external audits for the EMP Proving Ground governance stack. It links each control to the source-of-truth implementation so reviewers can trace evidence directly to the codebase.
 
+## Decision-Making Process Overview
+1. **Signal ingestion and hypothesis formation** run through the understanding router, which resolves market regimes, activates probes, and prepares candidate tactics for review.【F:src/understanding/router.py†L64-L242】【F:src/understanding/probe_registry.py†L32-L212】
+2. **Decision capture** occurs when `DecisionDiaryStore` records the chosen tactic, contextual market state, human approvals, and probe outcomes. Signatures generated at write-time provide immutable lineage for every decision.【F:src/understanding/decision_diary.py†L534-L623】【F:src/observability/immutable_audit.py†L80-L115】
+3. **Governance validation** enforces promotion gates via `PolicyLedgerStore`, ensuring rollouts reflect approved configurations, attached evidence, and completion of risk controls before activation.【F:src/governance/policy_ledger.py†L520-L815】
+4. **Operational execution** respects ledger outcomes through the AlphaTrade loop orchestrator, which applies gating decisions, records compliance events, and emits telemetry consumed by the compliance workflow.【F:src/orchestration/alpha_trade_loop.py†L1-L210】【F:src/compliance/workflow.py†L77-L196】
+5. **Continuous reflection and post-trade assessments** feed back into the diary and compliance workflow via the adaptation layer, closing the loop and providing auditors with rationale, outcomes, and follow-up actions for each decision cycle.【F:src/thinking/adaptation/policy_reflection.py†L38-L210】【F:src/compliance/workflow.py†L132-L196】
+
+Auditors reviewing a specific action can follow the same sequence—start with sensory hypotheses, inspect the diary entry, confirm ledger approvals, and validate post-execution telemetry—to reconstruct the complete decision lifecycle.
+
 ## Authoritative Evidence Sources
 
 ### Decision Diary Store
@@ -45,6 +54,12 @@ This playbook consolidates the operational procedures, artefacts, and validation
 - Provide auditors with the decision diary export, the ledger changelog, and the compliance workflow snapshot for the requested window.
 - Supply signature verification scripts or outputs demonstrating integrity checks ran successfully.
 - Share the promotion checklist status (from `PolicyLedgerRecord.promotion_checklist_status()`) to evidence risk governance coverage.【F:src/governance/policy_ledger.py†L440-L639】
+
+## Documentation Deliverables and Storage
+- **Core narrative**: Maintain an audit ticket or runbook entry that references the decision lifecycle steps above, the audit objectives, and the individuals responsible for providing evidence.
+- **Evidence bundle**: Store Markdown exports, raw JSON artefacts, signature validation output, and any supplemental commentary under `artifacts/reports/<date>/` using `archive_artifact` so the folder structure stays immutable across audits.【F:src/artifacts/archive.py†L18-L94】
+- **Approval traceability**: Include links or hashes for the exact ledger records and compliance snapshot entries that prove policy promotion, risk sign-off, and remediation status for the period under review.
+- **Issue log**: Capture deviations, missing evidence, or remediation items in the compliance workflow snapshot so auditors can verify corrective actions were tracked to completion.【F:src/compliance/workflow.py†L132-L196】
 
 ## Evidence Examples
 | Evidence | Source | Command | Notes |

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from .adaptive_gate import AdaptiveGovernanceGate
 from .promotion import PromotionFeatureFlags, PromotionResult, promote_manifest_to_registry
+from .strategy_controls import (
+    StrategyControlError,
+    StrategyControls,
+    StrategyRiskLimitBreach,
+)
 from .token_manager import (
     IssuedToken,
     TokenExpired,
@@ -18,6 +23,9 @@ __all__ = [
     "PromotionFeatureFlags",
     "PromotionResult",
     "promote_manifest_to_registry",
+    "StrategyControlError",
+    "StrategyControls",
+    "StrategyRiskLimitBreach",
     "IssuedToken",
     "TokenExpired",
     "TokenManager",

@@ -472,76 +472,242 @@ class FairValueGapDetector:
 class LiquidityAnalyzer:
     """Analyzes liquidity sweeps and institutional liquidity grabs"""
 
+    def __init__(
+        self,
+        swing_lookback: int = 12,
+        confirmation_lookahead: int = 3,
+        base_tolerance: float = 0.0005,
+        max_tolerance: float = 0.003,
+        volume_window: int = 20,
+        max_results: int = 5,
+    ) -> None:
+        self.swing_lookback = swing_lookback
+        self.confirmation_lookahead = confirmation_lookahead
+        self.base_tolerance = base_tolerance
+        self.max_tolerance = max_tolerance
+        self.volume_window = volume_window
+        self.max_results = max_results
+
     async def detect_sweeps(self, df: pd.DataFrame) -> List[LiquiditySweep]:
         """Detect liquidity sweeps in price data"""
         sweeps: List[LiquiditySweep] = []
 
         try:
-            if len(df) < 20:
+            if df.empty or len(df) < self.swing_lookback + self.confirmation_lookahead:
                 return sweeps
 
-            # Look for equal highs/lows
-            highs = df["high"].values
-            lows = df["low"].values
+            working_df = df.copy()
+            working_df = working_df.dropna(subset=["high", "low", "close", "volume"])
+            if len(working_df) < self.swing_lookback + self.confirmation_lookahead:
+                return sweeps
 
-            for i in range(10, len(df) - 5):
-                # Check for liquidity above
-                recent_highs = highs[i - 10 : i]
-                if len(recent_highs) > 0:
-                    equal_highs = self._find_equal_levels(
-                        cast(np.ndarray, recent_highs), tolerance=0.001
-                    )
-                    if equal_highs and float(highs[i]) > float(max(equal_highs)):
-                        # Liquidity sweep detected
-                        sweep = LiquiditySweep(
-                            direction="up",
-                            sweep_level=float(highs[i]),
-                            liquidity_pool="equal highs",
-                            sweep_size=float(highs[i]) - float(max(equal_highs)),
-                            volume_spike=float(df.iloc[i]["volume"])
-                            / float(df["volume"].iloc[i - 5 : i].mean()),
-                            reversal_probability=0.7,
-                            institutional_follow_through=bool(
-                                float(df.iloc[i + 1]["close"]) < float(highs[i])
-                            ),
-                        )
-                        sweeps.append(sweep)
+            working_df["atr"] = self._compute_atr(working_df)
+            tolerance = self._calculate_tolerance(working_df)
 
-                # Check for liquidity below
-                recent_lows = lows[i - 10 : i]
-                if len(recent_lows) > 0:
-                    equal_lows = self._find_equal_levels(
-                        cast(np.ndarray, recent_lows), tolerance=0.001
-                    )
-                    if equal_lows and float(lows[i]) < float(min(equal_lows)):
-                        # Liquidity sweep detected
-                        sweep = LiquiditySweep(
-                            direction="down",
-                            sweep_level=float(lows[i]),
-                            liquidity_pool="equal lows",
-                            sweep_size=float(min(equal_lows)) - float(lows[i]),
-                            volume_spike=float(df.iloc[i]["volume"])
-                            / float(df["volume"].iloc[i - 5 : i].mean()),
-                            reversal_probability=0.7,
-                            institutional_follow_through=bool(
-                                float(df.iloc[i + 1]["close"]) > float(lows[i])
-                            ),
-                        )
-                        sweeps.append(sweep)
+            for idx in range(
+                self.swing_lookback, len(working_df) - self.confirmation_lookahead
+            ):
+                idx_sweeps = self._detect_sweeps_at_index(
+                    working_df, idx, tolerance
+                )
+                sweeps.extend(idx_sweeps)
 
-            return sweeps[:5]  # Return top 5
+            sweeps.sort(key=lambda sweep: sweep.volume_spike, reverse=True)
+            return sweeps[: self.max_results]
 
         except Exception as e:
             logger.error(f"Error detecting sweeps: {e}")
             return []
 
-    def _find_equal_levels(self, levels: np.ndarray, tolerance: float = 0.001) -> List[float]:
+    def _detect_sweeps_at_index(
+        self, df: pd.DataFrame, idx: int, tolerance: float
+    ) -> List[LiquiditySweep]:
+        sweeps: List[LiquiditySweep] = []
+        candle = df.iloc[idx]
+
+        prior_highs = df["high"].iloc[idx - self.swing_lookback : idx].to_numpy()
+        prior_lows = df["low"].iloc[idx - self.swing_lookback : idx].to_numpy()
+
+        if prior_highs.size > 0:
+            sweep = self._evaluate_sweep(
+                direction="up",
+                candle=candle,
+                reference_levels=prior_highs,
+                df=df,
+                idx=idx,
+                tolerance=tolerance,
+            )
+            if sweep:
+                sweeps.append(sweep)
+
+        if prior_lows.size > 0:
+            sweep = self._evaluate_sweep(
+                direction="down",
+                candle=candle,
+                reference_levels=prior_lows,
+                df=df,
+                idx=idx,
+                tolerance=tolerance,
+            )
+            if sweep:
+                sweeps.append(sweep)
+
+        return sweeps
+
+    def _evaluate_sweep(
+        self,
+        direction: str,
+        candle: pd.Series,
+        reference_levels: np.ndarray,
+        df: pd.DataFrame,
+        idx: int,
+        tolerance: float,
+    ) -> Optional[LiquiditySweep]:
+        if direction not in {"up", "down"}:
+            return None
+
+        levels = self._find_equal_levels(reference_levels, tolerance)
+        if direction == "up":
+            comparison_level = float(max(levels) if levels else float(reference_levels.max()))
+            took_liquidity = float(candle["high"]) > comparison_level * (1 + tolerance)
+            liquidity_pool = "equal highs" if levels else "stop hunt"
+            sweep_level = float(candle["high"])
+            sweep_size = float(candle["high"]) - comparison_level
+            follow_through = self._has_follow_through(
+                df, idx, direction, sweep_level
+            )
+            wick_ratio = self._wick_ratio(candle, direction)
+        else:
+            comparison_level = float(min(levels) if levels else float(reference_levels.min()))
+            took_liquidity = float(candle["low"]) < comparison_level * (1 - tolerance)
+            liquidity_pool = "equal lows" if levels else "stop hunt"
+            sweep_level = float(candle["low"])
+            sweep_size = comparison_level - float(candle["low"])
+            follow_through = self._has_follow_through(
+                df, idx, direction, sweep_level
+            )
+            wick_ratio = self._wick_ratio(candle, direction)
+
+        if not took_liquidity or sweep_size <= 0:
+            return None
+
+        volume_spike = self._volume_spike(df, idx)
+        reversal_probability = self._estimate_reversal_probability(
+            wick_ratio, volume_spike, follow_through
+        )
+
+        return LiquiditySweep(
+            direction=direction,
+            sweep_level=sweep_level,
+            liquidity_pool=liquidity_pool,
+            sweep_size=float(sweep_size),
+            volume_spike=float(volume_spike),
+            reversal_probability=float(reversal_probability),
+            institutional_follow_through=follow_through,
+        )
+
+    def _calculate_tolerance(self, df: pd.DataFrame) -> float:
+        atr = df["atr"].dropna()
+        if atr.empty:
+            return self.base_tolerance
+
+        avg_atr = float(atr.tail(self.volume_window).mean())
+        ref_price_series = df["close"].dropna()
+        if ref_price_series.empty:
+            return self.base_tolerance
+
+        ref_price = float(ref_price_series.tail(self.volume_window).mean())
+        if ref_price <= 0:
+            return self.base_tolerance
+
+        dynamic_tolerance = avg_atr / ref_price
+        return float(
+            max(
+                self.base_tolerance,
+                min(dynamic_tolerance, self.max_tolerance),
+            )
+        )
+
+    def _volume_spike(self, df: pd.DataFrame, idx: int) -> float:
+        window_start = max(0, idx - self.volume_window)
+        history = df["volume"].iloc[window_start:idx]
+        baseline = float(history.mean()) if not history.empty else 0.0
+        current_volume = float(df.iloc[idx]["volume"])
+        if baseline <= 0:
+            return 1.0 if current_volume > 0 else 0.0
+        return float(current_volume / baseline)
+
+    def _estimate_reversal_probability(
+        self, wick_ratio: float, volume_spike: float, follow_through: bool
+    ) -> float:
+        probability = 0.4 + min(0.4, wick_ratio * 0.6)
+        probability += min(0.2, max(0.0, (volume_spike - 1.0) / 5.0))
+        if follow_through:
+            probability += 0.1
+        else:
+            probability -= 0.1
+
+        return float(max(0.1, min(probability, 0.95)))
+
+    def _has_follow_through(
+        self, df: pd.DataFrame, idx: int, direction: str, sweep_level: float
+    ) -> bool:
+        lookahead_slice = df.iloc[idx + 1 : idx + 1 + self.confirmation_lookahead]
+        if lookahead_slice.empty:
+            return False
+
+        if direction == "up":
+            closes_below = lookahead_slice["close"] < sweep_level
+            return bool(closes_below.sum() >= max(1, len(lookahead_slice) // 2))
+
+        closes_above = lookahead_slice["close"] > sweep_level
+        return bool(closes_above.sum() >= max(1, len(lookahead_slice) // 2))
+
+    def _wick_ratio(self, candle: pd.Series, direction: str) -> float:
+        high = float(candle["high"])
+        low = float(candle["low"])
+        open_price = float(candle["open"]) if "open" in candle else float(candle["close"])
+        close_price = float(candle["close"])
+        total_range = high - low
+        if total_range <= 0:
+            return 0.0
+
+        if direction == "up":
+            upper_wick = high - max(open_price, close_price)
+            return float(max(0.0, upper_wick) / total_range)
+
+        lower_wick = min(open_price, close_price) - low
+        return float(max(0.0, lower_wick) / total_range)
+
+    def _compute_atr(self, df: pd.DataFrame, period: int = 14) -> pd.Series:
+        high_low = df["high"] - df["low"]
+        high_close = (df["high"] - df["close"].shift()).abs()
+        low_close = (df["low"] - df["close"].shift()).abs()
+        ranges = cast(pd.DataFrame, pd.concat([high_low, high_close, low_close], axis=1))
+        true_range = ranges.max(axis=1)
+        return cast(pd.Series, true_range.rolling(window=period).mean())
+
+    def _find_equal_levels(
+        self, levels: np.ndarray, tolerance: float = 0.001
+    ) -> List[float]:
         """Find equal or near-equal price levels"""
-        equal_levels = []
+        equal_levels: List[float] = []
         for i, level in enumerate(levels):
+            if level == 0:
+                continue
+            cluster = [float(level)]
             for j in range(i + 1, len(levels)):
-                if abs(level - levels[j]) / level <= tolerance:
-                    equal_levels.append(level)
+                other = float(levels[j])
+                if abs(level - other) / abs(level) <= tolerance:
+                    cluster.append(other)
+            if len(cluster) >= 2:
+                cluster_mean = float(sum(cluster) / len(cluster))
+                if not any(
+                    abs(existing - cluster_mean)
+                    <= tolerance * max(abs(existing), abs(cluster_mean), 1e-9)
+                    for existing in equal_levels
+                ):
+                    equal_levels.append(cluster_mean)
         return equal_levels
 
 

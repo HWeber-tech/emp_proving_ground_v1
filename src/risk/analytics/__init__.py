@@ -18,6 +18,10 @@ from .volatility_target import (
     calculate_realised_volatility,
     determine_target_allocation,
 )
+from .rolling_cvar import (
+    RollingCVaRMeasurement,
+    RollingCVaRMonitor,
+)
 from .volatility_regime import (
     VolatilityRegime,
     VolatilityRegimeAssessment,
@@ -36,6 +40,8 @@ __all__ = [
     "VolatilityTargetAllocation",
     "calculate_realised_volatility",
     "determine_target_allocation",
+    "RollingCVaRMeasurement",
+    "RollingCVaRMonitor",
     "VolatilityRegime",
     "VolatilityRegimeAssessment",
     "VolatilityRegimeThresholds",

@@ -174,7 +174,8 @@ These components have **architectural foundations** but require additional work:
 
 #### 2. Sensory Cortex (`src/sensory/`)
 - **What works**: RealSensoryOrgan integration, technical indicators, order book analytics framework, a fundamental analysis pipeline that normalises provider payloads into valuation/quality metrics for the WHY sensor, and an `InstrumentTranslator` service that normalises multi-venue aliases (Bloomberg, Reuters, cTrader, CME, NASDAQ) into the universal instrument model using configurable mappings.【F:src/sensory/real_sensory_organ.py†L41-L520】【F:src/sensory/why/fundamental.py†L1-L239】【F:src/sensory/why/why_sensor.py†L70-L210】【F:src/sensory/services/instrument_translator.py†L1-L200】【F:config/system/instrument_aliases.json†L1-L37】
-- **What's missing**: Real-time data feeds, provider-backed fundamental ingestion (current pipeline relies on supplied snapshots), live institutional footprint tracking
+- **Progress**: InstitutionalFootprintHunter now extracts ICT order blocks, fair value gaps, liquidity sweeps, smart-money flow, and institutional bias scoring for live footprint tracking.【F:src/sensory/organs/dimensions/institutional_tracker.py†L1-L151】
+- **What's missing**: Real-time data feeds, provider-backed fundamental ingestion (current pipeline relies on supplied snapshots)
 - **Status**: Architecture solid; limited by data source availability
 
 #### 3. Strategy Library (`src/trading/strategies/`)
@@ -192,7 +193,8 @@ These components have **architectural foundations** but require additional work:
   and follow-up reviews for each institutional data integration, keeping operational sign-off aligned with readiness audits.
   【F:docs/operations/validation_checklist.md†L1-L40】【F:docs/operations/post_enable_reviews.md†L1-L25】
 - **Progress**: Emergency procedures handbook codifies trigger conditions, communications flow, failover drills, and post-incident review checklists with ready-to-run templates for responders.【F:docs/operations/emergency_procedures.md†L1-L105】
-- **What's missing**: Production monitoring stack (Prometheus, Grafana, ELK)
+- **What's missing**: Grafana dashboards and ELK ingestion pipeline
+- **Progress**: Prometheus stack runs via Docker Compose with exporters for the engine, Redis, TimescaleDB, and Kafka plus validation ensuring compose wiring mounts rule files and dependencies correctly.【F:docker-compose.yml†L1-L195】【F:tests/config/test_prometheus_stack.py†L1-L65】
 - **Progress**: Kibana dashboard deployment CLI automates Saved Objects imports,
   emits human-readable saved object summaries, and supports API key/basic auth
   plus partial-failure handling for observability refreshes. Failover
@@ -1890,7 +1892,7 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
 
 **GPU**: ❌ NO - HMM is CPU-based statistical model
 
-- [ ] **Implement RegimeDetector class** (12 hours)
+- [x] **Implement RegimeDetector class** (12 hours)
   - **Location**: `src/sensory/when/regime_detector.py`
   - **Key methods**: `extract_features()`, `train()`, `predict_regime()`, `predict_regime_probabilities()`, `get_regime_statistics()`
   - **Features**: Returns, volatility, mean return, volume ratio, momentum
@@ -1971,6 +1973,8 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Tests**: Training, prediction, probabilities, strategy selection, position sizing
   - **Acceptance**: All tests pass, 90%+ coverage
 
+- **Progress**: HMM detector now has regression tests covering training, regime probabilities, and data sufficiency safeguards.【F:tests/sensory/when/test_regime_detector.py†L1-L52】
+
 **Installation**: `pip install hmmlearn`
 
 **Success metrics**: Detector identifies regime changes with 70%+ accuracy; regime-aware strategies reduce drawdowns by 15-20% vs. single-strategy baseline.
@@ -2038,8 +2042,8 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
           }
   ```
 
-- [ ] **Implement RollingCVaRMonitor** (6 hours)
-  - **Location**: `src/risk/cvar_optimizer.py`
+- [x] **Implement RollingCVaRMonitor** (6 hours)
+  - **Location**: `src/risk/analytics/rolling_cvar.py`
   - **Key methods**: `update()`, `check_breach()`
   - **Window**: 252 days rolling
   - **Acceptance**: Monitor tracks CVaR in real-time and detects breaches
@@ -2050,9 +2054,11 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
   - **Acceptance**: Position sizer uses CVaR optimization to calculate sizes
 
 - [ ] **Write comprehensive tests** (2-6 hours)
-  - **Location**: `tests/risk/test_cvar_optimizer.py`
+  - **Location**: `tests/risk/analytics/test_rolling_cvar.py`
   - **Tests**: CVaR calculation, optimization, position sizing, monitoring, breach detection
   - **Acceptance**: All tests pass, 90%+ coverage
+
+- **Progress**: Rolling CVaR analytics tests now validate configuration guards, measurement accuracy, and handling of non-finite observations.【F:tests/risk/analytics/test_rolling_cvar.py†L1-L71】
 
 **Installation**: `pip install scipy` (already included)
 
@@ -3031,7 +3037,7 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
 
 **Objective**: Real-time visibility into system health and performance
 
-- [ ] **Set up Prometheus infrastructure** (8 hours)
+- [x] **Set up Prometheus infrastructure** (8 hours)
   - Deploy Prometheus server
   - Configure scraping and retention
   - Set up service discovery

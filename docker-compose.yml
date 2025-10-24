@@ -13,6 +13,7 @@ services:
     container_name: emp-engine
     ports:
       - "8000:8000"
+      - "8081:8081"
     environment:
       - EMP_ENV=development
       - PYTHONPATH=/app
@@ -23,6 +24,8 @@ services:
       - REDIS_CLIENT_NAME=emp-dev-cache
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - KAFKA_CLIENT_ID=emp-dev-app
+      - METRICS_EXPORTER_ENABLED=1
+      - EMP_METRICS_PORT=8081
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -31,7 +34,6 @@ services:
     depends_on:
       - timescaledb
       - redis
-      - timescaledb
       - kafka
     networks:
       - emp-network
@@ -129,10 +131,94 @@ services:
       - emp-network
     restart: unless-stopped
 
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: emp-redis-exporter
+    command:
+      - "--redis.addr=redis://redis:6379"
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    networks:
+      - emp-network
+    restart: unless-stopped
+
+  timescaledb-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: emp-timescaledb-exporter
+    environment:
+      DATA_SOURCE_NAME: postgresql://emp_user:emp_password@timescaledb:5432/emp_db?sslmode=disable
+    ports:
+      - "9187:9187"
+    depends_on:
+      - timescaledb
+    networks:
+      - emp-network
+    restart: unless-stopped
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: emp-kafka-exporter
+    command:
+      - --kafka.server=kafka:9092
+    ports:
+      - "9308:9308"
+    depends_on:
+      - kafka
+    networks:
+      - emp-network
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: emp-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/emp_rules.yml:/etc/prometheus/emp_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+    depends_on:
+      - engine
+      - redis-exporter
+      - timescaledb-exporter
+      - kafka-exporter
+    networks:
+      - emp-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: emp-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/dashboards/json:/etc/grafana/provisioning/dashboards/json:ro
+    depends_on:
+      - prometheus
+    networks:
+      - emp-network
+    restart: unless-stopped
+
 volumes:
   redis_data:
   timescaledb_data:
   kafka_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   emp-network:

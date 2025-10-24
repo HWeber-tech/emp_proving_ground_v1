@@ -4,15 +4,16 @@ This setup provisions in-repo infrastructure-as-code for Prometheus alerts and G
 
 ## Components
 
-- `config/prometheus/prometheus.yml` ships with the EMP scrape targets and now loads `emp_rules.yml` for SLO alerting.
+- `config/prometheus/prometheus.yml` ships with the EMP scrape targets and now loads `emp_rules.yml` for SLO alerting. `docker-compose.yml` wires this into a `prom/prometheus` container so the configuration runs without manual copying.
 - `config/prometheus/emp_rules.yml` defines warning and critical alerts for understanding-loop latency, drift-alert freshness, and replay determinism using the SLO status gauges exported by `src/operations/slo.py`.
 - `config/grafana/datasources/prometheus.yml` provisions a Grafana data source named `EMP Prometheus` that points at the docker compose Prometheus container.
 - `config/grafana/dashboards/json/emp_observability.json` renders the core SLO metrics (latency, drift, replay) and their status gauges so operators can see both raw trends and breach severity.
+- Docker Compose services ship first-party exporters so Prometheus can scrape Redis (`redis-exporter`), TimescaleDB (`timescaledb-exporter`), and Kafka (`kafka-exporter`) without additional setup. The EMP runtime itself exposes `/metrics` on port `8081` once `METRICS_EXPORTER_ENABLED=1` is in the environment.
 
 ## Local drill
 
-1. `docker compose up -d prometheus grafana`
-2. Start the EMP runtime (or fixtures) so `start_metrics_server()` exposes `/metrics` on the configured port.
+1. `docker compose up -d prometheus grafana redis-exporter timescaledb-exporter kafka-exporter`
+2. Ensure the EMP runtime container boots with `METRICS_EXPORTER_ENABLED=1` (the Compose file already provides this) so `start_metrics_server()` exposes `/metrics` on port `8081`.
 3. Visit Grafana at `http://localhost:3000` (credentials admin/admin). The "EMP Observability SLOs" dashboard is auto-imported.
 4. Prometheus at `http://localhost:9090` now evaluates the alert rules. Use **Alerts** in the UI to inspect breach simulations.
 

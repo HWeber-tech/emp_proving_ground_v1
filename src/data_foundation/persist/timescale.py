@@ -402,6 +402,10 @@ def _float_type(dialect: str) -> str:
     return "DOUBLE PRECISION" if dialect == "postgresql" else "REAL"
 
 
+def _bigint_type(dialect: str) -> str:
+    return "BIGINT" if dialect == "postgresql" else "INTEGER"
+
+
 def _now_function(dialect: str) -> str:
     return "NOW()" if dialect == "postgresql" else "CURRENT_TIMESTAMP"
 
@@ -436,6 +440,9 @@ class TimescaleMigrator:
 
     _DAILY_BARS = ("market_data", "daily_bars")
     _INTRADAY_TRADES = ("market_data", "intraday_trades")
+    _TICKS = ("market_data", "ticks")
+    _QUOTES = ("market_data", "quotes")
+    _ORDER_BOOK = ("market_data", "order_book")
     _MACRO_EVENTS = ("macro_data", "events")
     _INGEST_RUNS = ("telemetry", "ingest_runs")
     _COMPLIANCE_AUDIT = ("telemetry", "compliance_audit")
@@ -455,6 +462,9 @@ class TimescaleMigrator:
                 self._bootstrap_timescale(conn)
             self._create_daily_bars(conn, dialect)
             self._create_intraday_trades(conn, dialect)
+            self._create_ticks(conn, dialect)
+            self._create_quotes(conn, dialect)
+            self._create_order_book(conn, dialect)
             self._create_macro_events(conn, dialect)
             self._create_ingest_journal(conn, dialect)
             self._create_compliance_audit(conn, dialect)
@@ -549,6 +559,119 @@ class TimescaleMigrator:
                 ),
                 {"table": table},
             )
+
+    def _create_ticks(self, conn: Connection, dialect: str) -> None:
+        table = _table_name(*self._TICKS, dialect)
+        ts_type = _timestamp_type(dialect)
+        float_type = _float_type(dialect)
+        bigint_type = _bigint_type(dialect)
+        now_fn = _now_function(dialect)
+        ddl = f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            ts {ts_type} NOT NULL,
+            symbol TEXT NOT NULL,
+            sequence {bigint_type} NOT NULL,
+            price {float_type} NOT NULL,
+            size {float_type},
+            venue TEXT,
+            trade_id TEXT,
+            liquidity_side TEXT,
+            conditions TEXT,
+            source TEXT NOT NULL DEFAULT 'unknown',
+            ingested_at {ts_type} NOT NULL DEFAULT {now_fn},
+            PRIMARY KEY (symbol, ts, sequence)
+        )
+        """
+        conn.execute(text(ddl))
+
+        if dialect == "postgresql":
+            conn.execute(
+                text(
+                    "SELECT create_hypertable(:table, 'ts', if_not_exists => TRUE, migrate_data => TRUE)",
+                ),
+                {"table": table},
+            )
+
+        index_stmt = text(
+            f"CREATE INDEX IF NOT EXISTS market_data_ticks_symbol_ts_idx ON {table} (symbol, ts DESC)"
+        )
+        conn.execute(index_stmt)
+
+    def _create_quotes(self, conn: Connection, dialect: str) -> None:
+        table = _table_name(*self._QUOTES, dialect)
+        ts_type = _timestamp_type(dialect)
+        float_type = _float_type(dialect)
+        bigint_type = _bigint_type(dialect)
+        now_fn = _now_function(dialect)
+        ddl = f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            ts {ts_type} NOT NULL,
+            symbol TEXT NOT NULL,
+            sequence {bigint_type} NOT NULL,
+            bid_price {float_type},
+            bid_size {float_type},
+            ask_price {float_type},
+            ask_size {float_type},
+            mid_price {float_type},
+            spread_bps {float_type},
+            venue TEXT,
+            source TEXT NOT NULL DEFAULT 'unknown',
+            ingested_at {ts_type} NOT NULL DEFAULT {now_fn},
+            PRIMARY KEY (symbol, ts, sequence)
+        )
+        """
+        conn.execute(text(ddl))
+
+        if dialect == "postgresql":
+            conn.execute(
+                text(
+                    "SELECT create_hypertable(:table, 'ts', if_not_exists => TRUE, migrate_data => TRUE)",
+                ),
+                {"table": table},
+            )
+
+        index_stmt = text(
+            f"CREATE INDEX IF NOT EXISTS market_data_quotes_symbol_ts_idx ON {table} (symbol, ts DESC)"
+        )
+        conn.execute(index_stmt)
+
+    def _create_order_book(self, conn: Connection, dialect: str) -> None:
+        table = _table_name(*self._ORDER_BOOK, dialect)
+        ts_type = _timestamp_type(dialect)
+        float_type = _float_type(dialect)
+        bigint_type = _bigint_type(dialect)
+        now_fn = _now_function(dialect)
+        ddl = f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            ts {ts_type} NOT NULL,
+            symbol TEXT NOT NULL,
+            sequence {bigint_type} NOT NULL,
+            level INTEGER NOT NULL,
+            bid_price {float_type},
+            bid_size {float_type},
+            ask_price {float_type},
+            ask_size {float_type},
+            imbalance {float_type},
+            venue TEXT,
+            source TEXT NOT NULL DEFAULT 'unknown',
+            ingested_at {ts_type} NOT NULL DEFAULT {now_fn},
+            PRIMARY KEY (symbol, ts, sequence, level)
+        )
+        """
+        conn.execute(text(ddl))
+
+        if dialect == "postgresql":
+            conn.execute(
+                text(
+                    "SELECT create_hypertable(:table, 'ts', if_not_exists => TRUE, migrate_data => TRUE)",
+                ),
+                {"table": table},
+            )
+
+        index_stmt = text(
+            f"CREATE INDEX IF NOT EXISTS market_data_order_book_symbol_ts_idx ON {table} (symbol, ts DESC)"
+        )
+        conn.execute(index_stmt)
 
     def _create_macro_events(self, conn: Connection, dialect: str) -> None:
         table = _table_name(*self._MACRO_EVENTS, dialect)
@@ -915,6 +1038,241 @@ def _prepare_intraday_trade_records(
         ingested_value = record.get("ingested_at")
         if isinstance(ingested_value, pd.Timestamp):
             record["ingested_at"] = ingested_value.to_pydatetime()
+    return records
+
+
+def _ensure_sequence_column(
+    frame: pd.DataFrame, *, group_keys: Sequence[str], column: str = "sequence"
+) -> None:
+    if column not in frame.columns:
+        frame[column] = pd.NA
+    else:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
+    mask = frame[column].isna()
+    if mask.any():
+        frame.loc[mask, column] = frame.loc[mask].groupby(list(group_keys)).cumcount()
+
+    frame[column] = frame[column].fillna(0).astype("int64")
+
+
+def _prepare_tick_trade_records(
+    df: pd.DataFrame, source: str, ingest_ts: datetime
+) -> list[dict[str, object]]:
+    frame = df.copy()
+    frame = frame.rename(columns={"timestamp": "ts", "time": "ts"})
+    if "ts" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'timestamp' column")
+    if "symbol" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'symbol' column")
+    if "price" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'price' column")
+
+    frame["ts"] = pd.to_datetime(frame["ts"], utc=True)
+    frame["symbol"] = frame["symbol"].astype(str)
+    frame["price"] = pd.to_numeric(frame["price"], errors="coerce")
+    if frame["price"].isna().any():
+        raise ValueError("Tick trades must contain numeric prices")
+
+    if "size" in frame.columns:
+        frame["size"] = pd.to_numeric(frame["size"], errors="coerce")
+    else:
+        frame["size"] = pd.NA
+
+    if "venue" not in frame.columns and "exchange" in frame.columns:
+        frame = frame.rename(columns={"exchange": "venue"})
+    if "venue" in frame.columns:
+        frame["venue"] = frame["venue"].astype(str)
+    else:
+        frame["venue"] = None
+
+    if "trade_id" not in frame.columns:
+        frame["trade_id"] = None
+    if "liquidity_side" not in frame.columns:
+        frame["liquidity_side"] = None
+
+    if "conditions" in frame.columns:
+        frame["conditions"] = frame["conditions"].apply(_serialise_sequence_field)
+    else:
+        frame["conditions"] = None
+
+    _ensure_sequence_column(frame, group_keys=("symbol", "ts"))
+
+    frame["source"] = source
+    frame["ingested_at"] = ingest_ts
+
+    ordered = [
+        "ts",
+        "symbol",
+        "sequence",
+        "price",
+        "size",
+        "venue",
+        "trade_id",
+        "liquidity_side",
+        "conditions",
+        "source",
+        "ingested_at",
+    ]
+    frame = frame[ordered]
+    frame = frame.where(pd.notnull(frame), None)
+
+    records = cast(list[dict[str, object]], frame.to_dict("records"))
+    for record in records:
+        ts_value = record.get("ts")
+        if isinstance(ts_value, pd.Timestamp):
+            record["ts"] = ts_value.to_pydatetime()
+        ingested_value = record.get("ingested_at")
+        if isinstance(ingested_value, pd.Timestamp):
+            record["ingested_at"] = ingested_value.to_pydatetime()
+    return records
+
+
+def _prepare_quote_tick_records(
+    df: pd.DataFrame, source: str, ingest_ts: datetime
+) -> list[dict[str, object]]:
+    frame = df.copy()
+    frame = frame.rename(columns={"timestamp": "ts", "time": "ts"})
+    if "ts" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'timestamp' column")
+    if "symbol" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'symbol' column")
+    if "bid_price" not in frame.columns and "ask_price" not in frame.columns:
+        raise ValueError("Quote ticks require at least one of 'bid_price' or 'ask_price'")
+
+    frame["ts"] = pd.to_datetime(frame["ts"], utc=True)
+    frame["symbol"] = frame["symbol"].astype(str)
+
+    for column in ("bid_price", "ask_price", "bid_size", "ask_size", "mid_price", "spread_bps"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        else:
+            frame[column] = pd.NA
+
+    if "mid_price" in frame.columns and frame["mid_price"].isna().all():
+        frame["mid_price"] = pd.NA
+
+    missing_mid = frame["mid_price"].isna()
+    if missing_mid.any():
+        frame.loc[missing_mid, "mid_price"] = (
+            (frame.loc[missing_mid, "bid_price"] + frame.loc[missing_mid, "ask_price"]) / 2
+        )
+
+    missing_spread = frame["spread_bps"].isna()
+    if missing_spread.any():
+        mid = frame.loc[missing_spread, "mid_price"].replace(0, pd.NA)
+        frame.loc[missing_spread, "spread_bps"] = (
+            (frame.loc[missing_spread, "ask_price"] - frame.loc[missing_spread, "bid_price"]) * 10_000
+        ) / mid
+
+    if "venue" not in frame.columns:
+        frame["venue"] = None
+    else:
+        frame["venue"] = frame["venue"].astype(str)
+
+    _ensure_sequence_column(frame, group_keys=("symbol", "ts"))
+
+    frame["source"] = source
+    frame["ingested_at"] = ingest_ts
+
+    ordered = [
+        "ts",
+        "symbol",
+        "sequence",
+        "bid_price",
+        "bid_size",
+        "ask_price",
+        "ask_size",
+        "mid_price",
+        "spread_bps",
+        "venue",
+        "source",
+        "ingested_at",
+    ]
+    frame = frame[ordered]
+    frame = frame.where(pd.notnull(frame), None)
+
+    records = cast(list[dict[str, object]], frame.to_dict("records"))
+    for record in records:
+        ts_value = record.get("ts")
+        if isinstance(ts_value, pd.Timestamp):
+            record["ts"] = ts_value.to_pydatetime()
+        ingested_value = record.get("ingested_at")
+        if isinstance(ingested_value, pd.Timestamp):
+            record["ingested_at"] = ingested_value.to_pydatetime()
+    return records
+
+
+def _prepare_order_book_records(
+    df: pd.DataFrame, source: str, ingest_ts: datetime
+) -> list[dict[str, object]]:
+    frame = df.copy()
+    frame = frame.rename(columns={"timestamp": "ts", "time": "ts"})
+    if "ts" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'timestamp' column")
+    if "symbol" not in frame.columns:
+        raise ValueError("DataFrame must contain a 'symbol' column")
+    if "level" not in frame.columns:
+        raise ValueError("Order book records require a 'level' column")
+
+    frame["ts"] = pd.to_datetime(frame["ts"], utc=True)
+    frame["symbol"] = frame["symbol"].astype(str)
+    frame["level"] = pd.to_numeric(frame["level"], errors="coerce")
+    if frame["level"].isna().any():
+        raise ValueError("Order book levels must be numeric")
+    frame["level"] = frame["level"].astype("int64")
+
+    for column in ("bid_price", "bid_size", "ask_price", "ask_size", "imbalance"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce")
+        else:
+            frame[column] = pd.NA
+
+    if frame["imbalance"].isna().all():
+        bid = frame["bid_size"].clip(lower=0)
+        ask = frame["ask_size"].clip(lower=0)
+        total = bid + ask
+        with pd.option_context("mode.use_inf_as_na", True):
+            frame.loc[:, "imbalance"] = ((bid - ask) / total).where(total != 0)
+
+    if "venue" not in frame.columns:
+        frame["venue"] = None
+    else:
+        frame["venue"] = frame["venue"].astype(str)
+
+    _ensure_sequence_column(frame, group_keys=("symbol", "ts"))
+
+    frame["source"] = source
+    frame["ingested_at"] = ingest_ts
+
+    ordered = [
+        "ts",
+        "symbol",
+        "sequence",
+        "level",
+        "bid_price",
+        "bid_size",
+        "ask_price",
+        "ask_size",
+        "imbalance",
+        "venue",
+        "source",
+        "ingested_at",
+    ]
+    frame = frame[ordered]
+    frame = frame.where(pd.notnull(frame), None)
+
+    records = cast(list[dict[str, object]], frame.to_dict("records"))
+    for record in records:
+        ts_value = record.get("ts")
+        if isinstance(ts_value, pd.Timestamp):
+            record["ts"] = ts_value.to_pydatetime()
+        ingested_value = record.get("ingested_at")
+        if isinstance(ingested_value, pd.Timestamp):
+            record["ingested_at"] = ingested_value.to_pydatetime()
+        level_value = record.get("level")
+        if isinstance(level_value, float):
+            record["level"] = int(level_value)
     return records
 
 
@@ -2739,6 +3097,96 @@ class TimescaleIngestor:
             key_columns=("symbol", "ts", "price"),
             update_columns=("size", "exchange", "conditions", "source", "ingested_at"),
             dimension="intraday_trades",
+            entity_key="symbol",
+            timestamp_key="ts",
+            ingest_ts=ingest_ts,
+            source=source,
+        )
+
+    def upsert_ticks(self, df: pd.DataFrame, *, source: str = "unknown") -> TimescaleIngestResult:
+        if df.empty:
+            self._logger.info("No rows to ingest into Timescale for ticks")
+            return TimescaleIngestResult.empty(dimension="ticks", source=source)
+
+        ingest_ts = datetime.now(tz=UTC)
+        records = _prepare_tick_trade_records(df, source, ingest_ts)
+        return self._ingest_records(
+            records=records,
+            schema="market_data",
+            table="ticks",
+            key_columns=("symbol", "ts", "sequence"),
+            update_columns=(
+                "price",
+                "size",
+                "venue",
+                "trade_id",
+                "liquidity_side",
+                "conditions",
+                "source",
+                "ingested_at",
+            ),
+            dimension="ticks",
+            entity_key="symbol",
+            timestamp_key="ts",
+            ingest_ts=ingest_ts,
+            source=source,
+        )
+
+    def upsert_quotes(self, df: pd.DataFrame, *, source: str = "unknown") -> TimescaleIngestResult:
+        if df.empty:
+            self._logger.info("No rows to ingest into Timescale for quotes")
+            return TimescaleIngestResult.empty(dimension="quotes", source=source)
+
+        ingest_ts = datetime.now(tz=UTC)
+        records = _prepare_quote_tick_records(df, source, ingest_ts)
+        return self._ingest_records(
+            records=records,
+            schema="market_data",
+            table="quotes",
+            key_columns=("symbol", "ts", "sequence"),
+            update_columns=(
+                "bid_price",
+                "bid_size",
+                "ask_price",
+                "ask_size",
+                "mid_price",
+                "spread_bps",
+                "venue",
+                "source",
+                "ingested_at",
+            ),
+            dimension="quotes",
+            entity_key="symbol",
+            timestamp_key="ts",
+            ingest_ts=ingest_ts,
+            source=source,
+        )
+
+    def upsert_order_book(
+        self, df: pd.DataFrame, *, source: str = "unknown"
+    ) -> TimescaleIngestResult:
+        if df.empty:
+            self._logger.info("No rows to ingest into Timescale for order book")
+            return TimescaleIngestResult.empty(dimension="order_book", source=source)
+
+        ingest_ts = datetime.now(tz=UTC)
+        records = _prepare_order_book_records(df, source, ingest_ts)
+        return self._ingest_records(
+            records=records,
+            schema="market_data",
+            table="order_book",
+            key_columns=("symbol", "ts", "sequence", "level"),
+            update_columns=(
+                "bid_price",
+                "bid_size",
+                "ask_price",
+                "ask_size",
+                "imbalance",
+                "venue",
+                "source",
+                "ingested_at",
+            ),
+            dimension="order_book",
             entity_key="symbol",
             timestamp_key="ts",
             ingest_ts=ingest_ts,

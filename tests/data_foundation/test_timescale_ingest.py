@@ -84,6 +84,88 @@ def _sample_intraday(symbol: str = "EURUSD") -> pd.DataFrame:
     )
 
 
+def _sample_ticks(symbol: str = "EURUSD") -> pd.DataFrame:
+    base = datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc)
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": base,
+                "symbol": symbol,
+                "sequence": 1,
+                "price": 1.01005,
+                "size": 150_000,
+                "venue": "dukascopy",
+                "conditions": ["T"],
+            },
+            {
+                "timestamp": base,
+                "symbol": symbol,
+                "sequence": 2,
+                "price": 1.0101,
+                "size": 75_000,
+                "venue": "dukascopy",
+                "liquidity_side": "aggressor_buy",
+            },
+        ]
+    )
+
+
+def _sample_quotes(symbol: str = "EURUSD") -> pd.DataFrame:
+    base = datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc)
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": base,
+                "symbol": symbol,
+                "bid_price": 1.01,
+                "bid_size": 2_000_000,
+                "ask_price": 1.0102,
+                "ask_size": 1_800_000,
+                "venue": "dukascopy",
+            },
+            {
+                "timestamp": base,
+                "symbol": symbol,
+                "bid_price": 1.0101,
+                "bid_size": 1_900_000,
+                "ask_price": 1.0103,
+                "ask_size": 1_700_000,
+                "venue": "dukascopy",
+            },
+        ]
+    )
+
+
+def _sample_order_book(symbol: str = "EURUSD") -> pd.DataFrame:
+    base = datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc)
+    return pd.DataFrame(
+        [
+            {
+                "timestamp": base,
+                "symbol": symbol,
+                "sequence": 10,
+                "level": 1,
+                "bid_price": 1.01,
+                "bid_size": 3_000_000,
+                "ask_price": 1.0102,
+                "ask_size": 2_800_000,
+                "venue": "dukascopy",
+            },
+            {
+                "timestamp": base,
+                "symbol": symbol,
+                "sequence": 10,
+                "level": 2,
+                "bid_price": 1.0098,
+                "bid_size": 2_500_000,
+                "ask_price": 1.0104,
+                "ask_size": 2_400_000,
+                "venue": "dukascopy",
+            },
+        ]
+    )
+
+
 def _sample_macro_events() -> list[MacroEvent]:
     return [
         MacroEvent(
@@ -293,6 +375,92 @@ def test_timescale_ingestor_intraday_upsert(tmp_path) -> None:
         ).scalar_one()
 
     assert stored == 2
+
+
+def test_timescale_ingestor_ticks(tmp_path) -> None:
+    db_path = tmp_path / "ticks.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    TimescaleMigrator(engine).apply()
+    ingestor = TimescaleIngestor(engine)
+
+    trades = _sample_ticks()
+    result = ingestor.upsert_ticks(trades, source="dukascopy")
+
+    assert result.rows_written == len(trades)
+    assert result.dimension == "ticks"
+    assert result.source == "dukascopy"
+
+    replay = trades.copy()
+    replay.loc[1, "size"] = 80_000
+    ingestor.upsert_ticks(replay, source="dukascopy")
+
+    with engine.connect() as conn:
+        stored = conn.execute(text("SELECT COUNT(*) FROM market_data_ticks"))
+        assert stored.scalar_one() == len(trades)
+
+        conditions = conn.execute(
+            text(
+                "SELECT conditions FROM market_data_ticks WHERE symbol = :symbol AND sequence = :sequence",
+            ),
+            {"symbol": "EURUSD", "sequence": 1},
+        ).scalar_one()
+
+    assert conditions == "[\"T\"]"
+
+
+def test_timescale_ingestor_quotes(tmp_path) -> None:
+    db_path = tmp_path / "quotes.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    TimescaleMigrator(engine).apply()
+    ingestor = TimescaleIngestor(engine)
+
+    quotes = _sample_quotes()
+    result = ingestor.upsert_quotes(quotes, source="dukascopy")
+
+    assert result.rows_written == len(quotes)
+    assert result.dimension == "quotes"
+
+    with engine.connect() as conn:
+        stored = conn.execute(text("SELECT COUNT(*) FROM market_data_quotes"))
+        assert stored.scalar_one() == len(quotes)
+
+        mid_price = conn.execute(
+            text(
+                "SELECT mid_price FROM market_data_quotes WHERE symbol = :symbol ORDER BY sequence LIMIT 1",
+            ),
+            {"symbol": "EURUSD"},
+        ).scalar_one()
+
+    assert pytest.approx(mid_price, rel=1e-6) == 1.0101
+
+
+def test_timescale_ingestor_order_book(tmp_path) -> None:
+    db_path = tmp_path / "order_book.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    TimescaleMigrator(engine).apply()
+    ingestor = TimescaleIngestor(engine)
+
+    book = _sample_order_book()
+    result = ingestor.upsert_order_book(book, source="dukascopy")
+
+    assert result.rows_written == len(book)
+    assert result.dimension == "order_book"
+
+    replay = book.copy()
+    replay.loc[1, "bid_size"] = 2_600_000
+    ingestor.upsert_order_book(replay, source="dukascopy")
+
+    with engine.connect() as conn:
+        levels = conn.execute(
+            text(
+                "SELECT level, imbalance FROM market_data_order_book WHERE symbol = :symbol ORDER BY level",
+            ),
+            {"symbol": "EURUSD"},
+        ).fetchall()
+
+    assert len(levels) == len(book)
+    assert levels[0][0] == 1
+    assert levels[1][0] == 2
 
 
 def test_timescale_ingestor_macro_events(tmp_path) -> None:

@@ -11,6 +11,7 @@ pandas>=2.2.0; python_version >= "3.13"
 scipy>=1.11.0; python_version < "3.13"
 scipy>=1.14.1; python_version >= "3.13"
 scikit-learn>=1.0.0
+hmmlearn>=0.2.8
 
 # Visualization + reporting
 matplotlib>=3.5.0

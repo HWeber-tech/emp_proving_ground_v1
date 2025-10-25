@@ -69,8 +69,12 @@ The project follows a **truth-first development philosophy**: all claims are bac
 - **Production-grade secrets management**: No key rotation, scoped credentials, or tamper-evident logs
 - **Real-time order book data**: LOBSTER integration planned but not yet implemented
 - **Institutional compliance**: Audit trails exist, but full compliance suite not implemented
+- **Advanced forecasting**: iTransformer, TimeXer, transfer learning not yet implemented (Phase 3.11)
+- **Learned strategy routing**: MoE-based strategy selection not yet implemented (Phase 3.11)
+- **RL optimal execution**: Reinforcement learning execution scheduling not yet implemented (Phase 3.11)
+- **Operational rigor**: Consistency SLO, capacity curves, doubly-robust evaluation not yet implemented (Phase 3.13)
 
-**Bottom line**: This is a **development framework** for building a production system, not a turnkey trading platform.
+**Bottom line**: This is a **development framework** for building a production system, not a turnkey trading platform. The roadmap contains 20+ advanced enhancements from 2024-2025 research that will transform this into an institutional-grade system.
 
 ---
 
@@ -300,6 +304,117 @@ These components have **architectural foundations** but require additional work:
 - **Status**: Research complete; awaiting engineering execution
 
 ---
+
+### ❌ Not Yet Implemented (On Roadmap)
+
+These components are **planned** with detailed specifications in the Development Roadmap but not yet started:
+
+#### 1. Preconditions (Phase 0) — Critical Blocker
+
+**Estimated effort**: 72-112 hours
+
+- **Timestamp Hygiene & Clock Discipline**: Verify data release times, prevent look-ahead bias, enforce timezone consistency
+- **Data Provenance & Reproducibility**: Version control for datasets, reproducible data lineage, hash-based verification
+- **Leakage Firewall & Feature Sanity Suite**: Detect future information in features, validate feature construction, prevent common leakage patterns
+
+**Why critical**: Without these, CSCV/DSR validation can give false confidence on tainted data. Must implement before statistical validation.
+
+**Status**: Blocking all downstream validation work
+
+---
+
+#### 2. Statistical Validation (Phase 2.4) — Critical Blocker
+
+**Estimated effort**: 40-60 hours
+
+- **CSCV (Combinatorially Symmetric Cross-Validation)**: Purged and embargoed folds to prevent information leakage
+- **DSR (Deflated Sharpe Ratio)**: Multiple testing correction for strategy selection
+- **PBO (Probability of Backtest Overfitting)**: Measure overfitting risk
+- **CI Promotion Gates**: Fail builds if DSR < threshold
+
+**Why critical**: Prevents overfitted strategies from reaching production. Industry-standard validation for institutional trading.
+
+**Status**: Blocking strategy promotion to live trading
+
+---
+
+#### 3. Impact-Aware Execution (Phase 2.5) — High Priority
+
+**Estimated effort**: 24-40 hours
+
+- **Complete Almgren-Chriss Implementation**: Market impact model with permanent/temporary components
+- **TWAP/VWAP/IS Schedulers**: Time-weighted, volume-weighted, implementation shortfall execution
+- **Alpha Half-Life Estimator**: Determine optimal execution urgency from signal decay
+- **Execution Strategy Selector**: Route orders based on alpha characteristics
+
+**Why important**: Prevents alpha bleed from poor execution. Converts signal factory into capital-efficient system.
+
+**Status**: Framework exists, needs completion and integration
+
+---
+
+#### 4. Operational Validation (Phase 2.6) — Critical Blocker
+
+**Estimated effort**: 72-112 hours
+
+- **Shadow Mode → Canary → Promotion Lifecycle**: Safe deployment ladder with divergence monitoring
+- **Paper↔Live Consistency SLO**: Automatic detection of backtest-to-live divergence (`|live_pnl - paper_pnl| / turnover`)
+- **Truthful P&L & Cost Accounting**: Include slippage, fees, funding costs, taxes in performance measurement
+
+**Why critical**: Prevents backtest-to-live disasters. Most "alpha" disappears in live trading due to unmodeled costs.
+
+**Status**: Blocking production deployment
+
+---
+
+#### 5. Formal Regime Routing (Phase 3.9) — High Priority
+
+**Estimated effort**: 32-48 hours
+
+- **Regime-Strategy Compatibility Matrix**: Empirically derived mapping of which strategies work in which regimes
+- **Automatic Capital Allocation**: Route capital based on current regime
+- **Dynamic Strategy Suspension/Promotion**: Suspend strategies when regime is hostile
+- **Hysteresis**: Prevent regime thrashing with multi-observation confirmation
+
+**Why important**: Transforms antifragility from philosophy to mechanism. Prevents strategies from running in hostile environments.
+
+**Status**: Regime detection exists (WHEN sensor), routing logic missing
+
+---
+
+#### 6. Advanced Enhancements (Phase 3.11-3.13) — Phased Rollout
+
+**Estimated effort**: 652-1,008 hours (16-25 months part-time, or 4-6 months with dedicated team)
+
+**Phase 3.11: Trading Enhancements** (10 techniques, 364-568 hours)
+- **Q1 (No-Regret First)**: Square-root impact model, iTransformer forecasting, MoE routing, sparse networks
+- **Q2 (Execution & Evolution)**: RL optimal execution, TimeXer exogenous integration, Spectral GNN evolution
+- **Q3 (Adaptive Layer)**: GMM regime detection, transfer learning for new instruments
+
+**Phase 3.12: ML/AI/Evolution** (4 techniques, 176-280 hours)
+- Few-shot meta-learning for fast adaptation to new instruments
+- Continual learning for non-stationary markets (prevent catastrophic forgetting)
+- Efficient transformers (Linformer, Performer, FlashAttention) for real-time inference
+- Neural architecture search (DARTS, ENAS) for automated sensor design
+
+**Phase 3.13: Operational Enhancements** (6 techniques, 112-160 hours)
+- Conformal prediction for calibrated confidence intervals
+- Doubly-robust policy evaluation for offline RL safety
+- Regime transition early-warning (BOCPD/CUSUM) for pre-emptive deleveraging
+- Capacity & shortfall curves to prevent over-allocation
+- Paper↔live consistency SLO (codified with auto-investigation)
+- MoE diversity routing to reduce portfolio correlation
+
+**Why valuable**: Research-backed enhancements from 2024-2025 arXiv papers. Expected 30-50% improvement in risk-adjusted returns, 20-40% execution cost reduction.
+
+**Status**: Detailed specifications in roadmap; quarterly phased rollout planned after critical blockers cleared
+
+---
+
+**See Development Roadmap** for complete implementation specifications, acceptance criteria, and bakeoff requirements for all planned enhancements.
+
+
+
 
 ## What's Missing
 

@@ -1,0 +1,184 @@
+# EMP Validation Configuration
+# Single source of truth for all validation gates, thresholds, and SLOs
+# Referenced by CI, runtime validation, and documentation
+
+# Metrics validation thresholds
+metrics:
+  cscv:
+    n_splits: 10
+    purge_days: 7          # Remove overlapping samples
+    embargo_days: 1        # Gap between train/test
+    min_sharpe: 1.0        # Minimum Sharpe ratio across splits
+  
+  dsr:
+    min: 1.0               # Minimum Deflated Sharpe Ratio
+    trials: 100            # Number of trials for deflation
+  
+  pbo:
+    max: 0.50              # Maximum Probability of Backtest Overfitting
+  
+  paper_live_slo:
+    divergence_bps_max: 10 # P&L/turnover divergence threshold (bps)
+    lookback_days: 30      # Window for SLO measurement
+
+# Promotion gates
+promotion:
+  rl_execution:
+    shadow_days_min: 30                      # Minimum days in shadow mode
+    canary_stages_bps: [5, 20, 50, 100]      # Canary rollout stages (% traffic)
+    underperf_rollback_bps: 5                # Rollback if underperforms by this much
+    consecutive_days_for_rollback: 3         # Consecutive days before rollback
+  
+  enhancement:
+    require_baseline: true                   # Must beat classical baseline
+    require_cscv: true
+    require_dsr: true
+    require_pbo: true
+
+# Resilience testing
+resilience:
+  chaos_tests_enabled: true
+  scenarios:
+    - "vendor_drop"        # Data vendor goes offline
+    - "vol_burst"          # Volatility spike
+    - "partial_fills"      # Orders partially filled
+    - "halt"               # Exchange halt
+    - "delayed_quotes"     # Quote latency spike
+    - "ntp_skew"           # Clock skew
+  
+  kill_switch:
+    max_drawdown_pct: 5.0                    # Kill switch at 5% drawdown
+    max_position_size_multiplier: 2.0        # Kill switch if position > 2x normal
+    max_latency_ms: 1000                     # Kill switch if latency > 1s
+
+# Timestamp hygiene
+timestamp:
+  monotonic_required: true                   # Features/labels must be monotonic
+  ntp_skew_max_ms: 100                       # Maximum NTP skew
+  purge_embargo_verification: true           # Verify purge/embargo in CSCV
+
+# Data contracts (sensor schemas)
+data_contracts:
+  tick_data:
+    required_columns: ["timestamp", "symbol", "price", "volume"]
+    timestamp_tz: "UTC"
+    null_tolerance_pct: 0.01                 # Max 0.01% nulls
+  
+  order_book:
+    required_columns: ["timestamp", "symbol", "bid_price", "ask_price", "bid_size", "ask_size"]
+    timestamp_tz: "UTC"
+    null_tolerance_pct: 0.01
+  
+  ohlcv:
+    required_columns: ["timestamp", "symbol", "open", "high", "low", "close", "volume"]
+    timestamp_tz: "UTC"
+    null_tolerance_pct: 0.0                  # No nulls allowed
+
+# Execution SLOs
+execution:
+  latency_budget_ms:
+    ingest_to_features: 50                   # Ingest → features < 50ms
+    features_to_decision: 100                # Features → decision < 100ms
+    decision_to_order: 50                    # Decision → order < 50ms
+    total: 200                               # Total < 200ms
+  
+  error_budget_pct: 0.1                      # Max 0.1% errors
+  
+  telemetry:
+    shortfall_bps_p95_max: 20                # 95th percentile shortfall < 20 bps
+    fill_ratio_min: 0.95                     # Min 95% fill ratio
+    cancel_rate_max: 0.05                    # Max 5% cancel rate
+
+# Regime router
+regime:
+  compatibility_matrix_required: true
+  max_participation_pct: 10.0                # Max 10% ADV per strategy
+  correlation_cap: 0.7                       # Max 0.7 correlation between strategies
+  cooldown_hours: 24                         # 24-hour cooldown before re-enabling strategy
+
+# Bootstrap tier guardrails
+bootstrap:
+  tiers:
+    micro:
+      capital_min: 0
+      capital_max: 1000
+      max_monthly_cost: 0
+      paid_data_enabled: false
+      paid_apis_enabled: false
+      cloud_enabled: false
+    
+    small:
+      capital_min: 1000
+      capital_max: 10000
+      max_monthly_cost: 50
+      paid_data_enabled: true
+      paid_apis_enabled: true
+      cloud_enabled: false
+    
+    medium:
+      capital_min: 10000
+      capital_max: 100000
+      max_monthly_cost: 300
+      paid_data_enabled: true
+      paid_apis_enabled: true
+      cloud_enabled: true
+    
+    large:
+      capital_min: 100000
+      capital_max: 999999999
+      max_monthly_cost: 1000
+      paid_data_enabled: true
+      paid_apis_enabled: true
+      cloud_enabled: true
+
+# Compliance
+compliance:
+  license: "Apache-2.0"
+  data_rights_check_required: true
+  
+  raci:
+    author: "proposes"                       # Author proposes enhancement
+    ci: "proves"                             # CI proves validation
+    operator: "promotes"                     # Operator presses Promote button
+  
+  promotion_checklist:
+    - "License compliance verified"
+    - "Data entitlements confirmed"
+    - "Risk limits reviewed"
+    - "CSCV/DSR/PBO passed"
+    - "Paper↔live SLO met"
+    - "Baseline beaten"
+
+# Run ledger
+run_ledger:
+  signature_required: true                   # Tamper-evident signatures
+  hash_algorithm: "sha256"
+  storage_path: "runs/"
+  
+  required_fields:
+    - "code_hash"                            # Git commit hash
+    - "data_hash"                            # Hash of input data
+    - "featureset_version"
+    - "hyperparams"
+    - "regime_tag"
+    - "metrics"
+    - "tca"
+    - "health"
+    - "trade_ids"
+    - "timestamp"
+    - "run_id"
+    - "signature"                            # Hash of all above fields
+
+# Visualization
+visualization:
+  paper_live_slo_sparkline:
+    enabled: true
+    lookback_days: 30
+    update_frequency_hours: 24
+    output_path: "docs/slo_sparkline.png"
+  
+  divergence_by_venue:
+    enabled: true
+    lookback_days: 30
+    output_path: "docs/divergence_by_venue.png"
+

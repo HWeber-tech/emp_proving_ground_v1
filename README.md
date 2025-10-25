@@ -4010,6 +4010,558 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
 
 ---
 
+# New Phases for README (Insert after Phase 3.10, before Phase 4)
+
+---
+
+## Phase 3.11: Trading Enhancements (Advanced Forecasting & Execution)
+
+**Goal**: Implement state-of-the-art forecasting and execution methods from 2024-2025 research.
+
+**Total effort**: 364-568 hours (9-14 months part-time)  
+**Priority**: High (clear ROI, proven methods)  
+**Dependencies**: Phase 0 (Preconditions), Phase 1 (Data), Phase 2.4-2.6 (Validation)
+
+### Quarter 1: No-Regret First (Foundation)
+
+#### 3.11.1 Square-Root Market Impact Model (24-40 hours)
+
+**Problem**: Need baseline impact model for execution cost estimation.
+
+**What to build**:
+- Implement square-root impact model: `impact = η * σ * sqrt(Q/V)` where η=permanent coefficient, σ=volatility, Q=order size, V=daily volume
+- Calibrate parameters from historical execution data (if available) or use literature values (η≈0.1-0.3)
+- Compare against linear impact model baseline
+
+**File locations**:
+- `src/execution/impact_models/square_root_impact.py`
+- `src/execution/impact_models/linear_impact.py` (baseline)
+- `tests/execution/test_impact_models.py`
+
+**Acceptance criteria**:
+- [ ] Bakeoff: Square-root vs. linear model on historical data
+- [ ] Calibration: Fit parameters to logged orders (if available)
+- [ ] Validation: Out-of-sample RMSE for impact prediction
+- [ ] Integration: Used by Almgren-Chriss and all execution policies
+
+**References**: Almgren et al. (2005), "Direct Estimation of Equity Market Impact" (687 citations)
+
+---
+
+#### 3.11.2 iTransformer for Multi-Asset Forecasting (40-60 hours)
+
+**Problem**: Need to forecast correlated FX pairs (EUR/USD, GBP/USD, etc.) jointly.
+
+**What to build**:
+- Implement iTransformer (inverted transformer) architecture: attention over variates, not time steps
+- Train on 6 major FX pairs (EUR/USD, GBP/USD, USD/JPY, AUD/USD, USD/CAD, USD/CHF)
+- Bakeoff against: Ridge regression, GBM, Transformer-from-scratch, current LSTM
+
+**File locations**:
+- `src/sensory/what/itransformer_sensor.py`
+- `src/sensory/what/baselines/` (ridge, gbm, transformer)
+- `tests/sensory/what/test_itransformer.py`
+
+**Acceptance criteria**:
+- [ ] Bakeoff: iTransformer vs. 3 baselines on CSCV folds
+- [ ] Metric: RMSE, MAE, directional accuracy
+- [ ] Statistical test: iTransformer must beat best baseline with DSR > baseline DSR + 0.3
+- [ ] Inference latency: ≤20ms per forecast
+- [ ] Integration: Plug into WHAT sensor via `ForecastingSensor` interface
+
+**References**: arXiv:2310.06625 (ICLR 2024 Spotlight, 1,840 citations)
+
+---
+
+#### 3.11.3 Mixture of Experts (MoE) for Strategy Routing (32-48 hours)
+
+**Problem**: Need learned routing to strategies, not manual regime rules.
+
+**What to build**:
+- Implement tiny MoE router: 4-8 experts (one per strategy type), learned gating network
+- Add diversity objective: Route to experts that reduce portfolio correlation
+- Bakeoff against: Logistic regression, GBM, manual regime rules
+
+**File locations**:
+- `src/thinking/moe_router.py`
+- `src/thinking/baselines/logistic_router.py`
+- `src/thinking/baselines/gbm_router.py`
+- `tests/thinking/test_moe_router.py`
+
+**Acceptance criteria**:
+- [ ] Bakeoff: MoE vs. logistic vs. GBM vs. manual rules on CSCV folds
+- [ ] Metric: Portfolio Sharpe, max drawdown, diversification ratio
+- [ ] Diversity objective: Portfolio correlation < 0.6 (vs. 0.8 for single-strategy)
+- [ ] Inference latency: ≤5ms per routing decision
+- [ ] Integration: Plug into THINKING layer via `RegimeRouter` interface
+
+**References**: arXiv:2507.11181 (Jul 2025, comprehensive MoE survey)
+
+---
+
+#### 3.11.4 Sparse Networks for Low-Latency Inference (32-48 hours)
+
+**Problem**: Need <10ms inference for real-time trading.
+
+**What to build**:
+- Implement magnitude pruning: Remove 50-90% of weights with smallest absolute values
+- Implement structured pruning: Remove entire neurons/filters
+- Measure latency improvement vs. accuracy trade-off
+
+**File locations**:
+- `src/core/sparse_networks.py`
+- `src/sensory/what/sparse_itransformer.py` (pruned iTransformer)
+- `tests/core/test_sparse_networks.py`
+
+**Acceptance criteria**:
+- [ ] Latency: 50-70% reduction vs. dense model
+- [ ] Accuracy: <5% degradation in RMSE
+- [ ] Sparsity: 70-90% of weights pruned
+- [ ] Integration: Apply to iTransformer, LSTM, any PyTorch model
+
+**References**: Standard ML technique, widely used in production
+
+---
+
+### Quarter 2: Execution & Evolution
+
+#### 3.11.5 RL Optimal Execution (60-80 hours)
+
+**Problem**: Almgren-Chriss assumes linear impact; real markets are non-linear.
+
+**What to build**:
+- Implement DQN for execution scheduling (state=LOB, action=order size/timing)
+- **Critical**: Train with offline RL on logged order telemetry, NOT simulator
+- Implement doubly-robust policy evaluation to estimate new policy value from logged data
+- Shadow mode: Run RL alongside Almgren-Chriss for 30 days, measure divergence
+- Canary: Deploy to 1-5% of volume, measure shortfall vs. AC baseline
+
+**File locations**:
+- `src/execution/rl_execution.py`
+- `src/execution/offline_rl/doubly_robust_eval.py`
+- `src/execution/offline_rl/logged_data_loader.py`
+- `tests/execution/test_rl_execution.py`
+
+**Acceptance criteria**:
+- [ ] Offline RL: Train on logged orders (if available) or simulated LOB with realistic microstructure
+- [ ] Doubly-robust eval: Estimate policy value with confidence intervals
+- [ ] Shadow mode: Paper↔live divergence < 5 bps over 100+ decisions
+- [ ] Canary: Shortfall beats AC by ≥15% over 14 days
+- [ ] Rollback trigger: If shortfall exceeds AC by 10 bps, auto-demote
+- [ ] Integration: Plug into EXECUTION layer via `ExecutionPolicy` interface
+
+**References**: arXiv:2411.06389 (Nov 2024, shows 20-40% shortfall reduction)
+
+---
+
+#### 3.11.6 TimeXer for Exogenous Integration (48-72 hours)
+
+**Problem**: Need to combine fundamentals (WHY sensor) with price dynamics (WHAT sensor).
+
+**What to build**:
+- Implement TimeXer architecture: Separate encoders for endogenous (price) and exogenous (fundamentals) variables
+- Integrate WHY sensor outputs (earnings, economic data) as exogenous inputs to WHAT sensor
+- **Critical**: Verify timestamp hygiene (fundamentals must have reliable release times)
+
+**File locations**:
+- `src/sensory/what/timexer_sensor.py`
+- `src/sensory/integration/why_what_fusion.py`
+- `tests/sensory/integration/test_timexer.py`
+
+**Acceptance criteria**:
+- [ ] Timestamp hygiene: All fundamental data has verified release timestamps
+- [ ] Bakeoff: TimeXer vs. WHAT-only vs. WHY-only on event-driven trades
+- [ ] Metric: 10-20% improvement in event-driven forecast accuracy
+- [ ] Integration: Fuses WHY and WHAT sensors via `ForecastingSensor` interface
+
+**References**: arXiv:2402.19072 (NeurIPS 2024, 227 citations)
+
+---
+
+#### 3.11.7 Spectral GNN for Evolution (48-72 hours)
+
+**Problem**: NSGA-II updates strategies locally; need global population structure awareness.
+
+**What to build**:
+- Implement Spectral GNN: Represent population as graph (nodes=strategies, edges=similarity/genealogy)
+- Use spectral filtering to propagate fitness information across population
+- Pilot on reduced population (20-30 strategies) before full deployment
+- Bakeoff against: NSGA-II with diversity penalties
+
+**File locations**:
+- `src/evolution/spectral_gnn_updater.py`
+- `src/evolution/baselines/nsga2_with_diversity.py`
+- `tests/evolution/test_spectral_gnn.py`
+
+**Acceptance criteria**:
+- [ ] Pilot: Run on 20-30 strategy population for 50 generations
+- [ ] Bakeoff: Spectral GNN vs. NSGA-II on DSR of evolved strategies
+- [ ] Metric: 3-7x faster convergence to high-fitness strategies
+- [ ] Diversity: Maintain population diversity (no premature convergence)
+- [ ] Integration: Plug into EVOLUTION layer via `PopulationUpdater` interface
+
+**References**: arXiv:2412.17629 (Dec 2024, shows 3-7 orders of magnitude improvement)
+
+---
+
+### Quarter 3: Adaptive Layer
+
+#### 3.11.8 GMM Regime Detection with Compatibility Matrix (48-100 hours)
+
+**Problem**: Need to detect regimes and route strategies accordingly.
+
+**What to build**:
+- Implement Gaussian Mixture Model (GMM) for regime detection: 5-6 regimes (bull, bear, transitional, high-vol, low-vol, crisis)
+- Build strategy-regime compatibility matrix: Which strategies work in which regimes
+- Add hysteresis: Don't flip regimes rapidly (require N consecutive observations)
+- Integrate with MoE router for capital allocation
+
+**File locations**:
+- `src/sensory/when/gmm_regime_detector.py`
+- `src/thinking/regime_compatibility_matrix.py`
+- `src/thinking/regime_aware_allocator.py`
+- `tests/sensory/when/test_gmm_regime.py`
+
+**Acceptance criteria**:
+- [ ] Regime detection: 5-6 distinct regimes identified
+- [ ] Compatibility matrix: Empirically derived from backtest (which strategies win in which regimes)
+- [ ] Hysteresis: Require 3-5 consecutive observations before regime switch
+- [ ] Integration: WHEN sensor detects regime → MoE router allocates capital
+- [ ] Validation: 20-30% drawdown reduction vs. regime-agnostic allocation
+
+**References**: Standard statistical technique, widely used in quant finance
+
+---
+
+#### 3.11.9 Transfer Learning (Moirai, TimesFM) (32-48 hours)
+
+**Problem**: Limited data for some instruments; can we transfer knowledge from data-rich instruments?
+
+**What to build**:
+- Implement Moirai or TimesFM as warm-start for forecasting models
+- Fine-tune on target instrument (e.g., USD/CHF with limited data)
+- Bakeoff against: Train-from-scratch on target instrument
+
+**File locations**:
+- `src/sensory/what/transfer_learning/moirai_adapter.py`
+- `src/sensory/what/transfer_learning/timesfm_adapter.py`
+- `tests/sensory/what/test_transfer_learning.py`
+
+**Acceptance criteria**:
+- [ ] **Critical**: This is a warm-start candidate, NOT guaranteed win
+- [ ] Bakeoff: Moirai vs. TimesFM vs. train-from-scratch on CSCV folds
+- [ ] Metric: RMSE on low-data instruments (≤1 year of history)
+- [ ] Promote: Only if transfer learning beats train-from-scratch with DSR > baseline DSR + 0.3
+- [ ] Integration: Plug into WHAT sensor via `ForecastingSensor` interface
+
+**References**: arXiv:2402.02592 (Moirai, 227 citations), arXiv:2310.10688 (TimesFM, Google Research)
+
+---
+
+#### 3.11.10 Additional Trading Enhancements (Optional)
+
+**If time permits**, consider these lower-priority enhancements:
+
+- **Conformal prediction for sensors** (16-24h): Calibrated confidence intervals for risk management
+- **Attention-based order book analysis** (40-60h): Learn LOB patterns with attention mechanisms
+- **Multi-agent RL** (60-80h): Evolve population of RL agents that specialize in different market conditions
+- **Neural architecture search** (48-72h): Automatically discover optimal sensor architectures
+
+---
+
+## Phase 3.12: ML/AI/Evolution Enhancements
+
+**Goal**: Apply cutting-edge ML/AI techniques from LLM and general AI research to trading system.
+
+**Total effort**: 176-280 hours (4-7 months part-time)  
+**Priority**: Medium-High (transferable principles from LLM research)  
+**Dependencies**: Phase 3.11 (foundation models in place)
+
+### 3.12.1 Few-Shot Meta-Learning for New Instruments (40-60 hours)
+
+**Problem**: When adding new trading instrument, need to adapt quickly with limited data.
+
+**What to build**:
+- Implement MAML (Model-Agnostic Meta-Learning) or Reptile for fast adaptation
+- Train meta-learner on 6 major FX pairs
+- Test: Adapt to new pair (e.g., USD/NOK) with only 1-7 days of data
+
+**File locations**:
+- `src/sensory/what/meta_learning/maml_adapter.py`
+- `src/sensory/what/meta_learning/reptile_adapter.py`
+- `tests/sensory/what/test_meta_learning.py`
+
+**Acceptance criteria**:
+- [ ] Meta-training: Train on 6 major pairs
+- [ ] Few-shot adaptation: Adapt to new pair with 1-7 days of data
+- [ ] Metric: RMSE on new pair after adaptation vs. train-from-scratch
+- [ ] Target: 30-50% faster convergence vs. train-from-scratch
+
+**References**: arXiv:1703.03400 (MAML, 10K+ citations), arXiv:1803.02999 (Reptile)
+
+---
+
+### 3.12.2 Continual Learning for Non-Stationary Markets (48-72 hours)
+
+**Problem**: Markets change; models trained on old data degrade over time.
+
+**What to build**:
+- Implement Elastic Weight Consolidation (EWC) or Progressive Neural Networks
+- Update models continuously on new data without catastrophic forgetting
+- Monitor drift: Detect when model performance degrades
+
+**File locations**:
+- `src/thinking/continual_learning/ewc.py`
+- `src/thinking/continual_learning/progressive_nets.py`
+- `src/thinking/drift_detection.py`
+- `tests/thinking/test_continual_learning.py`
+
+**Acceptance criteria**:
+- [ ] Forgetting metric: <20% performance degradation on old data after learning new data
+- [ ] Adaptation speed: 50% faster adaptation to regime changes vs. retrain-from-scratch
+- [ ] Drift detection: Alert when model performance degrades >10%
+
+**References**: arXiv:1612.00796 (EWC, 5K+ citations), arXiv:1606.04671 (Progressive Nets)
+
+---
+
+### 3.12.3 Efficient Transformers for Real-Time Inference (40-60 hours)
+
+**Problem**: Standard transformers are O(n²) in sequence length; too slow for real-time trading.
+
+**What to build**:
+- Implement Linformer, Performer, or FlashAttention for O(n) attention
+- Apply to iTransformer and any transformer-based sensors
+- Measure latency improvement vs. accuracy trade-off
+
+**File locations**:
+- `src/core/efficient_attention/linformer.py`
+- `src/core/efficient_attention/performer.py`
+- `src/core/efficient_attention/flash_attention.py`
+- `tests/core/test_efficient_attention.py`
+
+**Acceptance criteria**:
+- [ ] Latency: 50-80% reduction vs. standard transformer
+- [ ] Accuracy: <5% degradation in RMSE
+- [ ] Integration: Drop-in replacement for standard attention in any model
+
+**References**: arXiv:2006.04768 (Linformer), arXiv:2009.14794 (Performer), arXiv:2205.14135 (FlashAttention)
+
+---
+
+### 3.12.4 Neural Architecture Search (NAS) for Sensor Design (48-72 hours)
+
+**Problem**: Hand-designing sensor architectures is time-consuming; can we automate it?
+
+**What to build**:
+- Implement DARTS (Differentiable Architecture Search) or ENAS (Efficient NAS)
+- Search space: LSTM vs. GRU vs. Transformer, layer count, hidden size, etc.
+- Discover optimal architecture for each sensor (WHAT, HOW, WHY, WHEN)
+
+**File locations**:
+- `src/core/nas/darts.py`
+- `src/core/nas/enas.py`
+- `src/sensory/nas_search_spaces.py`
+- `tests/core/test_nas.py`
+
+**Acceptance criteria**:
+- [ ] Search: Run NAS on WHAT sensor for 50-100 epochs
+- [ ] Discovered architecture: Must beat hand-designed baseline
+- [ ] Efficiency: NAS should find architecture in <24 hours on CPU (or <4 hours on GPU)
+- [ ] Generalization: Discovered architecture must generalize to new instruments
+
+**References**: arXiv:1806.09055 (DARTS, 5K+ citations), arXiv:1802.03268 (ENAS)
+
+---
+
+## Phase 3.13: Operational Enhancements (Boss's Ideas)
+
+**Goal**: Implement operational rigor to prevent backtest-to-live disasters.
+
+**Total effort**: 112-160 hours (3-4 months part-time)  
+**Priority**: Critical (safety gates, risk management)  
+**Dependencies**: Phase 0 (Preconditions), Phase 2.4-2.6 (Validation)
+
+### 3.13.1 Conformal Prediction for Sensors (16-24 hours)
+
+**Problem**: Need calibrated confidence intervals for risk management.
+
+**What to build**:
+- Implement split-conformal prediction: Wrap forecasts with [lower, upper] bounds
+- Use interval width as risk input: Thin confidence → larger size, thicker → smaller size
+- Apply to all sensors (WHAT, HOW, WHY, WHEN)
+
+**File locations**:
+- `src/core/conformal_prediction.py`
+- `src/sensory/what/conformal_wrapper.py`
+- `tests/core/test_conformal_prediction.py`
+
+**Acceptance criteria**:
+- [ ] Calibration: 90% of actual values fall within 90% prediction intervals
+- [ ] Integration: All sensors return `{'mu': ..., 'lower': ..., 'upper': ...}`
+- [ ] Risk management: Position size inversely proportional to interval width
+- [ ] Validation: Out-of-sample calibration check on CSCV folds
+
+**References**: Standard statistical technique, widely used in ML
+
+---
+
+### 3.13.2 Doubly-Robust Policy Evaluation (24-32 hours)
+
+**Problem**: Need to estimate new policy value from logged data before deploying.
+
+**What to build**:
+- Implement doubly-robust estimator: Combines importance sampling + regression
+- Estimate RL execution policy value from logged order telemetry
+- Report value estimate with confidence intervals
+
+**File locations**:
+- `src/execution/offline_rl/doubly_robust_eval.py`
+- `src/execution/offline_rl/importance_sampling.py`
+- `tests/execution/test_doubly_robust_eval.py`
+
+**Acceptance criteria**:
+- [ ] Estimator: Implement doubly-robust formula (Dudík et al., 2011)
+- [ ] Validation: Estimate value of known policy (AC) from logged data, compare to actual
+- [ ] Confidence intervals: Report 95% CI for new policy value
+- [ ] Integration: Mandatory step before RL execution shadow mode
+
+**References**: Dudík et al. (2011), "Doubly Robust Policy Evaluation and Learning"
+
+---
+
+### 3.13.3 Regime Transition Early-Warning (BOCPD/CUSUM) (32-48 hours)
+
+**Problem**: Need to detect regime transitions before they happen (pre-emptive deleveraging).
+
+**What to build**:
+- Implement Bayesian Online Change Point Detection (BOCPD) or CUSUM
+- Detect regime transitions 1-3 days before they occur
+- Trigger pre-emptive deleveraging when transition probability > threshold
+
+**File locations**:
+- `src/sensory/when/bocpd.py`
+- `src/sensory/when/cusum.py`
+- `src/risk/preemptive_deleveraging.py`
+- `tests/sensory/when/test_bocpd.py`
+
+**Acceptance criteria**:
+- [ ] Early warning: Detect regime transitions 1-3 days in advance
+- [ ] False positive rate: <10% (don't trigger too often)
+- [ ] Integration: WHEN sensor emits transition probability → RISK layer deleverages
+- [ ] Validation: 20-30% drawdown reduction vs. reactive deleveraging
+
+**References**: Adams & MacKay (2007), "Bayesian Online Changepoint Detection"
+
+---
+
+### 3.13.4 Capacity & Shortfall Curves as Deploy Artifacts (16-24 hours)
+
+**Problem**: Need to prevent over-allocation to low-capacity strategies.
+
+**What to build**:
+- Persist PnL-vs-capital curves per strategy (how PnL degrades as capital increases)
+- Persist shortfall-vs-participation curves (how execution cost increases with urgency)
+- Allocator reads curves at runtime to avoid "one clever trick, zero capacity" trap
+
+**File locations**:
+- `src/thinking/capacity_curves.py`
+- `src/execution/shortfall_curves.py`
+- `src/thinking/capacity_aware_allocator.py`
+- `tests/thinking/test_capacity_curves.py`
+
+**Acceptance criteria**:
+- [ ] Capacity curve: Measure PnL at $10K, $50K, $100K, $500K, $1M capital
+- [ ] Shortfall curve: Measure execution cost at 1%, 5%, 10%, 20% participation rate
+- [ ] Persistence: Curves stored in strategy metadata (PolicyLedger)
+- [ ] Integration: Allocator caps strategy allocation at capacity knee point
+
+**References**: Standard quant finance practice
+
+---
+
+### 3.13.5 Paper↔Live Consistency SLO (Codified) (24-32 hours)
+
+**Problem**: Need automatic detection of backtest-to-live divergence.
+
+**What to build**:
+- Implement consistency metric: `|live_pnl - paper_pnl_costed| / turnover`
+- Promote strategy only if consistency < X bps over N trades (e.g., <5 bps over 100 trades)
+- Auto-investigate on breach: Log divergence, trigger alert, demote strategy
+
+**File locations**:
+- `src/governance/consistency_slo.py`
+- `src/governance/divergence_detector.py`
+- `tests/governance/test_consistency_slo.py`
+
+**Acceptance criteria**:
+- [ ] Metric: Implement consistency formula (see image provided by boss)
+- [ ] Threshold: Set SLO (e.g., <5 bps over 100 trades)
+- [ ] Monitoring: Real-time dashboard showing paper vs. live PnL
+- [ ] Auto-rollback: Demote strategy if consistency breached for 3 consecutive days
+- [ ] Integration: Mandatory gate for all strategy promotions
+
+**References**: Boss's feedback (consistency formula provided)
+
+---
+
+### 3.13.6 MoE as Diversity Router (8-16 hours)
+
+**Problem**: MoE routing should optimize for portfolio diversity, not just individual accuracy.
+
+**What to build**:
+- Add diversity objective to MoE router: Route to experts that reduce portfolio correlation
+- Multi-objective optimization: Maximize accuracy + minimize correlation
+- Measure diversification ratio: `portfolio_vol / sum(strategy_vols)`
+
+**File locations**:
+- `src/thinking/moe_router.py` (extend existing)
+- `src/thinking/diversity_metrics.py`
+- `tests/thinking/test_diversity_routing.py`
+
+**Acceptance criteria**:
+- [ ] Diversity objective: Portfolio correlation < 0.6 (vs. 0.8 for single-strategy)
+- [ ] Diversification ratio: >1.5 (vs. 1.0 for perfectly correlated strategies)
+- [ ] Performance: Portfolio Sharpe ≥ best single-strategy Sharpe
+- [ ] Integration: Extend MoE router (Phase 3.11.3) with diversity term
+
+**References**: Boss's feedback (diversity routing)
+
+---
+
+## Summary of New Phases
+
+**Phase 3.11 (Trading)**: 364-568 hours, 10 enhancements  
+**Phase 3.12 (ML/AI)**: 176-280 hours, 4 enhancements  
+**Phase 3.13 (Operational)**: 112-160 hours, 6 enhancements  
+
+**Grand total**: 652-1,008 hours (16-25 months part-time, or 4-6 months with dedicated team)
+
+**Critical path to production**:
+1. Phase 0 (Preconditions): 72-112 hours
+2. Phase 2.4-2.6 (Validation): 136-212 hours
+3. Phase 3.11 Q1 (No-Regret First): 128-196 hours
+4. Phase 3.13 (Operational): 112-160 hours
+
+**Total critical path**: 448-680 hours (11-17 months part-time, or 3-4 months with dedicated team)
+
+---
+
+**All enhancements include**:
+- [ ] Bakeoff vs. simple baselines (no blind trust in paper claims)
+- [ ] CSCV/DSR validation gates (no overfitting)
+- [ ] Paper↔live consistency SLO (no backtest-to-live disasters)
+- [ ] Shadow → Canary → Promotion ladder (safe deployment)
+- [ ] Rollback triggers (auto-demote on degradation)
+- [ ] Interface contracts (A/B testing enabled)
+- [ ] Acceptance criteria (falsifiable, measurable)
+
+**See**:
+- `/docs/enhancement_acceptance_template.md` for detailed acceptance criteria template
+- `/src/core/interfaces.py` for interface contracts enabling A/B testing
+
+
+
 ### Phase 4: Production Hardening (Weeks 13-16)
 
 **Goal**: Deploy enterprise-grade operational infrastructure

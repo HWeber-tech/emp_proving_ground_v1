@@ -359,6 +359,69 @@ These features would **improve functionality** but are not blocking:
 
 ## Getting Started
 
+
+## Fast Paths by Persona
+
+### 🔬 Researcher Path (Explore Data → Sensors)
+
+**Goal**: Analyze market data and test sensory cortex
+
+1. **Install dependencies**:
+   ```bash
+   pip install -r requirements/base.txt
+   pip install -r requirements/dev.txt
+   ```
+
+2. **Run with ingest enabled** (pulls Yahoo Finance data):
+   ```bash
+   python -m main  # Will hit Yahoo APIs and populate DuckDB
+   ```
+
+3. **Explore data**:
+   ```bash
+   python -c "import duckdb; db = duckdb.connect('data/market_data.duckdb'); print(db.execute('SELECT * FROM ohlcv LIMIT 10').fetchdf())"
+   ```
+
+4. **Test sensory cortex**:
+   ```bash
+   pytest tests/sensory/ -v
+   ```
+
+5. **Expected output**: DuckDB populated with OHLCV data, sensors producing WHY/HOW/WHAT/WHEN/ANOMALY signals
+
+---
+
+### ⚙️ Engine Developer Path (Focus on Order Lifecycles/Telemetry)
+
+**Goal**: Work on execution engine without external data dependencies
+
+1. **Install dependencies**:
+   ```bash
+   pip install -r requirements/base.txt
+   pip install -r requirements/dev.txt
+   ```
+
+2. **Run with ingest disabled** (pure mock mode):
+   ```bash
+   python -m main --skip-ingest
+   ```
+
+3. **Test execution layer**:
+   ```bash
+   pytest tests/trading/execution/ -v
+   ```
+
+4. **Monitor telemetry**:
+   ```bash
+   # Prometheus metrics at http://localhost:9090
+   # Grafana dashboards at http://localhost:3000
+   ```
+
+5. **Expected output**: Mock FIX orders flow through: `submitted → ack → partial fill → fill`, with full telemetry
+
+---
+
+
 ### Prerequisites
 
 - Python 3.11+
@@ -4402,6 +4465,132 @@ The project maintains high testing standards with multiple test categories:
 - **Evidence Tests**: Reproduce claims from whitepapers
 
 All major features include test coverage with assertions on behavior, not just structure.
+
+---
+
+
+## Strategy Promotion Lifecycle
+
+EMP enforces a rigorous promotion pipeline to prevent backtest overfitting from reaching live trading:
+
+```
+IDEA → BACKTESTED → CSCV/DSR-PASSED → SHADOW-LIVE → CANARY → PROMOTED → MONITORED → QUARANTINED/RETIRED
+```
+
+### State Definitions
+
+| State | Description | Entry Criteria | Exit Criteria |
+|-------|-------------|----------------|---------------|
+| **IDEA** | Strategy concept, not yet tested | Manual creation | Pass backtesting |
+| **BACKTESTED** | Backtest shows promise | Sharpe >1.5, drawdown <20% | Pass CSCV/DSR gate |
+| **CSCV/DSR-PASSED** | Statistically validated | DSR >1.5, p-value <0.05 | 30 days shadow mode |
+| **SHADOW-LIVE** | Running in paper mode alongside live | Consistency <0.1 for 30 days | Promote to canary |
+| **CANARY** | Live with 1-5% of target capital | No breaches for 14 days | Promote to full capital |
+| **PROMOTED** | Live with full capital allocation | Ongoing monitoring | Breach triggers quarantine |
+| **MONITORED** | Continuous health tracking | N/A | Drift/drawdown → quarantine |
+| **QUARANTINED** | Suspended due to breach | Drawdown, consistency, or drift alarm | Manual review → retire or fix |
+| **RETIRED** | Permanently disabled | Manual decision | N/A |
+
+### Automatic Demotion Triggers
+
+- **Drawdown breach**: Strategy exceeds max drawdown threshold
+- **Consistency breach**: Paper↔Live consistency >0.2 (20% of turnover)
+- **Latency breach**: Execution latency exceeds SLO
+- **Drift breach**: Feature distribution drift detected (PSI/KS test)
+- **Regime mismatch**: Strategy running in hostile regime for >3 days
+
+### Consistency SLO Formula
+
+```
+Consistency = |live P&L - paper P&L (costed)| / turnover
+```
+
+**Target**: <0.1 (10% of turnover)  
+**Alarm**: >0.2 (investigate immediately)  
+**Breach**: >0.3 (automatic demotion to quarantine)
+
+---
+
+## Execution Telemetry
+
+EMP captures comprehensive per-order metrics to enable self-correcting impact models and execution quality monitoring:
+
+### Per-Order Metrics
+
+| Metric | Description | Target | Alarm Threshold |
+|--------|-------------|--------|-----------------|
+| **Latency (Ingress→Decision)** | Time from market data arrival to decision | <10ms p99 | >50ms p99 |
+| **Latency (Decision→Send)** | Time from decision to order submission | <5ms p99 | >20ms p99 |
+| **Latency (Send→Ack)** | Time from submission to broker acknowledgment | <50ms p99 | >200ms p99 |
+| **Latency (Ack→Fill)** | Time from ack to full fill | Varies by schedule | >2x expected |
+| **Slippage vs. Arrival** | Price movement from decision to fill | <5 bps median | >15 bps median |
+| **Slippage vs. VWAP** | Fill price vs. interval VWAP | <3 bps median | >10 bps median |
+| **Implementation Shortfall** | Signal price vs. realized price | <10 bps per trade | >25 bps per trade |
+| **Fill Rate** | Percentage of order filled | >95% | <80% |
+| **Cancel/Replace Rate** | Order modifications per fill | <10% | >30% |
+| **Queue Position (if available)** | Position in order book queue | N/A | N/A |
+| **Adverse Selection** | Price moves against us after fill | <5 bps | >15 bps |
+
+### Calibration Loop
+
+- **Weekly re-fit**: Update Almgren-Chriss parameters from telemetry
+- **A/B testing**: Validate model updates with shadow orders before deployment
+- **Shortfall budgeting**: Assign bps budget per strategy, throttle if exceeded
+- **Attribution**: Track which strategies consume most execution costs
+
+### Dashboard
+
+Real-time execution quality dashboard shows:
+- Latency histograms (p50, p95, p99)
+- Slippage distribution by venue/instrument/strategy
+- Fill rate trends
+- Shortfall attribution by strategy
+- Impact model calibration drift
+
+---
+
+## Regime Router: Compatibility Matrix
+
+EMP allocates capital and suspends/promotes strategies based on detected market regime:
+
+### Regime Definitions
+
+| Regime | Characteristics | Risk Budget | Typical Duration |
+|--------|-----------------|-------------|------------------|
+| **Bull** | Trending up, low volatility | 80% of capital | Weeks to months |
+| **Bear** | Trending down, elevated volatility | 40% of capital | Weeks to months |
+| **Transitional** | Regime change in progress | 20% of capital | Days to weeks |
+| **High Volatility** | Large intraday swings, no clear trend | 30% of capital | Days to weeks |
+| **Low Volatility** | Range-bound, low movement | 60% of capital | Weeks |
+| **Crisis** | Extreme volatility, liquidity dry-up | 10% of capital | Hours to days |
+
+### Strategy-Regime Compatibility Matrix (Example)
+
+| Strategy Type | Bull | Bear | Transitional | High Vol | Low Vol | Crisis |
+|---------------|------|------|--------------|----------|---------|--------|
+| **Momentum** | ✅ Active (1.0x) | ❌ Suspended | ⚠️ Reduced (0.3x) | ⚠️ Reduced (0.5x) | ❌ Suspended | ❌ Suspended |
+| **Mean Reversion** | ⚠️ Reduced (0.5x) | ✅ Active (1.0x) | ❌ Suspended | ⚠️ Reduced (0.7x) | ✅ Active (1.2x) | ❌ Suspended |
+| **Volatility Arbitrage** | ⚠️ Reduced (0.3x) | ⚠️ Reduced (0.5x) | ✅ Active (1.0x) | ✅ Active (1.5x) | ❌ Suspended | ⚠️ Reduced (0.5x) |
+| **Market Making** | ✅ Active (1.0x) | ⚠️ Reduced (0.6x) | ❌ Suspended | ❌ Suspended | ✅ Active (1.3x) | ❌ Suspended |
+| **Event-Driven** | ✅ Active (1.0x) | ✅ Active (1.0x) | ✅ Active (1.0x) | ✅ Active (1.0x) | ✅ Active (1.0x) | ⚠️ Reduced (0.5x) |
+
+**Legend**:
+- ✅ **Active (Nx)**: Strategy runs with N× target capital
+- ⚠️ **Reduced (Nx)**: Strategy runs with reduced capital (N < 1.0)
+- ❌ **Suspended**: Strategy does not trade in this regime
+
+### Hysteresis Rules
+
+To prevent regime thrashing:
+- Require **2+ consecutive detections** (e.g., 2 consecutive 5-minute bars) before regime change
+- **Cooldown period**: Minimum 15 minutes between regime changes
+- **Confidence threshold**: Regime probability must exceed 70% to trigger change
+
+### Implementation
+
+**Configuration**: `config/regime_strategy_matrix.yaml`  
+**Router**: `src/thinking/regime_router.py`  
+**Capital Allocator**: `src/trading/capital_allocator.py`
 
 ---
 

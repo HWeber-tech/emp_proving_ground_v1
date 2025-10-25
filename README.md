@@ -7,6 +7,14 @@
 [![Type Checking: mypy](https://img.shields.io/badge/type%20checking-mypy-blue.svg)](http://mypy-lang.org/)
 [![Status: Development](https://img.shields.io/badge/status-development-yellow.svg)]()
 
+
+
+> ⚠️ **SAFETY WARNING**
+> 
+> **This is not a production trading system.** The public repository contains a mock FIX simulator and optional Yahoo Finance data ingestion for research and development. Live broker adapters, streaming venue connectivity, and production-grade risk controls are intentionally excluded from the public build.
+> 
+> Treat this as a **sandbox and learning environment** until you replace mocks with real integrations in a private, credentialed fork. Do not deploy this system with real capital without comprehensive testing and validation.
+
 ---
 
 ## Overview
@@ -37,6 +45,86 @@ The EMP system embodies three core principles:
 The project follows a **truth-first development philosophy**: all claims are backed by verifiable code, realistic timelines acknowledge actual constraints, and documentation honestly reflects implementation status.
 
 ---
+
+## Capabilities vs. Non-Capabilities
+
+### ✅ What This System CAN Do (Public Build)
+
+- **Mock FIX lifecycle**: Full order flow simulation with MockFIXManager + FIXConnectionManager
+- **Opt-in Yahoo Finance ingest**: Historical OHLCV data → DuckDB storage
+- **Simulator regression tests**: Comprehensive test coverage for mock trading
+- **Structured logging & telemetry**: Prometheus metrics and observability
+- **4D+1 Sensory cortex**: WHY/HOW/WHAT/WHEN/ANOMALY market analysis framework
+- **Risk management scaffolding**: Policy enforcement, exposure limits, drawdown protection
+- **Sentient learning loop**: Pattern memory, experience storage, adaptive learning
+- **Research harness**: Backtesting framework, strategy development tools
+
+### ❌ What This System CANNOT Do (By Design in Public Repo)
+
+- **Live broker routing**: No real broker connections (use private fork for production)
+- **Streaming venue connectivity**: No WebSocket feeds to live exchanges
+- **Impact-aware execution scheduling**: Almgren-Chriss and TWAP/VWAP/IS not yet wired
+- **CSCV/DSR promotion gates**: Statistical validation not yet enforced in CI
+- **Regime-aware capital router**: Regime detection exists, capital allocation not yet automatic
+- **Production-grade secrets management**: No key rotation, scoped credentials, or tamper-evident logs
+- **Real-time order book data**: LOBSTER integration planned but not yet implemented
+- **Institutional compliance**: Audit trails exist, but full compliance suite not implemented
+
+**Bottom line**: This is a **development framework** for building a production system, not a turnkey trading platform.
+
+---
+
+## Roadmap: Next 3 Sprints
+
+### Sprint A — Validation Infrastructure (Weeks 1-4)
+
+**Goal**: Implement statistical validation gates to prevent overfitting
+
+**Tasks**:
+- [ ] Wire CSCV (Combinatorially Symmetric Cross-Validation) with purged/embargoed folds
+- [ ] Implement DSR (Deflated Sharpe Ratio) calculator with multiple testing correction
+- [ ] Add CI promotion gate: fail builds if DSR < 1.5 threshold
+- [ ] Create validation report generator
+
+**Pass/Fail Gate**: CI rejects strategies with DSR below threshold; validation reports show Sharpe, DSR, p-value, and multiple testing correction
+
+---
+
+### Sprint B — Impact-Aware Execution (Weeks 5-8)
+
+**Goal**: Complete execution layer with cost-aware scheduling
+
+**Tasks**:
+- [ ] Verify/complete Almgren-Chriss market impact model
+- [ ] Implement alpha half-life estimator from historical signal decay
+- [ ] Build TWAP/VWAP/IS (Implementation Shortfall) schedulers
+- [ ] Add execution strategy selector (fast alpha → IS, slow alpha → VWAP, medium → TWAP)
+- [ ] Create execution telemetry (slippage, latency, fill quality)
+
+**Pass/Fail Gate**: Orders scheduled optimally based on alpha half-life; execution telemetry shows slippage vs. arrival, latency buckets, and shortfall attribution
+
+---
+
+### Sprint C — Regime-Aware Capital Allocation (Weeks 9-12)
+
+**Goal**: Transform regime detection into automatic capital routing
+
+**Tasks**:
+- [ ] Create regime-strategy compatibility matrix (YAML config)
+- [ ] Implement capital allocator with regime-specific risk budgets
+- [ ] Add dynamic strategy suspension/promotion based on current regime
+- [ ] Implement hysteresis to prevent regime thrashing (require 2+ consecutive detections)
+- [ ] Integrate with evolution layer to breed regime-specific strategies
+
+**Pass/Fail Gate**: Capital allocation adjusts automatically on regime change; strategies suspend when regime is hostile; backtests show aggregate drawdown reduction vs. regime-agnostic baseline
+
+---
+
+**After Sprint C**: System ready for extended paper trading validation (30-90 days) before considering live deployment with minimal capital.
+
+---
+
+
 
 ## Architecture
 

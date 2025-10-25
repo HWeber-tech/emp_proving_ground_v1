@@ -329,6 +329,162 @@ poetry run pytest --cov=src --cov-report=html
 
 This roadmap provides a comprehensive, actionable path to production readiness. Each task includes specific implementation details, acceptance criteria, and estimated effort.
 
+
+### Phase 0: Preconditions (PR-Blocking Infrastructure)
+
+**Priority**: 🔴🔴🔴 **CRITICAL** - Must be implemented BEFORE any backtesting or statistical validation
+
+**Why first**: Without clean, provable, leak-free data, all downstream validation (CSCV/DSR, backtesting, live trading) measures fake alpha with false confidence. These are non-negotiable foundations.
+
+**Total effort**: 72-112 hours
+
+#### 0.1 Timestamp Hygiene & Clock Discipline
+
+**Effort**: 16-24 hours | **GPU**: ❌ NO | **Priority**: 🔴 **Critical**
+
+**Problem**: Bad clocks cause look-ahead leakage, creating fake alpha.
+
+- [ ] **Build monotonic timestamp validator** (4 hours)
+  - Reject any data where timestamps go backward
+  - Track last_timestamp per data stream
+  - **Location**: `src/core/time/timestamp_validator.py`
+  - **Acceptance**: All data ingestion validates monotonic timestamps
+
+- [ ] **Implement NTP sync monitor** (6 hours)
+  - Check system clock against NTP server every 60 seconds
+  - Use ntplib or similar library
+  - Emit Prometheus metrics for clock drift
+  - **Location**: `src/operations/monitoring/clock_monitor.py`
+  - **Acceptance**: NTP sync checked every 60s, metrics emitted
+
+- [ ] **Add clock drift alarm** (4 hours)
+  - Alert if drift exceeds 10ms
+  - Integrate with alerting system (PagerDuty, Slack, etc.)
+  - **Acceptance**: Alarm triggers when drift >10ms
+
+- [ ] **Create causality validator** (6 hours)
+  - Prove feature timestamps < label timestamps with minimum gap
+  - Validate all feature engineering pipelines
+  - **Location**: `src/validation/causality_validator.py`
+  - **Acceptance**: All features proven causal with timestamp audit
+
+- [ ] **Write comprehensive tests** (4 hours)
+  - Test monotonic validation catches time travel
+  - Test NTP sync detection
+  - Test causality validator catches leakage
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Add timestamp validation to all data ingestion (`src/data_foundation/ingestion/`)
+- Add causality checks to all feature engineering (`src/sensory/*/`)
+- Add clock monitoring to observability stack (`src/operations/monitoring/`)
+
+**Acceptance Criteria**:
+- ✅ All data ingestion validates monotonic timestamps
+- ✅ NTP sync checked every 60s, alarm if drift >10ms
+- ✅ Feature engineering validates causality (feature_ts < label_ts - min_gap)
+- ✅ Backtests with time-purged folds show near-identical metrics to standard CV
+
+---
+
+#### 0.2 Data Provenance & Reproducibility
+
+**Effort**: 32-48 hours | **GPU**: ❌ NO | **Priority**: 🔴 **Critical**
+
+**Problem**: If you can't reproduce a win, it isn't a win. Need complete audit trail from raw data → features → labels → signals → trades.
+
+- [ ] **Implement dataset fingerprints** (8 hours)
+  - SHA256 hash of every dataset version
+  - Store fingerprints with metadata (row count, column count, source, created_at)
+  - **Location**: `src/governance/provenance/dataset_fingerprint.py`
+  - **Acceptance**: Every dataset has SHA256 fingerprint stored
+
+- [ ] **Build feature/label versioning** (8 hours)
+  - Semantic versioning for feature sets (v1.0, v1.1, v2.0)
+  - Track which features are in which version
+  - **Location**: `src/governance/provenance/feature_versioning.py`
+  - **Acceptance**: Feature sets have semantic versions
+
+- [ ] **Create Run Ledger** (16 hours)
+  - Immutable log binding (code hash, data hash, hyperparams, regime) → (metrics, decision) → (trade IDs)
+  - Append-only storage (no edits allowed)
+  - Query interface for audits
+  - **Location**: `src/governance/provenance/run_ledger.py`
+  - **Acceptance**: Every training run has complete RunRecord in ledger
+
+- [ ] **Build reproducibility validator** (8 hours)
+  - Verify any run can be replayed byte-for-byte
+  - Check that metrics match within tolerance
+  - **Location**: `tests/governance/test_reproducibility.py`
+  - **Acceptance**: Any promoted strategy can be replayed to identical metrics
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test fingerprint generation
+  - Test ledger append and query
+  - Test reproducibility validation
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Add RunRecord creation to training pipeline (`mlops/train.py`)
+- Store ledger in PolicyLedger or separate audit database
+- Add reproducibility test to CI/CD
+
+**Acceptance Criteria**:
+- ✅ Every dataset has SHA256 fingerprint stored
+- ✅ Every training run has complete RunRecord in ledger
+- ✅ Any promoted strategy can be replayed to identical metrics (within tolerance)
+- ✅ Any live trade traceable to exact (code, data, hyperparams, decision)
+
+---
+
+#### 0.3 Leakage Firewall & Feature Sanity Suite
+
+**Effort**: 24-40 hours | **GPU**: ❌ NO | **Priority**: 🔴 **Critical**
+
+**Problem**: Most "alpha" is leakage in disguise. Need automated tests that prove no label look-ahead, no future-touching features, and proper data snooping corrections.
+
+- [ ] **Build purged/embargoed fold validator** (8 hours)
+  - Ensure no overlap between train/test with temporal gaps
+  - Implement purge gap (before test) and embargo gap (after test)
+  - **Location**: `src/validation/leakage_firewall.py`
+  - **Acceptance**: Purged/embargoed fold test passes for all CV splits
+
+- [ ] **Create feature timestamp auditor** (8 hours)
+  - Prove all features are causal (feature_ts < label_ts - min_gap)
+  - Audit all feature engineering pipelines
+  - **Acceptance**: Feature timestamp audit proves all features causal
+
+- [ ] **Implement synthetic leakage injection test** (8 hours)
+  - Deliberately inject leakage (e.g., add future label as feature)
+  - Verify tests catch it (performance should inflate suspiciously)
+  - This is a meta-test: proves the leakage detection works
+  - **Acceptance**: Synthetic injection test correctly detects injected leakage
+
+- [ ] **Add CI gate for leakage** (4 hours)
+  - Fail builds if any leakage test fails
+  - Even if performance looks great, reject if leakage detected
+  - **Location**: `tests/validation/test_leakage_ci_gate.py`
+  - **Acceptance**: CI fails if any leakage test fails
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test purged fold validation
+  - Test causality auditing
+  - Test synthetic injection detection
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Run leakage tests before training (`mlops/train.py`)
+- Add leakage tests to CI pipeline (`tests/validation/`)
+- Add leakage gate to PR checks (`.github/workflows/`)
+
+**Acceptance Criteria**:
+- ✅ Purged/embargoed fold test passes for all CV splits
+- ✅ Feature timestamp audit proves all features causal
+- ✅ Synthetic injection test correctly detects injected leakage
+- ✅ CI fails if any leakage test fails (even if performance looks great)
+
+---
+
 ### Phase 1: Data Foundation (Weeks 1-4)
 
 **Goal**: Establish real-time data infrastructure for live trading
@@ -766,6 +922,271 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
 
 ---
 
+
+#### 2.4 CSCV/DSR Statistical Validation
+
+**Effort**: 40-60 hours | **GPU**: ❌ NO | **Priority**: 🔴 **Critical** (after Phase 0)
+
+**Problem**: Without statistical validation, evolution layer breeds overfitted strategies.
+
+- [ ] **Implement CSCV (Combinatorially Symmetric Cross-Validation)** (16 hours)
+  - Generate purged, embargoed K-fold splits
+  - Configurable purge and embargo gaps
+  - **Location**: `src/validation/cscv.py`
+  - **Acceptance**: CSCV generates K purged/embargoed folds with configurable gaps
+
+- [ ] **Build DSR (Deflated Sharpe Ratio) calculator** (12 hours)
+  - Adjust Sharpe for number of strategies tested
+  - Formula: DSR = Sharpe / sqrt(1 + (N-1) * avg_correlation)
+  - Account for multiple testing
+  - **Location**: `src/validation/deflated_sharpe.py`
+  - **Acceptance**: DSR calculated correctly (accounts for multiple testing)
+
+- [ ] **Add multiple testing correction** (8 hours)
+  - Implement Bonferroni, Holm, Benjamini-Hochberg
+  - Formula: p_adjusted = p_value * N_tests (Bonferroni)
+  - **Acceptance**: Multiple testing corrections applied
+
+- [ ] **Create CI promotion gate** (8 hours)
+  - Strategies must pass DSR threshold to be promoted (e.g., DSR >1.5)
+  - Fail builds if DSR too low
+  - **Location**: `src/validation/promotion_gate.py`
+  - **Acceptance**: CI gate rejects strategies with DSR < threshold
+
+- [ ] **Build validation report generator** (8 hours)
+  - Detailed statistical report for each strategy
+  - Show: Sharpe, DSR, p-value, multiple testing correction
+  - **Acceptance**: Validation report shows all key metrics
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test CSCV fold generation
+  - Test DSR calculation
+  - Test promotion gate logic
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Add to training pipeline (`mlops/train.py`)
+- Add to CI/CD promotion checks
+- Integrate with evolution layer
+
+**Acceptance Criteria**:
+- ✅ CSCV generates K purged/embargoed folds with configurable gaps
+- ✅ DSR calculated correctly (accounts for multiple testing)
+- ✅ CI gate rejects strategies with DSR < threshold (e.g., 1.5)
+- ✅ Validation report shows: Sharpe, DSR, p-value, multiple testing correction
+
+---
+
+#### 2.5 Complete Impact-Aware Execution
+
+**Effort**: 24-40 hours | **GPU**: ❌ NO | **Priority**: 🟡 **High** (before live trading)
+
+**Problem**: Without impact modeling, large orders move prices against you, bleeding alpha.
+
+- [ ] **Verify Almgren-Chriss implementation** (4 hours)
+  - Check `src/trading/execution/market_impact_model.py` exists and works
+  - Check `src/trading/execution/almgren_chriss.py` exists and works
+  - **Acceptance**: Almgren-Chriss model calculates optimal execution trajectory
+
+- [ ] **Build alpha half-life estimator** (12 hours)
+  - Estimate how quickly alpha decays from historical signal decay
+  - Fit exponential decay model to past signals
+  - **Location**: `src/trading/execution/alpha_half_life.py`
+  - **Acceptance**: Alpha half-life estimated from historical signal decay
+
+- [ ] **Implement order scheduler** (16 hours)
+  - TWAP (Time-Weighted Average Price)
+  - VWAP (Volume-Weighted Average Price)
+  - IS (Implementation Shortfall)
+  - **Location**: `src/trading/execution/order_scheduler.py`
+  - **Acceptance**: TWAP/VWAP/IS schedulers implemented
+
+- [ ] **Create execution strategy selector** (8 hours)
+  - Choose optimal schedule per trade based on alpha half-life
+  - Fast alpha → IS, slow alpha → VWAP, medium → TWAP
+  - **Acceptance**: Scheduler selection logic implemented
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test alpha half-life estimation
+  - Test all schedulers (TWAP/VWAP/IS)
+  - Test strategy selection logic
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Integrate with execution layer (`src/trading/execution/`)
+- Connect to order router
+- Feed telemetry back to calibration loop
+
+**Acceptance Criteria**:
+- ✅ Almgren-Chriss model calculates optimal execution trajectory
+- ✅ Alpha half-life estimated from historical signal decay
+- ✅ TWAP/VWAP/IS schedulers implemented
+- ✅ Scheduler selection: fast alpha → IS, slow alpha → VWAP, medium → TWAP
+
+---
+
+#### 2.6 Operational Validation (Shadow Mode & Consistency)
+
+**Effort**: 72-112 hours | **GPU**: ❌ NO | **Priority**: 🔴 **Critical** (before live trading)
+
+**Problem**: Strategies that work in backtest often fail in live trading.
+
+##### 2.6.1 Shadow-Mode → Canary → Promotion Lifecycle (32-48h)
+
+**State machine**: IDEA → BACKTESTED → CSCV/DSR-PASSED → SHADOW-LIVE → CANARY → PROMOTED → MONITORED → QUARANTINED/RETIRED
+
+- [ ] **Build strategy lifecycle state machine** (12 hours)
+  - Track state transitions for each strategy
+  - Enforce state progression rules
+  - **Location**: `src/governance/strategy_lifecycle.py`
+  - **Acceptance**: Strategies can only be promoted through state machine
+
+- [ ] **Create shadow trading engine** (16 hours)
+  - Run strategies in paper mode alongside live
+  - Track paper P&L without executing real trades
+  - **Location**: `src/trading/shadow_engine.py`
+  - **Acceptance**: Shadow mode runs for minimum 30 days before canary
+
+- [ ] **Implement canary capital allocator** (8 hours)
+  - Start with tiny capital (e.g., 1% of target)
+  - Gradually increase if performance holds
+  - **Acceptance**: Canary starts with <5% of target capital
+
+- [ ] **Add automatic rollback rules** (8 hours)
+  - Demote if drawdown/latency/impact breaches thresholds
+  - **Location**: `src/governance/promotion_rules.py`
+  - **Acceptance**: Automatic demotion if thresholds breached
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test state machine transitions
+  - Test shadow engine
+  - Test rollback logic
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+##### 2.6.2 Paper↔Live Consistency SLO (16-24h)
+
+**Formula**: `Consistency = |live P&L - paper P&L (costed)| / turnover`
+
+- [ ] **Build consistency calculator** (8 hours)
+  - Compute consistency score for each strategy
+  - Formula: |live - paper| / turnover
+  - **Location**: `src/validation/consistency_slo.py`
+  - **Acceptance**: Consistency calculated daily for all strategies
+
+- [ ] **Create rolling window tracker** (6 hours)
+  - Track 30-day and 90-day consistency
+  - **Acceptance**: Rolling windows tracked
+
+- [ ] **Add promotion gate** (4 hours)
+  - Require consistency >threshold for promotion (e.g., <0.1)
+  - **Acceptance**: Promotion requires 30-day consistency <0.1
+
+- [ ] **Implement divergence alarm** (4 hours)
+  - Trigger forensics if consistency drifts (e.g., >0.2)
+  - **Location**: `src/operations/monitoring/consistency_monitor.py`
+  - **Acceptance**: Alarm if consistency >0.2
+
+- [ ] **Write comprehensive tests** (4 hours)
+  - Test consistency calculation
+  - Test rolling windows
+  - Test alarm triggers
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+##### 2.6.3 Truthful P&L & Cost Accounting (24-40h)
+
+- [ ] **Implement broker-accurate P&L** (12 hours)
+  - Include spreads, commissions, swaps, funding, dividends, FX conversions
+  - **Location**: `src/trading/accounting/truthful_pnl.py`
+  - **Acceptance**: P&L matches broker statements within 0.1%
+
+- [ ] **Build nightly reconciliation** (8 hours)
+  - Compare internal P&L to broker statements
+  - Alert on discrepancies
+  - **Location**: `src/trading/accounting/reconciliation.py`
+  - **Acceptance**: Nightly reconciliation runs automatically
+
+- [ ] **Create Implementation Shortfall tracker** (12 hours)
+  - Signal vs. realized by venue/instrument/strategy
+  - **Location**: `src/trading/accounting/implementation_shortfall.py`
+  - **Acceptance**: Implementation Shortfall reported per strategy
+
+- [ ] **Add cost attribution** (8 hours)
+  - Which strategies pay most in costs?
+  - Dashboard showing cost efficiency
+  - **Acceptance**: Cost attribution dashboard implemented
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test P&L calculation
+  - Test reconciliation logic
+  - Test shortfall tracking
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Integrate with broker APIs for statement downloads
+- Connect to accounting system
+- Feed data to governance dashboards
+
+**Acceptance Criteria**:
+- ✅ Strategies can only be promoted through state machine
+- ✅ Shadow mode runs for minimum 30 days before canary
+- ✅ Canary starts with <5% of target capital
+- ✅ Automatic demotion if: drawdown >threshold, latency >threshold, consistency <threshold
+- ✅ Consistency calculated daily for all strategies
+- ✅ Promotion requires 30-day consistency <0.1 (10% of turnover)
+- ✅ Alarm if consistency >0.2 (investigate immediately)
+- ✅ P&L matches broker statements within 0.1%
+- ✅ All costs tracked: spreads, commissions, swaps, funding, FX
+- ✅ Implementation Shortfall reported per strategy
+- ✅ Cost attribution dashboard shows which strategies are cost-efficient
+
+---
+
+### Phase 3.9: Formal Regime Routing & Capital Allocation
+
+**Priority**: 🟡 **High** - Transforms regime detection into action
+
+**Effort**: 32-48 hours | **GPU**: ❌ NO
+
+**Problem**: You detect regimes but don't act on them. Need to allocate capital and suspend/promote strategies based on regime.
+
+- [ ] **Create regime-strategy compatibility matrix** (8 hours)
+  - Define which strategies work in which regimes
+  - YAML configuration file
+  - **Location**: `config/regime_strategy_matrix.yaml`
+  - **Acceptance**: Compatibility matrix defines which strategies run in which regimes
+
+- [ ] **Build capital allocation by regime** (12 hours)
+  - Risk budgets per regime (e.g., crisis: 20%, bull: 80%)
+  - Automatic adjustment on regime change
+  - **Location**: `src/trading/capital_allocator.py`
+  - **Acceptance**: Capital allocation adjusts automatically on regime change
+
+- [ ] **Implement dynamic strategy suspension/promotion** (8 hours)
+  - Automatic based on current regime
+  - Suspend strategies when regime is hostile
+  - **Location**: `src/thinking/regime_router.py`
+  - **Acceptance**: Strategies suspended when regime is hostile
+
+- [ ] **Add hysteresis & cooldown** (4 hours)
+  - Prevent thrashing between regimes
+  - Require 2+ consecutive detections before regime change
+  - **Acceptance**: Hysteresis prevents regime thrashing
+
+- [ ] **Integrate with evolution layer** (4 hours)
+  - Breed regime-specific strategies
+  - Tag strategies with regime affinity
+  - **Acceptance**: Evolution breeds regime-specific strategies
+
+- [ ] **Write comprehensive tests** (4 hours)
+  - Test compatibility matrix loading
+  - Test capital allocation logic
+  - Test suspension/promotion
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Integration Points**:
+- Connect to regime detector (`src/sensory/when/regime_detector.py`)
+- Integrate with capital allocator
+- Feed into strategy lifecycle
 ### Phase 3: Learning Pipeline (Weeks 9-12)
 
 **Goal**: Enable autonomous learning and continuous improvement
@@ -3024,6 +3445,417 @@ This roadmap provides a comprehensive, actionable path to production readiness. 
 ✅ **Measurable ROI** - Clear metrics for each (convergence, PnL, adaptation time, insights)  
 ✅ **Philosophically aligned** - Your system is already Markovian (BeliefState, RegimeFSM, MuZeroLite, HMM)  
 ✅ **Delethink principle adapted** - Same core insight (Markovian chunking) applied to trading domain  
+
+---
+
+
+**Acceptance Criteria**:
+- ✅ Compatibility matrix defines which strategies run in which regimes
+- ✅ Capital allocation adjusts automatically on regime change
+- ✅ Strategies suspended when regime is hostile
+- ✅ Hysteresis prevents regime thrashing (require 2+ consecutive detections)
+- ✅ Backtests show aggregate drawdown reduction vs. regime-agnostic baseline
+
+---
+
+### Phase 3.10: Advanced Enhancements
+
+**Priority**: 🟡 **High** - Implement after Phase 0-3.9
+
+**Total effort**: 240-380 hours
+
+#### 3.10.1 Bayesian Strategy Health with Capital as Posterior (40-60h)
+
+**Objective**: Allocate capital proportional to Bayesian health score
+
+- [ ] **Build Bayesian health score calculator** (16 hours)
+  - Posterior mean of expected risk-adjusted return
+  - Inputs: DSR, live slippage/impact error, drawdown state, alpha half-life mismatch, regime fit
+  - **Location**: `src/trading/bayesian_health.py`
+  - **Acceptance**: Health score updated daily with Bayesian inference
+
+- [ ] **Implement online updating** (12 hours)
+  - Update health score with each new trade/day
+  - Bayesian posterior update
+  - **Acceptance**: Health score updates online
+
+- [ ] **Create capital allocator based on posterior** (12 hours)
+  - Allocate capital proportional to health score
+  - **Location**: `src/trading/capital_allocator_bayesian.py`
+  - **Acceptance**: Capital allocation proportional to posterior mean
+
+- [ ] **Add automatic decay** (8 hours)
+  - Capital decays as evidence decays
+  - **Acceptance**: Strategies with declining evidence get automatic capital reduction
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test health score calculation
+  - Test online updates
+  - Test capital allocation
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Health score updated daily with Bayesian inference
+- ✅ Capital allocation proportional to posterior mean
+- ✅ Strategies with declining evidence get automatic capital reduction
+- ✅ Prior elicitation based on backtest DSR
+
+---
+
+#### 3.10.2 Genealogy + Diversity as Evolution Objective (32-48h)
+
+**Objective**: Prevent population collapse into similar strategies
+
+- [ ] **Build strategy genealogy tracker** (12 hours)
+  - Family tree of evolved strategies
+  - Track parent-child relationships
+  - **Location**: `src/evolution/genealogy.py`
+  - **Acceptance**: Genealogy tracks parent-child relationships
+
+- [ ] **Implement diversity metrics** (12 hours)
+  - Feature overlap, signal correlation, trade timestamp overlap, regime affinity
+  - **Location**: `src/evolution/diversity_metrics.py`
+  - **Acceptance**: Diversity score calculated for each strategy
+
+- [ ] **Add diversity to NSGA-II objectives** (12 hours)
+  - Multi-objective optimization: return, drawdown, capacity, **diversity**
+  - Update `src/evolution/nsga2.py`
+  - **Acceptance**: NSGA-II optimizes diversity alongside other objectives
+
+- [ ] **Create population diversity monitor** (4 hours)
+  - Alert if population becomes too similar
+  - **Acceptance**: Alert when population diversity drops
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test genealogy tracking
+  - Test diversity metrics
+  - Test NSGA-II integration
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Genealogy tracks parent-child relationships
+- ✅ Diversity score calculated for each strategy
+- ✅ NSGA-II optimizes: return, drawdown, capacity, **diversity**
+- ✅ Evolution prevents population collapse into similar strategies
+
+---
+
+#### 3.10.3 Regime Transition Early-Warning (32-48h)
+
+**Objective**: Detect regime shifts before they happen
+
+- [ ] **Implement BOCPD/CUSUM change-point detector** (16 hours)
+  - Emits probability of regime shift within N bars
+  - **Location**: `src/sensory/when/transition_warning.py`
+  - **Acceptance**: Transition probability emitted every bar
+
+- [ ] **Build transition probability tracker** (8 hours)
+  - Rolling window of transition odds
+  - **Acceptance**: Transition odds tracked
+
+- [ ] **Create pre-emptive de-risking** (12 hours)
+  - Reduce leverage when transition odds spike
+  - **Location**: `src/trading/preemptive_derisking.py`
+  - **Acceptance**: Pre-emptive de-risking triggers when P(transition) >threshold
+
+- [ ] **Add hysteresis** (4 hours)
+  - Prevent false alarm thrashing
+  - **Acceptance**: Hysteresis prevents false alarms
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test change-point detection
+  - Test de-risking logic
+  - Test hysteresis
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Transition probability emitted every bar
+- ✅ Pre-emptive de-risking triggers when P(transition) >threshold
+- ✅ Hysteresis prevents false alarm thrashing
+- ✅ Backtests show improved regime transition performance
+
+---
+
+#### 3.10.4 Execution Telemetry & Calibration Loop (40-60h)
+
+**Objective**: Make impact models self-correcting
+
+- [ ] **Build per-order telemetry** (16 hours)
+  - Queue position, slippage vs. arrival, fill variance, latency (ingress→decision→send→ack→fill)
+  - **Location**: `src/trading/execution/telemetry.py`
+  - **Acceptance**: All orders emit telemetry
+
+- [ ] **Implement weekly impact model re-fit** (16 hours)
+  - Update Almgren-Chriss parameters from telemetry
+  - **Location**: `src/trading/execution/calibration_loop.py`
+  - **Acceptance**: Impact model parameters re-fit weekly from telemetry
+
+- [ ] **Create A/B routing experiments** (12 hours)
+  - Test model updates with shadow orders
+  - **Acceptance**: A/B testing validates model updates before deployment
+
+- [ ] **Build execution quality dashboard** (12 hours)
+  - Real-time visualization of slippage, latency, fill rates
+  - **Location**: `src/operations/dashboards/execution_quality.py`
+  - **Acceptance**: Execution quality dashboard implemented
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test telemetry collection
+  - Test calibration loop
+  - Test A/B testing
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ All orders emit telemetry (slippage, latency, fill quality)
+- ✅ Impact model parameters re-fit weekly from telemetry
+- ✅ A/B testing validates model updates before deployment
+- ✅ Execution quality dashboard shows slippage, latency, fill rates
+
+---
+
+#### 3.10.5 Execution Shortfall Budgeting (24-32h)
+
+**Objective**: Control execution costs per strategy
+
+- [ ] **Assign shortfall budget per strategy** (8 hours)
+  - Bps budget per notional (e.g., 5 bps per trade)
+  - **Location**: `src/trading/execution/shortfall_budget.py`
+  - **Acceptance**: Each strategy has shortfall budget
+
+- [ ] **Implement budget enforcement** (8 hours)
+  - Throttle or switch scheduler if budget over-runs
+  - **Acceptance**: Router throttles or switches schedule if budget exceeded
+
+- [ ] **Add weekly calibration** (6 hours)
+  - Adjust budgets based on execution telemetry
+  - **Acceptance**: Budgets re-calibrated weekly from telemetry
+
+- [ ] **Create shortfall attribution** (6 hours)
+  - Which strategies consume most budget?
+  - **Location**: `src/trading/accounting/shortfall_attribution.py`
+  - **Acceptance**: Shortfall-adjusted Sharpe ranks strategies
+
+- [ ] **Write comprehensive tests** (6 hours)
+  - Test budget assignment
+  - Test enforcement logic
+  - Test calibration
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Each strategy has shortfall budget (e.g., 5 bps per trade)
+- ✅ Router throttles or switches schedule if budget exceeded
+- ✅ Budgets re-calibrated weekly from telemetry
+- ✅ Shortfall-adjusted Sharpe ranks strategies by after-cost performance
+
+---
+
+#### 3.10.6 Population Stability & Drift Alarms (32-48h)
+
+**Objective**: Detect when strategies are decaying
+
+- [ ] **Implement drift detection** (16 hours)
+  - PSI/KS/Wasserstein on feature distributions
+  - **Location**: `src/validation/drift_detection.py`
+  - **Acceptance**: Drift detection runs daily on feature distributions
+
+- [ ] **Build label drift sentinel** (8 hours)
+  - Detect if realized edge is changing
+  - **Acceptance**: Label drift detected via realized edge tracking
+
+- [ ] **Add automatic response** (12 hours)
+  - Reduce size, refresh models, or spin evolutionary "rescue" child
+  - **Location**: `src/evolution/rescue_child.py`
+  - **Acceptance**: Automatic size reduction on drift breach
+
+- [ ] **Create drift dashboard** (8 hours)
+  - Visualize feature distributions over time
+  - **Location**: `src/operations/monitoring/drift_monitor.py`
+  - **Acceptance**: Drift dashboard visualizes distributions
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test drift detection
+  - Test automatic response
+  - Test rescue child spawning
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Drift detection runs daily on feature distributions
+- ✅ Label drift detected via realized edge tracking
+- ✅ Automatic size reduction on drift breach
+- ✅ Evolutionary "rescue" child spawned for new regime
+
+---
+
+#### 3.10.7 Capacity & Crowding Curves as Deploy Artifacts (24-32h)
+
+**Objective**: Know when strategies are saturated
+
+- [ ] **Build capacity curve generator** (12 hours)
+  - PnL vs. capital and PnL vs. turnover curves
+  - **Location**: `src/trading/capacity_curves.py`
+  - **Acceptance**: Capacity curves generated during backtesting
+
+- [ ] **Implement deploy-time artifact storage** (6 hours)
+  - Store curves with each strategy version
+  - **Acceptance**: Curves stored as deploy-time artifacts
+
+- [ ] **Create runtime allocator** (10 hours)
+  - Read curves and keep portfolio on efficient frontier
+  - **Location**: `src/trading/capacity_aware_allocator.py`
+  - **Acceptance**: Allocator reads curves at runtime
+
+- [ ] **Add diminishing returns alarm** (4 hours)
+  - Alert when pushing past capacity knee
+  - **Acceptance**: Alarm when strategy pushed past capacity knee
+
+- [ ] **Write comprehensive tests** (6 hours)
+  - Test curve generation
+  - Test artifact storage
+  - Test allocator logic
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Capacity curves generated during backtesting
+- ✅ Curves stored as deploy-time artifacts
+- ✅ Allocator reads curves at runtime
+- ✅ Alarm when strategy pushed past capacity knee
+
+---
+
+#### 3.10.8 Regime-Specific Stress Packs (24-40h)
+
+**Objective**: Test strategies under extreme scenarios
+
+- [ ] **Build stress scenario library** (12 hours)
+  - Pre-baked disasters (melt-up→crisis flip, illiquid gaps, LP pullbacks)
+  - **Location**: `src/simulation/stress_scenarios.py`
+  - **Acceptance**: Stress scenario library with 10+ disasters
+
+- [ ] **Implement historical crisis replay** (12 hours)
+  - 2008, 2010 flash crash, 2020 COVID, 2022 FTX
+  - **Location**: `src/simulation/historical_crises.py`
+  - **Acceptance**: Historical crisis replay implemented
+
+- [ ] **Create synthetic crisis generation** (12 hours)
+  - Monte Carlo regime transitions
+  - **Acceptance**: Synthetic crisis generation creates extreme scenarios
+
+- [ ] **Add kill-switch validation** (6 hours)
+  - Prove kill-switches trigger at right thresholds
+  - **Location**: `tests/risk/test_killswitch_validation.py`
+  - **Acceptance**: Kill-switches validated to trigger exactly when intended
+
+- [ ] **Write comprehensive tests** (6 hours)
+  - Test stress scenarios
+  - Test historical replays
+  - Test synthetic generation
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Stress scenario library with 10+ regime-specific disasters
+- ✅ Historical crisis replay shows how EMP would perform
+- ✅ Synthetic crisis generation creates extreme scenarios
+- ✅ Kill-switches validated to trigger exactly when intended
+
+---
+
+#### 3.10.9 Portfolio-Level Objectives (32-48h)
+
+**Objective**: Optimize portfolio, not just individual strategies
+
+- [ ] **Build multi-objective optimizer** (16 hours)
+  - Optimize Sortino, Calmar, UPR (not just Sharpe)
+  - **Location**: `src/trading/portfolio_optimizer.py`
+  - **Acceptance**: Portfolio optimized for Sortino/Calmar/UPR
+
+- [ ] **Add correlation constraints** (8 hours)
+  - Penalize strategies with high correlation
+  - **Acceptance**: Correlation constraints prevent crowding
+
+- [ ] **Implement capacity constraints** (8 hours)
+  - Don't over-allocate to saturated strategies
+  - **Acceptance**: Capacity constraints respected
+
+- [ ] **Create tail risk contribution** (12 hours)
+  - Identify strategies contributing most to portfolio tail risk
+  - **Location**: `src/risk/tail_risk_contribution.py`
+  - **Acceptance**: Tail risk contribution calculated per strategy
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test multi-objective optimization
+  - Test constraints
+  - Test tail risk calculation
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ Portfolio optimized for Sortino/Calmar/UPR (not just Sharpe)
+- ✅ Correlation constraints prevent crowding
+- ✅ Capacity constraints respected
+- ✅ Tail risk contribution calculated per strategy
+
+---
+
+#### 3.10.10 Compliance, Secrets, and Tamper-Evidence (24-40h)
+
+**Objective**: Institutional-grade governance
+
+- [ ] **Implement key rotation** (12 hours)
+  - Automatic rotation of API keys and credentials every 90 days
+  - **Location**: `src/governance/secrets_manager.py`
+  - **Acceptance**: API keys rotated automatically every 90 days
+
+- [ ] **Create scoped credentials** (8 hours)
+  - Least-privilege access per component
+  - **Acceptance**: Each component has scoped credentials
+
+- [ ] **Build tamper-evident audit chains** (12 hours)
+  - Hash-chained logs (append-only)
+  - **Location**: `src/governance/tamper_evident_log.py`
+  - **Acceptance**: Audit logs are hash-chained (tamper-evident)
+
+- [ ] **Add policy checks in CI** (8 hours)
+  - Fail builds if touching live accounts without approval
+  - **Location**: `.github/workflows/policy_check.yml`
+  - **Acceptance**: CI fails if code touches live accounts without policy approval
+
+- [ ] **Write comprehensive tests** (8 hours)
+  - Test key rotation
+  - Test scoped credentials
+  - Test tamper-evident logs
+  - **Acceptance**: 90%+ test coverage, all tests passing
+
+**Acceptance Criteria**:
+- ✅ API keys rotated automatically every 90 days
+- ✅ Each component has scoped credentials (least privilege)
+- ✅ Audit logs are hash-chained (tamper-evident)
+- ✅ CI fails if code touches live accounts without policy approval
+
+---
+
+#### 3.10.11 Strategic Niche Documentation (2-4h)
+
+**Objective**: Document strategic focus
+
+- [ ] **Document target niche** (2 hours)
+  - "FX/CFD, mid-frequency, event-driven, 5-minute to 4-hour horizon"
+  - Rationale: Information-rich, exploitable structure, limited infrastructure arms race
+  - **Location**: `README.md` (add "Strategic Focus" section)
+  - **Acceptance**: README has clear "Strategic Focus" section
+
+- [ ] **Define success metrics** (1 hour)
+  - Sharpe >2.0, capacity >$1M, consistency <0.1
+  - **Acceptance**: Success metrics defined
+
+- [ ] **Document expansion criteria** (1 hour)
+  - "Dominate FX before expanding to equities"
+  - **Location**: `docs/strategy/niche_focus.md`
+  - **Acceptance**: Expansion criteria explicit
+
+**Acceptance Criteria**:
+- ✅ README has clear "Strategic Focus" section
+- ✅ Niche constraints documented (instruments, timeframes, strategy types)
+- ✅ Success metrics defined
+- ✅ Expansion criteria explicit
 
 ---
 

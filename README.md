@@ -78,53 +78,132 @@ The project follows a **truth-first development philosophy**: all claims are bac
 
 ---
 
-## Roadmap: Next 3 Sprints
+## Roadmap: 3-Week Execution Slice
 
-### Sprint A — Validation Infrastructure (Weeks 1-4)
+> **Configuration Reference**: All validation gates, thresholds, and SLOs are centralized in [`emp_validation.yml`](emp_validation.yml) - the single source of truth for both CI and runtime.
 
-**Goal**: Implement statistical validation gates to prevent overfitting
+### Week 1 (Critical): Scientific Honesty Foundation
+
+**Goal**: Land truthful-metrics pack + cloc badge + unified thresholds + timestamp hygiene
 
 **Tasks**:
-- [ ] Wire CSCV (Combinatorially Symmetric Cross-Validation) with purged/embargoed folds
-- [ ] Implement DSR (Deflated Sharpe Ratio) calculator with multiple testing correction
-- [ ] Add CI promotion gate: fail builds if DSR < 1.5 threshold
-- [ ] Create validation report generator
+- [ ] **Truthful-Metrics Pack** (40-80 hours)
+  - Implement CSCV (Combinatorially Symmetric Cross-Validation) with purging and embargo
+  - Implement DSR (Deflated Sharpe Ratio) with multiple testing correction
+  - Implement PBO (Probability of Backtest Overfitting) calculator
+  - Add paper↔live SLO (Service Level Objective) monitoring
+  - Wire as PR-blocking CI gates
+  - **DoD**: `validation.yml` passing with CSCV≥1.0, DSR≥1.0, PBO≤0.50; README badge updated
 
-**Pass/Fail Gate**: CI rejects strategies with DSR below threshold; validation reports show Sharpe, DSR, p-value, and multiple testing correction
+- [ ] **CI cloc Script** (4-8 hours)
+  - Create reproducible LOC metrics by layer (excludes tests/vendor/generated)
+  - Publish badge in README
+  - **DoD**: Badge in README, `metrics.md` generated daily
+
+- [ ] **Timestamp Hygiene Tests** (8-16 hours)
+  - Assert monotonic timestamps in features/labels
+  - Check NTP skew < 100ms threshold
+  - Verify purge/embargo in CSCV
+  - **DoD**: Tests passing in CI, time leaks prevented
+
+**Total**: 52-104 hours  
+**Outcome**: **Truthful research** - CSCV/DSR/PBO gates prevent overfitting
 
 ---
 
-### Sprint B — Impact-Aware Execution (Weeks 5-8)
+### Week 2 (High): Execution Infrastructure
 
-**Goal**: Complete execution layer with cost-aware scheduling
+**Goal**: Ship impact-aware execution + execution telemetry
 
 **Tasks**:
-- [ ] Verify/complete Almgren-Chriss market impact model
-- [ ] Implement alpha half-life estimator from historical signal decay
-- [ ] Build TWAP/VWAP/IS (Implementation Shortfall) schedulers
-- [ ] Add execution strategy selector (fast alpha → IS, slow alpha → VWAP, medium → TWAP)
-- [ ] Create execution telemetry (slippage, latency, fill quality)
+- [ ] **Impact-Aware Execution Baseline** (80-120 hours)
+  - Implement Almgren-Chriss market impact model
+  - Implement square-root impact model (simpler, more robust)
+  - Build TWAP/VWAP/IS (Implementation Shortfall) schedulers
+  - Add execution strategy selector (fast alpha → IS, slow alpha → VWAP)
+  - **DoD**: Models implemented, tests passing, docs updated
 
-**Pass/Fail Gate**: Orders scheduled optimally based on alpha half-life; execution telemetry shows slippage vs. arrival, latency buckets, and shortfall attribution
+- [ ] **Execution Telemetry** (24-40 hours)
+  - Per-order shortfall vs. arrival price (bps)
+  - Latency tracking (order→fill time)
+  - Fill ratio, cancel/replace counts
+  - Schedule attribution (TWAP vs. VWAP vs. IS performance)
+  - **DoD**: Telemetry recording, analysis dashboard available
+
+**Total**: 104-160 hours  
+**Outcome**: **Cost-aware execution** - impact models minimize slippage
 
 ---
 
-### Sprint C — Regime-Aware Capital Allocation (Weeks 9-12)
+### Week 3 (High/Medium): Provenance + Adaptive Routing + Resilience
 
-**Goal**: Transform regime detection into automatic capital routing
+**Goal**: Enable run ledger with signatures + regime router + resilience CI
 
 **Tasks**:
-- [ ] Create regime-strategy compatibility matrix (YAML config)
-- [ ] Implement capital allocator with regime-specific risk budgets
-- [ ] Add dynamic strategy suspension/promotion based on current regime
-- [ ] Implement hysteresis to prevent regime thrashing (require 2+ consecutive detections)
-- [ ] Integrate with evolution layer to breed regime-specific strategies
+- [ ] **Run Ledger with Tamper-Evident Signatures** (24-40 hours)
+  - Add HMAC-SHA256 signatures to all run artifacts
+  - Store hash in ledger filename and JSON
+  - Implement verification API
+  - **DoD**: Ledger recording with signatures, audits can prove no tampering
 
-**Pass/Fail Gate**: Capital allocation adjusts automatically on regime change; strategies suspend when regime is hostile; backtests show aggregate drawdown reduction vs. regime-agnostic baseline
+- [ ] **Regime Router with Hysteresis** (40-60 hours)
+  - GMM (Gaussian Mixture Model) regime detection
+  - Compatibility matrix (strategies × regimes)
+  - Capacity limits (max 10% ADV per strategy)
+  - Crowding limits (max 0.7 correlation between strategies)
+  - Cooldown (24-hour minimum before re-enabling)
+  - **DoD**: Router active, telemetry showing regime switches and capital allocation
+
+- [ ] **Resilience CI Job** (24-40 hours)
+  - Chaos tests: vendor drop, volatility burst, partial fills, exchange halt
+  - Kill switch tests: drawdown, position size, latency triggers
+  - Wire as CI job named `resilience`
+  - **DoD**: `resilience.yml` passing, system handles failures gracefully
+
+**Total**: 88-140 hours  
+**Outcome**: **Adaptive capital routing** + **tamper-evident provenance** + **operational resilience**
 
 ---
 
-**After Sprint C**: System ready for extended paper trading validation (30-90 days) before considering live deployment with minimal capital.
+### After Week 3: Four Pillars of an Adult Quant System
+
+1. ✅ **Truthful research** - CSCV/DSR/PBO gates prevent overfitting
+2. ✅ **Cost-aware execution** - Impact models + telemetry minimize slippage
+3. ✅ **Adaptive capital routing** - Regime router with capacity/crowding limits
+4. ✅ **Tamper-evident provenance** - Run ledger with signatures for audits
+
+**Total effort**: 244-404 hours (30-50 hours/week)  
+**Next phase**: Extended paper trading validation (30-90 days) before considering live deployment
+
+---
+
+### Additional Improvements (Weeks 4-6)
+
+These are **high-leverage surgical improvements** that enhance the system's rigor:
+
+- [ ] **SLO Visualization** (8-16 hours)
+  - 30-day sparkline of paper↔live divergence
+  - Divergence and shortfall by venue
+  - **Benefit**: Morale + trust multiplier
+
+- [ ] **Data Contracts** (8-16 hours)
+  - Schema validation for all sensors (tick data, order book, OHLCV)
+  - Fail if upstream changes break contract
+  - **Benefit**: Prevents mystery drift
+
+- [ ] **RACI for Promotions** (16-24 hours)
+  - Author proposes → CI proves → Operator promotes
+  - Lightweight checklist (licensing, data entitlements, risk)
+  - **Benefit**: Institution-friendly governance
+
+- [ ] **Engine SLOs** (16-24 hours)
+  - Latency budgets: ingest→features (50ms), features→decision (100ms), decision→order (50ms)
+  - Error budget: max 0.1% errors
+  - Alerts when budget exceeded
+  - **Benefit**: Prevents alpha bleed from plumbing
+
+**Total additional**: 48-80 hours  
+**Outcome**: **Living promotion pipeline with guardrails**
 
 ---
 
@@ -469,6 +548,52 @@ These features would **improve functionality** but are not blocking:
 4. **Regulatory Reporting**
    - Current: Audit trails and decision diary
    - Needed: Formatted compliance reports
+
+---
+
+## Validation Configuration
+
+### emp_validation.yml - Single Source of Truth
+
+All validation gates, thresholds, and SLOs are centralized in [`emp_validation.yml`](emp_validation.yml). This configuration file is read by both CI and runtime to ensure docs and code never drift.
+
+**Key sections**:
+
+- **Metrics validation**: CSCV, DSR, PBO, paper↔live SLO thresholds
+- **Promotion gates**: RL execution, enhancement requirements
+- **Resilience testing**: Chaos scenarios, kill switch triggers
+- **Timestamp hygiene**: Monotonic checks, NTP skew limits
+- **Data contracts**: Sensor schemas with null tolerance
+- **Execution SLOs**: Latency budgets (ingest→features→decision→order)
+- **Regime router**: Participation caps (10% ADV), correlation limits (0.7)
+- **Bootstrap guardrails**: Tier-based cost limits
+- **Compliance**: RACI (Author proposes → CI proves → Operator promotes)
+- **Run ledger**: Tamper-evident signature requirements
+
+**Example usage in CI**:
+
+```yaml
+# .github/workflows/validation.yml
+- name: Run validation tests
+  run: |
+    pytest tests/validation/ --config=emp_validation.yml
+```
+
+**Example usage in code**:
+
+```python
+import yaml
+
+# Load config
+with open("emp_validation.yml") as f:
+    config = yaml.safe_load(f)
+
+# Check DSR threshold
+min_dsr = config["metrics"]["dsr"]["min"]  # 1.0
+assert dsr >= min_dsr, f"DSR {dsr} < {min_dsr}"
+```
+
+**Benefit**: Single source of truth prevents drift between documentation, CI gates, and runtime validation.
 
 ---
 
